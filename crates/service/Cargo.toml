@@ -1,0 +1,21 @@
+[package]
+name = "cfms-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CFMS background services, persistent state, and local filesystem scanning"
+
+[dependencies]
+cfms-core.workspace = true
+cfms-crypto.workspace = true
+cfms-transport.workspace = true
+cfms-transfer.workspace = true
+rusqlite.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+zeroize.workspace = true
+ignore = "0.4"
+tracing.workspace = true

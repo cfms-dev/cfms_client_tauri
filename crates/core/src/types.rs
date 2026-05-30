@@ -88,3 +88,153 @@ pub struct UploadProgress {
     /// Total file size in bytes.
     pub total: u64,
 }
+
+// ---------------------------------------------------------------------------
+// Download task status & DTO (used by cfms-service and Tauri IPC)
+// ---------------------------------------------------------------------------
+
+/// Status of a download task in the persistent queue state machine.
+///
+/// Mirrors the Python reference `DownloadTaskStatus` enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadTaskStatus {
+    /// Waiting to be picked up by the queue processor.
+    Pending,
+    /// Currently downloading encrypted chunks from the server.
+    Downloading,
+    /// Paused by the user (can be resumed).
+    Paused,
+    /// Decrypting received chunks and writing plaintext to disk.
+    Decrypting,
+    /// Verifying file integrity (size + SHA-256).
+    Verifying,
+    /// Download completed successfully.
+    Completed,
+    /// Download failed (retries exhausted or unrecoverable error).
+    Failed,
+    /// Cancelled by the user.
+    Cancelled,
+    /// Scheduled for a future time.
+    Scheduled,
+}
+
+impl DownloadTaskStatus {
+    /// Returns `true` if this status represents a terminal state.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+
+    /// Returns `true` if the task is currently in flight.
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Downloading | Self::Decrypting | Self::Verifying)
+    }
+}
+
+/// Serializable DTO for a download task, used for IPC with the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadTaskDto {
+    /// Server-assigned task identifier.
+    pub task_id: String,
+    /// Server-side file/document ID.
+    pub file_id: String,
+    /// Human-readable filename.
+    pub filename: String,
+    /// Local filesystem path where the file will be saved.
+    pub file_path: String,
+    /// Current status in the state machine.
+    pub status: DownloadTaskStatus,
+    /// Download progress as a fraction (0.0–1.0).
+    pub progress: f64,
+    /// Bytes downloaded / processed so far.
+    pub current_bytes: u64,
+    /// Total expected bytes (0 when unknown).
+    pub total_bytes: u64,
+    /// Error message if the task failed.
+    pub error: Option<String>,
+    /// Unix timestamp (seconds) when the task was created.
+    pub created_at: i64,
+    /// Unix timestamp (seconds) when the task started downloading.
+    pub started_at: Option<i64>,
+    /// Unix timestamp (seconds) when the task reached a terminal state.
+    pub completed_at: Option<i64>,
+    /// Priority (higher = more urgent). Default 0.
+    pub priority: i32,
+    /// Number of retry attempts so far.
+    pub retry_count: u32,
+    /// Maximum retry attempts before marking as Failed.
+    pub max_retries: u32,
+    /// If set, the task will not start before this Unix timestamp.
+    pub scheduled_time: Option<i64>,
+}
+
+// ---------------------------------------------------------------------------
+// Service events (pushed from backend → frontend via Tauri emit)
+// ---------------------------------------------------------------------------
+
+/// Events emitted by background services and forwarded to the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event", content = "data")]
+pub enum ServiceEvent {
+    /// A download's progress has changed.
+    DownloadProgress {
+        task_id: String,
+        phase: String,
+        current: u64,
+        total: u64,
+    },
+    /// A download has completed successfully.
+    DownloadCompleted {
+        task_id: String,
+        file_path: String,
+    },
+    /// A download has failed.
+    DownloadFailed {
+        task_id: String,
+        error: String,
+    },
+    /// A download was cancelled.
+    DownloadCancelled {
+        task_id: String,
+    },
+    /// Server lockdown status changed.
+    Lockdown {
+        status: bool,
+    },
+    /// The authentication token has expired.
+    TokenExpired,
+    /// A favorites validation cycle completed.
+    FavoritesValidationComplete {
+        invalid_count: u32,
+    },
+}
+
+// ---------------------------------------------------------------------------
+// Service status (for diagnostics)
+// ---------------------------------------------------------------------------
+
+/// Summary status of a single background service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceStatusInfo {
+    /// Service name (e.g. "token_refresh").
+    pub name: String,
+    /// Whether the service is currently running.
+    pub running: bool,
+}
+
+// ---------------------------------------------------------------------------
+// File scan entry
+// ---------------------------------------------------------------------------
+
+/// A single file or directory entry returned by the local disk scanner.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileEntry {
+    /// Absolute path to the entry.
+    pub path: String,
+    /// File size in bytes (0 for directories).
+    pub size: u64,
+    /// Whether this entry is a directory.
+    pub is_dir: bool,
+    /// Last modification time as a Unix timestamp (seconds).
+    pub modified: Option<i64>,
+}

@@ -18,10 +18,13 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 cfms-core.workspace = true
+cfms-service.workspace = true
 tauri.workspace = true
 tauri-plugin-opener = "2"
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 
 [features]
 default = ["custom-protocol"]

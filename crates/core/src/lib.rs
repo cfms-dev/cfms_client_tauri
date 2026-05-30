@@ -14,4 +14,7 @@ pub mod types;
 // Re-export the most commonly used items so downstream crates can write
 // `cfms_core::Error` instead of `cfms_core::error::Error`.
 pub use error::{Error, Result};
-pub use types::{DownloadPhase, DownloadProgress, FileMetadata, Response, UploadProgress};
+pub use types::{
+    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, FileEntry,
+    FileMetadata, Response, ServiceEvent, ServiceStatusInfo, UploadProgress,
+};
