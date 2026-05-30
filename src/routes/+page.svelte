@@ -1,156 +1,157 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  // CFMS Client — Dashboard / Home page
+  //
+  // Shows service health cards, quick stats, lockdown status,
+  // and a live activity feed from backend events.
 
-  let name = $state("");
-  let greetMsg = $state("");
+  import { onMount } from "svelte";
+  import { authStore, downloadStore, serviceStatusStore, eventLog } from "$lib/stores.svelte";
+  import {
+    getServiceStatus,
+    getDownloadTasks,
+    getAuthStatus,
+    cryptoInfo,
+    protocolVersion,
+  } from "$lib/api";
+  import ServiceStatus from "$lib/components/ServiceStatus.svelte";
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+  let cryptoInfoData = $state<{
+    kdf_iterations: number;
+    salt_len: number;
+    key_len: number;
+    nonce_len: number;
+    tag_len: number;
+  } | null>(null);
+
+  let protoVer = $state<number>(0);
+
+  onMount(async () => {
+    try {
+      const [status, tasks, auth, info, ver] = await Promise.all([
+        getServiceStatus(),
+        getDownloadTasks(),
+        getAuthStatus(),
+        cryptoInfo(),
+        protocolVersion(),
+      ]);
+      serviceStatusStore.setAll(status);
+      downloadStore.setAll(tasks);
+      authStore.apply(auth);
+      cryptoInfoData = info;
+      protoVer = ver;
+    } catch {
+      // Backend might still be initializing.
+    }
+  });
+
+  // Derived stats
+  const activeCount = $derived(downloadStore.activeTasks.length);
+  const completedCount = $derived(downloadStore.completedTasks.length);
+  const failedCount = $derived(downloadStore.failedTasks.length);
+  const totalCount = $derived(downloadStore.tasks.size);
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
-
-  <div class="row">
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://kit.svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
+<div class="p-6 space-y-6">
+  <!-- Page title -->
+  <div>
+    <h1 class="text-2xl font-bold">Dashboard</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      CFMS Client · Protocol v{protoVer}
+    </p>
   </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+  <!-- Stats cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Active Downloads</p>
+      <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{activeCount}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Completed</p>
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">{completedCount}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Failed</p>
+      <p class="text-2xl font-bold text-red-600 dark:text-red-400">{failedCount}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
+      <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{totalCount}</p>
+    </div>
+  </div>
 
-<style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
+  <!-- Two-column: Service status + Activity feed -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Service status -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+        Background Services
+      </h2>
+      <div class="space-y-2">
+        {#if serviceStatusStore.services.length > 0}
+          {#each serviceStatusStore.services as svc}
+            <ServiceStatus name={svc.name} running={svc.running} />
+          {/each}
+        {:else}
+          <p class="text-sm text-gray-400">No services registered.</p>
+        {/if}
+      </div>
+    </div>
 
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
+    <!-- Crypto info -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+        Cryptographic Parameters
+      </h2>
+      {#if cryptoInfoData}
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <span class="text-gray-500">KDF Iterations:</span>
+          <span class="font-mono">{cryptoInfoData.kdf_iterations.toLocaleString()}</span>
+          <span class="text-gray-500">Salt Length:</span>
+          <span class="font-mono">{cryptoInfoData.salt_len} bytes</span>
+          <span class="text-gray-500">Key Length:</span>
+          <span class="font-mono">{cryptoInfoData.key_len} bytes (AES-256)</span>
+          <span class="text-gray-500">Nonce Length:</span>
+          <span class="font-mono">{cryptoInfoData.nonce_len} bytes</span>
+          <span class="text-gray-500">Tag Length:</span>
+          <span class="font-mono">{cryptoInfoData.tag_len} bytes</span>
+        </div>
+      {:else}
+        <p class="text-sm text-gray-400">Loading…</p>
+      {/if}
+    </div>
+  </div>
 
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
-</style>
+  <!-- Activity feed -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+    <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+      Activity
+    </h2>
+    {#if eventLog.entries.length > 0}
+      <div class="space-y-1 max-h-48 overflow-y-auto">
+        {#each eventLog.entries as entry}
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-400 shrink-0 w-14 text-right">
+              {entry.time.toLocaleTimeString()}
+            </span>
+            <span
+              class="truncate"
+              class:text-green-600={entry.type === "success"}
+              class:text-red-600={entry.type === "error"}
+              class:text-yellow-600={entry.type === "warning"}
+              class:text-gray-600={entry.type === "info"}
+              class:dark:text-green-400={entry.type === "success"}
+              class:dark:text-red-400={entry.type === "error"}
+              class:dark:text-yellow-400={entry.type === "warning"}
+              class:dark:text-gray-400={entry.type === "info"}
+            >
+              {entry.text}
+            </span>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <p class="text-sm text-gray-400">No activity yet.</p>
+    {/if}
+  </div>
+</div>

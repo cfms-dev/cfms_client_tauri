@@ -545,7 +545,9 @@ name = "cfms-client-tauri"
 version = "0.1.0"
 dependencies = [
  "cfms-core",
+ "cfms-crypto",
  "cfms-service",
+ "cfms-transport",
  "serde",
  "serde_json",
  "tauri",

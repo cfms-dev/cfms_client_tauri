@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+ * CFMS Client — base styles
+ * --------------------------------------------------------------------------- */
+
+/* Custom scrollbar for the app — subtle and compact */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
+}
+
+/* Prevent text selection on UI chrome (sidebar, buttons, etc.) */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Progress bar stripe animation */
+@keyframes progressStripe {
+  0%   { background-position: 0 0; }
+  100% { background-position: 2rem 0; }
+}
+.progress-stripe {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255,255,255,0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 2rem 2rem;
+  animation: progressStripe 0.8s linear infinite;
+}

@@ -18,6 +18,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 cfms-core.workspace = true
+cfms-crypto.workspace = true
+cfms-transport.workspace = true
 cfms-service.workspace = true
 tauri.workspace = true
 tauri-plugin-opener = "2"

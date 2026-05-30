@@ -1,0 +1,246 @@
+// CFMS Client — Typed Tauri IPC bridge
+//
+// Every function here wraps `invoke()` from `@tauri-apps/api/core`.
+// The WebView MUST NOT perform direct file I/O or network requests —
+// all sensitive operations go through these wrappers → Rust backend.
+//
+// TypeScript types mirror the Rust structs in `cfms_core::types`.
+
+import { invoke } from "@tauri-apps/api/core";
+
+// ---------------------------------------------------------------------------
+// Enums (matching Rust repr)
+// ---------------------------------------------------------------------------
+
+export type DownloadTaskStatus =
+  | "pending"
+  | "downloading"
+  | "paused"
+  | "decrypting"
+  | "verifying"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "scheduled";
+
+export type DownloadPhase =
+  | "downloading"
+  | "decrypting"
+  | "cleaning"
+  | "verifying";
+
+// ---------------------------------------------------------------------------
+// DTOs (matching cfms_core::types)
+// ---------------------------------------------------------------------------
+
+export interface DownloadTaskDto {
+  task_id: string;
+  file_id: string;
+  filename: string;
+  file_path: string;
+  status: DownloadTaskStatus;
+  progress: number;
+  current_bytes: number;
+  total_bytes: number;
+  error: string | null;
+  created_at: number;
+  started_at: number | null;
+  completed_at: number | null;
+  priority: number;
+  retry_count: number;
+  max_retries: number;
+  scheduled_time: number | null;
+}
+
+export interface FileEntry {
+  path: string;
+  size: number;
+  is_dir: boolean;
+  modified: number | null;
+}
+
+export interface ServiceStatusInfo {
+  name: string;
+  running: boolean;
+}
+
+export interface FileMetadata {
+  file_size: number | null;
+  chunk_size: number;
+  total_chunks: number;
+}
+
+export interface DownloadProgress {
+  phase: DownloadPhase;
+  current: number;
+  total: number;
+}
+
+export interface UploadProgress {
+  current: number;
+  total: number;
+}
+
+// ---------------------------------------------------------------------------
+// Service Events (tagged union — cfms_core::ServiceEvent)
+// ---------------------------------------------------------------------------
+
+export type ServiceEvent =
+  | { event: "DownloadProgress"; data: { task_id: string; phase: string; current: number; total: number } }
+  | { event: "DownloadCompleted"; data: { task_id: string; file_path: string } }
+  | { event: "DownloadFailed"; data: { task_id: string; error: string } }
+  | { event: "DownloadCancelled"; data: { task_id: string } }
+  | { event: "Lockdown"; data: { status: boolean } }
+  | { event: "TokenExpired" }
+  | { event: "FavoritesValidationComplete"; data: { invalid_count: number } };
+
+// ---------------------------------------------------------------------------
+// Auth / Connection types
+// ---------------------------------------------------------------------------
+
+export interface AuthStatus {
+  username: string | null;
+  nickname: string | null;
+  has_token: boolean;
+  token_exp: number | null;
+  permissions: string[];
+  groups: string[];
+  connected: boolean;
+  server_address: string | null;
+  lockdown: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// IPC command wrappers
+// ---------------------------------------------------------------------------
+
+/** Ping the Rust backend. */
+export async function ping(): Promise<string> {
+  return invoke("ping");
+}
+
+/** Get the current protocol version. */
+export async function protocolVersion(): Promise<number> {
+  return invoke("protocol_version");
+}
+
+/** Get cryptographic constants (iterations, key lengths, etc.). */
+export async function cryptoInfo(): Promise<{
+  kdf_iterations: number;
+  salt_len: number;
+  key_len: number;
+  nonce_len: number;
+  tag_len: number;
+}> {
+  return invoke("crypto_info");
+}
+
+/** Get the running status of all background services. */
+export async function getServiceStatus(): Promise<ServiceStatusInfo[]> {
+  return invoke("get_service_status");
+}
+
+// ---------------------------------------------------------------------------
+// Auth / Connection
+// ---------------------------------------------------------------------------
+
+/** Log in with username + password. Derives KEK via PBKDF2 on the Rust side. */
+export async function login(
+  username: string,
+  password: string,
+): Promise<AuthStatus> {
+  return invoke("login", { username, password });
+}
+
+/** Log out — clears auth state and closes the connection. */
+export async function logout(): Promise<void> {
+  return invoke("logout");
+}
+
+/** Establish WSS connection to a CFMS server. */
+export async function connect(
+  url: string,
+  disableSslEnforcement: boolean,
+): Promise<void> {
+  return invoke("connect", {
+    url,
+    disableSslEnforcement,
+  });
+}
+
+/** Close the WSS connection. */
+export async function disconnect(): Promise<void> {
+  return invoke("disconnect");
+}
+
+/** Get the current authentication and connection status. */
+export async function getAuthStatus(): Promise<AuthStatus> {
+  return invoke("get_auth_status");
+}
+
+// ---------------------------------------------------------------------------
+// Download queue
+// ---------------------------------------------------------------------------
+
+/** Add a download task to the queue. */
+export async function addDownload(task: DownloadTaskDto): Promise<void> {
+  return invoke("add_download", { task });
+}
+
+/** Get download tasks, optionally filtered by status. */
+export async function getDownloadTasks(
+  statusFilter?: DownloadTaskStatus,
+): Promise<DownloadTaskDto[]> {
+  return invoke("get_download_tasks", { statusFilter: statusFilter ?? null });
+}
+
+/** Pause an in-progress download. */
+export async function pauseDownload(taskId: string): Promise<boolean> {
+  return invoke("pause_download", { taskId });
+}
+
+/** Resume a paused download. */
+export async function resumeDownload(taskId: string): Promise<boolean> {
+  return invoke("resume_download", { taskId });
+}
+
+/** Cancel a download task. */
+export async function cancelDownload(taskId: string): Promise<boolean> {
+  return invoke("cancel_download", { taskId });
+}
+
+/** Clear all completed and cancelled tasks. */
+export async function clearCompletedTasks(): Promise<number> {
+  return invoke("clear_completed_tasks");
+}
+
+/** Clear all failed tasks. */
+export async function clearFailedTasks(): Promise<number> {
+  return invoke("clear_failed_tasks");
+}
+
+// ---------------------------------------------------------------------------
+// File scanning
+// ---------------------------------------------------------------------------
+
+/** Scan a local directory recursively. */
+export async function scanDirectory(
+  path: string,
+  pattern?: string,
+): Promise<FileEntry[]> {
+  return invoke("scan_directory", { path, pattern: pattern ?? null });
+}
+
+// ---------------------------------------------------------------------------
+// User settings
+// ---------------------------------------------------------------------------
+
+/** Read a user setting by key. */
+export async function getSetting(key: string): Promise<string | null> {
+  return invoke("get_setting", { key });
+}
+
+/** Write a user setting. */
+export async function setSetting(key: string, value: string): Promise<void> {
+  return invoke("set_setting", { key, value });
+}

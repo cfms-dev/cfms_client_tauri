@@ -167,6 +167,11 @@ pub fn run() {
             commands::scan_directory,
             commands::get_setting,
             commands::set_setting,
+            commands::login,
+            commands::logout,
+            commands::connect,
+            commands::disconnect,
+            commands::get_auth_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
