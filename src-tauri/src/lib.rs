@@ -3,6 +3,7 @@
 //! Configures the Tauri runtime, initialises background services, sets up
 //! the persistent SQLite database, and registers all IPC commands.
 
+mod background;
 mod commands;
 
 use std::sync::Arc;
@@ -43,6 +44,10 @@ pub struct AppHandleState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_background_service::init_with_service(
+            background::CfmsBackgroundService::new,
+        ))
         .setup(|app| {
             // --- Determine application data directory ---
             let app_data_dir = app.path().app_data_dir().map_err(|e| {

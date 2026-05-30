@@ -57,6 +57,16 @@ pub struct AppState {
     pub event_tx: broadcast::Sender<ServiceEvent>,
 }
 
+/// Lightweight read-only snapshot of key application state, used by the
+/// background service heartbeat to communicate status to the frontend.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AppStateSnapshot {
+    pub authenticated: bool,
+    pub connected: bool,
+    pub lockdown: bool,
+    pub token_near_expiry: bool,
+}
+
 impl AppState {
     /// Create a new `AppState` with all fields in their default (empty) state.
     pub fn new() -> Arc<Self> {
@@ -75,5 +85,27 @@ impl AppState {
             app_lockdown: AtomicBool::new(false),
             event_tx,
         })
+    }
+
+    /// Return a cheap, read-only snapshot of the current application state.
+    /// Does not acquire any write locks.
+    pub fn snapshot_status(&self) -> AppStateSnapshot {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let token_near_expiry = self
+            .token_exp
+            .try_read()
+            .ok()
+            .and_then(|v| *v)
+            .map(|exp| exp - now < 300)
+            .unwrap_or(false);
+        AppStateSnapshot {
+            authenticated: self.token.try_read().map(|t| t.is_some()).unwrap_or(false),
+            connected: self.conn.try_read().map(|c| c.is_some()).unwrap_or(false),
+            lockdown: self.app_lockdown.load(std::sync::atomic::Ordering::Relaxed),
+            token_near_expiry,
+        }
     }
 }

@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile-background",
+  "description": "Capability for mobile background service and local notifications",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "notification:default",
+    "background-service:allow-start",
+    "background-service:allow-stop",
+    "background-service:allow-is-running",
+    "background-service:allow-get-service-state",
+    "background-service:allow-get-platform-capabilities",
+    "background-service:allow-enable-auto-restart",
+    "background-service:allow-disable-auto-restart",
+    "background-service:allow-get-desired-service-state",
+    "background-service:allow-validate-setup"
+  ]
+}
