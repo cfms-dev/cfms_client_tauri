@@ -1,0 +1,18 @@
+[package]
+name = "cfms-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cfms-core.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+webpki-roots.workspace = true
+tokio-socks.workspace = true
+futures-util.workspace = true
+tracing.workspace = true
+dashmap.workspace = true

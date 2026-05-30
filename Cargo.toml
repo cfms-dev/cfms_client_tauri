@@ -1,0 +1,77 @@
+[workspace]
+members = [
+    "src-tauri",
+    "crates/core",
+    "crates/crypto",
+    "crates/transport",
+    "crates/transfer",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/crpteam/cfms-client"
+
+[workspace.dependencies]
+# ---------------------------------------------------------------------------
+# Internal crates
+# ---------------------------------------------------------------------------
+cfms-core = { path = "crates/core" }
+cfms-crypto = { path = "crates/crypto" }
+cfms-transport = { path = "crates/transport" }
+
+# ---------------------------------------------------------------------------
+# Serialization
+# ---------------------------------------------------------------------------
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+thiserror = "1"
+
+# ---------------------------------------------------------------------------
+# Cryptography
+# ---------------------------------------------------------------------------
+aes-gcm = "0.10"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.8"
+zeroize = { version = "1", features = ["derive"] }
+base64ct = { version = "1", features = ["alloc"] }
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# ---------------------------------------------------------------------------
+# File I/O
+# ---------------------------------------------------------------------------
+memmap2 = "0.9"
+tempfile = "3"
+
+# ---------------------------------------------------------------------------
+# Async runtime & networking
+# ---------------------------------------------------------------------------
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = [
+    "connect",
+    "rustls-tls-webpki-roots",
+] }
+rustls = "0.23"
+rustls-pemfile = "2"
+webpki-roots = "0.26"
+tokio-socks = "0.5"
+futures-util = "0.3"
+tracing = "0.1"
+dashmap = "5"
+
+# ---------------------------------------------------------------------------
+# Tauri
+# ---------------------------------------------------------------------------
+tauri = { version = "2", features = [] }

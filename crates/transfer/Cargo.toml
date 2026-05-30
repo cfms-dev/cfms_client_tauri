@@ -1,0 +1,19 @@
+[package]
+name = "cfms-transfer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cfms-core.workspace = true
+cfms-crypto.workspace = true
+cfms-transport.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+base64ct.workspace = true
+tokio.workspace = true
+memmap2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
