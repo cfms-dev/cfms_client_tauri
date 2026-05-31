@@ -121,6 +121,6 @@
   Each route area provides its own chrome (tab bar, AppBar, etc.).
   We just render the slot with a full-height container.
 -->
-<div class="min-h-screen">
+<div class="h-full">
   {@render children()}
 </div>

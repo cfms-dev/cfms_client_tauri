@@ -108,6 +108,10 @@ export interface AuthStatus {
   connected: boolean;
   server_address: string | null;
   lockdown: boolean;
+  /** When true, the server requires 2FA verification before completing login. */
+  requires_2fa?: boolean;
+  /** The 2FA method requested by the server (e.g. "totp"). */
+  "2fa_method"?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,12 +148,18 @@ export async function getServiceStatus(): Promise<ServiceStatusInfo[]> {
 // Auth / Connection
 // ---------------------------------------------------------------------------
 
-/** Log in with username + password. Derives KEK via PBKDF2 on the Rust side. */
+/** Log in with username + password. Derives KEK via PBKDF2 on the Rust side.
+ *
+ * If the server requires 2FA (code 202), the returned `AuthStatus` will have
+ * `requires_2fa: true`.  The caller should then prompt the user for a
+ * verification code and re-invoke this function with `twofaToken`.
+ */
 export async function login(
   username: string,
   password: string,
+  twofaToken?: string,
 ): Promise<AuthStatus> {
-  return invoke("login", { username, password });
+  return invoke("login", { username, password, twofaToken: twofaToken ?? null });
 }
 
 /** Log out — clears auth state and closes the connection. */

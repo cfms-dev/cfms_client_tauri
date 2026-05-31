@@ -52,6 +52,12 @@ pub struct AppState {
     /// Whether the server has activated lockdown mode.
     pub app_lockdown: AtomicBool,
 
+    /// Whether a 2FA verification is pending during login.
+    /// When true, the user has submitted credentials but hasn't completed
+    /// 2FA yet — `token` holds a placeholder and `is_logged_in` helpers
+    /// should return false.
+    pub pending_2fa: AtomicBool,
+
     // --- Events ---
     /// Broadcast channel for service-to-frontend events.
     pub event_tx: broadcast::Sender<ServiceEvent>,
@@ -83,6 +89,7 @@ impl AppState {
             server_address: RwLock::new(None),
             disable_ssl_enforcement: RwLock::new(false),
             app_lockdown: AtomicBool::new(false),
+            pending_2fa: AtomicBool::new(false),
             event_tx,
         })
     }

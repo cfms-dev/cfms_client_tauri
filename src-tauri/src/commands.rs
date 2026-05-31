@@ -212,52 +212,219 @@ pub async fn set_setting(
 // Authentication & Connection
 // ---------------------------------------------------------------------------
 
-/// Log in with username and password.
+/// Log in with username and password (and optional 2FA token).
 ///
-/// Derives the Key Encryption Key (KEK) from the password via
-/// PBKDF2-HMAC-SHA256 (1 000 000 iterations) and stores the
-/// authentication state.  The actual server handshake happens
-/// when [`connect`] is called.
+/// Sends a login request over the established WSS connection to the
+/// CFMS server.  The server may:
+///
+/// - Accept the login (code 200) — auth state is stored.
+/// - Request 2FA verification (code 202) — caller must re-invoke with
+///   `twofa_token`.
+/// - Reject the login (any other code) — an error is returned.
+///
+/// The Key Encryption Key (KEK) is derived from the password via
+/// PBKDF2-HMAC-SHA256 (1 000 000 iterations).
 #[tauri::command]
 pub async fn login(
     state: tauri::State<'_, AppHandleState>,
     username: String,
     password: String,
+    twofa_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     use cfms_crypto::kdf;
 
-    // Derive KEK from password (never stored — only used for DEK
-    // encryption/decryption during the server handshake).
-    // derive_kek is infallible (returns Zeroizing<[u8; 32]> directly).
-    let salt = kdf::generate_salt();
-    let kek = kdf::derive_kek(password.as_bytes(), &salt);
+    // --- Obtain the active connection ---
+    let conn = {
+        let c = state.inner.conn.read().await;
+        c.clone()
+    }
+    .ok_or_else(|| "Not connected to a server".to_string())?;
 
-    // Store auth state.
-    {
-        let mut u = state.inner.username.write().await;
-        *u = Some(username.clone());
-    }
-    {
-        let mut t = state.inner.token.write().await;
-        *t = Some("placeholder_pre_auth".to_string());
-    }
-    {
-        let mut e = state.inner.token_exp.write().await;
-        *e = Some(unix_now() + 300); // 5-minute pre-auth window
-    }
-    {
-        let mut n = state.inner.nickname.write().await;
-        *n = Some(username.clone());
-    }
-    // Store encryption key material.
-    {
-        let mut dek = state.inner.dek.write().await;
-        *dek = Some(kek); // KEK doubles as DEK until server provides the real one.
+    // --- Build login request payload ---
+    let mut request = serde_json::json!({
+        "action": "login",
+        "username": &username,
+        "password": &password,
+    });
+    if let Some(ref token) = twofa_token {
+        request["2fa_token"] = serde_json::Value::String(token.clone());
     }
 
-    // Emit auth status.
-    let status = build_auth_status(&state.inner).await;
-    Ok(status)
+    // --- Send login request over a client stream ---
+    let mut stream = conn
+        .create_stream()
+        .await
+        .map_err(|e| format!("Failed to create stream: {e}"))?;
+
+    let request_bytes = serde_json::to_vec(&request)
+        .map_err(|e| format!("Failed to encode login request: {e}"))?;
+
+    stream
+        .send(&conn, request_bytes)
+        .await
+        .map_err(|e| format!("Failed to send login request: {e}"))?;
+
+    // --- Read response ---
+    let response_bytes = stream
+        .recv()
+        .await
+        .ok_or_else(|| "Connection closed before login response".to_string())?;
+
+    // Send conclusion frame to close the stream.
+    let _ = stream.send_final(&conn, vec![]).await;
+
+    let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
+        .map_err(|e| format!("Invalid login response from server: {e}"))?;
+
+    tracing::info!(
+        "Login response: code={}, message={}",
+        response.code,
+        response.message
+    );
+
+    match response.code {
+        // --- Success (no 2FA) ---
+        200 => {
+            let data = &response.data;
+
+            // Derive KEK from password.
+            let salt = kdf::generate_salt();
+            let kek = kdf::derive_kek(password.as_bytes(), &salt);
+
+            // Store auth state from server response.
+            {
+                let mut u = state.inner.username.write().await;
+                *u = Some(username.clone());
+            }
+            {
+                let token = data["token"]
+                    .as_str()
+                    .ok_or_else(|| "Server did not return a token".to_string())?
+                    .to_string();
+                let mut t = state.inner.token.write().await;
+                *t = Some(token);
+            }
+            {
+                let exp = data["exp"].as_i64().unwrap_or(unix_now() + 3600);
+                let mut e = state.inner.token_exp.write().await;
+                *e = Some(exp);
+            }
+            {
+                let nickname = data["nickname"].as_str().unwrap_or(&username).to_string();
+                let mut n = state.inner.nickname.write().await;
+                *n = Some(nickname);
+            }
+            {
+                let perms: Vec<String> = data["permissions"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut p = state.inner.permissions.write().await;
+                *p = perms;
+            }
+            {
+                let grps: Vec<String> = data["groups"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut g = state.inner.groups.write().await;
+                *g = grps;
+            }
+            // Clear any pending 2FA flag.
+            state
+                .inner
+                .pending_2fa
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+
+            // Store encryption key material.
+            {
+                let mut dek = state.inner.dek.write().await;
+                *dek = Some(kek);
+            }
+
+            let status = build_auth_status(&state.inner).await;
+            Ok(status)
+        }
+
+        // --- 2FA required ---
+        202 => {
+            // Mark 2FA as pending so auth status polls don't report as
+            // authenticated until 2FA is completed.
+            state
+                .inner
+                .pending_2fa
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+
+            // Store partial auth state so the frontend can re-submit with 2FA.
+            let salt = kdf::generate_salt();
+            let kek = kdf::derive_kek(password.as_bytes(), &salt);
+
+            {
+                let mut u = state.inner.username.write().await;
+                *u = Some(username.clone());
+            }
+            {
+                // Store a placeholder token to indicate partial auth.
+                let mut t = state.inner.token.write().await;
+                *t = Some("pending_2fa".to_string());
+            }
+            {
+                let mut e = state.inner.token_exp.write().await;
+                *e = Some(unix_now() + 300); // 5-minute 2FA window
+            }
+            {
+                let mut n = state.inner.nickname.write().await;
+                *n = Some(username.clone());
+            }
+            {
+                let mut dek = state.inner.dek.write().await;
+                *dek = Some(kek);
+            }
+            {
+                let mut p = state.inner.permissions.write().await;
+                p.clear();
+            }
+            {
+                let mut g = state.inner.groups.write().await;
+                g.clear();
+            }
+
+            let method = response
+                .data
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("totp")
+                .to_string();
+
+            Ok(serde_json::json!({
+                "username": &username,
+                "nickname": &username,
+                "has_token": false,
+                "token_exp": null,
+                "permissions": [],
+                "groups": [],
+                "connected": true,
+                "server_address": *state.inner.server_address.read().await,
+                "lockdown": state.inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst),
+                "requires_2fa": true,
+                "2fa_method": method,
+            }))
+        }
+
+        // --- Server-side error ---
+        other => Err(format!(
+            "Login failed: ({}) {}",
+            other, response.message
+        )),
+    }
 }
 
 /// Log out and clear all authentication state.
@@ -282,6 +449,10 @@ pub async fn logout(
         g.clear();
         *d = None;
     }
+    state
+        .inner
+        .pending_2fa
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 
     // Close the connection if one is open.
     {
@@ -377,8 +548,15 @@ pub async fn get_auth_status(
 async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json::Value {
     let username = inner.username.read().await.clone();
     let nickname = inner.nickname.read().await.clone();
-    let has_token = inner.token.read().await.is_some();
-    let token_exp = *inner.token_exp.read().await;
+    let pending_2fa = inner.pending_2fa.load(std::sync::atomic::Ordering::SeqCst);
+    // When 2FA is pending, the token is a placeholder — don't report as
+    // authenticated.
+    let has_token = !pending_2fa && inner.token.read().await.is_some();
+    let token_exp = if pending_2fa {
+        None
+    } else {
+        *inner.token_exp.read().await
+    };
     let permissions = inner.permissions.read().await.clone();
     let groups = inner.groups.read().await.clone();
     let connected = inner.conn.read().await.is_some();

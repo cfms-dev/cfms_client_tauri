@@ -26,9 +26,19 @@ class AuthStoreImpl {
   serverAddress = $state<string | null>(null);
   lockdown = $state(false);
 
+  // 2FA state
+  requires2fa = $state(false);
+  twofaMethod = $state<string>('totp');
+
   /** Returns true if the user is authenticated and has a token. */
   get isLoggedIn() {
     return this.hasToken && this.username !== null;
+  }
+
+  /** Returns true when the server has requested 2FA but it hasn't been
+   *  completed yet.  Components can use this to show the 2FA dialog. */
+  get isPending2FA() {
+    return this.requires2fa && this.username !== null && !this.hasToken;
   }
 
   /** Apply a full AuthStatus snapshot from the backend. */
@@ -42,6 +52,8 @@ class AuthStoreImpl {
     this.connected = s.connected;
     this.serverAddress = s.server_address;
     this.lockdown = s.lockdown;
+    this.requires2fa = s.requires_2fa ?? false;
+    this.twofaMethod = s['2fa_method'] ?? 'totp';
   }
 
   /** Clear all auth state (used on logout / token expiry). */
@@ -55,6 +67,8 @@ class AuthStoreImpl {
     this.connected = false;
     this.serverAddress = null;
     this.lockdown = false;
+    this.requires2fa = false;
+    this.twofaMethod = 'totp';
   }
 }
 

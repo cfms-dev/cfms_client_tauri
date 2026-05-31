@@ -22,6 +22,7 @@ export const ICONS = {
   chevronLeft:   'chevron_left',
   password:      'password',
   accountCircle: 'account_circle',
+  pin:           'pin',
 
   // ---- Actions ----
   delete:        'delete',
