@@ -1,22 +1,21 @@
 <script lang="ts">
-  // CFMS Client — Dashboard / Home page
+  // Home overview page — Dashboard with welcome card, stats, and activity feed.
   //
-  // Shows service health cards, quick stats, lockdown status,
-  // and a live activity feed from backend events.
-  //
-  // MD3: cards use surface-container with outline borders,
-  // stat numbers use MD3 primary colour, section headings use MD3 typography.
+  // Adapted from the existing +page.svelte dashboard.
+  // Reference: HomeView in reference/src/include/ui/components/homepage.py
 
-  import { onMount } from "svelte";
-  import { authStore, downloadStore, serviceStatusStore, eventLog } from "$lib/stores.svelte";
+  import { onMount } from 'svelte';
+  import { authStore, downloadStore, serviceStatusStore, eventLog } from '$lib/stores.svelte';
   import {
     getServiceStatus,
     getDownloadTasks,
     getAuthStatus,
     cryptoInfo,
     protocolVersion,
-  } from "$lib/api";
-  import ServiceStatus from "$lib/components/ServiceStatus.svelte";
+  } from '$lib/api';
+  import ServiceStatus from '$lib/components/ServiceStatus.svelte';
+  import WelcomeCard from '$lib/components/WelcomeCard.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   let cryptoInfoData = $state<{
     kdf_iterations: number;
@@ -55,15 +54,8 @@
 </script>
 
 <div class="p-6 space-y-6">
-  <!-- Page title -->
-  <div>
-    <h1 class="text-2xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Dashboard
-    </h1>
-    <p class="text-sm text-md3-on-surface-variant mt-1">
-      CFMS Client · Protocol v{protoVer}
-    </p>
-  </div>
+  <!-- Welcome card -->
+  <WelcomeCard />
 
   <!-- Stats cards — MD3 surface containers, 4-column grid -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">

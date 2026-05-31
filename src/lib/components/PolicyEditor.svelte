@@ -5,6 +5,8 @@
   //   policyJson: the current policy as a JSON string
   //   onSave: callback receiving the new JSON string on save
 
+  import Icon from './Icon.svelte';
+
   interface Props {
     policyJson: string;
     onSave: (json: string) => Promise<void>;
@@ -58,7 +60,9 @@
     </span>
     <div class="flex items-center gap-2">
       {#if saved}
-        <span class="text-xs text-md3-success font-medium">✓ Saved</span>
+        <span class="text-xs text-md3-success font-medium flex items-center gap-1">
+          <Icon name="done" size="14px" /> Saved
+        </span>
       {/if}
       <!-- MD3 filled button: 20px radius -->
       <button
