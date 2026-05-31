@@ -3,6 +3,8 @@
   //
   // Provides the sidebar navigation, top bar with connection status,
   // lockdown banner, and content slot for child routes.
+  //
+  // Material Design 3 styling per reference/src/main.py theme config.
 
   import "../app.css";
   import type { Snippet } from "svelte";
@@ -56,31 +58,40 @@
   });
 </script>
 
-<div class="flex h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-  <!-- Sidebar -->
+<!--
+  MD3 layout shell.
+  The background gradient is set on <body> via app.css — this wrapper
+  is transparent so the gradient shows through.  Surface containers
+  (sidebar, header, cards) use semi-transparent MD3 surface colours.
+-->
+<div class="flex h-screen text-md3-on-surface">
+  <!-- Sidebar — MD3 surface container -->
   <aside
-    class="flex flex-col w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
+    class="flex flex-col w-56 bg-md3-surface/90 backdrop-blur-sm
+           border-r border-md3-outline
            shrink-0 transition-transform duration-200"
     class:max-sm:hidden={!sidebarOpen}
   >
-    <!-- App title -->
-    <div class="flex items-center gap-2 px-4 py-4 border-b border-gray-200 dark:border-gray-800">
-      <span class="text-lg font-bold text-blue-600 dark:text-blue-400">CFMS</span>
-      <span class="text-xs text-gray-500 dark:text-gray-400">Client</span>
+    <!-- App title — MD3 primary accent -->
+    <div class="flex items-center gap-2 px-4 py-4 border-b border-md3-outline">
+      <span class="text-lg font-bold text-md3-primary" style="font-family: var(--font-md3-sans);">
+        CFMS
+      </span>
+      <span class="text-xs text-md3-on-surface-variant">Client</span>
     </div>
 
-    <!-- Nav items -->
+    <!-- Nav items — MD3 navigation rail style -->
     <nav class="flex-1 py-2 space-y-0.5">
       {#each navItems as item}
         <a
           href={item.href}
-          class="flex items-center gap-3 px-4 py-2 text-sm rounded-lg mx-1
-                 hover:bg-gray-100 dark:hover:bg-gray-800
+          class="flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl mx-1.5
+                 text-md3-on-surface-variant
+                 hover:bg-md3-surface-container-high/50
                  transition-colors no-select"
-          class:bg-blue-50={currentPath === item.href}
-          class:dark:bg-blue-950={currentPath === item.href}
-          class:text-blue-700={currentPath === item.href}
-          class:dark:text-blue-300={currentPath === item.href}
+          class:bg-md3-primary-container={currentPath === item.href}
+          class:text-md3-on-primary-container={currentPath === item.href}
+          class:font-medium={currentPath === item.href}
           onclick={() => (currentPath = item.href)}
         >
           <span class="text-base">{item.icon}</span>
@@ -90,23 +101,25 @@
     </nav>
 
     <!-- Connection status footer -->
-    <div class="px-3 py-3 border-t border-gray-200 dark:border-gray-800 space-y-1.5">
+    <div class="px-3 py-3 border-t border-md3-outline space-y-1.5">
       {#each serviceStatusStore.services as svc}
         <ServiceStatus name={svc.name} running={svc.running} />
       {/each}
 
-      <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+      <div class="mt-2 pt-2 border-t border-md3-outline-variant/40">
         {#if authStore.connected}
-          <p class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+          <p class="text-xs text-md3-success flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-md3-success rounded-full"></span>
             Connected
             {#if authStore.serverAddress}
-              <span class="text-gray-400 truncate block">{authStore.serverAddress}</span>
+              <span class="text-md3-on-surface-variant truncate block text-[10px]">
+                {authStore.serverAddress}
+              </span>
             {/if}
           </p>
         {:else}
-          <p class="text-xs text-gray-400 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
+          <p class="text-xs text-md3-on-surface-variant flex items-center gap-1.5">
+            <span class="w-2 h-2 bg-md3-on-surface-variant rounded-full"></span>
             Offline
           </p>
         {/if}
@@ -114,16 +127,17 @@
     </div>
   </aside>
 
-  <!-- Main content area -->
+  <!-- Main content area — transparent, gradient shows through -->
   <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
     <!-- Lockdown banner (site-wide) -->
     <LockdownBanner active={authStore.lockdown} />
 
-    <!-- Top bar -->
-    <header class="flex items-center h-12 px-4 bg-white dark:bg-gray-900
-                    border-b border-gray-200 dark:border-gray-800 shrink-0">
+    <!-- Top bar — MD3 surface -->
+    <header class="flex items-center h-12 px-4 bg-md3-surface/80 backdrop-blur-sm
+                    border-b border-md3-outline shrink-0">
       <button
-        class="mr-3 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+        class="mr-3 p-1.5 rounded-lg hover:bg-md3-surface-container-high/50
+               text-md3-on-surface-variant transition-colors"
         onclick={() => (sidebarOpen = !sidebarOpen)}
         aria-label="Toggle sidebar"
       >
@@ -131,14 +145,14 @@
       </button>
 
       {#if authStore.isLoggedIn}
-        <span class="text-sm text-gray-600 dark:text-gray-400">
+        <span class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
           {authStore.nickname ?? authStore.username}
         </span>
       {/if}
 
       <div class="ml-auto flex items-center gap-3">
         {#if authStore.isLoggedIn}
-          <span class="text-xs text-gray-400">
+          <span class="text-xs text-md3-on-surface-variant">
             {authStore.permissions.length} permissions · {authStore.groups.length} groups
           </span>
         {/if}

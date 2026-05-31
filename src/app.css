@@ -1,24 +1,140 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
- * CFMS Client — base styles
+ * CFMS Client — Material Design 3 theme tokens
+ *
+ * Mirrors the colour palette, typography, and shape system from the
+ * reference Flet implementation (reference/src/include/ui/constants.py
+ * and reference/src/main.py).
  * --------------------------------------------------------------------------- */
 
-/* Custom scrollbar for the app — subtle and compact */
+@theme {
+  /* ── MD3 Colour Palette ─────────────────────────────────────────────── */
+
+  /* Primary — deep indigo, same as reference PRIMARY_COLOR #4f46e5 */
+  --color-md3-primary: #4f46e5;
+  --color-md3-primary-container: #312e81;
+  --color-md3-on-primary: #ffffff;
+  --color-md3-on-primary-container: #c7d2fe;
+
+  /* Surface / Background hierarchy */
+  --color-md3-surface: #111827;
+  --color-md3-surface-container: #1f2937;
+  --color-md3-surface-container-high: #374151;
+  --color-md3-surface-container-highest: #4b5563;
+
+  /* Outline (borders) — reference BORDER_COLOR #374151 */
+  --color-md3-outline: #374151;
+  --color-md3-outline-variant: #4b5563;
+
+  /* On-surface (text) — reference TEXT_COLOR #f3f4f6 */
+  --color-md3-on-surface: #f3f4f6;
+  --color-md3-on-surface-variant: #9ca3af;
+
+  /* Error — reference ERROR_COLOR #f87171 */
+  --color-md3-error: #f87171;
+  --color-md3-error-container: #7f1d1d;
+  --color-md3-on-error: #ffffff;
+  --color-md3-on-error-container: #fecaca;
+
+  /* Success — reference SUCCESS_COLOR #34d399 */
+  --color-md3-success: #34d399;
+  --color-md3-success-container: #064e3b;
+  --color-md3-on-success: #ffffff;
+  --color-md3-on-success-container: #a7f3d0;
+
+  /* Warning (amber, complementary) */
+  --color-md3-warning: #fbbf24;
+  --color-md3-warning-container: #78350f;
+  --color-md3-on-warning-container: #fde68a;
+
+  /* Background gradient stops (from reference page.decoration) */
+  --color-md3-bg-gradient-start: #10162c;
+  --color-md3-bg-gradient-mid-1: #0c2749;
+  --color-md3-bg-gradient-mid-2: #0f0f23;
+  --color-md3-bg-gradient-end: #1a1a2e;
+
+  /* Input field background — reference FIELD_BG #1f2937 */
+  --color-md3-field: #1f2937;
+
+  /* ── MD3 Shape ──────────────────────────────────────────────────────── */
+
+  /* reference FORM_BORDER_RADIUS = 12 */
+  --radius-md3-form: 0.75rem;
+  /* reference BUTTON_RADIUS = 20 */
+  --radius-md3-button: 1.25rem;
+  /* reference dialog border radius = 10 */
+  --radius-md3-dialog: 0.625rem;
+
+  /* ── MD3 Typography ─────────────────────────────────────────────────── */
+
+  --font-md3-sans: "Google Sans", "Google Sans Regular", "Inter", sans-serif;
+  --font-md3-serif: "Source Han Serif SC", "Source Han Serif SC Regular", "Noto Serif SC", serif;
+  --font-md3-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* ---------------------------------------------------------------------------
+ * Base layer — MD3 background gradient (from reference page.decoration)
+ * --------------------------------------------------------------------------- */
+
+@layer base {
+  html,
+  body {
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-md3-serif);
+    background: linear-gradient(
+      135deg,
+      var(--color-md3-bg-gradient-start) 0%,
+      var(--color-md3-bg-gradient-mid-1) 25%,
+      var(--color-md3-bg-gradient-mid-2) 50%,
+      var(--color-md3-bg-gradient-end) 100%
+    );
+    background-attachment: fixed;
+    color: var(--color-md3-on-surface);
+  }
+
+  /* Override in light mode — use softer neutrals */
+  @media (prefers-color-scheme: light) {
+    html,
+    body {
+      background: linear-gradient(
+        135deg,
+        #f8fafc 0%,
+        #e2e8f0 25%,
+        #f1f5f9 50%,
+        #e8ecf1 100%
+      );
+      background-attachment: fixed;
+      color: #1e293b;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * MD3 Scrollbar — hidden (reference: scrollbar_theme thickness=0)
+ * Keep a minimal visible track on hover for usability.
+ * --------------------------------------------------------------------------- */
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.4);
-  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.3);
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.6);
+  background: rgba(128, 128, 128, 0.5);
 }
+
+/* ---------------------------------------------------------------------------
+ * Utilities
+ * --------------------------------------------------------------------------- */
 
 /* Prevent text selection on UI chrome (sidebar, buttons, etc.) */
 .no-select {
@@ -31,23 +147,33 @@
   animation: fadeIn 0.15s ease-out;
 }
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Progress bar stripe animation */
 @keyframes progressStripe {
-  0%   { background-position: 0 0; }
-  100% { background-position: 2rem 0; }
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 2rem 0;
+  }
 }
 .progress-stripe {
   background-image: linear-gradient(
     45deg,
-    rgba(255,255,255,0.15) 25%,
+    rgba(255, 255, 255, 0.15) 25%,
     transparent 25%,
     transparent 50%,
-    rgba(255,255,255,0.15) 50%,
-    rgba(255,255,255,0.15) 75%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
     transparent 75%,
     transparent
   );

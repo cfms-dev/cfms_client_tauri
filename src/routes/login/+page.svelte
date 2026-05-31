@@ -5,6 +5,9 @@
   // WebSocket connection establishment.  No password material
   // touches the WebView beyond the input field value — it is
   // sent directly to the Rust backend via IPC.
+  //
+  // MD3: centred card layout with outlined text fields (12px radius)
+  // and filled primary button (20px radius).
 
   import { authStore } from "$lib/stores.svelte";
   import { login, connect, disconnect, logout, getAuthStatus } from "$lib/api";
@@ -76,27 +79,50 @@
 </script>
 
 <div class="flex items-center justify-center min-h-full p-6">
-  <div class="w-full max-w-md">
-    <h1 class="text-2xl font-bold text-center mb-8">CFMS Client</h1>
+  <div class="w-full" style="max-width: 380px;">
+    <!-- MD3 headline -->
+    <h1
+      class="text-2xl font-bold text-center mb-8 text-md3-on-surface"
+      style="font-family: var(--font-md3-sans);"
+    >
+      CFMS Client
+    </h1>
 
     {#if connected && authStore.isLoggedIn}
-      <!-- Connected state -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-        <div class="flex items-center gap-2 text-green-600 dark:text-green-400">
-          <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-          <span class="font-medium">Connected</span>
+      <!-- Connected state — MD3 card -->
+      <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                  border border-md3-outline p-6 space-y-4">
+        <div class="flex items-center gap-2 text-md3-success">
+          <span class="w-3 h-3 bg-md3-success rounded-full animate-pulse"></span>
+          <span class="font-medium" style="font-family: var(--font-md3-sans);">Connected</span>
         </div>
 
-        <div class="text-sm space-y-1">
-          <p><span class="text-gray-500">Server:</span> {authStore.serverAddress ?? "—"}</p>
-          <p><span class="text-gray-500">User:</span> {authStore.nickname ?? authStore.username}</p>
-          <p><span class="text-gray-500">Groups:</span> {authStore.groups.join(", ") || "none"}</p>
-          <p><span class="text-gray-500">Permissions:</span> {authStore.permissions.length} granted</p>
+        <div class="text-sm space-y-1.5">
+          <p>
+            <span class="text-md3-on-surface-variant">Server:</span>
+            <span class="text-md3-on-surface ml-1">{authStore.serverAddress ?? "—"}</span>
+          </p>
+          <p>
+            <span class="text-md3-on-surface-variant">User:</span>
+            <span class="text-md3-on-surface ml-1">{authStore.nickname ?? authStore.username}</span>
+          </p>
+          <p>
+            <span class="text-md3-on-surface-variant">Groups:</span>
+            <span class="text-md3-on-surface ml-1">{authStore.groups.join(", ") || "none"}</span>
+          </p>
+          <p>
+            <span class="text-md3-on-surface-variant">Permissions:</span>
+            <span class="text-md3-on-surface ml-1">{authStore.permissions.length} granted</span>
+          </p>
         </div>
 
+        <!-- MD3 outlined danger button -->
         <button
-          class="w-full py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg
-                 font-medium transition-colors disabled:opacity-50"
+          class="w-full py-2.5 px-4 rounded-full font-medium
+                 border border-md3-error text-md3-error
+                 hover:bg-md3-error-container transition-colors
+                 disabled:opacity-50"
+          style="font-family: var(--font-md3-sans);"
           onclick={handleDisconnect}
           disabled={busy}
         >
@@ -104,26 +130,32 @@
         </button>
       </div>
     {:else}
-      <!-- Login form -->
+      <!-- Login form — MD3 card -->
       <form
-        class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4"
+        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+               border border-md3-outline p-6 space-y-4"
         onsubmit={(e) => {
           e.preventDefault();
           handleConnect();
         }}
       >
-        <!-- Server URL -->
+        <!-- Server URL — MD3 outlined text field -->
         <div>
-          <label for="serverUrl" class="block text-sm font-medium mb-1">
+          <label
+            for="serverUrl"
+            class="block text-sm font-medium mb-1.5 text-md3-on-surface"
+            style="font-family: var(--font-md3-sans);"
+          >
             Server URL
           </label>
           <input
             id="serverUrl"
             type="text"
-            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                   bg-gray-50 dark:bg-gray-900 text-sm
-                   focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                   placeholder-gray-400"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-md3-outline
+                   bg-md3-field text-md3-on-surface text-sm
+                   placeholder:text-md3-on-surface-variant
+                   focus:ring-2 focus:ring-md3-primary focus:border-transparent
+                   transition-colors"
             placeholder="wss://cfms.example.com/ws"
             bind:value={serverUrl}
             disabled={busy}
@@ -132,16 +164,21 @@
 
         <!-- Username -->
         <div>
-          <label for="username" class="block text-sm font-medium mb-1">
+          <label
+            for="username"
+            class="block text-sm font-medium mb-1.5 text-md3-on-surface"
+            style="font-family: var(--font-md3-sans);"
+          >
             Username
           </label>
           <input
             id="username"
             type="text"
-            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                   bg-gray-50 dark:bg-gray-900 text-sm
-                   focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                   placeholder-gray-400"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-md3-outline
+                   bg-md3-field text-md3-on-surface text-sm
+                   placeholder:text-md3-on-surface-variant
+                   focus:ring-2 focus:ring-md3-primary focus:border-transparent
+                   transition-colors"
             placeholder="Enter your username"
             bind:value={username}
             disabled={busy}
@@ -151,16 +188,21 @@
 
         <!-- Password -->
         <div>
-          <label for="password" class="block text-sm font-medium mb-1">
+          <label
+            for="password"
+            class="block text-sm font-medium mb-1.5 text-md3-on-surface"
+            style="font-family: var(--font-md3-sans);"
+          >
             Password
           </label>
           <input
             id="password"
             type="password"
-            class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
-                   bg-gray-50 dark:bg-gray-900 text-sm
-                   focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                   placeholder-gray-400"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-md3-outline
+                   bg-md3-field text-md3-on-surface text-sm
+                   placeholder:text-md3-on-surface-variant
+                   focus:ring-2 focus:ring-md3-primary focus:border-transparent
+                   transition-colors"
             placeholder="Enter your password"
             bind:value={password}
             disabled={busy}
@@ -169,30 +211,33 @@
         </div>
 
         <!-- TLS toggle -->
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <label class="flex items-center gap-2.5 text-sm cursor-pointer">
           <input
             type="checkbox"
-            class="rounded border-gray-300 dark:border-gray-600
-                   text-blue-600 focus:ring-blue-500"
+            class="rounded border-md3-outline bg-md3-field
+                   text-md3-primary focus:ring-md3-primary"
             bind:checked={disableSsl}
             disabled={busy}
           />
-          <span class="text-gray-600 dark:text-gray-400">Skip TLS verification (insecure)</span>
+          <span class="text-md3-on-surface-variant">Skip TLS verification (insecure)</span>
         </label>
 
-        <!-- Error -->
+        <!-- Error — MD3 error container -->
         {#if error}
-          <div class="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800
-                      text-red-700 dark:text-red-300 text-sm rounded-lg p-3">
+          <div class="bg-md3-error-container/60 border border-md3-error/30
+                      text-md3-on-error-container text-sm rounded-xl p-3">
             {error}
           </div>
         {/if}
 
-        <!-- Submit -->
+        <!-- Submit — MD3 filled primary button (20px radius) -->
         <button
           type="submit"
-          class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg
-                 font-medium transition-colors disabled:opacity-50"
+          class="w-full py-2.5 px-4 rounded-full font-medium
+                 bg-md3-primary text-md3-on-primary
+                 hover:brightness-110
+                 disabled:opacity-50 transition-all"
+          style="font-family: var(--font-md3-sans);"
           disabled={busy}
         >
           {busy ? "Connecting…" : "Connect"}

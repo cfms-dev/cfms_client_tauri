@@ -2,6 +2,9 @@
   // CFMS Client — Admin / Settings page
   //
   // Security policy editor, connection settings, and cache management.
+  //
+  // MD3: card sections with surface-container backgrounds,
+  // monospace textarea fields, filled primary buttons.
 
   import { onMount } from "svelte";
   import { getSetting, setSetting, cryptoInfo, protocolVersion } from "$lib/api";
@@ -65,44 +68,55 @@
 
 <div class="p-6 space-y-6">
   <div>
-    <h1 class="text-xl font-bold">Admin & Settings</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+    <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      Admin & Settings
+    </h1>
+    <p class="text-sm text-md3-on-surface-variant mt-1">
       Manage security policies and application settings.
     </p>
   </div>
 
+  <!-- Success / info message -->
   {#if message}
-    <div class="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800
-                text-green-700 dark:text-green-300 text-sm rounded-lg p-3">
+    <div class="bg-md3-success-container/60 border border-md3-success/30
+                text-md3-on-success-container text-sm rounded-xl p-3"
+         style="font-family: var(--font-md3-sans);">
       {message}
     </div>
   {/if}
 
   {#if loading}
-    <p class="text-sm text-gray-400">Loading settings…</p>
+    <p class="text-sm text-md3-on-surface-variant">Loading settings…</p>
   {:else}
-    <!-- Policy editor -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+    <!-- Policy editor — MD3 card -->
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
       <PolicyEditor policyJson={policyJson} onSave={savePolicy} />
     </div>
 
-    <!-- Connection settings -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+    <!-- Connection settings — MD3 card -->
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         Connection Settings (JSON)
       </h2>
       <textarea
-        class="w-full h-32 p-3 font-mono text-sm rounded-lg border
-               border-gray-300 dark:border-gray-600
-               bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100
-               focus:ring-2 focus:ring-blue-500 focus:border-transparent
-               resize-y"
+        class="w-full h-32 p-3 text-sm rounded-xl border
+               border-md3-outline
+               bg-md3-field text-md3-on-surface
+               placeholder:text-md3-on-surface-variant
+               focus:ring-2 focus:ring-md3-primary focus:border-transparent
+               resize-y transition-colors"
+        style="font-family: var(--font-md3-mono);"
         bind:value={connectionSettings}
       ></textarea>
-      <div class="flex justify-end mt-2">
+      <div class="flex justify-end mt-3">
+        <!-- MD3 filled button -->
         <button
-          class="px-3 py-1 text-xs font-medium rounded
-                 bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          class="px-4 py-1.5 text-xs font-medium rounded-full
+                 bg-md3-primary text-md3-on-primary
+                 hover:brightness-110 transition-all"
+          style="font-family: var(--font-md3-sans);"
           onclick={() => saveConnectionSettings(connectionSettings)}
         >
           Save Settings
@@ -110,22 +124,34 @@
       </div>
     </div>
 
-    <!-- About -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+    <!-- About — MD3 card -->
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         About CFMS Client
       </h2>
-      <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1 max-w-lg">
-        <p><strong>Protocol Version:</strong> {protoVer}</p>
+      <div class="text-sm text-md3-on-surface-variant space-y-1.5 max-w-lg">
+        <p>
+          <strong class="text-md3-on-surface">Protocol Version:</strong> {protoVer}
+        </p>
         {#if cryptoInfoData}
           <p>
-            <strong>Encryption:</strong> AES-256-GCM ·
-            PBKDF2-HMAC-SHA256 ({cryptoInfoData.kdf_iterations.toLocaleString()} iterations)
+            <strong class="text-md3-on-surface">Encryption:</strong>
+            AES-256-GCM · PBKDF2-HMAC-SHA256
+            ({cryptoInfoData.kdf_iterations.toLocaleString()} iterations)
           </p>
         {/if}
-        <p><strong>Transport:</strong> WSS (WebSocket Secure) with frame multiplexing</p>
-        <p><strong>Storage:</strong> SQLite (WAL mode)</p>
-        <p><strong>Frontend:</strong> Svelte 5 + TailwindCSS v4</p>
+        <p>
+          <strong class="text-md3-on-surface">Transport:</strong>
+          WSS (WebSocket Secure) with frame multiplexing
+        </p>
+        <p>
+          <strong class="text-md3-on-surface">Storage:</strong> SQLite (WAL mode)
+        </p>
+        <p>
+          <strong class="text-md3-on-surface">Frontend:</strong>
+          Svelte 5 + TailwindCSS v4 · Material Design 3
+        </p>
       </div>
     </div>
   {/if}

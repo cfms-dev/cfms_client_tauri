@@ -1,5 +1,5 @@
 <script lang="ts">
-  // JSON policy editor with validation and save.
+  // JSON policy editor with validation and save — MD3 styled.
   //
   // Props:
   //   policyJson: the current policy as a JSON string
@@ -50,17 +50,23 @@
 
 <div class="space-y-3">
   <div class="flex items-center justify-between">
-    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+    <span
+      class="text-sm font-medium text-md3-on-surface"
+      style="font-family: var(--font-md3-sans);"
+    >
       Security Policy (JSON)
     </span>
     <div class="flex items-center gap-2">
       {#if saved}
-        <span class="text-xs text-green-600 dark:text-green-400">✓ Saved</span>
+        <span class="text-xs text-md3-success font-medium">✓ Saved</span>
       {/if}
+      <!-- MD3 filled button: 20px radius -->
       <button
-        class="px-3 py-1 text-xs font-medium rounded
-               bg-blue-600 text-white hover:bg-blue-700
-               disabled:opacity-50 transition-colors"
+        class="px-4 py-1.5 text-xs font-medium rounded-full
+               bg-md3-primary text-md3-on-primary
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
+        style="font-family: var(--font-md3-sans);"
         onclick={handleSave}
         disabled={saving}
       >
@@ -69,23 +75,26 @@
     </div>
   </div>
 
+  <!-- MD3 textarea field -->
   <textarea
-    class="w-full h-64 p-3 font-mono text-sm rounded-lg border
-           {error ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'}
-           bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100
-           focus:ring-2 focus:ring-blue-500 focus:border-transparent
-           resize-y"
+    class="w-full h-64 p-3 text-sm rounded-xl border
+           {error ? 'border-md3-error' : 'border-md3-outline'}
+           bg-md3-field text-md3-on-surface
+           placeholder:text-md3-on-surface-variant
+           focus:ring-2 focus:ring-md3-primary focus:border-transparent
+           resize-y transition-colors"
+    style="font-family: var(--font-md3-mono);"
     bind:value={edited}
     onblur={validate}
   ></textarea>
 
   {#if error}
-    <p class="text-xs text-red-600 dark:text-red-400">
+    <p class="text-xs text-md3-error">
       Invalid JSON: {error}
     </p>
   {/if}
 
-  <p class="text-xs text-gray-500 dark:text-gray-400">
+  <p class="text-xs text-md3-on-surface-variant">
     Edit the server security policy. Changes take effect after saving.
     Use valid JSON format.
   </p>

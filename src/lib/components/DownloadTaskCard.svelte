@@ -1,5 +1,7 @@
 <script lang="ts">
-  // A single download task card showing filename, progress, and actions.
+  // A single download task card — MD3 elevated surface with actions.
+  //
+  // Uses MD3 colour tokens and shape system (12px card radius, 20px button radius).
 
   import type { DownloadTaskDto } from "../api";
   import { pauseDownload, resumeDownload, cancelDownload } from "../api";
@@ -42,22 +44,23 @@
     }
   }
 
+  /** Returns MD3 status badge classes. */
   function statusBadgeClass(): string {
     switch (task.status) {
       case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+        return "bg-md3-success-container text-md3-on-success-container";
       case "failed":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+        return "bg-md3-error-container text-md3-on-error-container";
       case "downloading":
       case "decrypting":
       case "verifying":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+        return "bg-md3-primary-container text-md3-on-primary-container";
       case "paused":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+        return "bg-md3-warning-container text-md3-on-warning-container";
       case "cancelled":
-        return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+        return "bg-md3-surface-container-highest text-md3-on-surface-variant";
       default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+        return "bg-md3-surface-container-high text-md3-on-surface-variant";
     }
   }
 
@@ -70,28 +73,42 @@
   );
 </script>
 
+<!-- MD3 card: rounded-xl (12px) surface container with outline border -->
 <div
-  class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700
-         p-4 shadow-sm hover:shadow-md transition-shadow"
+  class="bg-md3-surface-container/70 backdrop-blur-sm
+         rounded-xl border border-md3-outline
+         p-4 transition-shadow hover:shadow-lg hover:shadow-md3-primary/5"
 >
   <!-- Top row: filename + status badge -->
   <div class="flex items-start justify-between gap-3 mb-2">
     <div class="min-w-0 flex-1">
-      <p class="font-medium text-gray-900 dark:text-gray-100 truncate" title={task.filename}>
+      <p
+        class="font-medium text-md3-on-surface truncate"
+        title={task.filename}
+        style="font-family: var(--font-md3-sans);"
+      >
         {task.filename}
       </p>
-      <p class="text-xs text-gray-500 dark:text-gray-400 truncate" title={task.file_path}>
+      <p
+        class="text-xs text-md3-on-surface-variant truncate mt-0.5"
+        title={task.file_path}
+      >
         {task.file_path}
       </p>
     </div>
-    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 {statusBadgeClass()}">
+    <!-- MD3 badge: fully rounded pill (rounded-full) -->
+    <span
+      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+             shrink-0 {statusBadgeClass()}"
+      style="font-family: var(--font-md3-sans);"
+    >
       {task.status}
     </span>
   </div>
 
   <!-- Error message -->
   {#if task.error}
-    <p class="text-xs text-red-600 dark:text-red-400 mb-2">{task.error}</p>
+    <p class="text-xs text-md3-error mb-2">{task.error}</p>
   {/if}
 
   <!-- Progress bar -->
@@ -102,24 +119,24 @@
     status={task.status}
   />
 
-  <!-- Actions -->
+  <!-- Actions — MD3 pill buttons (rounded-full = 20px equivalent) -->
   <div class="flex gap-2 mt-3">
     {#if isActive}
       <button
-        class="text-xs px-3 py-1 rounded bg-yellow-100 text-yellow-700
-               dark:bg-yellow-900 dark:text-yellow-200
-               hover:bg-yellow-200 dark:hover:bg-yellow-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-warning-container text-md3-on-warning-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
         onclick={handlePause}
         disabled={actionPending}
       >
         Pause
       </button>
       <button
-        class="text-xs px-3 py-1 rounded bg-red-100 text-red-700
-               dark:bg-red-900 dark:text-red-200
-               hover:bg-red-200 dark:hover:bg-red-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-error-container text-md3-on-error-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
         onclick={handleCancel}
         disabled={actionPending}
       >
@@ -127,20 +144,20 @@
       </button>
     {:else if isPaused}
       <button
-        class="text-xs px-3 py-1 rounded bg-blue-100 text-blue-700
-               dark:bg-blue-900 dark:text-blue-200
-               hover:bg-blue-200 dark:hover:bg-blue-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-primary-container text-md3-on-primary-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
         onclick={handleResume}
         disabled={actionPending}
       >
         Resume
       </button>
       <button
-        class="text-xs px-3 py-1 rounded bg-red-100 text-red-700
-               dark:bg-red-900 dark:text-red-200
-               hover:bg-red-200 dark:hover:bg-red-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-error-container text-md3-on-error-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
         onclick={handleCancel}
         disabled={actionPending}
       >
@@ -149,7 +166,7 @@
     {/if}
 
     <!-- Task ID for debugging -->
-    <span class="ml-auto text-[10px] text-gray-400 dark:text-gray-600 self-end">
+    <span class="ml-auto text-[10px] text-md3-on-surface-variant self-end font-mono">
       {task.task_id.slice(0, 12)}…
     </span>
   </div>

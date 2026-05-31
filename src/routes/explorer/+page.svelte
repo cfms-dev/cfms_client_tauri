@@ -5,6 +5,9 @@
   // Initially scans the local filesystem via the `scan_directory` command
   // (safe — runs Rust-side).  Server-side browsing will be added when
   // the `list_server_directory` command is implemented.
+  //
+  // MD3: data table with surface-container card, outlined text field for search,
+  // filled tonal buttons for actions.
 
   import { onMount } from "svelte";
   import { scanDirectory, addDownload } from "$lib/api";
@@ -105,8 +108,10 @@
 
 <div class="p-6 space-y-4">
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-bold">File Explorer</h1>
-    <!-- Search -->
+    <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      File Explorer
+    </h1>
+    <!-- Search — MD3 outlined text field + filled tonal button -->
     <form
       class="flex gap-2"
       onsubmit={(e) => {
@@ -116,16 +121,20 @@
     >
       <input
         type="text"
-        class="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600
-               bg-white dark:bg-gray-800 w-48
-               focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        class="px-3 py-1.5 text-sm rounded-xl border border-md3-outline
+               bg-md3-field text-md3-on-surface w-48
+               placeholder:text-md3-on-surface-variant
+               focus:ring-2 focus:ring-md3-primary focus:border-transparent
+               transition-colors"
         placeholder="Filter pattern…"
         bind:value={searchPattern}
       />
       <button
         type="submit"
-        class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg
-               hover:bg-blue-700 transition-colors"
+        class="px-4 py-1.5 text-sm rounded-full font-medium
+               bg-md3-primary-container text-md3-on-primary-container
+               hover:brightness-110 transition-all"
+        style="font-family: var(--font-md3-sans);"
       >
         Filter
       </button>
@@ -135,29 +144,32 @@
   <!-- Breadcrumb -->
   <Breadcrumb segments={breadcrumbSegments()} onNavigate={handleNavigate} />
 
-  <!-- Error -->
+  <!-- Error — MD3 error container -->
   {#if error}
-    <div class="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800
-                text-red-700 dark:text-red-300 text-sm rounded-lg p-3">
+    <div class="bg-md3-error-container/60 border border-md3-error/30
+                text-md3-on-error-container text-sm rounded-xl p-3">
       {error}
     </div>
   {/if}
 
   <!-- Loading -->
   {#if loading}
-    <div class="flex items-center gap-2 text-sm text-gray-500">
+    <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
       <span class="animate-spin">⟳</span> Scanning…
     </div>
   {/if}
 
-  <!-- File list -->
+  <!-- File list — MD3 data table card -->
   {#if !loading}
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <!-- Header -->
-      <div class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2
-                  bg-gray-50 dark:bg-gray-850 text-xs font-medium
-                  text-gray-500 dark:text-gray-400 uppercase tracking-wider
-                  border-b border-gray-200 dark:border-gray-700">
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline overflow-hidden">
+      <!-- Header row -->
+      <div class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2.5
+                  bg-md3-surface-container-high/50
+                  text-xs font-medium text-md3-on-surface-variant
+                  uppercase tracking-wider
+                  border-b border-md3-outline"
+           style="font-family: var(--font-md3-sans);">
         <span>Name</span>
         <span class="text-right">Size</span>
         <span class="text-right">Modified</span>
@@ -166,7 +178,7 @@
 
       <!-- Empty state -->
       {#if dirs.length === 0 && files.length === 0}
-        <p class="px-4 py-8 text-center text-sm text-gray-400">
+        <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
           This directory is empty.
         </p>
       {/if}
@@ -174,17 +186,19 @@
       <!-- Directories first -->
       {#each dirs as dir (dir.path)}
         <button
-          class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2 w-full text-left
-                 hover:bg-blue-50 dark:hover:bg-blue-950/30
-                 border-b border-gray-100 dark:border-gray-800
+          class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2.5 w-full text-left
+                 hover:bg-md3-primary-container/20
+                 border-b border-md3-outline/50
                  transition-colors"
           onclick={() => handleNavigate(dir.path)}
         >
-          <span class="text-sm font-medium text-blue-600 dark:text-blue-400 truncate">
+          <span class="text-sm font-medium text-md3-primary truncate">
             📁 {dir.path.split(/[\\/]/).pop() ?? dir.path}
           </span>
-          <span class="text-xs text-gray-400 text-right self-center">—</span>
-          <span class="text-xs text-gray-400 text-right self-center">{formatDate(dir.modified)}</span>
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">
+            {formatDate(dir.modified)}
+          </span>
           <span></span>
         </button>
       {/each}
@@ -192,25 +206,26 @@
       <!-- Files -->
       {#each files as file (file.path)}
         <div
-          class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2
-                 hover:bg-gray-50 dark:hover:bg-gray-750
-                 border-b border-gray-100 dark:border-gray-800 last:border-b-0
+          class="grid grid-cols-[1fr_100px_160px_80px] gap-3 px-4 py-2.5
+                 hover:bg-md3-surface-container-high/30
+                 border-b border-md3-outline/50 last:border-b-0
                  transition-colors"
         >
-          <span class="text-sm truncate">
+          <span class="text-sm text-md3-on-surface truncate">
             📄 {file.path.split(/[\\/]/).pop() ?? file.path}
           </span>
-          <span class="text-xs text-gray-500 text-right self-center">
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">
             {formatBytes(file.size)}
           </span>
-          <span class="text-xs text-gray-500 text-right self-center">
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">
             {formatDate(file.modified)}
           </span>
+          <!-- MD3 tonal button for download -->
           <button
-            class="text-xs px-2 py-1 bg-blue-100 text-blue-700
-                   dark:bg-blue-900 dark:text-blue-200
-                   hover:bg-blue-200 dark:hover:bg-blue-800
-                   rounded transition-colors"
+            class="text-xs px-3 py-1 rounded-full font-medium
+                   bg-md3-primary-container text-md3-on-primary-container
+                   hover:brightness-110 transition-all"
+            style="font-family: var(--font-md3-sans);"
             onclick={() => handleQuickDownload(file)}
           >
             Download

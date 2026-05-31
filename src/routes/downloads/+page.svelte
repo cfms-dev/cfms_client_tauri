@@ -3,6 +3,9 @@
   //
   // Shows the download task queue with progress bars and actions.
   // Data is reactive via downloadStore (updated by backend events).
+  //
+  // MD3: filter chips (rounded-full), task cards from DownloadTaskCard,
+  // tonal icon buttons for clear/refresh actions.
 
   import { onMount } from "svelte";
   import type { DownloadTaskStatus } from "$lib/api";
@@ -68,32 +71,37 @@
 <div class="p-6 space-y-4">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-xl font-bold">Download Manager</h1>
+    <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      Download Manager
+    </h1>
     <div class="flex gap-2">
+      <!-- MD3 tonal icon buttons -->
       <button
-        class="text-xs px-3 py-1.5 bg-gray-100 dark:bg-gray-800
-               text-gray-700 dark:text-gray-300
-               rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700
-               transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-surface-container-high text-md3-on-surface-variant
+               hover:brightness-110 transition-all"
+        style="font-family: var(--font-md3-sans);"
         onclick={refresh}
       >
         ⟳ Refresh
       </button>
       <button
-        class="text-xs px-3 py-1.5 bg-green-100 text-green-700
-               dark:bg-green-900 dark:text-green-200
-               rounded-lg hover:bg-green-200 dark:hover:bg-green-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-success-container text-md3-on-success-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
+        style="font-family: var(--font-md3-sans);"
         onclick={handleClearCompleted}
         disabled={busy || downloadStore.completedTasks.length === 0}
       >
         Clear Completed
       </button>
       <button
-        class="text-xs px-3 py-1.5 bg-red-100 text-red-700
-               dark:bg-red-900 dark:text-red-200
-               rounded-lg hover:bg-red-200 dark:hover:bg-red-800
-               disabled:opacity-50 transition-colors"
+        class="text-xs px-4 py-1.5 rounded-full font-medium
+               bg-md3-error-container text-md3-on-error-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all"
+        style="font-family: var(--font-md3-sans);"
         onclick={handleClearFailed}
         disabled={busy || downloadStore.failedTasks.length === 0}
       >
@@ -102,23 +110,21 @@
     </div>
   </div>
 
-  <!-- Filter tabs -->
-  <div class="flex gap-1 flex-wrap">
+  <!-- MD3 filter chips -->
+  <div class="flex gap-1.5 flex-wrap">
     {#each filters as f}
       <button
-        class="px-3 py-1 text-xs rounded-full transition-colors"
-        class:bg-blue-600={filter === f.key}
-        class:text-white={filter === f.key}
-        class:bg-gray-100={filter !== f.key}
-        class:dark:bg-gray-800={filter !== f.key}
-        class:text-gray-700={filter !== f.key}
-        class:dark:text-gray-300={filter !== f.key}
-        class:hover:bg-gray-200={filter !== f.key}
-        class:dark:hover:bg-gray-700={filter !== f.key}
+        class="px-3.5 py-1.5 text-xs rounded-full font-medium transition-all"
+        class:bg-md3-primary={filter === f.key}
+        class:text-md3-on-primary={filter === f.key}
+        class:bg-md3-surface-container-high={filter !== f.key}
+        class:text-md3-on-surface-variant={filter !== f.key}
+        class:hover:bg-md3-surface-container-highest={filter !== f.key}
+        style="font-family: var(--font-md3-sans);"
         onclick={() => (filter = f.key)}
       >
         {f.label}
-        <!-- Badge showing count -->
+        <!-- Count badge -->
         {#if f.key !== "all"}
           <span class="ml-1 opacity-60">
             ({downloadStore.getTasksByStatus(f.key).length})
@@ -135,9 +141,9 @@
         <DownloadTaskCard task={task} onRemove={handleRemove} />
       {/each}
     {:else}
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700
-                  p-8 text-center">
-        <p class="text-gray-400 dark:text-gray-500">
+      <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                  border border-md3-outline p-10 text-center">
+        <p class="text-md3-on-surface-variant">
           {filter === "all" ? "No download tasks yet." : `No ${filter} tasks.`}
         </p>
       </div>

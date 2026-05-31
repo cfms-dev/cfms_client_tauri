@@ -1,5 +1,7 @@
 <script lang="ts">
-  // Displays a single service's health status as a colored badge + label.
+  // Displays a single service's health status as a coloured dot + label.
+  //
+  // MD3 styling: success for running, error for stopped.
   //
   // Props:
   //   name: service display name
@@ -16,12 +18,15 @@
 <div class="flex items-center gap-2 text-sm">
   <span
     class="inline-block w-2 h-2 rounded-full shrink-0"
-    class:bg-green-500={running}
-    class:bg-red-400={!running}
-    class:animate-pulse={running}
+    class:bg-md3-success={running}
+    class:bg-md3-error={!running}
   ></span>
-  <span class="text-gray-700 dark:text-gray-300">{name}</span>
-  <span class="text-xs ml-auto {running ? 'text-green-600 dark:text-green-400' : 'text-red-500'}">
+  <span class="text-md3-on-surface-variant">{name}</span>
+  <span
+    class="text-xs ml-auto"
+    class:text-md3-success={running}
+    class:text-md3-error={!running}
+  >
     {running ? "Running" : "Stopped"}
   </span>
 </div>

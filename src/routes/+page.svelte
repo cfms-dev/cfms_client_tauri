@@ -3,6 +3,9 @@
   //
   // Shows service health cards, quick stats, lockdown status,
   // and a live activity feed from backend events.
+  //
+  // MD3: cards use surface-container with outline borders,
+  // stat numbers use MD3 primary colour, section headings use MD3 typography.
 
   import { onMount } from "svelte";
   import { authStore, downloadStore, serviceStatusStore, eventLog } from "$lib/stores.svelte";
@@ -54,37 +57,60 @@
 <div class="p-6 space-y-6">
   <!-- Page title -->
   <div>
-    <h1 class="text-2xl font-bold">Dashboard</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+    <h1 class="text-2xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      Dashboard
+    </h1>
+    <p class="text-sm text-md3-on-surface-variant mt-1">
       CFMS Client · Protocol v{protoVer}
     </p>
   </div>
 
-  <!-- Stats cards -->
+  <!-- Stats cards — MD3 surface containers, 4-column grid -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <p class="text-sm text-gray-500 dark:text-gray-400">Active Downloads</p>
-      <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{activeCount}</p>
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+        Active Downloads
+      </p>
+      <p class="text-2xl font-bold text-md3-primary mt-1" style="font-family: var(--font-md3-sans);">
+        {activeCount}
+      </p>
     </div>
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <p class="text-sm text-gray-500 dark:text-gray-400">Completed</p>
-      <p class="text-2xl font-bold text-green-600 dark:text-green-400">{completedCount}</p>
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+        Completed
+      </p>
+      <p class="text-2xl font-bold text-md3-success mt-1" style="font-family: var(--font-md3-sans);">
+        {completedCount}
+      </p>
     </div>
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <p class="text-sm text-gray-500 dark:text-gray-400">Failed</p>
-      <p class="text-2xl font-bold text-red-600 dark:text-red-400">{failedCount}</p>
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+        Failed
+      </p>
+      <p class="text-2xl font-bold text-md3-error mt-1" style="font-family: var(--font-md3-sans);">
+        {failedCount}
+      </p>
     </div>
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <p class="text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
-      <p class="text-2xl font-bold text-gray-700 dark:text-gray-300">{totalCount}</p>
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+        Total Tasks
+      </p>
+      <p class="text-2xl font-bold text-md3-on-surface mt-1" style="font-family: var(--font-md3-sans);">
+        {totalCount}
+      </p>
     </div>
   </div>
 
-  <!-- Two-column: Service status + Activity feed -->
+  <!-- Two-column: Service status + Crypto info -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Service status -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         Background Services
       </h2>
       <div class="space-y-2">
@@ -93,57 +119,65 @@
             <ServiceStatus name={svc.name} running={svc.running} />
           {/each}
         {:else}
-          <p class="text-sm text-gray-400">No services registered.</p>
+          <p class="text-sm text-md3-on-surface-variant">No services registered.</p>
         {/if}
       </div>
     </div>
 
     <!-- Crypto info -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                border border-md3-outline p-4">
+      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         Cryptographic Parameters
       </h2>
       {#if cryptoInfoData}
         <div class="grid grid-cols-2 gap-2 text-sm">
-          <span class="text-gray-500">KDF Iterations:</span>
-          <span class="font-mono">{cryptoInfoData.kdf_iterations.toLocaleString()}</span>
-          <span class="text-gray-500">Salt Length:</span>
-          <span class="font-mono">{cryptoInfoData.salt_len} bytes</span>
-          <span class="text-gray-500">Key Length:</span>
-          <span class="font-mono">{cryptoInfoData.key_len} bytes (AES-256)</span>
-          <span class="text-gray-500">Nonce Length:</span>
-          <span class="font-mono">{cryptoInfoData.nonce_len} bytes</span>
-          <span class="text-gray-500">Tag Length:</span>
-          <span class="font-mono">{cryptoInfoData.tag_len} bytes</span>
+          <span class="text-md3-on-surface-variant">KDF Iterations:</span>
+          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
+            {cryptoInfoData.kdf_iterations.toLocaleString()}
+          </span>
+          <span class="text-md3-on-surface-variant">Salt Length:</span>
+          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
+            {cryptoInfoData.salt_len} bytes
+          </span>
+          <span class="text-md3-on-surface-variant">Key Length:</span>
+          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
+            {cryptoInfoData.key_len} bytes (AES-256)
+          </span>
+          <span class="text-md3-on-surface-variant">Nonce Length:</span>
+          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
+            {cryptoInfoData.nonce_len} bytes
+          </span>
+          <span class="text-md3-on-surface-variant">Tag Length:</span>
+          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
+            {cryptoInfoData.tag_len} bytes
+          </span>
         </div>
       {:else}
-        <p class="text-sm text-gray-400">Loading…</p>
+        <p class="text-sm text-md3-on-surface-variant">Loading…</p>
       {/if}
     </div>
   </div>
 
   <!-- Activity feed -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-    <h2 class="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+              border border-md3-outline p-4">
+    <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
       Activity
     </h2>
     {#if eventLog.entries.length > 0}
       <div class="space-y-1 max-h-48 overflow-y-auto">
         {#each eventLog.entries as entry}
           <div class="flex items-center gap-2 text-xs">
-            <span class="text-gray-400 shrink-0 w-14 text-right">
+            <span class="text-md3-on-surface-variant shrink-0 w-14 text-right font-mono">
               {entry.time.toLocaleTimeString()}
             </span>
             <span
               class="truncate"
-              class:text-green-600={entry.type === "success"}
-              class:text-red-600={entry.type === "error"}
-              class:text-yellow-600={entry.type === "warning"}
-              class:text-gray-600={entry.type === "info"}
-              class:dark:text-green-400={entry.type === "success"}
-              class:dark:text-red-400={entry.type === "error"}
-              class:dark:text-yellow-400={entry.type === "warning"}
-              class:dark:text-gray-400={entry.type === "info"}
+              class:text-md3-success={entry.type === "success"}
+              class:text-md3-error={entry.type === "error"}
+              class:text-md3-warning={entry.type === "warning"}
+              class:text-md3-on-surface-variant={entry.type === "info"}
             >
               {entry.text}
             </span>
@@ -151,7 +185,7 @@
         {/each}
       </div>
     {:else}
-      <p class="text-sm text-gray-400">No activity yet.</p>
+      <p class="text-sm text-md3-on-surface-variant">No activity yet.</p>
     {/if}
   </div>
 </div>

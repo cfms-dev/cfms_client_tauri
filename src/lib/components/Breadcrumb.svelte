@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Hierarchical breadcrumb navigation.
+  // Hierarchical breadcrumb navigation — MD3 styled.
   //
   // Props:
   //   segments: array of { label: string, path: string }
@@ -16,21 +16,21 @@
 <nav aria-label="Breadcrumb" class="flex items-center gap-1 text-sm no-select">
   <!-- Root -->
   <button
-    class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+    class="text-md3-primary hover:underline font-medium transition-colors"
     onclick={() => onNavigate("/")}
   >
     /
   </button>
 
   {#each segments as seg, i}
-    <span class="text-gray-400 dark:text-gray-500">›</span>
+    <span class="text-md3-on-surface-variant select-none">›</span>
     {#if i === segments.length - 1}
-      <span class="text-gray-900 dark:text-gray-100 font-semibold">
+      <span class="text-md3-on-surface font-semibold">
         {seg.label}
       </span>
     {:else}
       <button
-        class="text-blue-600 dark:text-blue-400 hover:underline"
+        class="text-md3-primary hover:underline transition-colors"
         onclick={() => onNavigate(seg.path)}
       >
         {seg.label}
