@@ -14,7 +14,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use tokio_tungstenite::{
+    connect_async_tls_with_config, Connector, MaybeTlsStream, WebSocketStream,
+};
 use tracing::{debug, error, info, warn};
 
 use crate::frame::{self, FrameHeader, FrameKind};
@@ -72,14 +74,13 @@ impl Connection {
     /// Establish a WSS connection to `url`.
     ///
     /// - `url`: WebSocket URL (e.g. `"wss://cfms.example.com/ws"`).
-    /// - `_tls`: Pre-configured TLS [`rustls::ClientConfig`].
-    ///   *(Full custom TLS integration via tokio-tungstenite's
-    ///   `Connector::Rustls` will be completed in Phase 2.)*
+    /// - `tls`: Pre-configured TLS [`rustls::ClientConfig`] loaded from the
+    ///   local CA certificate store.
     /// - `proxy`: Optional SOCKS5 proxy address.  When `Some`, a raw TCP
     ///   connection is established through the proxy first.
     pub async fn connect(
         url: &str,
-        _tls: rustls::ClientConfig,
+        tls: rustls::ClientConfig,
         proxy: Option<&str>,
     ) -> Result<Self> {
         if let Some(proxy_addr) = proxy {
@@ -90,9 +91,10 @@ impl Connection {
 
             // Perform TLS handshake over the proxied TCP stream, then
             // wrap in tungstenite.
-            // NOTE: Full custom TLS connector integration with rustls is
-            // deferred to Phase 2.  For now we log a warning and fall
-            // back to a direct connection.
+            // NOTE: Full custom TLS connector integration with rustls over
+            // SOCKS5 proxy is deferred to Phase 2.  For now we log a
+            // warning and fall back to a direct connection (which still
+            // uses the custom TLS config).
             warn!(
                 "SOCKS5 proxy connected to {host}:{port}; \
                  custom TLS over proxy will be completed in Phase 2. \
@@ -102,14 +104,16 @@ impl Connection {
             drop(tcp_stream);
         }
 
-        Self::connect_direct(url).await
+        Self::connect_direct(url, tls).await
     }
 
-    /// Direct WSS connection (no proxy).
-    async fn connect_direct(url: &str) -> Result<Self> {
-        let (ws_stream, _response) = connect_async(url)
-            .await
-            .map_err(|e| cfms_core::Error::Connection(e.to_string()))?;
+    /// Direct WSS connection (no proxy), using the provided TLS config.
+    async fn connect_direct(url: &str, tls: rustls::ClientConfig) -> Result<Self> {
+        let connector = Connector::Rustls(Arc::new(tls));
+        let (ws_stream, _response) =
+            connect_async_tls_with_config(url, None, false, Some(connector))
+                .await
+                .map_err(|e| cfms_core::Error::Connection(e.to_string()))?;
 
         info!("WebSocket connected to {url}");
 
