@@ -40,6 +40,36 @@ pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientCo
     Ok(config)
 }
 
+/// Check whether a filename matches the OpenSSL `c_rehash` convention:
+/// 8 lowercase hex digits, a dot, and a single digit (e.g. "8a5a09f0.0").
+///
+/// This is used to distinguish actual CA certificate files from other
+/// extensionless files (dotfiles, README, etc.) in the CA directory.
+fn is_openssl_hash_filename(path: &Path) -> bool {
+    let name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n,
+        None => return false,
+    };
+
+    // 最小长度必须是 10 位: 8位十六进制 + 1位点 + 至少1位数字
+    if name.len() < 10 {
+        return false;
+    }
+
+    let bytes = name.as_bytes();
+
+    // 1. 前 8 位必须是小写十六进制数字 (0-9, a-f)
+    let is_hex = bytes[..8].iter().all(|&b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+
+    // 2. 第 9 位 (索引 8) 必须是 '.'
+    let has_dot = bytes[8] == b'.';
+
+    // 3. 从第 10 位 (索引 9) 开始往后的所有位，必须全部是 ASCII 数字
+    let is_suffix_numeric = bytes[9..].iter().all(|b| b.is_ascii_digit());
+
+    is_hex && has_dot && is_suffix_numeric
+}
+
 /// Load all PEM certificates from `ca_dir` into a [`RootCertStore`].
 ///
 /// Accepts files with `.pem`, `.crt`, and `.cer` extensions.  Also
@@ -62,7 +92,7 @@ pub fn load_trust_store(ca_dir: &Path) -> Result<RootCertStore> {
         let entry = entry?;
         let path = entry.path();
 
-        // Skip the git metadata directory used by the reference CA store.
+        // Skip directories and dotfiles (e.g. .git, .gitignore).
         if path.is_dir() {
             continue;
         }
@@ -70,12 +100,13 @@ pub fn load_trust_store(ca_dir: &Path) -> Result<RootCertStore> {
         // Only process files that look like certificates.
         let is_cert = match path.extension().and_then(|e| e.to_str()) {
             Some("pem") | Some("crt") | Some("cer") => true,
-            None => {
-                // Extensionless files are treated as PEM certs (matches
-                // the reference CA store naming convention).
-                true
-            }
-            _ => false,
+            // For files without a recognised extension (including files
+            // like "8a5a09f0.0" whose final component after the last '.'
+            // is a digit, not a textual extension), fall back to the
+            // OpenSSL c_rehash naming convention:
+            // 8 lowercase hex digits + "." + digit(s).
+            // This also naturally skips dotfiles like .git and .gitignore.
+            _ => is_openssl_hash_filename(&path),
         };
 
         if !is_cert {

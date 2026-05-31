@@ -1,0 +1,3 @@
+[submodule "ca"]
+	path = src-tauri/ca
+	url = https://github.com/cfms-dev/ca

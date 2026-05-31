@@ -12,6 +12,7 @@
 use cfms_core::constants;
 use cfms_core::{DownloadTaskDto, DownloadTaskStatus, FileEntry, ServiceStatusInfo};
 use cfms_service::services::download_queue;
+use tauri::Manager;
 
 use crate::AppHandleState;
 
@@ -301,21 +302,18 @@ pub async fn logout(
 /// is `true`, certificate verification is skipped (insecure).
 #[tauri::command]
 pub async fn connect(
+    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     url: String,
     disable_ssl_enforcement: bool,
 ) -> Result<(), String> {
-    // Build TLS config.
-    let ca_dir = {
-        // Use the local `ca` directory for custom CA certificates.
-        // In production, this path should be configurable via settings.
-        let candidate = std::path::Path::new("ca");
-        if candidate.exists() {
-            candidate.to_path_buf()
-        } else {
-            std::path::PathBuf::from("ca")
-        }
-    };
+    // Resolve the CA certificate directory via Tauri's resource resolver.
+    // In development this points to <project>/src-tauri/ca/.
+    // In production this points to the bundled resource directory.
+    let ca_dir = app_handle
+        .path()
+        .resolve("ca", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| format!("Cannot resolve CA directory: {e}"))?;
 
     let tls_config = cfms_transport::tls::build_config(&ca_dir, disable_ssl_enforcement)
         .map_err(|e| format!("TLS config error: {e}"))?;
