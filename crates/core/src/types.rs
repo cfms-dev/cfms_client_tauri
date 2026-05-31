@@ -238,3 +238,53 @@ pub struct FileEntry {
     /// Last modification time as a Unix timestamp (seconds).
     pub modified: Option<i64>,
 }
+
+// ---------------------------------------------------------------------------
+// Server-side directory / document entries (list_directory response)
+// ---------------------------------------------------------------------------
+
+/// A directory/folder entry returned by the server's `list_directory` action.
+///
+/// Mirrors the folder dicts in the Python reference implementation
+/// (`current_directories_data` in [`FileListView`]).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDirectoryEntry {
+    /// Server-assigned folder ID.
+    pub id: String,
+    /// Display name of the folder.
+    pub name: String,
+    /// Creation timestamp (Unix seconds).
+    #[serde(default)]
+    pub created_time: Option<f64>,
+}
+
+/// A document/file entry returned by the server's `list_directory` action.
+///
+/// Mirrors the document dicts in the Python reference implementation
+/// (`current_files_data` in [`FileListView`]).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDocumentEntry {
+    /// Server-assigned document ID.
+    pub id: String,
+    /// Display title of the document.
+    pub title: String,
+    /// File size in bytes.
+    #[serde(default)]
+    pub size: u64,
+    /// Last modification timestamp (Unix seconds).
+    #[serde(default)]
+    pub last_modified: Option<f64>,
+}
+
+/// Response data for the server's `list_directory` action.
+///
+/// Returned to the frontend as the result of the `list_directory` Tauri command.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListDirectoryResponse {
+    /// Subdirectories in this directory.
+    pub folders: Vec<ServerDirectoryEntry>,
+    /// Documents/files in this directory.
+    pub documents: Vec<ServerDocumentEntry>,
+    /// ID of the parent directory (`None` at the root).
+    pub parent_id: Option<String>,
+}

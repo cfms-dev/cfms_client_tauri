@@ -170,6 +170,8 @@ pub fn run() {
             commands::clear_completed_tasks,
             commands::clear_failed_tasks,
             commands::scan_directory,
+            commands::list_directory,
+            commands::get_document,
             commands::get_setting,
             commands::set_setting,
             commands::login,

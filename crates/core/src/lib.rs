@@ -16,5 +16,6 @@ pub mod types;
 pub use error::{Error, Result};
 pub use types::{
     DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, FileEntry,
-    FileMetadata, Response, ServiceEvent, ServiceStatusInfo, UploadProgress,
+    FileMetadata, ListDirectoryResponse, Response, ServerDirectoryEntry, ServerDocumentEntry,
+    ServiceEvent, ServiceStatusInfo, UploadProgress,
 };

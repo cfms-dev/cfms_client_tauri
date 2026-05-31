@@ -1,107 +1,130 @@
 <script lang="ts">
   // File Manager page
   //
-  // Browses files with hierarchical breadcrumb navigation.  Initially scans
-  // the local filesystem via the `scan_directory` command (safe — runs Rust-side).
-  // Server-side browsing will be added when the `list_server_directory` command
-  // is implemented.
+  // Browses files and folders on the CFMS server via the `list_directory`
+  // and `get_document` actions sent over the active WSS connection.
   //
-  // Adapted from the existing explorer page.
-  // Reference: FileManagerView in reference/src/include/ui/views/explorer.py
+  // Reference: get_directory / get_document in reference/src/include/ui/util/path.py
 
   import { onMount } from 'svelte';
-  import { scanDirectory, addDownload } from '$lib/api';
-  import type { FileEntry, DownloadTaskDto } from '$lib/api';
+  import { listDirectory, getDocument } from '$lib/api';
+  import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
-  // Navigation state
-  let currentPath = $state('/');
-  let entries = $state<FileEntry[]>([]);
+  // --- Navigation state ---
+  let currentFolderId = $state<string | null>(null);
+  let folders = $state<ServerDirectoryEntry[]>([]);
+  let documents = $state<ServerDocumentEntry[]>([]);
+  let parentId = $state<string | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let searchPattern = $state('');
+
+  // Selection mode
   let selectMode = $state(false);
-  let selectedPaths = $state<Set<string>>(new Set());
+  let selectedFolderIds = $state<Set<string>>(new Set());
+  let selectedDocumentIds = $state<Set<string>>(new Set());
 
-  const breadcrumbSegments = $derived.by(() => {
-    if (currentPath === '/') return [];
-    const parts = currentPath.replace(/\\/g, '/').split('/').filter(Boolean);
-    const segs: Array<{ label: string; path: string }> = [];
-    let acc = '';
-    for (const part of parts) {
-      acc = acc ? `${acc}/${part}` : `/${part}`;
-      segs.push({ label: part, path: acc });
-    }
-    return segs;
-  });
+  // Breadcrumb navigation history — each entry records the folder name and its
+  // server-side ID so we can jump back to any ancestor.
+  let navHistory = $state<Array<{ label: string; id: string }>>([]);
 
-  async function loadPath(path: string) {
+  const breadcrumbSegments = $derived(
+    navHistory.map((h) => ({ label: h.label, path: h.id })),
+  );
+
+  // --- Data loading ---
+
+  async function loadDirectory(folderId: string | null) {
     loading = true;
     error = null;
-    currentPath = path;
-    selectedPaths = new Set();
+    currentFolderId = folderId;
+    selectedFolderIds = new Set();
+    selectedDocumentIds = new Set();
     try {
-      entries = await scanDirectory(path, searchPattern || undefined);
+      const resp = await listDirectory(folderId);
+      folders = resp.folders;
+      documents = resp.documents;
+      parentId = resp.parent_id;
     } catch (e) {
       error = String(e);
-      entries = [];
+      folders = [];
+      documents = [];
+      parentId = null;
     } finally {
       loading = false;
     }
   }
 
-  function handleNavigate(path: string) {
-    loadPath(path);
+  // --- Navigation ---
+
+  function handleNavigate(folderId: string, folderName: string) {
+    navHistory.push({ label: folderName, id: folderId });
+    loadDirectory(folderId);
   }
 
-  async function handleSearch() {
-    await loadPath(currentPath);
+  function handleBreadcrumbNavigate(targetId: string) {
+    // "/" means root
+    if (targetId === '/') {
+      navHistory = [];
+      loadDirectory(null);
+      return;
+    }
+    // Truncate history to the clicked segment
+    const idx = navHistory.findIndex((h) => h.id === targetId);
+    if (idx >= 0) {
+      navHistory = navHistory.slice(0, idx + 1);
+    }
+    loadDirectory(targetId);
   }
 
-  function toggleSelect(path: string) {
-    const next = new Set(selectedPaths);
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
-    selectedPaths = next;
+  function handleGoToParent() {
+    // Pop the last entry and navigate to its parent
+    if (navHistory.length > 0) {
+      navHistory.pop();
+    }
+    loadDirectory(parentId);
+  }
+
+  // --- Selection ---
+
+  function toggleSelectFolder(id: string) {
+    const next = new Set(selectedFolderIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedFolderIds = next;
+  }
+
+  function toggleSelectDocument(id: string) {
+    const next = new Set(selectedDocumentIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedDocumentIds = next;
   }
 
   function clearSelection() {
-    selectedPaths = new Set();
+    selectedFolderIds = new Set();
+    selectedDocumentIds = new Set();
     selectMode = false;
   }
 
   function toggleSelectMode() {
     selectMode = !selectMode;
-    if (!selectMode) selectedPaths = new Set();
+    if (!selectMode) clearSelection();
   }
 
-  async function handleQuickDownload(entry: FileEntry) {
-    if (entry.is_dir) return;
-    const task: DownloadTaskDto = {
-      task_id: crypto.randomUUID(),
-      file_id: entry.path,
-      filename: entry.path.split(/[\\/]/).pop() ?? entry.path,
-      file_path: entry.path,
-      status: 'pending',
-      progress: 0,
-      current_bytes: 0,
-      total_bytes: entry.size,
-      error: null,
-      created_at: Math.floor(Date.now() / 1000),
-      started_at: null,
-      completed_at: null,
-      priority: 0,
-      retry_count: 0,
-      max_retries: 3,
-      scheduled_time: null,
-    };
+  const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
+
+  // --- Download ---
+
+  async function handleDownload(doc: ServerDocumentEntry) {
     try {
-      await addDownload(task);
+      await getDocument(doc.id, doc.title);
     } catch (e) {
       error = String(e);
     }
   }
+
+  // --- Formatting helpers ---
 
   function formatBytes(bytes: number): string {
     if (bytes === 0) return '—';
@@ -116,12 +139,29 @@
     return new Date(ts * 1000).toLocaleString();
   }
 
+  // --- Init ---
+
   onMount(() => {
-    loadPath('/');
+    loadDirectory(null);
   });
 
-  const dirs = $derived(entries.filter((e) => e.is_dir));
-  const files = $derived(entries.filter((e) => !e.is_dir));
+  // --- Filtered lists ---
+
+  const filteredFolders = $derived(
+    searchPattern
+      ? folders.filter((f) =>
+          f.name.toLowerCase().includes(searchPattern.toLowerCase()),
+        )
+      : folders,
+  );
+
+  const filteredDocuments = $derived(
+    searchPattern
+      ? documents.filter((d) =>
+          d.title.toLowerCase().includes(searchPattern.toLowerCase()),
+        )
+      : documents,
+  );
 </script>
 
 <div class="p-6 space-y-4">
@@ -175,7 +215,7 @@
     <!-- Search -->
     <form
       class="flex gap-2"
-      onsubmit={(e) => { e.preventDefault(); handleSearch(); }}
+      onsubmit={(e) => { e.preventDefault(); }}
     >
       <input
         type="text"
@@ -203,7 +243,7 @@
     <button
       class="p-1.5 rounded-full text-md3-on-surface-variant
              hover:bg-md3-surface-container-high transition-colors"
-      onclick={() => loadPath(currentPath)}
+      onclick={() => loadDirectory(currentFolderId)}
       title="Refresh"
     >
       <Icon name="refresh" size="20px" />
@@ -211,11 +251,11 @@
   </div>
 
   <!-- Selection toolbar -->
-  {#if selectMode && selectedPaths.size > 0}
+  {#if selectMode && totalSelected > 0}
     <div class="flex items-center gap-2 bg-md3-primary-container/30 rounded-xl
                 border border-md3-primary/20 px-3 py-2">
       <span class="text-xs text-md3-on-surface-variant">
-        {selectedPaths.size} selected
+        {totalSelected} selected
       </span>
       <button
         class="px-2.5 py-1 text-xs rounded-full font-medium
@@ -240,7 +280,7 @@
   {/if}
 
   <!-- Breadcrumb -->
-  <Breadcrumb segments={breadcrumbSegments} onNavigate={handleNavigate} />
+  <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
 
   <!-- Error -->
   {#if error}
@@ -256,7 +296,7 @@
       <span class="animate-spin">
         <Icon name="refresh" size="18px" />
       </span>
-      Scanning…
+      Loading…
     </div>
   {/if}
 
@@ -278,24 +318,48 @@
         <span></span>
       </div>
 
-      {#if dirs.length === 0 && files.length === 0}
+      {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
         <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
           This directory is empty.
         </p>
       {/if}
 
-      <!-- Directories -->
-      {#each dirs as dir (dir.path)}
+      <!-- Parent directory link -->
+      {#if parentId !== null}
         <button
           class="grid grid-cols-[auto_1fr_100px_160px_80px] gap-3 px-4 py-2.5 w-full text-left
                  hover:bg-md3-primary-container/20
                  border-b border-md3-outline/50
                  transition-colors"
-          onclick={() => selectMode ? toggleSelect(dir.path) : handleNavigate(dir.path)}
+          onclick={handleGoToParent}
+        >
+          <span class="self-center text-md3-primary">
+            <Icon name="arrowBack" size="20px" />
+          </span>
+          <span class="text-sm font-medium text-md3-primary truncate">
+            &lt;…&gt;
+          </span>
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">Parent directory</span>
+          <span></span>
+        </button>
+      {/if}
+
+      <!-- Folders -->
+      {#each filteredFolders as folder (folder.id)}
+        <button
+          class="grid grid-cols-[auto_1fr_100px_160px_80px] gap-3 px-4 py-2.5 w-full text-left
+                 hover:bg-md3-primary-container/20
+                 border-b border-md3-outline/50
+                 transition-colors"
+          onclick={() =>
+            selectMode
+              ? toggleSelectFolder(folder.id)
+              : handleNavigate(folder.id, folder.name)}
         >
           {#if selectMode}
             <span class="self-center">
-              <input type="checkbox" checked={selectedPaths.has(dir.path)}
+              <input type="checkbox" checked={selectedFolderIds.has(folder.id)}
                      class="rounded border-md3-outline text-md3-primary" />
             </span>
           {:else}
@@ -304,18 +368,18 @@
             </span>
           {/if}
           <span class="text-sm font-medium text-md3-primary truncate">
-            {dir.path.split(/[\\/]/).pop() ?? dir.path}
+            {folder.name}
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatDate(dir.modified)}
+            {formatDate(folder.created_time)}
           </span>
           <span></span>
         </button>
       {/each}
 
-      <!-- Files -->
-      {#each files as file (file.path)}
+      <!-- Documents / Files -->
+      {#each filteredDocuments as doc (doc.id)}
         <div
           class="grid grid-cols-[auto_1fr_100px_160px_80px] gap-3 px-4 py-2.5
                  hover:bg-md3-surface-container-high/30
@@ -324,9 +388,9 @@
         >
           {#if selectMode}
             <span class="self-center">
-              <input type="checkbox" checked={selectedPaths.has(file.path)}
+              <input type="checkbox" checked={selectedDocumentIds.has(doc.id)}
                      class="rounded border-md3-outline text-md3-primary"
-                     onchange={() => toggleSelect(file.path)} />
+                     onchange={() => toggleSelectDocument(doc.id)} />
             </span>
           {:else}
             <span class="self-center text-md3-on-surface-variant">
@@ -334,20 +398,20 @@
             </span>
           {/if}
           <span class="text-sm text-md3-on-surface truncate">
-            {file.path.split(/[\\/]/).pop() ?? file.path}
+            {doc.title}
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatBytes(file.size)}
+            {formatBytes(doc.size)}
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatDate(file.modified)}
+            {formatDate(doc.last_modified)}
           </span>
           <button
             class="text-xs px-3 py-1 rounded-full font-medium
                    bg-md3-primary-container text-md3-on-primary-container
                    hover:brightness-110 transition-all flex items-center gap-1"
             style="font-family: var(--font-md3-sans);"
-            onclick={() => handleQuickDownload(file)}
+            onclick={() => handleDownload(doc)}
           >
             <Icon name="download" size="14px" />
             Download

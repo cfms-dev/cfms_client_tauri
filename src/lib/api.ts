@@ -59,6 +59,28 @@ export interface FileEntry {
   modified: number | null;
 }
 
+/** A directory/folder entry returned by the server's list_directory action. */
+export interface ServerDirectoryEntry {
+  id: string;
+  name: string;
+  created_time: number | null;
+}
+
+/** A document/file entry returned by the server's list_directory action. */
+export interface ServerDocumentEntry {
+  id: string;
+  title: string;
+  size: number;
+  last_modified: number | null;
+}
+
+/** Response data for the list_directory server action. */
+export interface ListDirectoryResponse {
+  folders: ServerDirectoryEntry[];
+  documents: ServerDocumentEntry[];
+  parent_id: string | null;
+}
+
 export interface ServiceStatusInfo {
   name: string;
   running: boolean;
@@ -230,7 +252,39 @@ export async function clearFailedTasks(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// File scanning
+// Server-side file browsing
+// ---------------------------------------------------------------------------
+
+/** List a directory on the CFMS server via the active WSS connection.
+ *
+ * Pass `folderId = null` to list the root directory.
+ * Returns sub-folders, documents, and the parent folder ID.
+ */
+export async function listDirectory(
+  folderId: string | null,
+): Promise<ListDirectoryResponse> {
+  return invoke("list_directory", { folderId });
+}
+
+/** Request a document download from the CFMS server.
+ *
+ * Sends the `get_document` action, which creates a download task on the
+ * server and adds it to the persistent local download queue.
+ */
+export async function getDocument(
+  documentId: string,
+  filename: string,
+): Promise<{
+  task_id: string;
+  file_id: string;
+  filename: string;
+  file_path: string;
+}> {
+  return invoke("get_document", { documentId, filename });
+}
+
+// ---------------------------------------------------------------------------
+// Local file scanning (legacy — use listDirectory for server browsing)
 // ---------------------------------------------------------------------------
 
 /** Scan a local directory recursively. */
