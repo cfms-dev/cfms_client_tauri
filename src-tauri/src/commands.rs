@@ -249,7 +249,7 @@ pub async fn login(
         },
     });
     if let Some(ref token) = twofa_token {
-        request["2fa_token"] = serde_json::Value::String(token.clone());
+        request["data"]["2fa_token"] = serde_json::Value::String(token.clone());
     }
 
     // --- Send login request over a client stream ---
