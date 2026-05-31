@@ -28,7 +28,7 @@ use std::time::Duration;
 
 use tokio::sync::watch;
 
-use cfms_core::{DownloadTaskStatus, ServiceEvent};
+use cfms_core::{DownloadPhase, DownloadTaskStatus, ServiceEvent};
 
 use crate::db::tasks::TaskStore;
 use crate::state::AppState;
@@ -193,6 +193,9 @@ async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry)
 ///
 /// This function drives the download through the state machine, reporting
 /// progress and persisting status changes to the database.
+///
+/// Mirrors the Python reference [`DownloadManagerService._download_task`]
+/// found in `reference/src/include/classes/services/download.py`.
 async fn execute_download(
     task_id: String,
     file_path: String,
@@ -206,7 +209,29 @@ async fn execute_download(
         return;
     }
 
-    // --- Phase 1: DOWNLOADING ---
+    // --- Phase 1: Obtain a connection ---
+    //
+    // The Python reference creates a fresh connection per download via
+    // `get_connection()`.  In the Rust client we reuse the shared multiplexed
+    // connection stored in `AppState.conn` — each download opens its own
+    // virtual stream through `Connection::create_stream()`.
+    let conn = {
+        let guard = state.conn.read().await;
+        match guard.as_ref() {
+            Some(c) => c.clone(),
+            None => {
+                tracing::error!("Download {task_id}: no active connection");
+                let _ = store.mark_failed(&task_id, "No active connection to server");
+                let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                    task_id: task_id.clone(),
+                    error: "No active connection to server".into(),
+                });
+                return;
+            }
+        }
+    };
+
+    // --- Phase 2: DOWNLOADING ---
     let _ = store.update_status(&task_id, DownloadTaskStatus::Downloading);
     let _ = state.event_tx.send(ServiceEvent::DownloadProgress {
         task_id: task_id.clone(),
@@ -215,73 +240,137 @@ async fn execute_download(
         total: 0,
     });
 
-    // For now, the actual download logic is a placeholder.  The full
-    // implementation in Phase 3 will:
-    // 1. Get a connection from state.conn
-    // 2. Call cfms_transfer::download::receive() with progress callback
-    // 3. The progress callback updates the DB and emits events
-
     tracing::info!("Download started: {task_id} → {file_path}");
 
-    // Simulate: check cancellation, then complete.
-    // In the full implementation, this is replaced with the actual
-    // cfms_transfer::download::receive() call.
-    let success = simulate_download(&task_id, &state, &cancel_flag).await;
+    // Progress callback invoked by `cfms_transfer::download::receive()` at
+    // each stage.  Updates the database and emits events so the frontend can
+    // show a real-time progress bar and the current phase label.
+    let store_for_progress = store.clone();
+    let state_for_progress = state.clone();
+    let tid = task_id.clone();
 
-    if !success {
-        // Download was cancelled.
-        let _ = store.update_status(&task_id, DownloadTaskStatus::Cancelled);
-        let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
-            task_id: task_id.clone(),
-        });
-        return;
-    }
-
-    // --- Phase 2: COMPLETED ---
-    if let Err(e) = store.mark_completed(&task_id, 0) {
-        tracing::error!("Failed to mark task {task_id} as completed: {e}");
-    }
-
-    let _ = state.event_tx.send(ServiceEvent::DownloadCompleted {
-        task_id: task_id.clone(),
-        file_path,
-    });
-
-    tracing::info!("Download completed: {task_id}");
-}
-
-/// Placeholder: simulate a download with progress updates and cancellation
-/// checks.  This will be replaced with the real `cfms_transfer` call in
-/// a future Phase.
-async fn simulate_download(
-    task_id: &str,
-    state: &AppState,
-    cancel_flag: &AtomicBool,
-) -> bool {
-    let total: u64 = 100 * 1024 * 1024; // simulate 100 MiB
-    let chunks: u64 = 10;
-    let chunk_size: u64 = total / chunks;
-
-    for i in 0..chunks {
-        // Check cancellation before each chunk.
-        if cancel_flag.load(Ordering::SeqCst) {
-            tracing::info!("Download {task_id} cancelled at chunk {i}/{chunks}");
-            return false;
-        }
-
-        let current = (i + 1) * chunk_size;
-        let _ = state.event_tx.send(ServiceEvent::DownloadProgress {
-            task_id: task_id.to_string(),
-            phase: "downloading".into(),
+    let on_progress = move |phase: DownloadPhase, current: u64, total: u64| {
+        let status = download_phase_to_status(phase);
+        let _ = store_for_progress.update_progress(&tid, status, current, total);
+        let _ = state_for_progress.event_tx.send(ServiceEvent::DownloadProgress {
+            task_id: tid.clone(),
+            phase: phase_to_str(phase).to_string(),
             current,
             total,
         });
+    };
 
-        // Simulate I/O work.
-        tokio::time::sleep(Duration::from_millis(100)).await;
+    let dest = std::path::Path::new(&file_path);
+
+    // Race the actual download against the cancellation flag so the user can
+    // abort an in-progress transfer without waiting for the current chunk.
+    let result: Option<cfms_core::Result<()>> = tokio::select! {
+        r = cfms_transfer::download::receive(&conn, &task_id, dest, &on_progress) => {
+            Some(r)
+        }
+        _ = wait_for_cancellation(cancel_flag.clone()) => {
+            None
+        }
+    };
+
+    match result {
+        // --- Success ---
+        Some(Ok(())) => {
+            if let Err(e) = store.mark_completed(&task_id, 0) {
+                tracing::error!("Failed to mark task {task_id} as completed: {e}");
+            }
+
+            let _ = state.event_tx.send(ServiceEvent::DownloadCompleted {
+                task_id: task_id.clone(),
+                file_path,
+            });
+
+            tracing::info!("Download completed: {task_id}");
+        }
+
+        // --- Error (retry or fail) ---
+        Some(Err(e)) => {
+            let error_msg = e.to_string();
+            tracing::error!("Download {task_id} failed: {error_msg}");
+
+            match store.retry_or_fail(&task_id, &error_msg) {
+                Ok(DownloadTaskStatus::Failed) => {
+                    let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                        task_id: task_id.clone(),
+                        error: error_msg,
+                    });
+                }
+                Ok(_) => {
+                    // Task was reset to Pending for a retry on the next tick.
+                    tracing::info!("Download {task_id} will be retried: {error_msg}");
+                }
+                Err(db_err) => {
+                    tracing::error!(
+                        "Failed to update retry state for {task_id}: {db_err}"
+                    );
+                }
+            }
+        }
+
+        // --- Cancelled (select! raced to the cancel signal) ---
+        None => {
+            // Clean up the partial destination file if one was created.
+            if let Err(e) = std::fs::remove_file(&file_path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!("Failed to clean up partial file {file_path}: {e}");
+                }
+            }
+
+            let _ = store.update_status(&task_id, DownloadTaskStatus::Cancelled);
+            let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
+                task_id: task_id.clone(),
+            });
+
+            tracing::info!("Download cancelled: {task_id}");
+        }
     }
+}
 
-    true
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Map a [`DownloadPhase`] to the corresponding [`DownloadTaskStatus`].
+///
+/// The Python reference maps:
+/// - stage 0 (Downloading) → `DownloadTaskStatus.DOWNLOADING`
+/// - stage 1 (Decrypting) → `DownloadTaskStatus.DECRYPTING`
+/// - stage 2 (Cleaning)  → `DownloadTaskStatus.VERIFYING`
+/// - stage 3 (Verifying) → `DownloadTaskStatus.VERIFYING`
+fn download_phase_to_status(phase: DownloadPhase) -> DownloadTaskStatus {
+    match phase {
+        DownloadPhase::Downloading => DownloadTaskStatus::Downloading,
+        DownloadPhase::Decrypting => DownloadTaskStatus::Decrypting,
+        DownloadPhase::Cleaning | DownloadPhase::Verifying => DownloadTaskStatus::Verifying,
+    }
+}
+
+/// Human-readable label for a download phase (used in frontend progress events).
+fn phase_to_str(phase: DownloadPhase) -> &'static str {
+    match phase {
+        DownloadPhase::Downloading => "downloading",
+        DownloadPhase::Decrypting => "decrypting",
+        DownloadPhase::Cleaning => "cleaning",
+        DownloadPhase::Verifying => "verifying",
+    }
+}
+
+/// Returns when the cancellation flag is set to `true`.
+///
+/// Polls periodically so the runtime can still make progress on other tasks
+/// while waiting for a cancellation signal.
+async fn wait_for_cancellation(flag: Arc<AtomicBool>) {
+    loop {
+        if flag.load(Ordering::SeqCst) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
 }
 
 // ---------------------------------------------------------------------------
