@@ -11,6 +11,7 @@
 
 use cfms_core::constants;
 use cfms_core::{DownloadTaskDto, DownloadTaskStatus, FileEntry, ServiceStatusInfo};
+use cfms_crypto::dek;
 use cfms_service::services::download_queue;
 use tauri::Manager;
 
@@ -57,7 +58,10 @@ pub async fn get_service_status(
 ) -> Result<Vec<ServiceStatusInfo>, String> {
     // We track services by whether their handles are active.
     // For now, return a static list since all services start together.
-    let lockdown = state.inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
+    let lockdown = state
+        .inner
+        .app_lockdown
+        .load(std::sync::atomic::Ordering::SeqCst);
     Ok(vec![
         ServiceStatusInfo {
             name: "token_refresh".into(),
@@ -142,9 +146,7 @@ pub async fn cancel_download(
 
 /// Clear completed and cancelled tasks.
 #[tauri::command]
-pub async fn clear_completed_tasks(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<u32, String> {
+pub async fn clear_completed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
     state
         .store
         .clear_completed()
@@ -154,9 +156,7 @@ pub async fn clear_completed_tasks(
 
 /// Clear failed tasks.
 #[tauri::command]
-pub async fn clear_failed_tasks(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<u32, String> {
+pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
     state
         .store
         .clear_failed()
@@ -222,8 +222,9 @@ pub async fn set_setting(
 ///   `twofa_token`.
 /// - Reject the login (any other code) — an error is returned.
 ///
-/// The Key Encryption Key (KEK) is derived from the password via
-/// PBKDF2-HMAC-SHA256 (1 000 000 iterations).
+/// The Data Encryption Key (DEK) is set up after successful
+/// authentication — either decrypted from the server-returned
+/// `preference_dek` or generated fresh and uploaded (first login).
 #[tauri::command]
 pub async fn login(
     state: tauri::State<'_, AppHandleState>,
@@ -231,8 +232,6 @@ pub async fn login(
     password: String,
     twofa_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    use cfms_crypto::kdf;
-
     // --- Obtain the active connection ---
     let conn = {
         let c = state.inner.conn.read().await;
@@ -258,8 +257,8 @@ pub async fn login(
         .await
         .map_err(|e| format!("Failed to create stream: {e}"))?;
 
-    let request_bytes = serde_json::to_vec(&request)
-        .map_err(|e| format!("Failed to encode login request: {e}"))?;
+    let request_bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to encode login request: {e}"))?;
 
     stream
         .send(&conn, request_bytes)
@@ -289,9 +288,11 @@ pub async fn login(
         200 => {
             let data = &response.data;
 
-            // Derive KEK from password.
-            let salt = kdf::generate_salt();
-            let kek = kdf::derive_kek(password.as_bytes(), &salt);
+            // Extract token early — needed for the DEK setup calls below.
+            let token = data["token"]
+                .as_str()
+                .ok_or_else(|| "Server did not return a token".to_string())?
+                .to_string();
 
             // Store auth state from server response.
             {
@@ -299,12 +300,8 @@ pub async fn login(
                 *u = Some(username.clone());
             }
             {
-                let token = data["token"]
-                    .as_str()
-                    .ok_or_else(|| "Server did not return a token".to_string())?
-                    .to_string();
                 let mut t = state.inner.token.write().await;
-                *t = Some(token);
+                *t = Some(token.clone());
             }
             {
                 let exp = data["exp"].as_i64().unwrap_or(unix_now() + 3600);
@@ -346,11 +343,19 @@ pub async fn login(
                 .pending_2fa
                 .store(false, std::sync::atomic::Ordering::SeqCst);
 
-            // Store encryption key material.
-            {
-                let mut dek = state.inner.dek.write().await;
-                *dek = Some(kek);
-            }
+            // Set up Data Encryption Key (best-effort, non-fatal).
+            // The DEK is either decrypted from the server-returned
+            // preference_dek, or generated fresh and uploaded (first login
+            // with keyring support).
+            let _ = setup_dek(
+                &state.inner,
+                data,
+                &password,
+                &username,
+                &token,
+                &conn,
+            )
+            .await;
 
             let status = build_auth_status(&state.inner).await;
             Ok(status)
@@ -366,9 +371,9 @@ pub async fn login(
                 .store(true, std::sync::atomic::Ordering::SeqCst);
 
             // Store partial auth state so the frontend can re-submit with 2FA.
-            let salt = kdf::generate_salt();
-            let kek = kdf::derive_kek(password.as_bytes(), &salt);
-
+            // No DEK setup here — the real token isn't available yet.
+            // DEK setup happens when the frontend re-invokes login with
+            // twofa_token and the server returns 200.
             {
                 let mut u = state.inner.username.write().await;
                 *u = Some(username.clone());
@@ -385,10 +390,6 @@ pub async fn login(
             {
                 let mut n = state.inner.nickname.write().await;
                 *n = Some(username.clone());
-            }
-            {
-                let mut dek = state.inner.dek.write().await;
-                *dek = Some(kek);
             }
             {
                 let mut p = state.inner.permissions.write().await;
@@ -422,18 +423,13 @@ pub async fn login(
         }
 
         // --- Server-side error ---
-        other => Err(format!(
-            "Login failed: ({}) {}",
-            other, response.message
-        )),
+        other => Err(format!("Login failed: ({}) {}", other, response.message)),
     }
 }
 
 /// Log out and clear all authentication state.
 #[tauri::command]
-pub async fn logout(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<(), String> {
+pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
     // Clear auth fields.
     {
         let mut u = state.inner.username.write().await;
@@ -512,9 +508,7 @@ pub async fn connect(
 
 /// Close the WSS connection.
 #[tauri::command]
-pub async fn disconnect(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<(), String> {
+pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
     let conn = {
         let mut c = state.inner.conn.write().await;
         c.take()
@@ -584,4 +578,146 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+// ---------------------------------------------------------------------------
+// DEK setup helpers
+// ---------------------------------------------------------------------------
+
+/// Send an action request over the connection and return the parsed response.
+///
+/// Creates a short-lived stream, sends the JSON payload, reads the response,
+/// and closes the stream with a conclusion frame.
+async fn send_action_request(
+    conn: &cfms_transport::Connection,
+    action: &str,
+    data: serde_json::Value,
+    username: &str,
+    token: &str,
+) -> Result<cfms_core::Response, String> {
+    let request = serde_json::json!({
+        "action": action,
+        "data": data,
+        "username": username,
+        "token": token,
+        "timestamp": unix_now(),
+    });
+
+    let request_bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to encode {action} request: {e}"))?;
+
+    let mut stream = conn
+        .create_stream()
+        .await
+        .map_err(|e| format!("Failed to create stream for {action}: {e}"))?;
+
+    stream
+        .send(conn, request_bytes)
+        .await
+        .map_err(|e| format!("Failed to send {action} request: {e}"))?;
+
+    let response_bytes = stream
+        .recv()
+        .await
+        .ok_or_else(|| format!("Connection closed before {action} response"))?;
+
+    let _ = stream.send_final(conn, vec![]).await;
+
+    serde_json::from_slice::<cfms_core::Response>(&response_bytes)
+        .map_err(|e| format!("Invalid {action} response: {e}"))
+}
+
+/// Set up the Data Encryption Key after a successful login.
+///
+/// Mirrors [`_setup_dek`] from the Python reference implementation:
+///
+/// 1. If the server returned a `preference_dek`, decrypt its `key_content`
+///    with the password-derived KEK to recover the DEK.
+/// 2. Otherwise, generate a new random DEK, encrypt it, upload it to the
+///    server's keyring (`upload_user_key`), and register it as the
+///    preference DEK (`set_user_preference_dek`).
+///
+/// Failures are logged but **not** propagated — DEK setup is best-effort;
+/// the user can still log in without encrypted configuration support.
+async fn setup_dek(
+    inner: &cfms_service::state::AppState,
+    login_data: &serde_json::Value,
+    password: &str,
+    username: &str,
+    token: &str,
+    conn: &cfms_transport::Connection,
+) {
+    if password.is_empty() {
+        return;
+    }
+
+    let result: Result<(), String> = async {
+        if let Some(preference_dek) = login_data.get("preference_dek") {
+            // --- Server already has an encrypted DEK — decrypt it. ---
+            let key_content = preference_dek["key_content"]
+                .as_str()
+                .ok_or_else(|| "preference_dek missing key_content".to_string())?;
+
+            let decrypted = dek::decrypt_dek(key_content, password)
+                .map_err(|e| format!("DEK decryption failed: {e}"))?;
+
+            let mut d = inner.dek.write().await;
+            *d = Some(decrypted);
+        } else {
+            // --- First login with keyring support — generate and upload. ---
+            let new_dek = dek::generate_dek();
+            let encrypted = dek::encrypt_dek(&new_dek, password)
+                .map_err(|e| format!("DEK encryption failed: {e}"))?;
+
+            // Upload the encrypted DEK to the server's keyring.
+            let upload_resp = send_action_request(
+                conn,
+                "upload_user_key",
+                serde_json::json!({"content": encrypted, "label": "preference_dek"}),
+                username,
+                token,
+            )
+            .await?;
+
+            if upload_resp.code != 200 {
+                return Err(format!(
+                    "upload_user_key returned {}: {}",
+                    upload_resp.code, upload_resp.message
+                ));
+            }
+
+            let key_id = upload_resp.data["id"]
+                .as_str()
+                .ok_or_else(|| "upload_user_key response missing id".to_string())?
+                .to_string();
+
+            // Register it as the preference DEK for future logins.
+            let set_resp = send_action_request(
+                conn,
+                "set_user_preference_dek",
+                serde_json::json!({"id": key_id}),
+                username,
+                token,
+            )
+            .await?;
+
+            if set_resp.code != 200 {
+                return Err(format!(
+                    "set_user_preference_dek returned {}: {}",
+                    set_resp.code, set_resp.message
+                ));
+            }
+
+            // Store the DEK in memory.
+            let mut d = inner.dek.write().await;
+            *d = Some(new_dek);
+        }
+        Ok(())
+    }
+    .await;
+
+    if let Err(e) = result {
+        // Non-fatal: encryption is best-effort; login still succeeds.
+        tracing::warn!("DEK setup failed (config will not be encrypted this session): {e}");
+    }
 }
