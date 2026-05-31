@@ -243,8 +243,10 @@ pub async fn login(
     // --- Build login request payload ---
     let mut request = serde_json::json!({
         "action": "login",
-        "username": &username,
-        "password": &password,
+        "data": {
+            "username": &username,
+            "password": &password,
+        },
     });
     if let Some(ref token) = twofa_token {
         request["2fa_token"] = serde_json::Value::String(token.clone());

@@ -2,5 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    cfms_client_tauri_lib::run()
+    tracing_subscriber::fmt::init();
+    cfms_client_tauri_lib::run();
 }

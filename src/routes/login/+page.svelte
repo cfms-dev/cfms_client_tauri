@@ -86,7 +86,6 @@
 
     busy = true;
     error = null;
-    loadingPhase = loadingPhases[0];
 
     try {
       const authResult = await login(username, password);
@@ -97,11 +96,11 @@
         // Keep password in memory for the 2FA re-submit.
         pendingPassword = password;
         show2faDialog = true;
-        loadingPhase = '';
         return;
       }
 
-      // Regular success — run loading phases and navigate.
+      // Regular success — animate the loading phases.
+      loadingPhase = loadingPhases[0];
       await runLoadingPhases();
 
       authStore.apply(authResult);
@@ -118,9 +117,9 @@
       goto('/home/overview');
     } catch (e) {
       error = formatError(e);
-      loadingPhase = '';
     } finally {
       busy = false;
+      loadingPhase = '';
     }
   }
 
@@ -137,7 +136,9 @@
         return false;
       }
 
-      // Success — complete login.
+      // Success — animate the loading phases.
+      busy = true;
+      loadingPhase = loadingPhases[0];
       await runLoadingPhases();
 
       authStore.apply(authResult);
@@ -157,6 +158,9 @@
     } catch (e) {
       // Let the dialog handle the error display.
       return false;
+    } finally {
+      busy = false;
+      loadingPhase = '';
     }
   }
 

@@ -30,6 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [features]
 default = ["custom-protocol"]
