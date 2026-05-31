@@ -56,6 +56,7 @@ export const ICONS = {
   help:          'help',
 
   // ---- File operations ----
+  folder:           'folder',
   folderOpen:       'folder_open',
   createNewFolder:  'create_new_folder',
   filePresent:      'description',

@@ -240,7 +240,7 @@
   {/if}
 
   <!-- Breadcrumb -->
-  <Breadcrumb segments={breadcrumbSegments()} onNavigate={handleNavigate} />
+  <Breadcrumb segments={breadcrumbSegments} onNavigate={handleNavigate} />
 
   <!-- Error -->
   {#if error}
