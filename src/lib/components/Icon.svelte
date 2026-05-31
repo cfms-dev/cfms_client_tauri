@@ -1,10 +1,12 @@
 <script lang="ts">
   // Reusable Material Symbol icon wrapper.
   //
-  // Uses @iconify/svelte to render icons from the material-symbols set.
+  // Renders icons using the Material Symbols Outlined font loaded in app.html.
+  // The font uses ligatures: each icon name (underscore_separated) is rendered
+  // as its corresponding glyph — no network requests at runtime.
+  //
   // Icons are referenced by their semantic name defined in $lib/icons.ts.
 
-  import IconComponent from '@iconify/svelte';
   import type { IconName } from '$lib/icons';
   import { ICONS } from '$lib/icons';
 
@@ -16,7 +18,23 @@
 
   let { name, size = '24px', class: className = '' }: Props = $props();
 
-  const iconPath = $derived(`material-symbols:${ICONS[name]}`);
+  /** Convert "24px" or 24 → "24px"; leave custom units (em, rem) as-is. */
+  const iconSize = $derived(
+    typeof size === 'number' ? `${size}px` : size,
+  );
+
+  /**
+   * The Material Symbols font ligature name.
+   * Google's font uses underscores, which matches our ICONS values directly.
+   */
+  const ligature = $derived(ICONS[name]);
 </script>
 
-<IconComponent icon={iconPath} width={size} height={size} class={className} />
+<span
+  class="material-symbols-outlined select-none inline-flex items-center justify-center leading-none {className}"
+  style="font-size: {iconSize}; width: {iconSize}; height: {iconSize}; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;"
+  aria-hidden="true"
+  data-icon={name}
+>
+  {ligature}
+</span>
