@@ -7,7 +7,8 @@
   // Reference: TaskTile in reference/src/include/ui/controls/components/explorer/tile.py
 
   import type { DownloadTaskDto, DownloadTaskStatus } from "../api";
-  import { pauseDownload, resumeDownload, cancelDownload } from "../api";
+  import { pauseDownload, resumeDownload, cancelDownload, deleteDownload } from "../api";
+  import { openPath } from "@tauri-apps/plugin-opener";
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
   import type { IconName } from "$lib/icons";
@@ -44,6 +45,26 @@
     try {
       await cancelDownload(task.task_id);
       onRemove(task.task_id);
+    } finally {
+      actionPending = false;
+    }
+  }
+
+  async function handleOpen() {
+    try {
+      await openPath(task.file_path);
+    } catch (e) {
+      console.error('Failed to open file:', e);
+    }
+  }
+
+  async function handleDelete() {
+    actionPending = true;
+    try {
+      await deleteDownload(task.task_id);
+      onRemove(task.task_id);
+    } catch (e) {
+      console.error('Failed to delete download:', e);
     } finally {
       actionPending = false;
     }
@@ -226,7 +247,7 @@
                bg-md3-primary-container text-md3-on-primary-container
                hover:brightness-110
                disabled:opacity-50 transition-all flex items-center gap-1"
-        onclick={() => {/* TODO: open file via Tauri opener plugin */}}
+        onclick={handleOpen}
         disabled={actionPending}
       >
         <Icon name="openInNew" size="14px" />
@@ -237,7 +258,7 @@
                bg-md3-error-container text-md3-on-error-container
                hover:brightness-110
                disabled:opacity-50 transition-all flex items-center gap-1"
-        onclick={() => onRemove(task.task_id)}
+        onclick={handleDelete}
         disabled={actionPending}
       >
         <Icon name="delete" size="14px" />

@@ -207,7 +207,7 @@ pub async fn receive(
 
     // --- Step 5: decrypt and write chunks ---
     let chunks = store.ordered_chunks()?;
-    let total_chunks_count = chunks.len() as u64;
+    let _total_chunks_count = chunks.len() as u64;
 
     // Ensure the destination directory exists.
     if let Some(parent) = dest.parent() {
@@ -216,7 +216,9 @@ pub async fn receive(
 
     let mut out_file = std::fs::File::create(dest).map_err(cfms_core::Error::Io)?;
 
-    for (i, chunk_row) in chunks.iter().enumerate() {
+    let mut accumulated_bytes: u64 = 0;
+
+    for (_i, chunk_row) in chunks.iter().enumerate() {
         let decrypted = decrypt_chunk(
             &aes_key,
             &chunk_row.prefix,
@@ -227,7 +229,11 @@ pub async fn receive(
 
         std::io::Write::write_all(&mut out_file, &decrypted)?;
 
-        on_progress(DownloadPhase::Decrypting, i as u64 + 1, total_chunks_count);
+        accumulated_bytes += decrypted.len() as u64;
+
+        // Report progress in bytes out of total file_size so the frontend
+        // can display a consistent byte-based progress percentage.
+        on_progress(DownloadPhase::Decrypting, accumulated_bytes, file_size);
     }
 
     // Flush and sync.

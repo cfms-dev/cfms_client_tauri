@@ -157,7 +157,7 @@ pub async fn clear_completed_tasks(state: tauri::State<'_, AppHandleState>) -> R
         .map_err(|e| format!("Failed to clear completed tasks: {e}"))
 }
 
-/// Clear failed tasks.
+/// Clear failed tasks. Returns count removed.
 #[tauri::command]
 pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
     state
@@ -165,6 +165,123 @@ pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Resu
         .clear_failed()
         .map(|n| n as u32)
         .map_err(|e| format!("Failed to clear failed tasks: {e}"))
+}
+
+/// Delete a download task from the database and remove its file from disk.
+///
+/// Removes the task from the persistent store and deletes the associated file
+/// if it exists on the filesystem. Accepts task_id as a string for simpler
+/// frontend integration.
+#[tauri::command]
+pub async fn delete_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    // Look up the task to get its file_path for filesystem cleanup.
+    if let Ok(Some(task)) = state.store.get(&task_id) {
+        // Try to delete the file from disk (best-effort, don't fail if missing).
+        let path = std::path::Path::new(&task.file_path);
+        if path.exists() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    // Remove from the persistent store.
+    state
+        .store
+        .delete(&task_id)
+        .map_err(|e| format!("Failed to delete download: {e}"))?;
+
+    Ok(true)
+}
+
+// ---------------------------------------------------------------------------
+// Server-side directory & document operations
+// ---------------------------------------------------------------------------
+
+/// Create a new directory on the CFMS server.
+///
+/// Mirrors [`create_directory`] from the Python reference (`create.py`).
+#[tauri::command]
+pub async fn create_directory(
+    state: tauri::State<'_, AppHandleState>,
+    parent_id: Option<String>,
+    name: String,
+    exists_ok: Option<bool>,
+) -> Result<String, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "create_directory",
+        serde_json::json!({"parent_id": parent_id, "name": name, "exists_ok": exists_ok.unwrap_or(false)}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    let id = resp.data["id"]
+        .as_str()
+        .ok_or_else(|| "Server response missing id".to_string())?
+        .to_string();
+
+    Ok(id)
+}
+
+/// Delete a directory on the CFMS server.
+///
+/// Mirrors `delete_directory` from the Python reference (`batch_operations.py`).
+#[tauri::command]
+pub async fn delete_directory(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+) -> Result<bool, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "delete_directory",
+        serde_json::json!({"folder_id": folder_id}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    Ok(true)
+}
+
+/// Delete a document on the CFMS server.
+///
+/// Mirrors `delete_document` from the Python reference (`batch_operations.py`).
+#[tauri::command]
+pub async fn delete_document(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+) -> Result<bool, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "delete_document",
+        serde_json::json!({"document_id": document_id}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    Ok(true)
 }
 
 // ---------------------------------------------------------------------------
@@ -441,9 +558,6 @@ pub async fn login(
         .await
         .ok_or_else(|| "Connection closed before login response".to_string())?;
 
-    // Send conclusion frame to close the stream.
-    let _ = stream.send_final(&conn, vec![]).await;
-
     let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
         .map_err(|e| format!("Invalid login response from server: {e}"))?;
 
@@ -702,6 +816,34 @@ pub async fn get_auth_status(
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Convenience helper: extract (connection, username, token) from app state.
+async fn get_connection_auth(
+    state: &AppHandleState,
+) -> Result<(cfms_transport::Connection, String, String), String> {
+    let conn = state
+        .inner
+        .conn
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "Not connected to a server".to_string())?;
+    let username = state
+        .inner
+        .username
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "Not logged in".to_string())?;
+    let token = state
+        .inner
+        .token
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "Not logged in".to_string())?;
+    Ok((conn, username, token))
+}
+
 /// Build a JSON auth-status payload for the frontend.
 async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json::Value {
     let username = inner.username.read().await.clone();
@@ -786,8 +928,6 @@ async fn send_action_request(
         .recv()
         .await
         .ok_or_else(|| format!("Connection closed before {action} response"))?;
-
-    let _ = stream.send_final(conn, vec![]).await;
 
     serde_json::from_slice::<cfms_core::Response>(&response_bytes)
         .map_err(|e| format!("Invalid {action} response: {e}"))

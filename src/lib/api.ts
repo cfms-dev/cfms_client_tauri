@@ -283,6 +283,34 @@ export async function getDocument(
   return invoke("get_document", { documentId, filename });
 }
 
+/** Delete a download task from the database and remove its file from disk. */
+export async function deleteDownload(taskId: string): Promise<boolean> {
+  return invoke("delete_download", { taskId });
+}
+
+/** Create a new directory on the CFMS server.
+ *
+ * Mirrors `create_directory` from the Python reference.
+ * Returns the new directory's ID.
+ */
+export async function createDirectory(
+  parentId: string | null,
+  name: string,
+  existsOk?: boolean,
+): Promise<string> {
+  return invoke("create_directory", { parentId, name, existsOk: existsOk ?? false });
+}
+
+/** Delete a directory on the CFMS server. */
+export async function deleteDirectory(folderId: string): Promise<boolean> {
+  return invoke("delete_directory", { folderId });
+}
+
+/** Delete a document on the CFMS server. */
+export async function deleteDocument(documentId: string): Promise<boolean> {
+  return invoke("delete_document", { documentId });
+}
+
 // ---------------------------------------------------------------------------
 // Local file scanning (legacy — use listDirectory for server browsing)
 // ---------------------------------------------------------------------------

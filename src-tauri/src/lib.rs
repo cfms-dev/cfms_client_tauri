@@ -179,6 +179,10 @@ pub fn run() {
             commands::connect,
             commands::disconnect,
             commands::get_auth_status,
+            commands::delete_download,
+            commands::create_directory,
+            commands::delete_directory,
+            commands::delete_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

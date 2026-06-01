@@ -12,7 +12,7 @@
   import { authStore, disclaimerStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
-  let serverUrl = $state('wss://localhost:5104');
+  let hostPort = $state('localhost:5104');
   let disableSsl = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -31,17 +31,12 @@
   });
 
   function validateUrl(): boolean {
-    if (!serverUrl.trim()) {
+    if (!hostPort.trim()) {
       error = 'Server address is required.';
       return false;
     }
-    if (!serverUrl.startsWith('wss://') && !serverUrl.startsWith('ws://')) {
-      error = 'Server address must start with wss:// or ws://';
-      return false;
-    }
-    const hostPart = serverUrl.replace(/^wss?:\/\//, '');
-    if (!hostPart.includes(':') && !hostPart.includes('.')) {
-      error = 'Server address must include a host and port (e.g. wss://example.com:5104)';
+    if (!hostPort.includes(':') && !hostPort.includes('.')) {
+      error = 'Server address must include a host and port (e.g. example.com:5104)';
       return false;
     }
     return true;
@@ -52,6 +47,7 @@
     busy = true;
     error = null;
     try {
+      const serverUrl = `wss://${hostPort}`;
       await connect(serverUrl, disableSsl);
       // Refresh auth to pick up server_info / connected state.
       const status = await getAuthStatus();
@@ -96,18 +92,26 @@
         >
           Server Address
         </label>
-        <input
-          id="serverUrl"
-          type="text"
-          class="w-full px-3.5 py-2.5 rounded-xl border border-md3-outline
-                 bg-md3-field text-md3-on-surface text-sm
-                 placeholder:text-md3-on-surface-variant
-                 focus:ring-2 focus:ring-md3-primary focus:border-transparent
-                 transition-colors"
-          placeholder="wss://localhost:5104"
-          bind:value={serverUrl}
-          disabled={busy}
-        />
+        <div class="flex items-center rounded-xl border border-md3-outline
+                    bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
+                    focus-within:border-transparent transition-colors overflow-hidden">
+          <span class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
+                       select-none font-mono shrink-0"
+                style="font-family: var(--font-md3-sans);">
+            wss://
+          </span>
+          <input
+            id="serverUrl"
+            type="text"
+            class="flex-1 pl-1 pr-3.5 py-2.5 bg-transparent
+                   text-md3-on-surface text-sm
+                   placeholder:text-md3-on-surface-variant
+                   focus:outline-none transition-colors"
+            placeholder="localhost:5104"
+            bind:value={hostPort}
+            disabled={busy}
+          />
+        </div>
       </div>
 
       <!-- TLS toggle -->
