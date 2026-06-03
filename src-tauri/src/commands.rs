@@ -899,7 +899,7 @@ async fn send_action_request(
     username: &str,
     token: &str,
 ) -> Result<cfms_core::Response, String> {
-    let random_bytes: [u8; 16] = rand::thread_rng().gen();
+    let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
     let nonce = hex::encode(random_bytes);
 
     let request = serde_json::json!({
