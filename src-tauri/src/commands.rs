@@ -1210,8 +1210,8 @@ pub async fn load_user_preference(
     let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
 
     if !pref_path.exists() {
-        return Ok(serde_json::to_value(UserPreference::default())
-            .map_err(|e| format!("Serialization error: {e}"))?);
+        return serde_json::to_value(UserPreference::default())
+            .map_err(|e| format!("Serialization error: {e}"));
     }
 
     let raw =
@@ -1225,7 +1225,7 @@ pub async fn load_user_preference(
     if crypto_config::is_encrypted(&raw) {
         let dek =
             dek.ok_or_else(|| "Encrypted config file found but DEK is not available".to_string())?;
-        let plaintext = crypto_config::decrypt_config(&raw, &*dek)
+        let plaintext = crypto_config::decrypt_config(&raw, &dek)
             .map_err(|e| format!("Failed to decrypt preference file: {e}"))?;
         let pref: UserPreference = serde_json::from_slice(&plaintext)
             .map_err(|e| format!("Invalid preference data: {e}"))?;
@@ -1237,7 +1237,7 @@ pub async fn load_user_preference(
         if let Some(ref dek) = dek {
             let plaintext =
                 serde_json::to_vec(&pref).map_err(|e| format!("Serialization error: {e}"))?;
-            let encrypted = crypto_config::encrypt_config(&plaintext, &*dek)
+            let encrypted = crypto_config::encrypt_config(&plaintext, dek)
                 .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
             // Best-effort write — don't fail if we can't migrate.
             let _ = std::fs::write(&pref_path, &encrypted);
@@ -1287,18 +1287,17 @@ pub async fn save_user_preference(
     };
 
     if let Some(ref dek) = dek {
-        let encrypted = crypto_config::encrypt_config(&plaintext, &*dek)
+        let encrypted = crypto_config::encrypt_config(&plaintext, dek)
             .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
         std::fs::write(&pref_path, &encrypted)
             .map_err(|e| format!("Failed to write preference file: {e}"))?;
     } else {
         // Don't overwrite an existing encrypted file when no DEK is available.
-        if pref_path.exists() {
-            if let Ok(raw) = std::fs::read(&pref_path) {
-                if crypto_config::is_encrypted(&raw) {
-                    return Ok(()); // Leave the encrypted file untouched.
-                }
-            }
+        if pref_path.exists()
+            && let Ok(raw) = std::fs::read(&pref_path)
+            && crypto_config::is_encrypted(&raw)
+        {
+            return Ok(()); // Leave the encrypted file untouched.
         }
         std::fs::write(&pref_path, &plaintext)
             .map_err(|e| format!("Failed to write preference file: {e}"))?;

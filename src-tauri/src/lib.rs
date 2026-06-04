@@ -50,24 +50,18 @@ pub fn run() {
         ))
         .setup(|app| {
             // --- Determine application data directory ---
-            let app_data_dir = app.path().app_data_dir().map_err(|e| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
-            })?;
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| Box::new(std::io::Error::other(e.to_string())))?;
             std::fs::create_dir_all(&app_data_dir)?;
 
             let db_path = app_data_dir.join("cfms_client.db");
             tracing::info!("Opening database at {}", db_path.display());
 
             // --- Open persistent database ---
-            let db = cfms_service::db::open(&db_path).map_err(|e| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Database error: {e}"),
-                ))
-            })?;
+            let db = cfms_service::db::open(&db_path)
+                .map_err(|e| Box::new(std::io::Error::other(format!("Database error: {e}"))))?;
 
             let state = AppState::new();
             let store = TaskStore::new(db);
