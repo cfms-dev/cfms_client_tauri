@@ -25,6 +25,7 @@
     downloadAvatar,
     getDownloadTasks,
     reloadTasksForUser,
+    checkCachedAvatar,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -39,6 +40,11 @@
   let passwordChangeRequired = $state(false);
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
+
+  // Cached avatar path — populated reactively as the user types a username.
+  // When non-null it contains a local filesystem path to a previously
+  // downloaded avatar for this username on the current server.
+  let cachedAvatarPath = $state<string | null>(null);
 
   // 2FA state
   let show2faDialog = $state(false);
@@ -97,6 +103,49 @@
   }
 
   const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
+
+  /** Check the local avatar cache for the given username + current server.
+   *
+   *  Mirrors [`AvatarPreviewContainer.update_preview`] in the Python
+   *  reference (reference/src/include/ui/controls/views/login.py). */
+  async function checkLocalAvatarCache(user: string, server: string): Promise<string | null> {
+    // If the server or username is empty, there's nothing to check.
+    if (!server || !user.trim()) return null;
+    try {
+      return await checkCachedAvatar(user);
+    } catch {
+      // Non-fatal: cache check failure shouldn't break the login page.
+      return null;
+    }
+  }
+
+  // Reactively check the avatar cache whenever the username changes.
+  $effect(() => {
+    const currentUsername = username.trim();
+    const currentServer = serverStateStore.remoteAddress ?? "";
+
+    let cancelled = false;
+
+    if (currentUsername) {
+      checkLocalAvatarCache(currentUsername, currentServer)
+        .then((path) => {
+          if (!cancelled) {
+            cachedAvatarPath = path;
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            cachedAvatarPath = null;
+          }
+        });
+    } else {
+      cachedAvatarPath = null;
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  });
 
   // If already logged in, go straight to home.
   onMount(() => {
@@ -291,7 +340,7 @@
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
         {#if username.trim()}
-          <AvatarPreview {username} size={80} avatarPath={authStore.avatarPath} />
+          <AvatarPreview {username} size={80} avatarPath={authStore.avatarPath || cachedAvatarPath} />
         {:else}
           <div
             class="w-20 h-20 rounded-full bg-md3-surface-container-high

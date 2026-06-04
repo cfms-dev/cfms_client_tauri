@@ -186,6 +186,7 @@ pub fn run() {
             commands::delete_document,
             commands::get_user_avatar,
             commands::download_avatar,
+            commands::check_cached_avatar,
             commands::set_user_avatar,
             commands::load_user_preference,
             commands::save_user_preference,

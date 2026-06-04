@@ -393,6 +393,18 @@ export async function downloadAvatar(
   });
 }
 
+/** Check whether a cached avatar exists locally for a username on the
+ *  currently-connected server.
+ *
+ *  Returns the local filesystem path to the cached file if it exists,
+ *  or `null` otherwise.  Safe to call before login — it only reads the
+ *  local filesystem and does not talk to the server. */
+export async function checkCachedAvatar(
+  username: string,
+): Promise<string | null> {
+  return invoke("check_cached_avatar", { username });
+}
+
 /** Set a user's avatar to a specific document ID on the server. */
 export async function setUserAvatar(
   username: string,

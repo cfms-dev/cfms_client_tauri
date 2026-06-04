@@ -1103,6 +1103,51 @@ pub async fn download_avatar(
     }
 }
 
+/// Check whether a cached avatar exists locally for a username on the current server.
+///
+/// Computes the same cache path as [`download_avatar`] and returns it if the
+/// file exists, or `null` otherwise.  This is called reactively as the user
+/// types a username on the login page, so they see their avatar before logging
+/// in — matching [`AvatarPreviewContainer.update_preview`] in the Python
+/// reference.
+///
+/// ```text
+/// Cache path: {app_data}/avatars/{server_hash}/{username_hash}
+/// ```
+#[tauri::command]
+pub async fn check_cached_avatar(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<Option<String>, String> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let username_hash = cfms_core::get_username_hash(trimmed);
+
+    let app_data = app_handle
+        .path()
+        .resolve("", tauri::path::BaseDirectory::AppData)
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
+
+    let cache_path = app_data.join("avatars").join(&server_hash).join(&username_hash);
+
+    if cache_path.exists() {
+        Ok(Some(cache_path.to_string_lossy().into_owned()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Set a user's avatar to a specific document ID on the server.
 ///
 /// Mirrors [`set_user_avatar`] in the Python reference.
