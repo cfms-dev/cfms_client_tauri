@@ -1,15 +1,22 @@
 <script lang="ts">
   // Avatar preview — reactive to username input.
   //
-  // Shows a circular avatar with the user's first letter as fallback.
+  // Shows a circular avatar: cached image when `avatarPath` is provided,
+  // otherwise falls back to a deterministic initial-letter circle.
   // Updates as the username field changes.
+  //
+  // Reference: AvatarPreviewContainer in reference/src/include/ui/controls/views/login.py
+
+  import { convertFileSrc } from "@tauri-apps/api/core";
 
   interface Props {
     username: string;
     size?: number;
+    /** Optional path to a cached avatar image file on disk. */
+    avatarPath?: string | null;
   }
 
-  let { username, size = 60 }: Props = $props();
+  let { username, size = 60, avatarPath = null }: Props = $props();
 
   const initial = $derived(username.trim().charAt(0).toUpperCase() || '?');
   const hue = $derived(() => {
@@ -20,16 +27,29 @@
     }
     return Math.abs(hash) % 360;
   });
+
+  /** Convert a local file path to a Tauri asset:// URL. */
+  const avatarSrc = $derived(
+    avatarPath ? convertFileSrc(avatarPath) : null,
+  );
 </script>
 
 <div
   class="rounded-full flex items-center justify-center
-         text-white font-bold select-none shrink-0"
+         text-white font-bold select-none shrink-0 overflow-hidden"
   style="width: {size}px; height: {size}px;
-         background: hsl({hue()}, 55%, 45%);
+         background: {avatarSrc ? 'transparent' : `hsl(${hue()}, 55%, 45%)`};
          font-size: {Math.round(size * 0.4)}px;
          font-family: var(--font-md3-sans);"
   aria-label="Avatar for {username || 'unknown user'}"
 >
-  {initial()}
+  {#if avatarSrc}
+    <img
+      src={avatarSrc}
+      alt="Avatar for {username}"
+      class="w-full h-full object-cover"
+    />
+  {:else}
+    {initial}
+  {/if}
 </div>

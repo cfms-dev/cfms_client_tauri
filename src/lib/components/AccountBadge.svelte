@@ -12,10 +12,11 @@
   const username = $derived(authStore.username ?? 'Unknown');
   const nickname = $derived(authStore.nickname);
   const groups = $derived(authStore.groups);
+  const avatarPath = $derived(authStore.avatarPath);
 </script>
 
 <div class="flex items-center gap-4">
-  <AvatarPreview username={username} size={56} />
+  <AvatarPreview username={username} size={56} avatarPath={avatarPath} />
   <div class="min-w-0">
     <p
       class="text-base font-semibold text-md3-on-surface truncate"

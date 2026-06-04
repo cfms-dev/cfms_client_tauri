@@ -74,6 +74,7 @@ class AuthStoreImpl {
   tokenExp = $state<number | null>(null);
   permissions = $state<string[]>([]);
   groups = $state<string[]>([]);
+  avatarPath = $state<string | null>(null);
 
   // 2FA state
   requires2fa = $state(false);
@@ -102,6 +103,7 @@ class AuthStoreImpl {
     this.tokenExp = s.token_exp;
     this.permissions = s.permissions;
     this.groups = s.groups;
+    this.avatarPath = s.avatar_path ?? this.avatarPath;
     this.requires2fa = s.requires_2fa ?? false;
     this.twofaMethod = s['2fa_method'] ?? 'totp';
   }
@@ -117,6 +119,7 @@ class AuthStoreImpl {
     this.tokenExp = null;
     this.permissions = [];
     this.groups = [];
+    this.avatarPath = null;
     this.requires2fa = false;
     this.twofaMethod = 'totp';
   }

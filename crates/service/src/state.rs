@@ -40,6 +40,10 @@ pub struct AppState {
     /// lives only in memory and is zeroized on drop.
     pub dek: RwLock<Option<Zeroizing<[u8; 32]>>>,
 
+    // --- Avatar ---
+    /// Local filesystem path to the cached user avatar image.
+    pub avatar_path: RwLock<Option<String>>,
+
     // --- Connection ---
     /// Multiplexed WSS connection to the CFMS server.
     pub conn: RwLock<Option<cfms_transport::Connection>>,
@@ -89,6 +93,7 @@ impl AppState {
             permissions: RwLock::new(Vec::new()),
             groups: RwLock::new(Vec::new()),
             dek: RwLock::new(None),
+            avatar_path: RwLock::new(None),
             conn: RwLock::new(None),
             server_address: RwLock::new(None),
             server_name: RwLock::new(None),

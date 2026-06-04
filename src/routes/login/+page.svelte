@@ -15,7 +15,18 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { authStore, serverStateStore } from "$lib/stores.svelte";
-  import { login, disconnect, logout, getAuthStatus, getServerState } from "$lib/api";
+  import {
+    login,
+    disconnect,
+    logout,
+    getAuthStatus,
+    getServerState,
+    getUserAvatar,
+    downloadAvatar,
+    getDownloadTasks,
+    reloadTasksForUser,
+  } from "$lib/api";
+  import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
@@ -43,6 +54,48 @@
     "Loading tasks…",
   ];
 
+  /** Run the post-login loading phases with real backend work.
+   *
+   *  Mirrors `_complete_login` in the Python reference:
+   *  reference/src/include/controllers/login.py */
+  async function runLoadingPhases() {
+    const u = authStore.username!;
+
+    // Phase 1: "Loading user data…"
+    loadingPhase = loadingPhases[0];
+    // Auth data is already stored by the login command.
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Phase 2: "Setting up encryption…"
+    loadingPhase = loadingPhases[1];
+    // DEK setup happens backend-side during the login call; brief delay for UX.
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Phase 3: "Downloading avatar…"
+    loadingPhase = loadingPhases[2];
+    try {
+      const taskData = await getUserAvatar(u);
+      if (taskData) {
+        const path = await downloadAvatar(taskData, u, true);
+        if (path) {
+          authStore.avatarPath = path;
+        }
+      }
+    } catch {
+      // Non-fatal: avatar download failure does not block login.
+    }
+
+    // Phase 4: "Loading tasks…"
+    loadingPhase = loadingPhases[3];
+    try {
+      await reloadTasksForUser();
+      const tasks = await getDownloadTasks();
+      downloadStore.setAll(tasks);
+    } catch {
+      // Non-fatal: task reload failure does not block login.
+    }
+  }
+
   const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
 
   // If already logged in, go straight to home.
@@ -65,14 +118,6 @@
       valid = false;
     }
     return valid;
-  }
-
-  /** Run the post-login loading phase animation. */
-  async function runLoadingPhases() {
-    for (let i = 0; i < loadingPhases.length; i++) {
-      loadingPhase = loadingPhases[i];
-      await new Promise((r) => setTimeout(r, 300));
-    }
   }
 
   /** Format an error message for display. */
@@ -246,7 +291,7 @@
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
         {#if username.trim()}
-          <AvatarPreview {username} size={80} />
+          <AvatarPreview {username} size={80} avatarPath={authStore.avatarPath} />
         {:else}
           <div
             class="w-20 h-20 rounded-full bg-md3-surface-container-high

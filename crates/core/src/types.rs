@@ -305,3 +305,58 @@ pub struct ListDirectoryResponse {
     /// ID of the parent directory (`None` at the root).
     pub parent_id: Option<String>,
 }
+
+// ---------------------------------------------------------------------------
+// User preferences (mirrors reference/src/include/classes/preferences.py)
+// ---------------------------------------------------------------------------
+
+/// Per-user application preferences, persisted as an encrypted file on disk.
+///
+/// Mirrors the Python [`UserPreference`] dataclass.  When the DEK is available
+/// the file is encrypted at rest with AES-256-GCM; when the DEK is missing
+/// (e.g. first login before keyring is set up) it falls back to plain JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPreference {
+    /// UI theme (`"light"` or `"dark"`).
+    #[serde(default = "default_theme")]
+    pub theme: String,
+
+    /// Favourite files and directories for quick access.
+    #[serde(default)]
+    pub favourites: Favourites,
+
+    /// Whether to use an external storage location for downloads.
+    #[serde(default)]
+    pub use_external_storage: bool,
+
+    /// Filesystem path for external storage (meaningful only when
+    /// `use_external_storage` is `true`).
+    #[serde(default)]
+    pub external_storage_path: String,
+}
+
+impl Default for UserPreference {
+    fn default() -> Self {
+        Self {
+            theme: default_theme(),
+            favourites: Favourites::default(),
+            use_external_storage: false,
+            external_storage_path: String::new(),
+        }
+    }
+}
+
+fn default_theme() -> String {
+    "light".to_string()
+}
+
+/// Bookmarked files and directories.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Favourites {
+    /// Map of file path → label.
+    #[serde(default)]
+    pub files: std::collections::HashMap<String, String>,
+    /// Map of directory path → label.
+    #[serde(default)]
+    pub directories: std::collections::HashMap<String, String>,
+}

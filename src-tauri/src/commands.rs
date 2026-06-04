@@ -12,9 +12,9 @@
 use cfms_core::constants;
 use cfms_core::{
     DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServerInfo,
-    ServiceStatusInfo,
+    ServiceStatusInfo, UserPreference,
 };
-use cfms_crypto::dek;
+use cfms_crypto::{config as crypto_config, dek};
 use cfms_service::services::download_queue;
 use rand::Rng;
 use tauri::Manager;
@@ -725,6 +725,7 @@ pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), Strin
         let mut p = state.inner.permissions.write().await;
         let mut g = state.inner.groups.write().await;
         let mut d = state.inner.dek.write().await;
+        let mut a = state.inner.avatar_path.write().await;
         *u = None;
         *t = None;
         *e = None;
@@ -732,6 +733,7 @@ pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), Strin
         p.clear();
         g.clear();
         *d = None;
+        *a = None;
     }
     state
         .inner
@@ -980,7 +982,315 @@ pub async fn get_server_state(
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Avatar commands (mirrors reference/src/include/util/avatar.py)
+// ---------------------------------------------------------------------------
+
+/// Get the avatar task data for a specific user from the server.
+///
+/// Sends `get_user_avatar` over the active WSS connection.  Returns the
+/// `task_data` dict on success (code 200), `null` if the user has no avatar
+/// (code 404), or `null` on any other error.
+///
+/// Mirrors [`get_user_avatar`] in the Python reference.
+#[tauri::command]
+pub async fn get_user_avatar(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let (conn, auth_username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "get_user_avatar",
+        serde_json::json!({"username": username}),
+        &auth_username,
+        &token,
+    )
+    .await?;
+
+    match resp.code {
+        200 => Ok(resp.data.get("task_data").cloned()),
+        404 => Ok(None),
+        _ => Ok(None),
+    }
+}
+
+/// Download an avatar file from the server and cache it locally.
+///
+/// Uses the file transfer protocol (`cfms_transfer::download::receive`) to
+/// fetch the avatar and caches it at:
+///
+/// ```text
+/// {app_data}/avatars/{server_hash}/{username_hash}
+/// ```
+///
+/// If the file already exists in the cache and `force_download` is `false`,
+/// the cached path is returned immediately.
+///
+/// Mirrors [`download_avatar_file`] in the Python reference.
+#[tauri::command]
+pub async fn download_avatar(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    task_data: serde_json::Value,
+    username: String,
+    force_download: Option<bool>,
+) -> Result<Option<String>, String> {
+    let force = force_download.unwrap_or(false);
+
+    // Extract task_id from task_data.
+    let task_id = task_data["task_id"]
+        .as_str()
+        .ok_or_else(|| "task_data missing task_id".to_string())?;
+
+    // Build cache path: {app_data}/avatars/{server_hash}/{username_hash}
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let username_hash = cfms_core::get_username_hash(&username);
+
+    let app_data = app_handle
+        .path()
+        .resolve("", tauri::path::BaseDirectory::AppData)
+        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
+
+    let cache_dir = app_data.join("avatars").join(&server_hash);
+    let cache_path = cache_dir.join(&username_hash);
+
+    // Return cached path early if it exists (and not forcing re-download).
+    if !force && cache_path.exists() {
+        return Ok(Some(cache_path.to_string_lossy().into_owned()));
+    }
+
+    // Ensure cache directory exists.
+    std::fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Failed to create avatar cache dir: {e}"))?;
+
+    // Remove stale cache file on force download.
+    if force && cache_path.exists() {
+        let _ = std::fs::remove_file(&cache_path);
+    }
+
+    // Get connection for file transfer (separate connection, matching the
+    // reference pattern of creating a dedicated connection for avatar download).
+    let conn = {
+        let c = state.inner.conn.read().await;
+        c.clone()
+    }
+    .ok_or_else(|| "Not connected to a server".to_string())?;
+
+    // Download using the transfer protocol.
+    // Progress is silently consumed (avatars are small; the reference does the same).
+    let progress = |_phase: cfms_core::DownloadPhase, _current: u64, _total: u64| {};
+    cfms_transfer::download::receive(&conn, task_id, &cache_path, &progress)
+        .await
+        .map_err(|e| format!("Avatar download failed: {e}"))?;
+
+    if cache_path.exists() {
+        let path_str = cache_path.to_string_lossy().into_owned();
+        // Store path in app state.
+        {
+            let mut a = state.inner.avatar_path.write().await;
+            *a = Some(path_str.clone());
+        }
+        Ok(Some(path_str))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Set a user's avatar to a specific document ID on the server.
+///
+/// Mirrors [`set_user_avatar`] in the Python reference.
+#[tauri::command]
+pub async fn set_user_avatar(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    document_id: String,
+) -> Result<bool, String> {
+    let (conn, auth_username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "set_user_avatar",
+        serde_json::json!({"username": username, "document_id": document_id}),
+        &auth_username,
+        &token,
+    )
+    .await?;
+
+    Ok(resp.code == 200)
+}
+
+// ---------------------------------------------------------------------------
+// User preference commands (mirrors reference/src/include/util/userpref.py)
+// ---------------------------------------------------------------------------
+
+/// Load the user preference file from disk.
+///
+/// File path: `{app_data}/user_preferences/{server_hash}_{username}.json`
+///
+/// Handles three cases:
+/// 1. File doesn't exist → returns default `UserPreference`.
+/// 2. File is encrypted → decrypts with DEK; returns error if decryption fails.
+/// 3. File is plain JSON → parses it; migrates to encrypted if DEK is available.
+///
+/// Mirrors [`load_user_preference`] in the Python reference.
+#[tauri::command]
+pub async fn load_user_preference(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    let username = {
+        let u = state.inner.username.read().await;
+        u.clone()
+    }
+    .ok_or_else(|| "Not logged in".to_string())?;
+
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let pref_dir = get_user_prefs_dir(&app_handle)?;
+    let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
+
+    if !pref_path.exists() {
+        return Ok(serde_json::to_value(UserPreference::default())
+            .map_err(|e| format!("Serialization error: {e}"))?);
+    }
+
+    let raw = std::fs::read(&pref_path)
+        .map_err(|e| format!("Failed to read preference file: {e}"))?;
+
+    let dek = {
+        let d = state.inner.dek.read().await;
+        d.clone()
+    };
+
+    if crypto_config::is_encrypted(&raw) {
+        let dek = dek.ok_or_else(|| {
+            "Encrypted config file found but DEK is not available".to_string()
+        })?;
+        let plaintext = crypto_config::decrypt_config(&raw, &*dek)
+            .map_err(|e| format!("Failed to decrypt preference file: {e}"))?;
+        let pref: UserPreference = serde_json::from_slice(&plaintext)
+            .map_err(|e| format!("Invalid preference data: {e}"))?;
+        Ok(serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))?)
+    } else {
+        // Plaintext (legacy) — parse and migrate to encrypted.
+        let pref: UserPreference = serde_json::from_slice(&raw).unwrap_or_default();
+        // Migrate to encrypted format when DEK is available.
+        if let Some(ref dek) = dek {
+            let plaintext =
+                serde_json::to_vec(&pref).map_err(|e| format!("Serialization error: {e}"))?;
+            let encrypted = crypto_config::encrypt_config(&plaintext, &*dek)
+                .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
+            // Best-effort write — don't fail if we can't migrate.
+            let _ = std::fs::write(&pref_path, &encrypted);
+        }
+        Ok(serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))?)
+    }
+}
+
+/// Save the user preference file to disk.
+///
+/// Writes the preference encrypted with the DEK when available.  When the DEK
+/// is `None`, the file is only written if it doesn't already exist in
+/// encrypted form (to prevent data loss and security downgrade).
+///
+/// Mirrors [`save_user_preference`] in the Python reference.
+#[tauri::command]
+pub async fn save_user_preference(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    preferences: serde_json::Value,
+) -> Result<(), String> {
+    let username = {
+        let u = state.inner.username.read().await;
+        u.clone()
+    }
+    .ok_or_else(|| "Not logged in".to_string())?;
+
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let pref_dir = get_user_prefs_dir(&app_handle)?;
+    let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
+
+    // Ensure the directory exists.
+    std::fs::create_dir_all(&pref_dir)
+        .map_err(|e| format!("Failed to create prefs dir: {e}"))?;
+
+    let plaintext =
+        serde_json::to_vec(&preferences).map_err(|e| format!("Serialization error: {e}"))?;
+
+    let dek = {
+        let d = state.inner.dek.read().await;
+        d.clone()
+    };
+
+    if let Some(ref dek) = dek {
+        let encrypted = crypto_config::encrypt_config(&plaintext, &*dek)
+            .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
+        std::fs::write(&pref_path, &encrypted)
+            .map_err(|e| format!("Failed to write preference file: {e}"))?;
+    } else {
+        // Don't overwrite an existing encrypted file when no DEK is available.
+        if pref_path.exists() {
+            if let Ok(raw) = std::fs::read(&pref_path) {
+                if crypto_config::is_encrypted(&raw) {
+                    return Ok(()); // Leave the encrypted file untouched.
+                }
+            }
+        }
+        std::fs::write(&pref_path, &plaintext)
+            .map_err(|e| format!("Failed to write preference file: {e}"))?;
+    }
+
+    Ok(())
+}
+
+/// Resolve the user preferences directory from the app data path.
+fn get_user_prefs_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    app_handle
+        .path()
+        .resolve("user_preferences", tauri::path::BaseDirectory::AppData)
+        .map_err(|e| format!("Cannot resolve user prefs dir: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Download task reload (mirrors reference/src/include/classes/services/download.py)
+// ---------------------------------------------------------------------------
+
+/// Reload download tasks for the current user.
+///
+/// Provides a signal to the frontend that it should refresh its task list
+/// after login.  The existing project uses SQLite-backed storage (not
+/// per-user encrypted files), so the frontend can simply call
+/// `get_download_tasks` after this command to get the latest state.
+///
+/// Mirrors [`reload_tasks_for_user`] in the Python reference, adapted from
+/// file-based persistence to the existing SQLite-backed store.
+#[tauri::command]
+pub async fn reload_tasks_for_user() -> Result<(), String> {
+    // The existing project uses SQLite storage — no per-user file reload
+    // is needed.  This command serves as a signal to the frontend that it
+    // should call `get_download_tasks` to refresh its task view.
+    tracing::info!("Download tasks reload signal for current user");
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 
 /// Convenience helper: extract (connection, username, token) from app state.
@@ -1034,6 +1344,7 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
         "token_exp": token_exp,
         "permissions": permissions,
         "groups": groups,
+        "avatar_path": inner.avatar_path.read().await.clone(),
     });
 
     if pending_2fa {

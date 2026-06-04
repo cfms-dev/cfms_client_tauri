@@ -7,6 +7,8 @@
 
 #![forbid(unsafe_code)]
 
+use sha2::{Digest, Sha256};
+
 pub mod constants;
 pub mod error;
 pub mod types;
@@ -15,7 +17,29 @@ pub mod types;
 // `cfms_core::Error` instead of `cfms_core::error::Error`.
 pub use error::{Error, Result};
 pub use types::{
-    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, FileEntry,
+    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, Favourites, FileEntry,
     FileMetadata, ListDirectoryResponse, Response, ServerDirectoryEntry, ServerDocumentEntry,
-    ServerInfo, ServiceEvent, ServiceStatusInfo, UploadProgress,
+    ServerInfo, ServiceEvent, ServiceStatusInfo, UploadProgress, UserPreference,
 };
+
+// ---------------------------------------------------------------------------
+// Hash utilities (mirrors reference/src/include/util/hash.py)
+// ---------------------------------------------------------------------------
+
+/// Generate a short hash for a server address, used in cache directory names.
+///
+/// Mirrors [`get_server_hash`] in the Python reference.
+pub fn get_server_hash(server_address: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(server_address.to_lowercase().as_bytes());
+    hex::encode(&hasher.finalize()[..8])
+}
+
+/// Generate a short hash for a username, used in cache file names.
+///
+/// Mirrors [`get_username_hash`] in the Python reference.
+pub fn get_username_hash(username: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(username.trim().as_bytes());
+    hex::encode(&hasher.finalize()[..8])
+}

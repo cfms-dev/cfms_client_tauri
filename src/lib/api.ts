@@ -127,6 +127,8 @@ export interface AuthStatus {
   token_exp: number | null;
   permissions: string[];
   groups: string[];
+  /** Local filesystem path to the cached user avatar. */
+  avatar_path?: string | null;
   /** When true, the server requires 2FA verification before completing login. */
   requires_2fa?: boolean;
   /** The 2FA method requested by the server (e.g. "totp"). */
@@ -363,4 +365,78 @@ export async function getSetting(key: string): Promise<string | null> {
 /** Write a user setting. */
 export async function setSetting(key: string, value: string): Promise<void> {
   return invoke("set_setting", { key, value });
+}
+
+// ---------------------------------------------------------------------------
+// Avatar commands (mirrors reference/src/include/util/avatar.py)
+// ---------------------------------------------------------------------------
+
+/** Get the avatar task data for a user from the server. */
+export async function getUserAvatar(
+  username: string,
+): Promise<object | null> {
+  return invoke("get_user_avatar", { username });
+}
+
+/** Download an avatar file from the server and cache it locally.
+ *
+ *  Returns the local filesystem path to the cached avatar, or null on failure. */
+export async function downloadAvatar(
+  taskData: object,
+  username: string,
+  forceDownload?: boolean,
+): Promise<string | null> {
+  return invoke("download_avatar", {
+    taskData,
+    username,
+    forceDownload: forceDownload ?? false,
+  });
+}
+
+/** Set a user's avatar to a specific document ID on the server. */
+export async function setUserAvatar(
+  username: string,
+  documentId: string,
+): Promise<boolean> {
+  return invoke("set_user_avatar", { username, documentId });
+}
+
+// ---------------------------------------------------------------------------
+// User preference commands (mirrors reference/src/include/util/userpref.py)
+// ---------------------------------------------------------------------------
+
+/** Per-user application preferences stored as an encrypted file.
+ *
+ *  Mirrors the Python `UserPreference` dataclass. */
+export interface UserPreference {
+  theme: string;
+  favourites: Favourites;
+  use_external_storage: boolean;
+  external_storage_path: string;
+}
+
+export interface Favourites {
+  files: Record<string, string>;
+  directories: Record<string, string>;
+}
+
+/** Load the current user's preferences from the encrypted local file. */
+export async function loadUserPreference(): Promise<UserPreference> {
+  return invoke("load_user_preference");
+}
+
+/** Save the current user's preferences to an encrypted local file. */
+export async function saveUserPreference(
+  preferences: UserPreference,
+): Promise<void> {
+  return invoke("save_user_preference", { preferences });
+}
+
+// ---------------------------------------------------------------------------
+// Download task reload (mirrors reference's reload_tasks_for_user)
+// ---------------------------------------------------------------------------
+
+/** Signal that the download task list should be refreshed for the current user. */
+export async function reloadTasksForUser(): Promise<void> {
+  return invoke("reload_tasks_for_user");
 }

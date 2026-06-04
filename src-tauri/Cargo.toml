@@ -21,6 +21,7 @@ cfms-core.workspace = true
 cfms-crypto.workspace = true
 cfms-transport.workspace = true
 cfms-service.workspace = true
+cfms-transfer.workspace = true
 tauri.workspace = true
 tauri-plugin-opener = "2"
 tauri-plugin-notification.workspace = true

@@ -184,6 +184,12 @@ pub fn run() {
             commands::create_directory,
             commands::delete_directory,
             commands::delete_document,
+            commands::get_user_avatar,
+            commands::download_avatar,
+            commands::set_user_avatar,
+            commands::load_user_preference,
+            commands::save_user_preference,
+            commands::reload_tasks_for_user,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
