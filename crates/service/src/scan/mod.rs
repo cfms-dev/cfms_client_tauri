@@ -24,13 +24,13 @@ pub fn scan_directory(path: &Path, pattern: Option<&str>) -> Result<Vec<FileEntr
         let pat = pat.clone();
         builder.filter_entry(move |entry| {
             // Always include directories so we can descend into them.
-            if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+            if entry.file_type().is_some_and(|ft| ft.is_dir()) {
                 return true;
             }
             entry
                 .file_name()
                 .to_str()
-                .map_or(false, |name| glob_match::glob_match(&pat, name))
+                .is_some_and(|name| glob_match::glob_match(&pat, name))
         });
     }
 
@@ -41,7 +41,7 @@ pub fn scan_directory(path: &Path, pattern: Option<&str>) -> Result<Vec<FileEntr
 
         let metadata = entry.metadata().ok();
 
-        let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
+        let is_dir = entry.file_type().is_some_and(|ft| ft.is_dir());
         let size = metadata.as_ref().map_or(0, |m| m.len());
         let modified = metadata
             .and_then(|m| {

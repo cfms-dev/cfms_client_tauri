@@ -218,7 +218,7 @@ pub async fn receive(
 
     let mut accumulated_bytes: u64 = 0;
 
-    for (_i, chunk_row) in chunks.iter().enumerate() {
+    for chunk_row in chunks.iter() {
         let decrypted = decrypt_chunk(
             &aes_key,
             &chunk_row.prefix,

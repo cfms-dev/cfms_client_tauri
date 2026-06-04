@@ -54,6 +54,12 @@ pub struct ActiveRegistry {
     inner: Arc<Mutex<HashMap<String, ActiveDownload>>>,
 }
 
+impl Default for ActiveRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ActiveRegistry {
     pub fn new() -> Self {
         Self {
@@ -311,10 +317,10 @@ async fn execute_download(
         // --- Cancelled (select! raced to the cancel signal) ---
         None => {
             // Clean up the partial destination file if one was created.
-            if let Err(e) = std::fs::remove_file(&file_path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    tracing::warn!("Failed to clean up partial file {file_path}: {e}");
-                }
+            if let Err(e) = std::fs::remove_file(&file_path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!("Failed to clean up partial file {file_path}: {e}");
             }
 
             let _ = store.update_status(&task_id, DownloadTaskStatus::Cancelled);

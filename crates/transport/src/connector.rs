@@ -227,11 +227,11 @@ impl Connection {
                     }
 
                     // Route the payload to the stream's channel.
-                    if let Some(tx) = streams.get(&header.id) {
-                        if tx.send(payload.to_vec()).await.is_err() {
-                            debug!("Stream {} receiver dropped", header.id);
-                            streams.remove(&header.id);
-                        }
+                    if let Some(tx) = streams.get(&header.id)
+                        && tx.send(payload.to_vec()).await.is_err()
+                    {
+                        debug!("Stream {} receiver dropped", header.id);
+                        streams.remove(&header.id);
                     }
 
                     // Conclusion frame → tear down the stream.
