@@ -921,6 +921,12 @@ pub async fn connect(
         let mut dse = state.inner.disable_ssl_enforcement.write().await;
         *dse = disable_ssl_enforcement;
     }
+    // Store the CA directory path so that dedicated transfer connections
+    // can rebuild their TLS config on demand.
+    {
+        let mut ca = state.inner.ca_dir.write().await;
+        *ca = Some(ca_dir);
+    }
     state
         .inner
         .app_lockdown
@@ -976,6 +982,10 @@ pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), S
         .inner
         .app_lockdown
         .store(false, std::sync::atomic::Ordering::SeqCst);
+    {
+        let mut ca = state.inner.ca_dir.write().await;
+        *ca = None;
+    }
 
     tracing::info!("Disconnected");
     Ok(())
@@ -1545,16 +1555,30 @@ async fn setup_dek(
                 .as_str()
                 .ok_or_else(|| "preference_dek missing key_content".to_string())?;
 
-            let decrypted = dek::decrypt_dek(key_content, password)
-                .map_err(|e| format!("DEK decryption failed: {e}"))?;
+            let decrypted = {
+                let kc = key_content.to_owned();
+                let pw = password.to_owned();
+                tokio::task::spawn_blocking(move || {
+                    dek::decrypt_dek(&kc, &pw).map_err(|e| format!("DEK decryption failed: {e}"))
+                })
+                .await
+                .map_err(|e| format!("DEK decryption task panicked: {e}"))?
+            }?;
 
             let mut d = inner.dek.write().await;
             *d = Some(decrypted);
         } else {
             // --- First login with keyring support — generate and upload. ---
             let new_dek = dek::generate_dek();
-            let encrypted = dek::encrypt_dek(&new_dek, password)
-                .map_err(|e| format!("DEK encryption failed: {e}"))?;
+            let encrypted = {
+                let pw = password.to_owned();
+                let dk = *new_dek; // copy out of Zeroizing
+                tokio::task::spawn_blocking(move || {
+                    dek::encrypt_dek(&dk, &pw).map_err(|e| format!("DEK encryption failed: {e}"))
+                })
+                .await
+                .map_err(|e| format!("DEK encryption task panicked: {e}"))?
+            }?;
 
             // Upload the encrypted DEK to the server's keyring.
             let upload_resp = send_action_request(

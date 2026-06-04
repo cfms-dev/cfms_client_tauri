@@ -18,6 +18,7 @@ export async function initEventListeners(): Promise<void> {
 
     switch (event.event) {
       case "DownloadProgress": {
+        console.log("Received DownloadProgress event: {:?}", event.data);
         const { task_id, phase, progress, message, current_bytes, total_bytes } = event.data;
         downloadStore.updateProgress(task_id, phase, progress, message, current_bytes, total_bytes);
         eventLog.push(

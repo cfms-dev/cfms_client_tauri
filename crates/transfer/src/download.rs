@@ -125,7 +125,9 @@ pub async fn receive(
 
     // --- Handle empty files ---
     if file_size == 0 || total_chunks == 0 {
-        std::fs::write(dest, []).map_err(cfms_core::Error::Io)?;
+        tokio::fs::write(dest, [])
+            .await
+            .map_err(cfms_core::Error::Io)?;
         on_progress(
             DownloadPhase::Verifying,
             1.0,
@@ -229,69 +231,81 @@ pub async fn receive(
     aes_key.copy_from_slice(&aes_key_bytes);
 
     // --- Step 5: decrypt and write chunks ---
-    let chunks = store.ordered_chunks()?;
-    let _total_chunks_count = chunks.len() as u64;
+    //
+    // IMPORTANT: the decrypt loop performs CPU-bound AES-256-GCM operations
+    // and synchronous file I/O for every chunk.  Running this on a Tokio
+    // async worker thread would block the runtime and starve other tasks
+    // (including progress-event delivery to the frontend).  We therefore
+    // move the entire phase onto a blocking thread via `block_in_place`,
+    // which frees the async worker to process other work while the current
+    // thread does the heavy lifting.
+    let dest = dest.to_path_buf();
+    tokio::task::block_in_place(move || {
+        let chunks = store.ordered_chunks()?;
 
-    // Ensure the destination directory exists.
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+        // Ensure the destination directory exists.
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
 
-    let mut out_file = std::fs::File::create(dest).map_err(cfms_core::Error::Io)?;
+        let mut out_file = std::fs::File::create(&dest).map_err(cfms_core::Error::Io)?;
 
-    let mut accumulated_bytes: u64 = 0;
+        let mut accumulated_bytes: u64 = 0;
 
-    for chunk_row in chunks.iter() {
-        let decrypted = decrypt_chunk(
-            &aes_key,
-            &chunk_row.prefix,
-            chunk_row.idx,
-            &chunk_row.data,
-            &chunk_row.tag,
-        )?;
+        for chunk_row in chunks.iter() {
+            let decrypted = decrypt_chunk(
+                &aes_key,
+                &chunk_row.prefix,
+                chunk_row.idx,
+                &chunk_row.data,
+                &chunk_row.tag,
+            )?;
 
-        std::io::Write::write_all(&mut out_file, &decrypted)?;
+            std::io::Write::write_all(&mut out_file, &decrypted)?;
 
-        accumulated_bytes += decrypted.len() as u64;
+            accumulated_bytes += decrypted.len() as u64;
 
-        let progress = if file_size > 0 {
-            accumulated_bytes as f64 / file_size as f64
-        } else {
-            0.0
-        };
+            let progress = if file_size > 0 {
+                accumulated_bytes as f64 / file_size as f64
+            } else {
+                0.0
+            };
+            on_progress(
+                DownloadPhase::Decrypting,
+                progress,
+                "decrypting chunks",
+                accumulated_bytes,
+                file_size,
+            );
+        }
+
+        // Flush and sync.
+        out_file.flush()?;
+
+        drop(out_file);
+
+        // --- Step 6: clean up ---
         on_progress(
-            DownloadPhase::Decrypting,
-            progress,
-            "decrypting chunks",
-            accumulated_bytes,
+            DownloadPhase::Cleaning,
+            1.0,
+            "cleaning up temporary storage",
+            file_size,
             file_size,
         );
-    }
+        store.purge()?;
 
-    // Flush and sync.
-    out_file.flush()?;
+        // --- Step 7: verify ---
+        on_progress(
+            DownloadPhase::Verifying,
+            1.0,
+            "verifying file integrity",
+            file_size,
+            file_size,
+        );
+        verify::size_matches(&dest, file_size)?;
 
-    drop(out_file);
-
-    // --- Step 6: clean up ---
-    on_progress(
-        DownloadPhase::Cleaning,
-        1.0,
-        "cleaning up temporary storage",
-        file_size,
-        file_size,
-    );
-    store.purge()?;
-
-    // --- Step 7: verify ---
-    on_progress(
-        DownloadPhase::Verifying,
-        1.0,
-        "verifying file integrity",
-        file_size,
-        file_size,
-    );
-    verify::size_matches(dest, file_size)?;
+        Ok::<_, cfms_core::Error>(())
+    })?;
 
     Ok(())
 }

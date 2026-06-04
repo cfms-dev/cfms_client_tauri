@@ -167,15 +167,21 @@ class DownloadStoreImpl {
     currentBytes: number,
     totalBytes: number,
   ) {
-    const task = this.tasks.get(taskId);
-    if (task) {
-      task.progress = progress;
-      if (currentBytes > 0) task.current_bytes = currentBytes;
-      if (totalBytes > 0) task.total_bytes = totalBytes;
-      task.message = message;
-      if (phase === "downloading") task.status = "downloading";
-      else if (phase === "decrypting") task.status = "decrypting";
-      else if (phase === "verifying") task.status = "verifying";
+    const oldTask = this.tasks.get(taskId);
+    if (oldTask) {
+      const newTask = { ...oldTask };
+
+      newTask.progress = progress;
+      if (currentBytes > 0) newTask.current_bytes = currentBytes;
+      if (totalBytes > 0) newTask.total_bytes = totalBytes;
+      newTask.message = message;
+      
+      if (phase === "downloading") newTask.status = "downloading";
+      else if (phase === "decrypting") newTask.status = "decrypting";
+      else if (phase === "verifying") newTask.status = "verifying";
+
+      this.tasks.set(taskId, newTask);
+      
       this.tasks = new Map(this.tasks);
     }
   }

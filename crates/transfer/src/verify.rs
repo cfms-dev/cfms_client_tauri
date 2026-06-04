@@ -63,6 +63,26 @@ pub fn compute_sha256(path: &Path) -> Result<[u8; 32]> {
     Ok(hasher.finalize().into())
 }
 
+/// Async wrapper around [`compute_sha256`].
+///
+/// Runs the (potentially long) SHA-256 computation on a blocking thread
+/// so the Tokio runtime stays responsive.
+pub async fn compute_sha256_async(path: std::path::PathBuf) -> Result<[u8; 32]> {
+    tokio::task::spawn_blocking(move || compute_sha256(&path))
+        .await
+        .map_err(|e| cfms_core::Error::Other(format!("sha256 task panicked: {e}")))?
+}
+
+/// Async wrapper around [`sha256_matches`].
+///
+/// Runs the (potentially long) SHA-256 verification on a blocking thread
+/// so the Tokio runtime stays responsive.
+pub async fn sha256_matches_async(path: std::path::PathBuf, expected: [u8; 32]) -> Result<()> {
+    tokio::task::spawn_blocking(move || sha256_matches(&path, &expected))
+        .await
+        .map_err(|e| cfms_core::Error::Other(format!("sha256 verify task panicked: {e}")))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

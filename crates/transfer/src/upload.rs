@@ -70,7 +70,9 @@ pub async fn send(
     // --- Step 2: send file metadata ---
     let file_size = std::fs::metadata(source)?.len();
     let sha256_hex = if file_size > 0 {
-        let hash = verify::compute_sha256(source)?;
+        // Offload SHA-256 hashing to a blocking thread — hashing a large
+        // file on the async worker would stall all concurrent tasks.
+        let hash = verify::compute_sha256_async(source.to_path_buf()).await?;
         hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
     } else {
         String::new()

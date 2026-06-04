@@ -478,10 +478,16 @@ impl QueueState {
 // ActiveRegistry
 // ---------------------------------------------------------------------------
 
-/// Tracks an active download's cancellation state.
+/// Tracks an active download's cancellation state and dedicated transfer
+/// connection.  When the download is cancelled, the connection is closed
+/// immediately — this is the *only* reliable way to abort an in-flight
+/// WebSocket transfer without tearing down the command connection.
 struct ActiveDownload {
     /// Set to `true` to request cancellation.
     cancel_flag: Arc<AtomicBool>,
+    /// Dedicated transfer connection for this download.  `None` until the
+    /// connection is established inside [`execute_download`].
+    transfer_conn: Option<cfms_transport::Connection>,
 }
 
 /// Shared registry of active downloads (keyed by task_id).
@@ -513,9 +519,19 @@ impl ActiveRegistry {
             task_id.to_string(),
             ActiveDownload {
                 cancel_flag: flag.clone(),
+                transfer_conn: None,
             },
         );
         flag
+    }
+
+    /// Store the dedicated transfer connection for an active download so
+    /// that [`cancel`](Self::cancel) can close it immediately.
+    fn set_transfer_conn(&self, task_id: &str, conn: cfms_transport::Connection) {
+        let mut map = self.inner.lock().unwrap();
+        if let Some(ad) = map.get_mut(task_id) {
+            ad.transfer_conn = Some(conn);
+        }
     }
 
     fn unregister(&self, task_id: &str) {
@@ -524,9 +540,15 @@ impl ActiveRegistry {
     }
 
     fn cancel(&self, task_id: &str) -> bool {
-        let map = self.inner.lock().unwrap();
-        if let Some(ad) = map.get(task_id) {
+        let mut map = self.inner.lock().unwrap();
+        if let Some(ad) = map.get_mut(task_id) {
             ad.cancel_flag.store(true, Ordering::SeqCst);
+            // Immediately close the dedicated transfer connection so the
+            // in-flight download's `recv()` returns `None` without waiting
+            // for the cooperative cancellation poll to notice the flag.
+            if let Some(conn) = ad.transfer_conn.take() {
+                tokio::spawn(async move { conn.close().await });
+            }
             true
         } else {
             false
@@ -568,12 +590,16 @@ pub async fn run(
         }
     }
 
-    // Shutdown: request cancellation of all active downloads.
+    // Shutdown: request cancellation of all active downloads and close their
+    // transfer connections immediately.
     tracing::info!("DownloadQueueService shutting down…");
     {
-        let map = active.inner.lock().unwrap();
-        for (task_id, ad) in map.iter() {
+        let mut map = active.inner.lock().unwrap();
+        for (task_id, ad) in map.iter_mut() {
             ad.cancel_flag.store(true, Ordering::SeqCst);
+            if let Some(conn) = ad.transfer_conn.take() {
+                tokio::spawn(async move { conn.close().await });
+            }
             tracing::info!("Cancelled active download: {task_id}");
         }
     }
@@ -625,7 +651,15 @@ async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry
 
         tokio::spawn(async move {
             let tid = task_id.clone();
-            execute_download(tid.clone(), file_path, state, queue, cancel_flag).await;
+            execute_download(
+                tid.clone(),
+                file_path,
+                state,
+                queue,
+                active.clone(),
+                cancel_flag,
+            )
+            .await;
             active.unregister(&tid);
         });
     }
@@ -636,6 +670,12 @@ async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry
 /// This function drives the download through the state machine, reporting
 /// progress and persisting status changes.
 ///
+/// # Transfer connection
+///
+/// Each download establishes its own dedicated WebSocket connection so that
+/// cancelling a transfer can immediately tear down the connection without
+/// affecting the command channel or other concurrent downloads.
+///
 /// Mirrors the Python reference [`DownloadManagerService._download_task`]
 /// found in `reference/src/include/classes/services/download.py`.
 async fn execute_download(
@@ -643,6 +683,7 @@ async fn execute_download(
     file_path: String,
     state: Arc<AppState>,
     queue: QueueState,
+    active: ActiveRegistry,
     cancel_flag: Arc<AtomicBool>,
 ) {
     // Check cancellation before starting.
@@ -651,22 +692,22 @@ async fn execute_download(
         return;
     }
 
-    // --- Phase 1: Obtain a connection ---
-    let conn = {
-        let guard = state.conn.read().await;
-        match guard.as_ref() {
-            Some(c) => c.clone(),
-            None => {
-                tracing::error!("Download {task_id}: no active connection");
-                let _ = queue.mark_failed(&task_id, "No active connection to server");
-                let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
-                    task_id: task_id.clone(),
-                    error: "No active connection to server".into(),
-                });
-                return;
-            }
+    // --- Phase 1: Establish a dedicated transfer connection ---
+    let transfer_conn = match create_transfer_connection(&state).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Download {task_id}: failed to create transfer connection: {e}");
+            let _ = queue.mark_failed(&task_id, &e);
+            let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                task_id: task_id.clone(),
+                error: e,
+            });
+            return;
         }
     };
+
+    // Register the connection so cancellation can close it immediately.
+    active.set_transfer_conn(&task_id, transfer_conn.clone());
 
     // --- Phase 2: DOWNLOADING ---
     let _ = queue.update_status(&task_id, DownloadTaskStatus::Downloading);
@@ -720,13 +761,17 @@ async fn execute_download(
 
     // Race the actual download against the cancellation flag.
     let result: Option<cfms_core::Result<()>> = tokio::select! {
-        r = cfms_transfer::download::receive(&conn, &task_id, dest, &on_progress) => {
+        r = cfms_transfer::download::receive(&transfer_conn, &task_id, dest, &on_progress) => {
             Some(r)
         }
         _ = wait_for_cancellation(cancel_flag.clone()) => {
             None
         }
     };
+
+    // Always close the transfer connection when done (it may already have
+    // been closed by the cancellation path — `close()` is idempotent).
+    transfer_conn.close().await;
 
     match result {
         // --- Success ---
@@ -746,6 +791,24 @@ async fn execute_download(
 
         // --- Error (retry or fail) ---
         Some(Err(e)) => {
+            // If the cancel flag is set, the connection was closed by the
+            // cancellation path — treat this as a clean cancellation, not
+            // a download error.
+            if cancel_flag.load(Ordering::SeqCst) {
+                if let Err(rm_err) = std::fs::remove_file(&file_path)
+                    && rm_err.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
+                }
+                let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
+                emit_active_count(&queue, &state);
+                let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
+                    task_id: task_id.clone(),
+                });
+                tracing::info!("Download cancelled (via connection close): {task_id}");
+                return;
+            }
+
             let error_msg = e.to_string();
             tracing::error!("Download {task_id} failed: {error_msg}");
 
@@ -828,6 +891,32 @@ async fn wait_for_cancellation(flag: Arc<AtomicBool>) {
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
+}
+
+/// Establish a dedicated WebSocket connection for a single file transfer.
+///
+/// This creates a *separate* connection from the command channel so that
+/// cancelling a transfer can immediately tear down its connection without
+/// disrupting commands, server-push events, or other concurrent transfers.
+async fn create_transfer_connection(
+    state: &AppState,
+) -> std::result::Result<cfms_transport::Connection, String> {
+    let (url, ca_dir, disable_ssl) = {
+        let addr = state.server_address.read().await;
+        let ca = state.ca_dir.read().await;
+        let dse = state.disable_ssl_enforcement.read().await;
+        (addr.clone(), ca.clone(), *dse)
+    };
+
+    let url = url.ok_or_else(|| "No server address configured".to_string())?;
+    let ca_dir = ca_dir.ok_or_else(|| "No CA directory configured".to_string())?;
+
+    let tls_config = cfms_transport::tls::build_config(&ca_dir, disable_ssl)
+        .map_err(|e| format!("TLS config error: {e}"))?;
+
+    cfms_transport::Connection::connect(&url, tls_config, None)
+        .await
+        .map_err(|e| format!("Transfer connection failed: {e}"))
 }
 
 // ---------------------------------------------------------------------------
