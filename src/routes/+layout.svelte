@@ -19,7 +19,7 @@
   import { goto } from "$app/navigation";
   import { initEventListeners } from "$lib/events";
   import { authStore, serverStateStore, serviceStatusStore, disclaimerStore } from "$lib/stores.svelte";
-  import { getServiceStatus, getAuthStatus } from "$lib/api";
+  import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
 
   let { children }: { children: Snippet } = $props();
 
@@ -108,9 +108,8 @@
   $effect(() => {
     const interval = setInterval(async () => {
       try {
-        const s = await getAuthStatus();
-        authStore.apply(s);
-        serverStateStore.updateConnection(s.connected, s.server_address, s.lockdown);
+        authStore.apply(await getAuthStatus());
+        serverStateStore.apply(await getServerState());
       } catch { /* ignore */ }
     }, 30_000);
     return () => clearInterval(interval);

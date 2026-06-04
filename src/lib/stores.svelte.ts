@@ -9,6 +9,7 @@ import type {
   DownloadTaskStatus,
   ServiceStatusInfo,
   AuthStatus,
+  ServerState,
 } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +30,13 @@ class ServerStateStoreImpl {
     this.connected = connected;
     this.remoteAddress = address;
     this.lockdown = lockdown;
+  }
+
+  /** Apply a full ServerState snapshot from the backend. */
+  apply(s: ServerState) {
+    this.connected = s.connected;
+    this.remoteAddress = s.server_address;
+    this.lockdown = s.lockdown;
   }
 
   /** Reset all server state to defaults (on disconnect). */

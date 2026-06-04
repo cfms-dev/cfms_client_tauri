@@ -179,6 +179,7 @@ pub fn run() {
             commands::connect,
             commands::disconnect,
             commands::get_auth_status,
+            commands::get_server_state,
             commands::delete_download,
             commands::create_directory,
             commands::delete_directory,

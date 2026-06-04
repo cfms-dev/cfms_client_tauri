@@ -8,7 +8,7 @@
 
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { connect, disconnect, getAuthStatus } from "$lib/api";
+  import { connect, disconnect, getAuthStatus, getServerState } from "$lib/api";
   import {
     authStore,
     serverStateStore,
@@ -59,14 +59,9 @@
     try {
       const serverUrl = `wss://${hostPort}`;
       await connect(serverUrl, disableSsl);
-      // Refresh auth to pick up server_info / connected state.
-      const status = await getAuthStatus();
-      authStore.apply(status);
-      serverStateStore.updateConnection(
-        status.connected,
-        status.server_address,
-        status.lockdown,
-      );
+      // Refresh auth and server state after connecting.
+      authStore.apply(await getAuthStatus());
+      serverStateStore.apply(await getServerState());
       goto("/login");
     } catch (e) {
       error = String(e);

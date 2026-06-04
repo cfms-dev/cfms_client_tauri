@@ -15,7 +15,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { authStore, serverStateStore } from "$lib/stores.svelte";
-  import { login, disconnect, logout, getAuthStatus } from "$lib/api";
+  import { login, disconnect, logout, getAuthStatus, getServerState } from "$lib/api";
   import Icon from "$lib/components/Icon.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
@@ -93,11 +93,7 @@
       // Check if server requires 2FA.
       if (authResult.requires_2fa) {
         authStore.apply(authResult);
-        serverStateStore.updateConnection(
-          authResult.connected,
-          authResult.server_address,
-          authResult.lockdown,
-        );
+        serverStateStore.apply(await getServerState());
         // Keep password in memory for the 2FA re-submit.
         pendingPassword = password;
         show2faDialog = true;
@@ -111,13 +107,8 @@
       authStore.apply(authResult);
 
       // Refresh full auth status after login.
-      const updated = await getAuthStatus();
-      authStore.apply(updated);
-      serverStateStore.updateConnection(
-        updated.connected,
-        updated.server_address,
-        updated.lockdown,
-      );
+      authStore.apply(await getAuthStatus());
+      serverStateStore.apply(await getServerState());
 
       // Clear password from JS memory.
       password = "";
@@ -153,13 +144,8 @@
 
       authStore.apply(authResult);
 
-      const updated = await getAuthStatus();
-      authStore.apply(updated);
-      serverStateStore.updateConnection(
-        updated.connected,
-        updated.server_address,
-        updated.lockdown,
-      );
+      authStore.apply(await getAuthStatus());
+      serverStateStore.apply(await getServerState());
 
       // Clear sensitive data.
       password = "";

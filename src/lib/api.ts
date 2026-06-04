@@ -127,13 +127,16 @@ export interface AuthStatus {
   token_exp: number | null;
   permissions: string[];
   groups: string[];
-  connected: boolean;
-  server_address: string | null;
-  lockdown: boolean;
   /** When true, the server requires 2FA verification before completing login. */
   requires_2fa?: boolean;
   /** The 2FA method requested by the server (e.g. "totp"). */
   "2fa_method"?: string;
+}
+
+export interface ServerState {
+  connected: boolean;
+  server_address: string | null;
+  lockdown: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,9 +208,14 @@ export async function disconnect(): Promise<void> {
   return invoke("disconnect");
 }
 
-/** Get the current authentication and connection status. */
+/** Get the current authentication status (username, token, permissions, etc.). */
 export async function getAuthStatus(): Promise<AuthStatus> {
   return invoke("get_auth_status");
+}
+
+/** Get the current server-connection state (connected, address, lockdown). */
+export async function getServerState(): Promise<ServerState> {
+  return invoke("get_server_state");
 }
 
 // ---------------------------------------------------------------------------

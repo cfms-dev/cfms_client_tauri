@@ -690,9 +690,6 @@ pub async fn login(
                 "token_exp": null,
                 "permissions": [],
                 "groups": [],
-                "connected": true,
-                "server_address": *state.inner.server_address.read().await,
-                "lockdown": state.inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst),
                 "requires_2fa": true,
                 "2fa_method": method,
             }))
@@ -804,12 +801,20 @@ pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), S
     Ok(())
 }
 
-/// Get the current authentication and connection status.
+/// Get the current authentication status (username, token, permissions, etc.).
 #[tauri::command]
 pub async fn get_auth_status(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
     Ok(build_auth_status(&state.inner).await)
+}
+
+/// Get the current server-connection state (connected, address, lockdown).
+#[tauri::command]
+pub async fn get_server_state(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    Ok(build_server_state(&state.inner).await)
 }
 
 // ---------------------------------------------------------------------------
@@ -844,7 +849,7 @@ async fn get_connection_auth(
     Ok((conn, username, token))
 }
 
-/// Build a JSON auth-status payload for the frontend.
+/// Build a JSON auth-status payload (auth fields only — no server state).
 async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json::Value {
     let username = inner.username.read().await.clone();
     let nickname = inner.nickname.read().await.clone();
@@ -859,17 +864,31 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
     };
     let permissions = inner.permissions.read().await.clone();
     let groups = inner.groups.read().await.clone();
-    let connected = inner.conn.read().await.is_some();
-    let server_address = inner.server_address.read().await.clone();
-    let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
 
-    serde_json::json!({
+    let mut status = serde_json::json!({
         "username": username,
         "nickname": nickname,
         "has_token": has_token,
         "token_exp": token_exp,
         "permissions": permissions,
         "groups": groups,
+    });
+
+    if pending_2fa {
+        status["requires_2fa"] = serde_json::Value::Bool(true);
+        status["2fa_method"] = serde_json::Value::String("totp".to_string());
+    }
+
+    status
+}
+
+/// Build a JSON server-state payload (connection fields only — no auth data).
+async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json::Value {
+    let connected = inner.conn.read().await.is_some();
+    let server_address = inner.server_address.read().await.clone();
+    let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
+
+    serde_json::json!({
         "connected": connected,
         "server_address": server_address,
         "lockdown": lockdown,

@@ -10,6 +10,7 @@
     getServiceStatus,
     getDownloadTasks,
     getAuthStatus,
+    getServerState,
     cryptoInfo,
     protocolVersion,
   } from '$lib/api';
@@ -29,17 +30,18 @@
 
   onMount(async () => {
     try {
-      const [status, tasks, auth, info, ver] = await Promise.all([
+      const [status, tasks, auth, serverState, info, ver] = await Promise.all([
         getServiceStatus(),
         getDownloadTasks(),
         getAuthStatus(),
+        getServerState(),
         cryptoInfo(),
         protocolVersion(),
       ]);
       serviceStatusStore.setAll(status);
       downloadStore.setAll(tasks);
       authStore.apply(auth);
-      serverStateStore.updateConnection(auth.connected, auth.server_address, auth.lockdown);
+      serverStateStore.apply(serverState);
       serverStateStore.protocolVersion = ver;
       cryptoInfoData = info;
       protoVer = ver;
