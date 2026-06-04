@@ -11,7 +11,10 @@ use crate::db::schema;
 /// any pending schema migrations.
 pub fn open(path: &Path) -> Result<Connection> {
     let db = Connection::open(path).map_err(|e| {
-        cfms_core::Error::Other(format!("failed to open database at {}: {e}", path.display()))
+        cfms_core::Error::Other(format!(
+            "failed to open database at {}: {e}",
+            path.display()
+        ))
     })?;
 
     // Performance / durability pragmas.

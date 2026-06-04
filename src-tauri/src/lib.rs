@@ -51,7 +51,10 @@ pub fn run() {
         .setup(|app| {
             // --- Determine application data directory ---
             let app_data_dir = app.path().app_data_dir().map_err(|e| {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ))
             })?;
             std::fs::create_dir_all(&app_data_dir)?;
 

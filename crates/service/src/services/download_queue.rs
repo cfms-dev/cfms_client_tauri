@@ -94,11 +94,7 @@ impl ActiveRegistry {
 }
 
 /// Run the download queue processing loop.
-pub async fn run(
-    state: Arc<AppState>,
-    store: TaskStore,
-    mut shutdown_rx: watch::Receiver<bool>,
-) {
+pub async fn run(state: Arc<AppState>, store: TaskStore, mut shutdown_rx: watch::Receiver<bool>) {
     // Crash recovery: reset tasks that were in-flight when the app exited.
     match store.reset_in_flight() {
         Ok(n) if n > 0 => tracing::info!("Reset {n} in-flight download tasks to pending"),
@@ -252,12 +248,14 @@ async fn execute_download(
     let on_progress = move |phase: DownloadPhase, current: u64, total: u64| {
         let status = download_phase_to_status(phase);
         let _ = store_for_progress.update_progress(&tid, status, current, total);
-        let _ = state_for_progress.event_tx.send(ServiceEvent::DownloadProgress {
-            task_id: tid.clone(),
-            phase: phase_to_str(phase).to_string(),
-            current,
-            total,
-        });
+        let _ = state_for_progress
+            .event_tx
+            .send(ServiceEvent::DownloadProgress {
+                task_id: tid.clone(),
+                phase: phase_to_str(phase).to_string(),
+                current,
+                total,
+            });
     };
 
     let dest = std::path::Path::new(&file_path);
@@ -305,9 +303,7 @@ async fn execute_download(
                     tracing::info!("Download {task_id} will be retried: {error_msg}");
                 }
                 Err(db_err) => {
-                    tracing::error!(
-                        "Failed to update retry state for {task_id}: {db_err}"
-                    );
+                    tracing::error!("Failed to update retry state for {task_id}: {db_err}");
                 }
             }
         }

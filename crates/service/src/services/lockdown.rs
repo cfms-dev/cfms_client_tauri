@@ -92,10 +92,7 @@ async fn accept_loop(
 }
 
 /// Parse and dispatch a single server-pushed stream.
-async fn dispatch_stream(
-    state: &AppState,
-    mut stream: cfms_transport::Stream,
-) {
+async fn dispatch_stream(state: &AppState, mut stream: cfms_transport::Stream) {
     let payload = match stream.recv().await {
         Some(p) => p,
         None => return,

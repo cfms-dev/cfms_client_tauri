@@ -184,29 +184,17 @@ pub enum ServiceEvent {
         total: u64,
     },
     /// A download has completed successfully.
-    DownloadCompleted {
-        task_id: String,
-        file_path: String,
-    },
+    DownloadCompleted { task_id: String, file_path: String },
     /// A download has failed.
-    DownloadFailed {
-        task_id: String,
-        error: String,
-    },
+    DownloadFailed { task_id: String, error: String },
     /// A download was cancelled.
-    DownloadCancelled {
-        task_id: String,
-    },
+    DownloadCancelled { task_id: String },
     /// Server lockdown status changed.
-    Lockdown {
-        status: bool,
-    },
+    Lockdown { status: bool },
     /// The authentication token has expired.
     TokenExpired,
     /// A favorites validation cycle completed.
-    FavoritesValidationComplete {
-        invalid_count: u32,
-    },
+    FavoritesValidationComplete { invalid_count: u32 },
 }
 
 // ---------------------------------------------------------------------------

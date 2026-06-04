@@ -64,10 +64,18 @@ fn get_nonexistent_task() {
 #[test]
 fn list_tasks_by_status() {
     let store = new_store();
-    store.insert(&make_task("t1", DownloadTaskStatus::Pending)).unwrap();
-    store.insert(&make_task("t2", DownloadTaskStatus::Completed)).unwrap();
-    store.insert(&make_task("t3", DownloadTaskStatus::Failed)).unwrap();
-    store.insert(&make_task("t4", DownloadTaskStatus::Pending)).unwrap();
+    store
+        .insert(&make_task("t1", DownloadTaskStatus::Pending))
+        .unwrap();
+    store
+        .insert(&make_task("t2", DownloadTaskStatus::Completed))
+        .unwrap();
+    store
+        .insert(&make_task("t3", DownloadTaskStatus::Failed))
+        .unwrap();
+    store
+        .insert(&make_task("t4", DownloadTaskStatus::Pending))
+        .unwrap();
 
     let pending = store.list_by_status(DownloadTaskStatus::Pending).unwrap();
     assert_eq!(pending.len(), 2);
@@ -82,13 +90,19 @@ fn list_tasks_by_status() {
 #[test]
 fn update_status() {
     let store = new_store();
-    store.insert(&make_task("task-001", DownloadTaskStatus::Pending)).unwrap();
+    store
+        .insert(&make_task("task-001", DownloadTaskStatus::Pending))
+        .unwrap();
 
-    store.update_status("task-001", DownloadTaskStatus::Downloading).unwrap();
+    store
+        .update_status("task-001", DownloadTaskStatus::Downloading)
+        .unwrap();
     let task = store.get("task-001").unwrap().unwrap();
     assert_eq!(task.status, DownloadTaskStatus::Downloading);
 
-    store.update_status("task-001", DownloadTaskStatus::Completed).unwrap();
+    store
+        .update_status("task-001", DownloadTaskStatus::Completed)
+        .unwrap();
     let task = store.get("task-001").unwrap().unwrap();
     assert_eq!(task.status, DownloadTaskStatus::Completed);
 }
@@ -96,7 +110,9 @@ fn update_status() {
 #[test]
 fn mark_started_and_completed() {
     let store = new_store();
-    store.insert(&make_task("task-001", DownloadTaskStatus::Pending)).unwrap();
+    store
+        .insert(&make_task("task-001", DownloadTaskStatus::Pending))
+        .unwrap();
 
     store.mark_started("task-001").unwrap();
     let task = store.get("task-001").unwrap().unwrap();
@@ -114,7 +130,9 @@ fn mark_started_and_completed() {
 #[test]
 fn mark_failed() {
     let store = new_store();
-    store.insert(&make_task("task-001", DownloadTaskStatus::Downloading)).unwrap();
+    store
+        .insert(&make_task("task-001", DownloadTaskStatus::Downloading))
+        .unwrap();
 
     store.mark_failed("task-001", "connection reset").unwrap();
     let task = store.get("task-001").unwrap().unwrap();
@@ -126,7 +144,9 @@ fn mark_failed() {
 #[test]
 fn delete_task() {
     let store = new_store();
-    store.insert(&make_task("task-001", DownloadTaskStatus::Failed)).unwrap();
+    store
+        .insert(&make_task("task-001", DownloadTaskStatus::Failed))
+        .unwrap();
     assert!(store.get("task-001").unwrap().is_some());
 
     store.delete("task-001").unwrap();
@@ -173,11 +193,21 @@ fn retry_or_fail_exhausted() {
 #[test]
 fn reset_in_flight_recovery() {
     let store = new_store();
-    store.insert(&make_task("t1", DownloadTaskStatus::Downloading)).unwrap();
-    store.insert(&make_task("t2", DownloadTaskStatus::Decrypting)).unwrap();
-    store.insert(&make_task("t3", DownloadTaskStatus::Verifying)).unwrap();
-    store.insert(&make_task("t4", DownloadTaskStatus::Completed)).unwrap();
-    store.insert(&make_task("t5", DownloadTaskStatus::Pending)).unwrap();
+    store
+        .insert(&make_task("t1", DownloadTaskStatus::Downloading))
+        .unwrap();
+    store
+        .insert(&make_task("t2", DownloadTaskStatus::Decrypting))
+        .unwrap();
+    store
+        .insert(&make_task("t3", DownloadTaskStatus::Verifying))
+        .unwrap();
+    store
+        .insert(&make_task("t4", DownloadTaskStatus::Completed))
+        .unwrap();
+    store
+        .insert(&make_task("t5", DownloadTaskStatus::Pending))
+        .unwrap();
 
     let reset = store.reset_in_flight().unwrap();
     assert_eq!(reset, 3); // t1, t2, t3 reset
@@ -232,10 +262,18 @@ fn promote_scheduled_tasks() {
 #[test]
 fn clear_completed_and_failed() {
     let store = new_store();
-    store.insert(&make_task("t1", DownloadTaskStatus::Completed)).unwrap();
-    store.insert(&make_task("t2", DownloadTaskStatus::Cancelled)).unwrap();
-    store.insert(&make_task("t3", DownloadTaskStatus::Failed)).unwrap();
-    store.insert(&make_task("t4", DownloadTaskStatus::Pending)).unwrap();
+    store
+        .insert(&make_task("t1", DownloadTaskStatus::Completed))
+        .unwrap();
+    store
+        .insert(&make_task("t2", DownloadTaskStatus::Cancelled))
+        .unwrap();
+    store
+        .insert(&make_task("t3", DownloadTaskStatus::Failed))
+        .unwrap();
+    store
+        .insert(&make_task("t4", DownloadTaskStatus::Pending))
+        .unwrap();
 
     let cleared = store.clear_completed().unwrap();
     assert_eq!(cleared, 2); // t1, t2
@@ -262,16 +300,24 @@ fn settings_roundtrip() {
     assert_eq!(store.get_setting("theme").unwrap().as_deref(), Some("dark"));
 
     store.set_setting("theme", "light").unwrap();
-    assert_eq!(store.get_setting("theme").unwrap().as_deref(), Some("light"));
+    assert_eq!(
+        store.get_setting("theme").unwrap().as_deref(),
+        Some("light")
+    );
 }
 
 #[test]
 fn settings_multiple_keys() {
     let store = new_store();
     store.set_setting("lang", r#""zh_CN""#).unwrap();
-    store.set_setting("proxy", r#"{"host":"localhost","port":1080}"#).unwrap();
+    store
+        .set_setting("proxy", r#"{"host":"localhost","port":1080}"#)
+        .unwrap();
 
-    assert_eq!(store.get_setting("lang").unwrap().as_deref(), Some(r#""zh_CN""#));
+    assert_eq!(
+        store.get_setting("lang").unwrap().as_deref(),
+        Some(r#""zh_CN""#)
+    );
     assert_eq!(
         store.get_setting("proxy").unwrap().as_deref(),
         Some(r#"{"host":"localhost","port":1080}"#)

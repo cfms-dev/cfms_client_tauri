@@ -1139,7 +1139,10 @@ pub async fn check_cached_avatar(
         .resolve("", tauri::path::BaseDirectory::AppData)
         .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
 
-    let cache_path = app_data.join("avatars").join(&server_hash).join(&username_hash);
+    let cache_path = app_data
+        .join("avatars")
+        .join(&server_hash)
+        .join(&username_hash);
 
     if cache_path.exists() {
         Ok(Some(cache_path.to_string_lossy().into_owned()))
@@ -1211,8 +1214,8 @@ pub async fn load_user_preference(
             .map_err(|e| format!("Serialization error: {e}"))?);
     }
 
-    let raw = std::fs::read(&pref_path)
-        .map_err(|e| format!("Failed to read preference file: {e}"))?;
+    let raw =
+        std::fs::read(&pref_path).map_err(|e| format!("Failed to read preference file: {e}"))?;
 
     let dek = {
         let d = state.inner.dek.read().await;
@@ -1220,9 +1223,8 @@ pub async fn load_user_preference(
     };
 
     if crypto_config::is_encrypted(&raw) {
-        let dek = dek.ok_or_else(|| {
-            "Encrypted config file found but DEK is not available".to_string()
-        })?;
+        let dek =
+            dek.ok_or_else(|| "Encrypted config file found but DEK is not available".to_string())?;
         let plaintext = crypto_config::decrypt_config(&raw, &*dek)
             .map_err(|e| format!("Failed to decrypt preference file: {e}"))?;
         let pref: UserPreference = serde_json::from_slice(&plaintext)
@@ -1274,8 +1276,7 @@ pub async fn save_user_preference(
     let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
 
     // Ensure the directory exists.
-    std::fs::create_dir_all(&pref_dir)
-        .map_err(|e| format!("Failed to create prefs dir: {e}"))?;
+    std::fs::create_dir_all(&pref_dir).map_err(|e| format!("Failed to create prefs dir: {e}"))?;
 
     let plaintext =
         serde_json::to_vec(&preferences).map_err(|e| format!("Serialization error: {e}"))?;

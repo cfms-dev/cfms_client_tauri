@@ -33,8 +33,7 @@ pub fn sha256_matches(path: &Path, expected: &[u8; 32]) -> Result<()> {
     // Safety: memory-mapping a file is safe when the file is not modified
     // concurrently.  We only read from the mapping.
     let mmap = unsafe {
-        memmap2::Mmap::map(&file)
-            .map_err(|e| cfms_core::Error::Io(std::io::Error::other(e)))?
+        memmap2::Mmap::map(&file).map_err(|e| cfms_core::Error::Io(std::io::Error::other(e)))?
     };
 
     let mut hasher = Sha256::new();
@@ -56,8 +55,7 @@ pub fn sha256_matches(path: &Path, expected: &[u8; 32]) -> Result<()> {
 pub fn compute_sha256(path: &Path) -> Result<[u8; 32]> {
     let file = std::fs::File::open(path)?;
     let mmap = unsafe {
-        memmap2::Mmap::map(&file)
-            .map_err(|e| cfms_core::Error::Io(std::io::Error::other(e)))?
+        memmap2::Mmap::map(&file).map_err(|e| cfms_core::Error::Io(std::io::Error::other(e)))?
     };
 
     let mut hasher = Sha256::new();

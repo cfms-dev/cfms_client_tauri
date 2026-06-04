@@ -11,10 +11,10 @@
 //! infrequent (login, token refresh, lockdown toggle) so write
 //! contention is negligible.
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 use zeroize::Zeroizing;
 
 use cfms_core::ServiceEvent;

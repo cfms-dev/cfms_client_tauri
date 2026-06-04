@@ -28,9 +28,11 @@ pub async fn run(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) {
 
         let invalid_count = tick(&state, &mut invalid_files, &mut access_denied_files).await;
 
-        let _ = state.event_tx.send(ServiceEvent::FavoritesValidationComplete {
-            invalid_count: invalid_count as u32,
-        });
+        let _ = state
+            .event_tx
+            .send(ServiceEvent::FavoritesValidationComplete {
+                invalid_count: invalid_count as u32,
+            });
 
         tokio::select! {
             _ = tokio::time::sleep(INTERVAL) => {},

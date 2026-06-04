@@ -1,6 +1,6 @@
 //! Download task DAO — CRUD operations on the `download_tasks` table.
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::sync::{Arc, Mutex};
 
 use cfms_core::{DownloadTaskDto, DownloadTaskStatus, Result};
@@ -88,7 +88,13 @@ impl TaskStore {
             "UPDATE download_tasks \
              SET status = ?1, progress = ?2, current_bytes = ?3, total_bytes = ?4 \
              WHERE task_id = ?5",
-            params![status_to_str(status), progress, current_bytes as i64, total_bytes as i64, task_id],
+            params![
+                status_to_str(status),
+                progress,
+                current_bytes as i64,
+                total_bytes as i64,
+                task_id
+            ],
         )
         .map_err(|e| cfms_core::Error::Other(format!("update task progress: {e}")))?;
         Ok(())
@@ -169,20 +175,24 @@ impl TaskStore {
     /// Called on app startup for crash recovery.
     pub fn reset_in_flight(&self) -> Result<usize> {
         let db = self.db.lock().unwrap();
-        let count = db.execute(
-            "UPDATE download_tasks SET status = 'pending' \
+        let count = db
+            .execute(
+                "UPDATE download_tasks SET status = 'pending' \
              WHERE status IN ('downloading', 'decrypting', 'verifying')",
-            [],
-        )
-        .map_err(|e| cfms_core::Error::Other(format!("reset_in_flight: {e}")))?;
+                [],
+            )
+            .map_err(|e| cfms_core::Error::Other(format!("reset_in_flight: {e}")))?;
         Ok(count)
     }
 
     /// Delete a task by ID.
     pub fn delete(&self, task_id: &str) -> Result<()> {
         let db = self.db.lock().unwrap();
-        db.execute("DELETE FROM download_tasks WHERE task_id = ?1", params![task_id])
-            .map_err(|e| cfms_core::Error::Other(format!("delete task: {e}")))?;
+        db.execute(
+            "DELETE FROM download_tasks WHERE task_id = ?1",
+            params![task_id],
+        )
+        .map_err(|e| cfms_core::Error::Other(format!("delete task: {e}")))?;
         Ok(())
     }
 

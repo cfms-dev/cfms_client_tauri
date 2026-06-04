@@ -37,17 +37,19 @@ pub fn scan_directory(path: &Path, pattern: Option<&str>) -> Result<Vec<FileEntr
     let mut entries = Vec::new();
 
     for result in builder.build() {
-        let entry = result.map_err(|e| {
-            cfms_core::Error::Other(format!("scan error: {e}"))
-        })?;
+        let entry = result.map_err(|e| cfms_core::Error::Other(format!("scan error: {e}")))?;
 
         let metadata = entry.metadata().ok();
 
         let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
         let size = metadata.as_ref().map_or(0, |m| m.len());
-        let modified = metadata.and_then(|m| {
-            m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        }).map(|d| d.as_secs() as i64);
+        let modified = metadata
+            .and_then(|m| {
+                m.modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            })
+            .map(|d| d.as_secs() as i64);
 
         entries.push(FileEntry {
             path: entry.path().to_string_lossy().into_owned(),
@@ -79,8 +81,7 @@ mod glob_match {
                 star_idx = Some(pi);
                 match_idx = ti;
                 pi += 1;
-            } else if pi < pat.len() && ti < text.len()
-                && (pat[pi] == b'?' || pat[pi] == text[ti])
+            } else if pi < pat.len() && ti < text.len() && (pat[pi] == b'?' || pat[pi] == text[ti])
             {
                 pi += 1;
                 ti += 1;

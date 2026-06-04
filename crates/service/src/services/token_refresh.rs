@@ -108,13 +108,10 @@ async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), Str
         .await
         .map_err(|e| format!("send: {e}"))?;
 
-    let response_raw = stream
-        .recv()
-        .await
-        .ok_or("no response")?;
+    let response_raw = stream.recv().await.ok_or("no response")?;
 
-    let response: cfms_core::Response = serde_json::from_slice(&response_raw)
-        .map_err(|e| format!("parse response: {e}"))?;
+    let response: cfms_core::Response =
+        serde_json::from_slice(&response_raw).map_err(|e| format!("parse response: {e}"))?;
 
     if response.code != 200 {
         return Err(format!("server returned {}", response.code));
@@ -126,9 +123,7 @@ async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), Str
         .as_str()
         .ok_or("missing token in response")?
         .to_string();
-    let new_exp = data["exp"]
-        .as_i64()
-        .unwrap_or_else(|| unix_now() + 3600); // default 1h
+    let new_exp = data["exp"].as_i64().unwrap_or_else(|| unix_now() + 3600); // default 1h
 
     Ok((new_token, new_exp))
 }
