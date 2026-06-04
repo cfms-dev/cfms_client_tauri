@@ -5,7 +5,7 @@
   // Reference: HomeView in reference/src/include/ui/components/homepage.py
 
   import { onMount } from 'svelte';
-  import { authStore, downloadStore, serviceStatusStore, eventLog } from '$lib/stores.svelte';
+  import { authStore, serverStateStore, downloadStore, serviceStatusStore, eventLog } from '$lib/stores.svelte';
   import {
     getServiceStatus,
     getDownloadTasks,
@@ -39,6 +39,8 @@
       serviceStatusStore.setAll(status);
       downloadStore.setAll(tasks);
       authStore.apply(auth);
+      serverStateStore.updateConnection(auth.connected, auth.server_address, auth.lockdown);
+      serverStateStore.protocolVersion = ver;
       cryptoInfoData = info;
       protoVer = ver;
     } catch {

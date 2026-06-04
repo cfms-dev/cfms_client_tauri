@@ -5,7 +5,7 @@
 
 import { listen } from "@tauri-apps/api/event";
 import type { ServiceEvent } from "./api";
-import { authStore, downloadStore, eventLog } from "./stores.svelte";
+import { authStore, downloadStore, eventLog, serverStateStore } from "./stores.svelte";
 
 let unlisten: (() => void) | null = null;
 
@@ -49,7 +49,7 @@ export async function initEventListeners(): Promise<void> {
       }
 
       case "Lockdown": {
-        authStore.lockdown = event.data.status;
+        serverStateStore.lockdown = event.data.status;
         eventLog.push(
           "warning",
           `Lockdown ${event.data.status ? "activated" : "deactivated"}`,

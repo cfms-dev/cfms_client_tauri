@@ -12,42 +12,42 @@
   // Reference: LoginModel in reference/src/include/ui/models/login.py
   //            LoginFormController in reference/src/include/controllers/login.py
 
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores.svelte';
-  import { login, disconnect, logout, getAuthStatus } from '$lib/api';
-  import Icon from '$lib/components/Icon.svelte';
-  import AvatarPreview from '$lib/components/AvatarPreview.svelte';
-  import TwoFactorVerifyDialog from '$lib/components/TwoFactorVerifyDialog.svelte';
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { authStore, serverStateStore } from "$lib/stores.svelte";
+  import { login, disconnect, logout, getAuthStatus } from "$lib/api";
+  import Icon from "$lib/components/Icon.svelte";
+  import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
 
-  let username = $state('');
-  let password = $state('');
+  let username = $state("");
+  let password = $state("");
   let passwordVisible = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let fieldErrors = $state<{ username?: string; password?: string }>({});
-  let loadingPhase = $state('');
+  let loadingPhase = $state("");
 
   // 2FA state
   let show2faDialog = $state(false);
   // The temporary password is kept in memory during 2FA so we can re-send
   // the login request with the verification code.
-  let pendingPassword = $state('');
+  let pendingPassword = $state("");
 
   // Loading phases after successful login (matching reference's DataLoadingView).
   const loadingPhases = [
-    'Loading user data…',
-    'Setting up encryption…',
-    'Downloading avatar…',
-    'Loading tasks…',
+    "Loading user data…",
+    "Setting up encryption…",
+    "Downloading avatar…",
+    "Loading tasks…",
   ];
 
-  const serverName = $derived(authStore.serverAddress ?? 'CFMS Server');
+  const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
 
   // If already logged in, go straight to home.
   onMount(() => {
     if (authStore.isLoggedIn) {
-      goto('/home/overview');
+      goto("/home/overview");
     }
   });
 
@@ -56,11 +56,11 @@
     fieldErrors = {};
     let valid = true;
     if (!username.trim()) {
-      fieldErrors.username = 'Username is required.';
+      fieldErrors.username = "Username is required.";
       valid = false;
     }
     if (!password) {
-      fieldErrors.password = 'Password is required.';
+      fieldErrors.password = "Password is required.";
       valid = false;
     }
     return valid;
@@ -76,9 +76,9 @@
 
   /** Format an error message for display. */
   function formatError(e: unknown): string {
-    if (typeof e === 'string') return e;
+    if (typeof e === "string") return e;
     if (e instanceof Error) return e.message;
-    return 'An unknown error occurred.';
+    return "An unknown error occurred.";
   }
 
   async function handleLogin() {
@@ -93,6 +93,11 @@
       // Check if server requires 2FA.
       if (authResult.requires_2fa) {
         authStore.apply(authResult);
+        serverStateStore.updateConnection(
+          authResult.connected,
+          authResult.server_address,
+          authResult.lockdown,
+        );
         // Keep password in memory for the 2FA re-submit.
         pendingPassword = password;
         show2faDialog = true;
@@ -108,18 +113,23 @@
       // Refresh full auth status after login.
       const updated = await getAuthStatus();
       authStore.apply(updated);
+      serverStateStore.updateConnection(
+        updated.connected,
+        updated.server_address,
+        updated.lockdown,
+      );
 
       // Clear password from JS memory.
-      password = '';
-      pendingPassword = '';
+      password = "";
+      pendingPassword = "";
 
       // Navigate to home.
-      goto('/home/overview');
+      goto("/home/overview");
     } catch (e) {
       error = formatError(e);
     } finally {
       busy = false;
-      loadingPhase = '';
+      loadingPhase = "";
     }
   }
 
@@ -145,14 +155,19 @@
 
       const updated = await getAuthStatus();
       authStore.apply(updated);
+      serverStateStore.updateConnection(
+        updated.connected,
+        updated.server_address,
+        updated.lockdown,
+      );
 
       // Clear sensitive data.
-      password = '';
-      pendingPassword = '';
+      password = "";
+      pendingPassword = "";
 
       // Close dialog and navigate.
       show2faDialog = false;
-      goto('/home/overview');
+      goto("/home/overview");
 
       return true;
     } catch (e) {
@@ -160,14 +175,14 @@
       return false;
     } finally {
       busy = false;
-      loadingPhase = '';
+      loadingPhase = "";
     }
   }
 
   /** Callback from TwoFactorVerifyDialog — user cancelled 2FA. */
   function handle2faCancel() {
     show2faDialog = false;
-    pendingPassword = '';
+    pendingPassword = "";
     // Clear the partial auth state so the user can try again.
     // Just clear the 2FA flag and keep them on the login page.
     authStore.requires2fa = false;
@@ -180,7 +195,8 @@
       await disconnect();
       await logout();
       authStore.clear();
-      goto('/connect');
+      serverStateStore.clear();
+      goto("/connect");
     } catch (e) {
       error = formatError(e);
     } finally {
@@ -193,8 +209,10 @@
   <div class="w-full" style="max-width: 420px;">
     {#if busy && loadingPhase}
       <!-- Data loading state -->
-      <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                  border border-md3-outline p-10 text-center space-y-4">
+      <div
+        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+                  border border-md3-outline p-10 text-center space-y-4"
+      >
         <div class="flex justify-center">
           <span class="animate-spin text-md3-primary">
             <Icon name="refresh" size="36px" />
@@ -228,10 +246,12 @@
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
         {#if username.trim()}
-          <AvatarPreview username={username} size={80} />
+          <AvatarPreview {username} size={80} />
         {:else}
-          <div class="w-20 h-20 rounded-full bg-md3-surface-container-high
-                      flex items-center justify-center">
+          <div
+            class="w-20 h-20 rounded-full bg-md3-surface-container-high
+                      flex items-center justify-center"
+          >
             <span class="text-md3-on-surface-variant">
               <Icon name="accountCircle" size="64px" />
             </span>
@@ -258,14 +278,18 @@
             Username
           </label>
           <div class="relative">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
+            <span
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant"
+            >
               <Icon name="accountCircle" size="18px" />
             </span>
             <input
               id="username"
               type="text"
               class="w-full pl-10 pr-3.5 py-2.5 rounded-xl border
-                     {fieldErrors.username ? 'border-md3-error' : 'border-md3-outline'}
+                     {fieldErrors.username
+                ? 'border-md3-error'
+                : 'border-md3-outline'}
                      bg-md3-field text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
                      focus:ring-2 focus:ring-md3-primary focus:border-transparent
@@ -277,7 +301,9 @@
             />
           </div>
           {#if fieldErrors.username}
-            <p class="text-xs text-md3-error mt-1 ml-1">{fieldErrors.username}</p>
+            <p class="text-xs text-md3-error mt-1 ml-1">
+              {fieldErrors.username}
+            </p>
           {/if}
         </div>
 
@@ -291,14 +317,18 @@
             Password
           </label>
           <div class="relative">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
+            <span
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant"
+            >
               <Icon name="password" size="18px" />
             </span>
             <input
               id="password"
-              type={passwordVisible ? 'text' : 'password'}
+              type={passwordVisible ? "text" : "password"}
               class="w-full pl-10 pr-10 py-2.5 rounded-xl border
-                     {fieldErrors.password ? 'border-md3-error' : 'border-md3-outline'}
+                     {fieldErrors.password
+                ? 'border-md3-error'
+                : 'border-md3-outline'}
                      bg-md3-field text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
                      focus:ring-2 focus:ring-md3-primary focus:border-transparent
@@ -314,21 +344,30 @@
                      hover:text-md3-on-surface transition-colors"
               onclick={() => (passwordVisible = !passwordVisible)}
               tabindex="-1"
-              aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+              aria-label={passwordVisible ? "Hide password" : "Show password"}
             >
-              <Icon name={passwordVisible ? 'visibility' : 'visibility'} size="18px" />
+              <Icon
+                name={passwordVisible ? "visibility" : "visibility"}
+                size="18px"
+              />
             </button>
           </div>
           {#if fieldErrors.password}
-            <p class="text-xs text-md3-error mt-1 ml-1">{fieldErrors.password}</p>
+            <p class="text-xs text-md3-error mt-1 ml-1">
+              {fieldErrors.password}
+            </p>
           {/if}
         </div>
 
         <!-- Error — MD3 error container -->
         {#if error}
-          <div class="bg-md3-error-container/60 border border-md3-error/30
-                      text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2">
-            <span class="shrink-0 mt-0.5"><Icon name="errorFilled" size="16px" /></span>
+          <div
+            class="bg-md3-error-container/60 border border-md3-error/30
+                      text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2"
+          >
+            <span class="shrink-0 mt-0.5"
+              ><Icon name="errorFilled" size="16px" /></span
+            >
             <span>{error}</span>
           </div>
         {/if}
@@ -359,7 +398,9 @@
             disabled={busy}
           >
             {#if busy}
-              <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+              <span class="animate-spin"
+                ><Icon name="refresh" size="18px" /></span
+              >
               Signing in…
             {:else}
               <Icon name="login" size="20px" />

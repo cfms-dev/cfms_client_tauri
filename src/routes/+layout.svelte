@@ -18,7 +18,7 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { initEventListeners } from "$lib/events";
-  import { authStore, serviceStatusStore, disclaimerStore } from "$lib/stores.svelte";
+  import { authStore, serverStateStore, serviceStatusStore, disclaimerStore } from "$lib/stores.svelte";
   import { getServiceStatus, getAuthStatus } from "$lib/api";
 
   let { children }: { children: Snippet } = $props();
@@ -39,20 +39,20 @@
     const path = $page.url.pathname;
 
     // 1. Lockdown always takes priority — force to lockdown page.
-    if (authStore.lockdown && path !== LOCKDOWN_ROUTE) {
+    if (serverStateStore.lockdown && path !== LOCKDOWN_ROUTE) {
       goto(LOCKDOWN_ROUTE, { replaceState: true });
       return;
     }
 
     // 2. If lockdown is cleared and we're on the lockdown page, go to connect.
-    if (!authStore.lockdown && path === LOCKDOWN_ROUTE) {
+    if (!serverStateStore.lockdown && path === LOCKDOWN_ROUTE) {
       goto("/connect", { replaceState: true });
       return;
     }
 
     // 3. If not connected and trying to access protected/connection routes,
     //    redirect to connect.
-    if (!authStore.connected) {
+    if (!serverStateStore.connected) {
       if (
         !PUBLIC_ROUTES.includes(path) &&
         path !== LOCKDOWN_ROUTE
@@ -64,7 +64,7 @@
 
     // 4. If connected but not logged in, and trying to access home routes,
     //    redirect to login.
-    if (authStore.connected && !authStore.isLoggedIn) {
+    if (serverStateStore.connected && !authStore.isLoggedIn) {
       if (path.startsWith(HOME_PREFIX)) {
         goto("/login", { replaceState: true });
         return;
@@ -110,6 +110,7 @@
       try {
         const s = await getAuthStatus();
         authStore.apply(s);
+        serverStateStore.updateConnection(s.connected, s.server_address, s.lockdown);
       } catch { /* ignore */ }
     }, 30_000);
     return () => clearInterval(interval);

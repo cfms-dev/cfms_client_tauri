@@ -11,7 +11,7 @@
 
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
-  import { authStore, downloadStore } from '$lib/stores.svelte';
+  import { authStore, serverStateStore, downloadStore } from '$lib/stores.svelte';
   import LockdownBanner from '$lib/components/LockdownBanner.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -65,7 +65,7 @@
         <span class="text-xs text-md3-on-surface-variant">
           {authStore.nickname ?? authStore.username}
         </span>
-        {#if authStore.connected}
+        {#if serverStateStore.connected}
           <span class="w-2 h-2 bg-md3-success rounded-full" title="Connected"></span>
         {:else}
           <span class="w-2 h-2 bg-md3-error rounded-full" title="Disconnected"></span>
@@ -77,7 +77,7 @@
   </header>
 
   <!-- Lockdown banner -->
-  <LockdownBanner active={authStore.lockdown} />
+  <LockdownBanner active={serverStateStore.lockdown} />
 
   <!-- Page content -->
   <main class="flex-1 overflow-y-auto page-enter">

@@ -6,13 +6,17 @@
   //
   // Reference: ConnectToServerModel in reference/src/include/ui/models/connect.py
 
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
-  import { connect, disconnect, getAuthStatus } from '$lib/api';
-  import { authStore, disclaimerStore } from '$lib/stores.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { connect, disconnect, getAuthStatus } from "$lib/api";
+  import {
+    authStore,
+    serverStateStore,
+    disclaimerStore,
+  } from "$lib/stores.svelte";
+  import Icon from "$lib/components/Icon.svelte";
 
-  let hostPort = $state('localhost:5104');
+  let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -20,23 +24,29 @@
   // On mount: close any stale connection, check disclaimer.
   onMount(async () => {
     // Close any previous connection to start fresh.
-    try { await disconnect(); } catch { /* ignore */ }
+    try {
+      await disconnect();
+    } catch {
+      /* ignore */
+    }
     authStore.clear();
+    serverStateStore.clear();
 
     // Check disclaimer acceptance.
     await disclaimerStore.init();
     if (disclaimerStore.checked && !disclaimerStore.accepted) {
-      goto('/connect/disclaimer');
+      goto("/connect/disclaimer");
     }
   });
 
   function validateUrl(): boolean {
     if (!hostPort.trim()) {
-      error = 'Server address is required.';
+      error = "Server address is required.";
       return false;
     }
-    if (!hostPort.includes(':') && !hostPort.includes('.')) {
-      error = 'Server address must include a host and port (e.g. example.com:5104)';
+    if (!hostPort.includes(":") && !hostPort.includes(".")) {
+      error =
+        "Server address must include a host and port (e.g. example.com:5104)";
       return false;
     }
     return true;
@@ -52,7 +62,12 @@
       // Refresh auth to pick up server_info / connected state.
       const status = await getAuthStatus();
       authStore.apply(status);
-      goto('/login');
+      serverStateStore.updateConnection(
+        status.connected,
+        status.server_address,
+        status.lockdown,
+      );
+      goto("/login");
     } catch (e) {
       error = String(e);
     } finally {
@@ -92,12 +107,16 @@
         >
           Server Address
         </label>
-        <div class="flex items-center rounded-xl border border-md3-outline
+        <div
+          class="flex items-center rounded-xl border border-md3-outline
                     bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
-                    focus-within:border-transparent transition-colors overflow-hidden">
-          <span class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
+                    focus-within:border-transparent transition-colors overflow-hidden"
+        >
+          <span
+            class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
                        select-none font-mono shrink-0"
-                style="font-family: var(--font-md3-sans);">
+            style="font-family: var(--font-md3-sans);"
+          >
             wss://
           </span>
           <input
@@ -123,13 +142,17 @@
           bind:checked={disableSsl}
           disabled={busy}
         />
-        <span class="text-md3-on-surface-variant">Disable SSL verification (Insecure)</span>
+        <span class="text-md3-on-surface-variant"
+          >Disable SSL verification (Insecure)</span
+        >
       </label>
 
       <!-- Error — MD3 error container -->
       {#if error}
-        <div class="bg-md3-error-container/60 border border-md3-error/30
-                    text-md3-on-error-container text-sm rounded-xl p-3">
+        <div
+          class="bg-md3-error-container/60 border border-md3-error/30
+                    text-md3-on-error-container text-sm rounded-xl p-3"
+        >
           {error}
         </div>
       {/if}

@@ -12,6 +12,39 @@ import type {
 } from "./api";
 
 // ---------------------------------------------------------------------------
+// Server state stores
+// ---------------------------------------------------------------------------
+
+class ServerStateStoreImpl {
+  remoteAddress = $state<string | null>(null);
+  serverName = $state<string | null>(null);
+  protocolVersion = $state<number | null>(null);
+  connected = $state(false);
+  lockdown = $state(false);
+
+  /** Update connection-related server state.
+   *
+   *  Accepts raw values only — this store has no knowledge of auth types. */
+  updateConnection(connected: boolean, address: string | null, lockdown: boolean) {
+    this.connected = connected;
+    this.remoteAddress = address;
+    this.lockdown = lockdown;
+  }
+
+  /** Reset all server state to defaults (on disconnect). */
+  clear() {
+    this.remoteAddress = null;
+    this.serverName = null;
+    this.protocolVersion = null;
+    this.connected = false;
+    this.lockdown = false;
+  }
+}
+
+export const serverStateStore = new ServerStateStoreImpl();
+
+
+// ---------------------------------------------------------------------------
 // Auth store
 // ---------------------------------------------------------------------------
 
@@ -22,9 +55,6 @@ class AuthStoreImpl {
   tokenExp = $state<number | null>(null);
   permissions = $state<string[]>([]);
   groups = $state<string[]>([]);
-  connected = $state(false);
-  serverAddress = $state<string | null>(null);
-  lockdown = $state(false);
 
   // 2FA state
   requires2fa = $state(false);
@@ -41,7 +71,11 @@ class AuthStoreImpl {
     return this.requires2fa && this.username !== null && !this.hasToken;
   }
 
-  /** Apply a full AuthStatus snapshot from the backend. */
+  /** Apply a full AuthStatus snapshot from the backend.
+   *
+   *  Only handles auth-specific fields.  Server-state fields (connection status,
+   *  server address, lockdown) must be applied to `serverStateStore` separately
+   *  by the caller — the two stores are fully independent. */
   apply(s: AuthStatus) {
     this.username = s.username;
     this.nickname = s.nickname;
@@ -49,14 +83,14 @@ class AuthStoreImpl {
     this.tokenExp = s.token_exp;
     this.permissions = s.permissions;
     this.groups = s.groups;
-    this.connected = s.connected;
-    this.serverAddress = s.server_address;
-    this.lockdown = s.lockdown;
     this.requires2fa = s.requires_2fa ?? false;
     this.twofaMethod = s['2fa_method'] ?? 'totp';
   }
 
-  /** Clear all auth state (used on logout / token expiry). */
+  /** Clear all auth state (used on logout / token expiry).
+   *
+   *  Server state must be cleared separately via `serverStateStore.clear()` if
+   *  needed — the two stores are fully independent. */
   clear() {
     this.username = null;
     this.nickname = null;
@@ -64,9 +98,6 @@ class AuthStoreImpl {
     this.tokenExp = null;
     this.permissions = [];
     this.groups = [];
-    this.connected = false;
-    this.serverAddress = null;
-    this.lockdown = false;
     this.requires2fa = false;
     this.twofaMethod = 'totp';
   }
