@@ -18,8 +18,8 @@ export async function initEventListeners(): Promise<void> {
 
     switch (event.event) {
       case "DownloadProgress": {
-        const { task_id, phase, progress, message } = event.data;
-        downloadStore.updateProgress(task_id, phase, progress, message);
+        const { task_id, phase, progress, message, current_bytes, total_bytes } = event.data;
+        downloadStore.updateProgress(task_id, phase, progress, message, current_bytes, total_bytes);
         eventLog.push(
           "info",
           `Download ${task_id.slice(0, 8)}…: ${message || phase} (${Math.round(progress * 100)}%)`,

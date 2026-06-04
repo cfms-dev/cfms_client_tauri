@@ -194,6 +194,10 @@ pub enum ServiceEvent {
         progress: f64,
         /// Human-readable message for the current step.
         message: String,
+        /// Bytes processed so far in the current phase.
+        current_bytes: u64,
+        /// Total bytes expected for the current phase (0 when unknown).
+        total_bytes: u64,
     },
     /// A download has completed successfully.
     DownloadCompleted { task_id: String, file_path: String },

@@ -676,6 +676,8 @@ async fn execute_download(
         phase: "downloading".into(),
         progress: 0.0,
         message: String::new(),
+        current_bytes: 0,
+        total_bytes: 0,
     });
 
     tracing::info!("Download started: {task_id} → {file_path}");
@@ -709,6 +711,8 @@ async fn execute_download(
                 phase: phase_to_str(phase).to_string(),
                 progress,
                 message: message.to_string(),
+                current_bytes,
+                total_bytes,
             });
     };
 

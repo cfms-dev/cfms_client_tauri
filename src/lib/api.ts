@@ -113,7 +113,7 @@ export interface UploadProgress {
 // ---------------------------------------------------------------------------
 
 export type ServiceEvent =
-  | { event: "DownloadProgress"; data: { task_id: string; phase: string; progress: number; message: string } }
+  | { event: "DownloadProgress"; data: { task_id: string; phase: string; progress: number; message: string; current_bytes: number; total_bytes: number } }
   | { event: "DownloadCompleted"; data: { task_id: string; file_path: string } }
   | { event: "DownloadFailed"; data: { task_id: string; error: string } }
   | { event: "DownloadCancelled"; data: { task_id: string } }

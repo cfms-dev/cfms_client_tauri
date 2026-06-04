@@ -159,12 +159,19 @@ class DownloadStoreImpl {
   }
 
   /** Update progress for a single task (from DownloadProgress event). */
-  updateProgress(taskId: string, phase: string, progress: number, message: string) {
+  updateProgress(
+    taskId: string,
+    phase: string,
+    progress: number,
+    message: string,
+    currentBytes: number,
+    totalBytes: number,
+  ) {
     const task = this.tasks.get(taskId);
     if (task) {
       task.progress = progress;
-      task.current_bytes = 0;
-      task.total_bytes = 0;
+      if (currentBytes > 0) task.current_bytes = currentBytes;
+      if (totalBytes > 0) task.total_bytes = totalBytes;
       task.message = message;
       if (phase === "downloading") task.status = "downloading";
       else if (phase === "decrypting") task.status = "decrypting";
