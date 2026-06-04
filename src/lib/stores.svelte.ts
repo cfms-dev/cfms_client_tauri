@@ -10,6 +10,7 @@ import type {
   ServiceStatusInfo,
   AuthStatus,
   ServerState,
+  ServerInfo,
 } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,17 @@ class ServerStateStoreImpl {
   apply(s: ServerState) {
     this.connected = s.connected;
     this.remoteAddress = s.server_address;
+    this.serverName = s.server_name ?? this.serverName;
+    this.protocolVersion = s.protocol_version ?? this.protocolVersion;
     this.lockdown = s.lockdown;
+  }
+
+  /** Apply server info from the connect command response. */
+  applyServerInfo(info: ServerInfo) {
+    this.serverName = info.server_name;
+    this.protocolVersion = info.protocol_version;
+    this.lockdown = info.lockdown;
+    this.connected = true;
   }
 
   /** Reset all server state to defaults (on disconnect). */

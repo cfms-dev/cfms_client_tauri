@@ -276,6 +276,23 @@ pub struct ServerDocumentEntry {
     pub last_modified: Option<f64>,
 }
 
+/// Metadata returned by the server's `server_info` action.
+///
+/// Sent immediately after WebSocket connection to establish protocol
+/// compatibility and surface server identity / lockdown status before
+/// authentication.
+///
+/// Mirrors the Python reference `server_info_response["data"]` dict.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerInfo {
+    /// Human-readable display name of the CFMS server.
+    pub server_name: String,
+    /// Wire-protocol version the server speaks.
+    pub protocol_version: u32,
+    /// Whether the server is currently in emergency lockdown mode.
+    pub lockdown: bool,
+}
+
 /// Response data for the server's `list_directory` action.
 ///
 /// Returned to the frontend as the result of the `list_directory` Tauri command.

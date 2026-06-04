@@ -4,7 +4,11 @@
   // First screen the user sees after startup.  Enter a WSS server address
   // and establish a WebSocket connection before proceeding to login.
   //
+  // After connecting, a `server_info` handshake validates protocol
+  // compatibility and surfaces the server's display name and lockdown status.
+  //
   // Reference: ConnectToServerModel in reference/src/include/ui/models/connect.py
+  //            ConnectFormController in reference/src/include/controllers/connect.py
 
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
@@ -20,6 +24,11 @@
   let disableSsl = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let protocolError = $state<{
+    serverVersion: number;
+    clientVersion: number;
+    needsUpdate: boolean;
+  } | null>(null);
 
   // On mount: close any stale connection, check disclaimer.
   onMount(async () => {
@@ -52,22 +61,64 @@
     return true;
   }
 
+  /** Parse a protocol-mismatch error string of the form
+   *  `"<kind>:<server_ver>:<client_ver>"`. */
+  function parseProtocolError(
+    e: string,
+  ): { serverVersion: number; clientVersion: number; needsUpdate: boolean } | null {
+    if (e.startsWith("server_update_required:")) {
+      const parts = e.split(":");
+      return {
+        serverVersion: Number(parts[1]),
+        clientVersion: Number(parts[2]),
+        needsUpdate: true,
+      };
+    }
+    if (e.startsWith("server_too_old:")) {
+      const parts = e.split(":");
+      return {
+        serverVersion: Number(parts[1]),
+        clientVersion: Number(parts[2]),
+        needsUpdate: false,
+      };
+    }
+    return null;
+  }
+
   async function handleConnect() {
     if (!validateUrl()) return;
     busy = true;
     error = null;
+    protocolError = null;
     try {
       const serverUrl = `wss://${hostPort}`;
-      await connect(serverUrl, disableSsl);
-      // Refresh auth and server state after connecting.
+      const serverInfo = await connect(serverUrl, disableSsl);
+
+      // Store server metadata from the post-connect handshake.
+      serverStateStore.applyServerInfo(serverInfo);
+      serverStateStore.remoteAddress = serverUrl;
+
+      // Refresh full auth/server state (handles any race conditions).
       authStore.apply(await getAuthStatus());
       serverStateStore.apply(await getServerState());
+
       goto("/login");
     } catch (e) {
-      error = String(e);
+      const msg = String(e);
+      const parsed = parseProtocolError(msg);
+      if (parsed) {
+        protocolError = parsed;
+      } else {
+        error = msg;
+      }
     } finally {
       busy = false;
     }
+  }
+
+  /** Navigate to the about/update page when the server is newer. */
+  async function goToAbout() {
+    await goto("/home/about");
   }
 </script>
 
@@ -141,6 +192,44 @@
           >Disable SSL verification (Insecure)</span
         >
       </label>
+
+      <!-- Protocol version mismatch -->
+      {#if protocolError}
+        <div
+          class="bg-md3-tertiary-container/60 border border-md3-tertiary/30
+                    text-md3-on-tertiary-container text-sm rounded-xl p-4 space-y-3"
+        >
+          <div class="flex items-start gap-2">
+            <span class="shrink-0 mt-0.5"
+              ><Icon name="warning" size="16px" /></span
+            >
+            <div>
+              <p class="font-medium">
+                {protocolError.needsUpdate
+                  ? "Client update required"
+                  : "Server version not supported"}
+              </p>
+              <p class="mt-1 text-md3-on-surface-variant">
+                {protocolError.needsUpdate
+                  ? `The server uses protocol version ${protocolError.serverVersion}, but your client only supports version ${protocolError.clientVersion}. Please update the client to connect.`
+                  : `The server uses protocol version ${protocolError.serverVersion}, which is older than the client's version ${protocolError.clientVersion} and is not supported.`}
+              </p>
+            </div>
+          </div>
+          {#if protocolError.needsUpdate}
+            <button
+              type="button"
+              class="w-full py-2 rounded-full font-medium
+                     bg-md3-tertiary text-md3-on-tertiary
+                     hover:brightness-110 transition-all text-sm"
+              style="font-family: var(--font-md3-sans);"
+              onclick={goToAbout}
+            >
+              Check for updates
+            </button>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Error — MD3 error container -->
       {#if error}

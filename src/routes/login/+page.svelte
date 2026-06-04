@@ -25,6 +25,7 @@
   let passwordVisible = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let passwordChangeRequired = $state(false);
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
 
@@ -81,11 +82,19 @@
     return "An unknown error occurred.";
   }
 
+  /** Check whether an error indicates the server requires a password change
+   *  before login (codes 4001 / 4002 in the reference implementation). */
+  function isPasswordChangeRequired(e: unknown): boolean {
+    const msg = formatError(e);
+    return msg.includes("Password must be changed before login");
+  }
+
   async function handleLogin() {
     if (!validate()) return;
 
     busy = true;
     error = null;
+    passwordChangeRequired = false;
 
     try {
       const authResult = await login(username, password);
@@ -117,7 +126,12 @@
       // Navigate to home.
       goto("/home/overview");
     } catch (e) {
-      error = formatError(e);
+      if (isPasswordChangeRequired(e)) {
+        passwordChangeRequired = true;
+        error = formatError(e);
+      } else {
+        error = formatError(e);
+      }
     } finally {
       busy = false;
       loadingPhase = "";
@@ -345,8 +359,30 @@
           {/if}
         </div>
 
+        <!-- Password change required -->
+        {#if error && passwordChangeRequired}
+          <div
+            class="bg-md3-tertiary-container/70 border border-md3-tertiary/40
+                      text-md3-on-tertiary-container text-sm rounded-xl p-4 space-y-3"
+          >
+            <div class="flex items-start gap-2">
+              <span class="shrink-0 mt-0.5"
+                ><Icon name="warning" size="18px" /></span
+              >
+              <div>
+                <p class="font-medium">Password change required</p>
+                <p class="mt-1">
+                  Your password must be changed before you can log in.
+                  Please contact your system administrator to reset your
+                  password.
+                </p>
+              </div>
+            </div>
+          </div>
+        {/if}
+
         <!-- Error — MD3 error container -->
-        {#if error}
+        {#if error && !passwordChangeRequired}
           <div
             class="bg-md3-error-container/60 border border-md3-error/30
                       text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2"

@@ -11,7 +11,8 @@
 
 use cfms_core::constants;
 use cfms_core::{
-    DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServiceStatusInfo,
+    DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServerInfo,
+    ServiceStatusInfo,
 };
 use cfms_crypto::dek;
 use cfms_service::services::download_queue;
@@ -695,6 +696,18 @@ pub async fn login(
             }))
         }
 
+        // --- Password must be changed before login ---
+        //
+        // Mirrors the Python reference which shows a PasswdUserDialog for
+        // codes 4001 / 4002.
+        //
+        // The frontend should surface a password-change prompt — we include
+        // the server's message so the user knows why.
+        4001 | 4002 => Err(format!(
+            "Password must be changed before login: {}",
+            response.message
+        )),
+
         // --- Server-side error ---
         other => Err(format!("Login failed: ({}) {}", other, response.message)),
     }
@@ -737,18 +750,43 @@ pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), Strin
     Ok(())
 }
 
-/// Establish a WSS connection to the CFMS server.
+/// Establish a WSS connection to the CFMS server and perform the initial
+/// `server_info` handshake.
 ///
 /// Uses the TLS configuration from [`cfms_transport::tls::build_config`]
 /// with the local CA certificate store.  When `disable_ssl_enforcement`
 /// is `true`, certificate verification is skipped (insecure).
+///
+/// # Post-connect handshake
+///
+/// After the WebSocket is established this command immediately sends a
+/// `server_info` request to:
+///
+/// 1. Validate protocol-version compatibility between client and server.
+/// 2. Surface the server's display name and lockdown status.
+///
+/// If the server's protocol version is *higher* than the client's the
+/// connection is torn down and an error is returned — the frontend
+/// should direct the user to update the client.
+///
+/// If the server's protocol version is *lower* the connection is also
+/// closed — the server is too old and the client cannot downgrade.
+///
+/// # Returns
+///
+/// [`ServerInfo`] on success: `{ server_name, protocol_version, lockdown }`.
+///
+/// # Reference
+///
+/// Mirrors `ConnectFormController.action_connect` in
+/// `reference/src/include/controllers/connect.py`.
 #[tauri::command]
 pub async fn connect(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     url: String,
     disable_ssl_enforcement: bool,
-) -> Result<(), String> {
+) -> Result<serde_json::Value, String> {
     // Resolve the CA certificate directory via Tauri's resource resolver.
     // In development this points to <project>/src-tauri/ca/.
     // In production this points to the bundled resource directory.
@@ -765,7 +803,83 @@ pub async fn connect(
         .await
         .map_err(|e| format!("Connection failed: {e}"))?;
 
-    // Store connection and server address.
+    // --- Post-connect handshake: request server_info ---
+    //
+    // This request is sent *without* authentication (username / token are
+    // empty) because we haven't logged in yet — exactly matching the Python
+    // reference which passes `username=None, token=None` in `_request()`.
+    let server_info: ServerInfo = {
+        let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
+        let nonce = hex::encode(random_bytes);
+
+        let request = serde_json::json!({
+            "action": "server_info",
+            "data": {},
+            "username": null,
+            "token": null,
+            "timestamp": unix_now(),
+            "nonce": nonce,
+        });
+
+        let request_bytes = serde_json::to_vec(&request)
+            .map_err(|e| format!("Failed to encode server_info request: {e}"))?;
+
+        let mut stream = conn
+            .create_stream()
+            .await
+            .map_err(|e| format!("Failed to create stream for server_info: {e}"))?;
+
+        stream
+            .send(&conn, request_bytes)
+            .await
+            .map_err(|e| format!("Failed to send server_info request: {e}"))?;
+
+        let response_bytes = stream
+            .recv()
+            .await
+            .ok_or_else(|| "Connection closed before server_info response".to_string())?;
+
+        let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
+            .map_err(|e| format!("Invalid server_info response: {e}"))?;
+
+        if response.code != 200 {
+            // Connection is useless without server_info — tear it down.
+            // Use close() directly (not spawn) so conn is consumed cleanly.
+            conn.close().await;
+            return Err(format!(
+                "Server returned {} from server_info: {}",
+                response.code, response.message
+            ));
+        }
+
+        serde_json::from_value(response.data)
+            .map_err(|e| format!("Invalid server_info data: {e}"))?
+    };
+
+    // --- Protocol version compatibility check ---
+    //
+    // Mirrors the Python reference's protocol-version gate in
+    // `ConnectFormController.action_connect`.
+    let client_protocol = cfms_core::constants::PROTOCOL_VERSION;
+
+    if server_info.protocol_version != client_protocol {
+        // Tear down — cannot communicate with this server.
+        conn.close().await;
+
+        if server_info.protocol_version > client_protocol {
+            return Err(format!(
+                "server_update_required:{}:{}",
+                server_info.protocol_version, client_protocol
+            ));
+        } else {
+            return Err(format!(
+                "server_too_old:{}:{}",
+                server_info.protocol_version, client_protocol
+            ));
+        }
+    }
+
+    // --- Store connection state ---
     {
         let mut c = state.inner.conn.write().await;
         *c = Some(conn);
@@ -774,12 +888,47 @@ pub async fn connect(
         let mut addr = state.inner.server_address.write().await;
         *addr = Some(url.clone());
     }
+    {
+        let mut name = state.inner.server_name.write().await;
+        *name = Some(server_info.server_name.clone());
+    }
+    {
+        let mut pv = state.inner.server_protocol_version.write().await;
+        *pv = Some(server_info.protocol_version);
+    }
+    // Apply initial lockdown status from server_info.
+    // The lockdown_monitor background service will also fire Lockdown events
+    // for dynamic changes, but this covers the static case during connect.
+    {
+        let mut dse = state.inner.disable_ssl_enforcement.write().await;
+        *dse = disable_ssl_enforcement;
+    }
+    state
+        .inner
+        .app_lockdown
+        .store(server_info.lockdown, std::sync::atomic::Ordering::SeqCst);
 
-    tracing::info!("Connected to {url}");
-    Ok(())
+    tracing::info!(
+        "Connected to {url} — server={}, protocol={}, lockdown={}",
+        server_info.server_name,
+        server_info.protocol_version,
+        server_info.lockdown,
+    );
+
+    Ok(serde_json::json!({
+        "server_name": server_info.server_name,
+        "protocol_version": server_info.protocol_version,
+        "lockdown": server_info.lockdown,
+    }))
 }
 
-/// Close the WSS connection.
+/// Close the WSS connection and clear all server metadata.
+///
+/// Resets the connection, address, server name, protocol version, and
+/// lockdown flag so the frontend reflects a clean disconnected state.
+///
+/// Auth state is **not** cleared here — call [`logout`] separately if
+/// you also need to purge credentials.
 #[tauri::command]
 pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
     let conn = {
@@ -792,10 +941,23 @@ pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), S
         tokio::spawn(async move { conn.close().await });
     }
 
+    // Clear all server metadata.
     {
         let mut addr = state.inner.server_address.write().await;
         *addr = None;
     }
+    {
+        let mut name = state.inner.server_name.write().await;
+        *name = None;
+    }
+    {
+        let mut pv = state.inner.server_protocol_version.write().await;
+        *pv = None;
+    }
+    state
+        .inner
+        .app_lockdown
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 
     tracing::info!("Disconnected");
     Ok(())
@@ -886,11 +1048,15 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
 async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json::Value {
     let connected = inner.conn.read().await.is_some();
     let server_address = inner.server_address.read().await.clone();
+    let server_name = inner.server_name.read().await.clone();
+    let protocol_version = inner.server_protocol_version.read().await;
     let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
 
     serde_json::json!({
         "connected": connected,
         "server_address": server_address,
+        "server_name": server_name,
+        "protocol_version": *protocol_version,
         "lockdown": lockdown,
     })
 }

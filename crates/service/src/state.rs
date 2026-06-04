@@ -45,6 +45,10 @@ pub struct AppState {
     pub conn: RwLock<Option<cfms_transport::Connection>>,
     /// Server address (e.g. `"cfms.example.com:8443"`).
     pub server_address: RwLock<Option<String>>,
+    /// Human-readable server name as reported by `server_info`.
+    pub server_name: RwLock<Option<String>>,
+    /// Wire-protocol version the connected server speaks.
+    pub server_protocol_version: RwLock<Option<u32>>,
     /// If `true`, TLS certificate validation is skipped.
     pub disable_ssl_enforcement: RwLock<bool>,
 
@@ -87,6 +91,8 @@ impl AppState {
             dek: RwLock::new(None),
             conn: RwLock::new(None),
             server_address: RwLock::new(None),
+            server_name: RwLock::new(None),
+            server_protocol_version: RwLock::new(None),
             disable_ssl_enforcement: RwLock::new(false),
             app_lockdown: AtomicBool::new(false),
             pending_2fa: AtomicBool::new(false),

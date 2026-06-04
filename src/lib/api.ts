@@ -136,6 +136,18 @@ export interface AuthStatus {
 export interface ServerState {
   connected: boolean;
   server_address: string | null;
+  /** Human-readable display name reported by the server via server_info. */
+  server_name: string | null;
+  /** Wire-protocol version the connected server speaks. */
+  protocol_version: number | null;
+  lockdown: boolean;
+}
+
+/** Metadata returned by the connect command after a successful server_info
+ *  handshake.  Mirrors cfms_core::ServerInfo on the Rust side. */
+export interface ServerInfo {
+  server_name: string;
+  protocol_version: number;
   lockdown: boolean;
 }
 
@@ -192,11 +204,19 @@ export async function logout(): Promise<void> {
   return invoke("logout");
 }
 
-/** Establish WSS connection to a CFMS server. */
+/** Establish WSS connection to a CFMS server and perform the initial
+ *  server_info handshake.
+ *
+ *  Returns [`ServerInfo`] on success.  Throws with a specially-formatted
+ *  error string on protocol version mismatch:
+ *
+ *  - `"server_update_required:<server_ver>:<client_ver>"` — server is newer.
+ *  - `"server_too_old:<server_ver>:<client_ver>"` — server is too old.
+ */
 export async function connect(
   url: string,
   disableSslEnforcement: boolean,
-): Promise<void> {
+): Promise<ServerInfo> {
   return invoke("connect", {
     url,
     disableSslEnforcement,

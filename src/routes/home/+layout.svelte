@@ -12,7 +12,6 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
   import { authStore, serverStateStore, downloadStore } from '$lib/stores.svelte';
-  import LockdownBanner from '$lib/components/LockdownBanner.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
@@ -75,9 +74,6 @@
       {/if}
     </div>
   </header>
-
-  <!-- Lockdown banner -->
-  <LockdownBanner active={serverStateStore.lockdown} />
 
   <!-- Page content -->
   <main class="flex-1 overflow-y-auto page-enter">

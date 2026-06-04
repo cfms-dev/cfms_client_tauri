@@ -20,6 +20,7 @@
   import { initEventListeners } from "$lib/events";
   import { authStore, serverStateStore, serviceStatusStore, disclaimerStore } from "$lib/stores.svelte";
   import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
+  import LockdownBanner from "$lib/components/LockdownBanner.svelte";
 
   let { children }: { children: Snippet } = $props();
 
@@ -38,13 +39,24 @@
   $effect(() => {
     const path = $page.url.pathname;
 
-    // 1. Lockdown always takes priority — force to lockdown page.
-    if (serverStateStore.lockdown && path !== LOCKDOWN_ROUTE) {
+    // 1. Lockdown — only redirect authenticated users who lack bypass
+    //    permission.  Users who haven't logged in yet can still reach the
+    //    login page (the LockdownBanner will warn them).
+    //
+    //    Reference: lockdown_handler in
+    //    reference/src/include/backend/event_handlers/lockdown.py
+    if (
+      serverStateStore.lockdown &&
+      path !== LOCKDOWN_ROUTE &&
+      authStore.isLoggedIn &&
+      !authStore.permissions.includes("bypass_lockdown")
+    ) {
       goto(LOCKDOWN_ROUTE, { replaceState: true });
       return;
     }
 
-    // 2. If lockdown is cleared and we're on the lockdown page, go to connect.
+    // 2. If lockdown is cleared and we're on the lockdown page, go back
+    //    to connect (the user may need to re-authenticate).
     if (!serverStateStore.lockdown && path === LOCKDOWN_ROUTE) {
       goto("/connect", { replaceState: true });
       return;
@@ -117,10 +129,16 @@
 </script>
 
 <!--
-  Minimal root wrapper — the gradient background is set on <body> via app.css.
+  Root layout wrapper — the gradient background is set on <body> via app.css.
+  The LockdownBanner is rendered here (not just in /home) so it is visible
+  on the connect and login pages as well, matching the Python reference
+  which places it in page.overlay.
+
   Each route area provides its own chrome (tab bar, AppBar, etc.).
-  We just render the slot with a full-height container.
 -->
-<div class="h-full">
-  {@render children()}
+<div class="h-full flex flex-col">
+  <LockdownBanner active={serverStateStore.lockdown} />
+  <div class="flex-1">
+    {@render children()}
+  </div>
 </div>

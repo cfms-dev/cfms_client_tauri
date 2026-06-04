@@ -17,5 +17,5 @@ pub use error::{Error, Result};
 pub use types::{
     DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, FileEntry,
     FileMetadata, ListDirectoryResponse, Response, ServerDirectoryEntry, ServerDocumentEntry,
-    ServiceEvent, ServiceStatusInfo, UploadProgress,
+    ServerInfo, ServiceEvent, ServiceStatusInfo, UploadProgress,
 };
