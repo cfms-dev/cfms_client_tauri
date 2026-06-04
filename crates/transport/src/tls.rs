@@ -8,29 +8,69 @@
 //! - **mTLS**: optional client certificate + private key.
 
 use cfms_core::Result;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rustls::{ClientConfig, RootCertStore};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::crypto::CryptoProvider;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
+use rustls::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
 use std::path::Path;
+use std::sync::Arc;
 use std::{fs, io};
 
-/// Build a [`ClientConfig`] that trusts only the PEM certificates found
-/// in `ca_dir`.
-///
-/// When `disable_enforcement` is `true`, the verifier is replaced with a
-/// no-op verifier that accepts any certificate (**insecure** — intended
-/// for development / troubleshooting only).
-pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientConfig> {
-    let mut root_store = if disable_enforcement {
-        RootCertStore::empty()
-    } else {
-        load_trust_store(ca_dir)?
-    };
+#[derive(Debug)]
+struct NoOpVerifier;
 
-    // If the store is empty and enforcement is enabled, fall back to
-    // the system's webpki roots.  In rustls 0.23, this is done by
-    // replacing the store's roots directly.
-    if root_store.is_empty() && !disable_enforcement {
-        root_store.roots = webpki_roots::TLS_SERVER_ROOTS.to_vec();
+impl ServerCertVerifier for NoOpVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> std::result::Result<ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> std::result::Result<HandshakeSignatureValid, rustls::Error> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        CryptoProvider::get_default()
+            .expect("no crypto provider installed")
+            .signature_verification_algorithms
+            .supported_schemes()
+            .to_vec()
+    }
+}
+
+pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientConfig> {
+    if disable_enforcement {
+        let config = ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(NoOpVerifier))
+            .with_no_client_auth();
+        return Ok(config);
+    }
+
+    let mut root_store = load_trust_store(ca_dir)?;
+
+    if root_store.is_empty() {
+        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     }
 
     let config = ClientConfig::builder()
@@ -51,20 +91,18 @@ fn is_openssl_hash_filename(path: &Path) -> bool {
         None => return false,
     };
 
-    // 最小长度必须是 10 位: 8位十六进制 + 1位点 + 至少1位数字
     if name.len() < 10 {
         return false;
     }
 
     let bytes = name.as_bytes();
 
-    // 1. 前 8 位必须是小写十六进制数字 (0-9, a-f)
-    let is_hex = bytes[..8].iter().all(|&b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    let is_hex = bytes[..8]
+        .iter()
+        .all(|&b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
 
-    // 2. 第 9 位 (索引 8) 必须是 '.'
     let has_dot = bytes[8] == b'.';
 
-    // 3. 从第 10 位 (索引 9) 开始往后的所有位，必须全部是 ASCII 数字
     let is_suffix_numeric = bytes[9..].iter().all(|b| b.is_ascii_digit());
 
     is_hex && has_dot && is_suffix_numeric
