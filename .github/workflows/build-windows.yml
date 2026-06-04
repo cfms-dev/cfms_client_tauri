@@ -23,9 +23,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      - name: Init submodules
-        run: git submodule update --init --recursive
+        with:
+          submodules: recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

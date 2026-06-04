@@ -51,6 +51,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
@@ -114,6 +116,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
@@ -181,6 +185,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v6
         with: { node-version: 22, cache: npm }
