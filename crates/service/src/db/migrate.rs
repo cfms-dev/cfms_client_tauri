@@ -48,8 +48,5 @@ fn migrate(db: &Connection) -> Result<()> {
             .map_err(|e| cfms_core::Error::Other(format!("schema v1 migration failed: {e}")))?;
     }
 
-    // Future migrations:
-    // if current < 2 { db.execute_batch(schema::SCHEMA_V2)?; }
-
     Ok(())
 }

@@ -101,7 +101,7 @@ pub async fn add_download(
     task: DownloadTaskDto,
 ) -> Result<(), String> {
     state
-        .store
+        .tasks
         .insert(&task)
         .map_err(|e| format!("Failed to add download: {e}"))
 }
@@ -112,10 +112,7 @@ pub async fn get_download_tasks(
     state: tauri::State<'_, AppHandleState>,
     status_filter: Option<DownloadTaskStatus>,
 ) -> Result<Vec<DownloadTaskDto>, String> {
-    state
-        .store
-        .list(status_filter)
-        .map_err(|e| format!("Failed to list downloads: {e}"))
+    Ok(state.tasks.list(status_filter))
 }
 
 /// Pause an in-progress download.
@@ -124,7 +121,7 @@ pub async fn pause_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::pause_task(&state.store, &task_id)
+    download_queue::pause_task(&state.tasks, &task_id)
         .map_err(|e| format!("Failed to pause download: {e}"))
 }
 
@@ -134,7 +131,7 @@ pub async fn resume_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::resume_task(&state.store, &task_id)
+    download_queue::resume_task(&state.tasks, &task_id)
         .map_err(|e| format!("Failed to resume download: {e}"))
 }
 
@@ -144,42 +141,33 @@ pub async fn cancel_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::cancel_task(&state.store, &state.active_downloads, &task_id)
+    download_queue::cancel_task(&state.tasks, &state.active_downloads, &task_id)
         .map_err(|e| format!("Failed to cancel download: {e}"))
 }
 
 /// Clear completed and cancelled tasks.
 #[tauri::command]
 pub async fn clear_completed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
-    state
-        .store
-        .clear_completed()
-        .map(|n| n as u32)
-        .map_err(|e| format!("Failed to clear completed tasks: {e}"))
+    Ok(state.tasks.clear_completed() as u32)
 }
 
 /// Clear failed tasks. Returns count removed.
 #[tauri::command]
 pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
-    state
-        .store
-        .clear_failed()
-        .map(|n| n as u32)
-        .map_err(|e| format!("Failed to clear failed tasks: {e}"))
+    Ok(state.tasks.clear_failed() as u32)
 }
 
-/// Delete a download task from the database and remove its file from disk.
+/// Delete a download task and remove its file from disk.
 ///
-/// Removes the task from the persistent store and deletes the associated file
-/// if it exists on the filesystem. Accepts task_id as a string for simpler
-/// frontend integration.
+/// Removes the task from the in-memory queue and deletes the associated file
+/// if it exists on the filesystem.
 #[tauri::command]
 pub async fn delete_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
     // Look up the task to get its file_path for filesystem cleanup.
-    if let Ok(Some(task)) = state.store.get(&task_id) {
+    if let Some(task) = state.tasks.get(&task_id) {
         // Try to delete the file from disk (best-effort, don't fail if missing).
         let path = std::path::Path::new(&task.file_path);
         if path.exists() {
@@ -187,11 +175,8 @@ pub async fn delete_download(
         }
     }
 
-    // Remove from the persistent store.
-    state
-        .store
-        .delete(&task_id)
-        .map_err(|e| format!("Failed to delete download: {e}"))?;
+    // Remove from the in-memory queue.
+    state.tasks.delete(&task_id);
 
     Ok(true)
 }
@@ -443,6 +428,7 @@ pub async fn get_document(
         progress: 0.0,
         current_bytes: 0,
         total_bytes: 0,
+        message: None,
         error: None,
         created_at: now,
         started_at: None,
@@ -451,11 +437,15 @@ pub async fn get_document(
         retry_count: 0,
         max_retries: 3,
         scheduled_time: None,
+        stage: 0,
+        bandwidth_limit: None,
+        pause_position: None,
+        supports_resume: false,
     };
 
     // Persist the download task so the download queue service picks it up.
     state
-        .store
+        .tasks
         .insert(&task)
         .map_err(|e| format!("Failed to add download: {e}"))?;
 
@@ -478,8 +468,8 @@ pub async fn get_setting(
     key: String,
 ) -> Result<Option<String>, String> {
     state
-        .store
-        .get_setting(&key)
+        .settings
+        .get(&key)
         .map_err(|e| format!("Failed to read setting: {e}"))
 }
 
@@ -491,8 +481,8 @@ pub async fn set_setting(
     value: String,
 ) -> Result<(), String> {
     state
-        .store
-        .set_setting(&key, &value)
+        .settings
+        .set(&key, &value)
         .map_err(|e| format!("Failed to write setting: {e}"))
 }
 
@@ -634,6 +624,29 @@ pub async fn login(
             // with keyring support).
             let _ = setup_dek(&state.inner, data, &password, &username, &token, &conn).await;
 
+            // Load download tasks for this user.
+            // This must happen AFTER DEK setup — the task file is encrypted
+            // and requires the DEK to decrypt.
+            {
+                let server_addr = {
+                    let a = state.inner.server_address.read().await;
+                    a.clone().unwrap_or_default()
+                };
+                let server_hash = cfms_core::get_server_hash(&server_addr);
+                let dek = {
+                    let d = state.inner.dek.read().await;
+                    d.clone()
+                };
+                if let Err(e) = state.tasks.load_for_user(
+                    &state.app_data_dir,
+                    &server_hash,
+                    &username,
+                    dek.as_deref(),
+                ) {
+                    tracing::warn!("Failed to load download tasks after login: {e}");
+                }
+            }
+
             let status = build_auth_status(&state.inner).await;
             Ok(status)
         }
@@ -735,6 +748,9 @@ pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), Strin
         *d = None;
         *a = None;
     }
+
+    // Clear the in-memory download task queue so next user starts fresh.
+    state.tasks.clear();
     state
         .inner
         .pending_2fa
@@ -1085,7 +1101,11 @@ pub async fn download_avatar(
 
     // Download using the transfer protocol.
     // Progress is silently consumed (avatars are small; the reference does the same).
-    let progress = |_phase: cfms_core::DownloadPhase, _current: u64, _total: u64| {};
+    let progress = |_phase: cfms_core::DownloadPhase,
+                    _progress: f64,
+                    _message: &str,
+                    _current: u64,
+                    _total: u64| {};
     cfms_transfer::download::receive(&conn, task_id, &cache_path, &progress)
         .await
         .map_err(|e| format!("Avatar download failed: {e}"))?;
@@ -1320,20 +1340,40 @@ fn get_user_prefs_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBu
 
 /// Reload download tasks for the current user.
 ///
-/// Provides a signal to the frontend that it should refresh its task list
-/// after login.  The existing project uses SQLite-backed storage (not
-/// per-user encrypted files), so the frontend can simply call
-/// `get_download_tasks` after this command to get the latest state.
+/// Loads tasks from the per-user encrypted JSON file into the in-memory queue.
+/// Must be called after login (when username, server_address, and DEK are set).
 ///
-/// Mirrors [`reload_tasks_for_user`] in the Python reference, adapted from
-/// file-based persistence to the existing SQLite-backed store.
+/// Mirrors [`reload_tasks_for_user`] in the Python reference.
 #[tauri::command]
-pub async fn reload_tasks_for_user() -> Result<(), String> {
-    // The existing project uses SQLite storage — no per-user file reload
-    // is needed.  This command serves as a signal to the frontend that it
-    // should call `get_download_tasks` to refresh its task view.
-    tracing::info!("Download tasks reload signal for current user");
-    Ok(())
+pub async fn reload_tasks_for_user(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<usize, String> {
+    let username = {
+        let u = state.inner.username.read().await;
+        u.clone()
+    }
+    .ok_or_else(|| "Not logged in".to_string())?;
+
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+
+    let dek = {
+        let d = state.inner.dek.read().await;
+        d.clone()
+    };
+
+    let count = state
+        .tasks
+        .load_for_user(&state.app_data_dir, &server_hash, &username, dek.as_deref())
+        .map_err(|e| format!("Failed to load download tasks: {e}"))?;
+
+    tracing::info!("Reloaded {count} download tasks for user {username}");
+    Ok(count)
 }
 
 // ---------------------------------------------------------------------------

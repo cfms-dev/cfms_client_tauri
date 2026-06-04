@@ -6,13 +6,14 @@
 mod background;
 mod commands;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{Emitter, Manager};
 
-use cfms_service::db::tasks::TaskStore;
+use cfms_service::db::settings::SettingsStore;
 use cfms_service::service::manager::ServiceManager;
-use cfms_service::services::download_queue::ActiveRegistry;
+use cfms_service::services::download_queue::{ActiveRegistry, QueueState};
 use cfms_service::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -25,11 +26,18 @@ pub struct AppHandleState {
     /// Shared in-memory application state (auth, DEK, lockdown, events).
     pub inner: Arc<AppState>,
 
-    /// Persistent download task store (SQLite).
-    pub store: TaskStore,
+    /// In-memory download task queue.  Tasks are persisted to encrypted JSON
+    /// files per-user (see `cfms_service::services::task_persistence`).
+    pub tasks: QueueState,
+
+    /// User settings (key-value, SQLite-backed).
+    pub settings: SettingsStore,
 
     /// Registry of active downloads (cancellation flags).
     pub active_downloads: ActiveRegistry,
+
+    /// Application data directory (for persistence file paths).
+    pub app_data_dir: PathBuf,
 
     /// Background service manager.  Wrapped in Arc+Mutex so it can be
     /// activated on the async runtime and later shut down.
@@ -59,12 +67,13 @@ pub fn run() {
             let db_path = app_data_dir.join("cfms_client.db");
             tracing::info!("Opening database at {}", db_path.display());
 
-            // --- Open persistent database ---
+            // --- Open persistent database (user_settings only) ---
             let db = cfms_service::db::open(&db_path)
                 .map_err(|e| Box::new(std::io::Error::other(format!("Database error: {e}"))))?;
 
             let state = AppState::new();
-            let store = TaskStore::new(db);
+            let settings = SettingsStore::new(db);
+            let tasks = QueueState::new();
             let active_downloads = ActiveRegistry::new();
 
             // --- Register background services (no Tokio context needed) ---
@@ -97,12 +106,14 @@ pub fn run() {
             });
 
             let s4 = Arc::clone(&state);
-            let st4 = store.clone();
+            let t4 = tasks.clone();
+            let a4 = active_downloads.clone();
             service_manager.register("download_queue", move |rx| {
                 let s = Arc::clone(&s4);
-                let st = st4.clone();
+                let t = t4.clone();
+                let a = a4.clone();
                 async move {
-                    cfms_service::services::download_queue::run(s, st, rx).await;
+                    cfms_service::services::download_queue::run(s, t, a, rx).await;
                 }
             });
 
@@ -145,8 +156,10 @@ pub fn run() {
             // --- Register managed state ---
             app.manage(AppHandleState {
                 inner: state,
-                store,
+                tasks,
+                settings,
                 active_downloads,
+                app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
             });
 

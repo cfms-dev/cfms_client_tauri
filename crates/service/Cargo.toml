@@ -19,3 +19,6 @@ rand.workspace = true
 zeroize.workspace = true
 ignore = "0.4"
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

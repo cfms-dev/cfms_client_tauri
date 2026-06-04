@@ -20,17 +20,26 @@
 //! Any non-terminal state ──► CANCELLED
 //! SCHEDULED ──► PENDING (when scheduled_time elapses)
 //! ```
+//!
+//! # Task storage
+//!
+//! Task metadata lives in an in-memory `HashMap` and is persisted to an
+//! encrypted JSON file (see [`super::task_persistence`]) after every change.
+//! Tasks are **not** loaded at app startup — [`QueueState::load_for_user`]
+//! must be called after successful login (when the DEK becomes available).
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tokio::sync::watch;
 
-use cfms_core::{DownloadPhase, DownloadTaskStatus, ServiceEvent};
+use cfms_core::constants::KEY_LEN;
+use cfms_core::{DownloadPhase, DownloadTaskDto, DownloadTaskStatus, Result, ServiceEvent};
 
-use crate::db::tasks::TaskStore;
+use crate::services::task_persistence;
 use crate::state::AppState;
 
 /// Queue check interval.
@@ -38,6 +47,436 @@ pub const INTERVAL: Duration = Duration::from_secs(1);
 
 /// Maximum concurrent downloads.
 const MAX_CONCURRENT: usize = 3;
+
+/// Statuses that count toward the navigation badge (non-terminal, actively
+/// queued/running).  Mirrors `_ACTIVE_BADGE_STATUSES` in the Python reference.
+#[allow(dead_code)]
+const ACTIVE_BADGE_STATUSES: &[DownloadTaskStatus] = &[
+    DownloadTaskStatus::Pending,
+    DownloadTaskStatus::Downloading,
+    DownloadTaskStatus::Decrypting,
+    DownloadTaskStatus::Verifying,
+    DownloadTaskStatus::Scheduled,
+];
+
+// ---------------------------------------------------------------------------
+// QueueState — shared in-memory task store with JSON persistence
+// ---------------------------------------------------------------------------
+
+/// The shared, thread-safe download task queue.
+///
+/// Tasks are held in memory (matching the Python reference's
+/// `self.tasks: Dict[str, DownloadTask]`) and persisted to an encrypted
+/// JSON file after every mutation.
+///
+/// # Lifecycle
+///
+/// 1. Created at app startup (empty).
+/// 2. After login, [`load_for_user`](QueueState::load_for_user) populates it
+///    from the encrypted JSON file and stores the persistence context.
+/// 3. Every mutation (add, status change, remove) triggers a save.
+/// 4. On logout, tasks should be cleared and the context reset.
+#[derive(Clone)]
+pub struct QueueState {
+    /// In-memory task map, keyed by `task_id`.
+    tasks: Arc<Mutex<HashMap<String, DownloadTaskDto>>>,
+
+    /// Persistence directory (app data).  `None` until login.
+    persist_dir: Arc<Mutex<Option<PathBuf>>>,
+
+    /// Server hash for the current connection.  `None` until login.
+    persist_server_hash: Arc<Mutex<Option<String>>>,
+
+    /// Username for the current session.  `None` until login.
+    persist_username: Arc<Mutex<Option<String>>>,
+
+    /// Data Encryption Key.  `None` until login.
+    persist_dek: Arc<Mutex<Option<[u8; KEY_LEN]>>>,
+}
+
+impl Default for QueueState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl QueueState {
+    /// Create an empty queue with no persistence context.
+    pub fn new() -> Self {
+        Self {
+            tasks: Arc::new(Mutex::new(HashMap::new())),
+            persist_dir: Arc::new(Mutex::new(None)),
+            persist_server_hash: Arc::new(Mutex::new(None)),
+            persist_username: Arc::new(Mutex::new(None)),
+            persist_dek: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Persistence lifecycle
+    // ------------------------------------------------------------------
+
+    /// Set up the persistence context and load tasks for the current user.
+    ///
+    /// Must be called after successful login.  Performs crash recovery:
+    /// tasks that were `downloading`/`decrypting` are reset to `pending`.
+    ///
+    /// Returns the number of tasks loaded.
+    pub fn load_for_user(
+        &self,
+        app_data: &std::path::Path,
+        server_hash: &str,
+        username: &str,
+        dek: Option<&[u8; KEY_LEN]>,
+    ) -> Result<usize> {
+        // Store persistence context.
+        {
+            let mut d = self.persist_dir.lock().unwrap();
+            *d = Some(app_data.to_path_buf());
+        }
+        {
+            let mut h = self.persist_server_hash.lock().unwrap();
+            *h = Some(server_hash.to_string());
+        }
+        {
+            let mut u = self.persist_username.lock().unwrap();
+            *u = Some(username.to_string());
+        }
+        {
+            let mut k = self.persist_dek.lock().unwrap();
+            *k = dek.cloned();
+        }
+
+        // Load from disk.
+        let loaded = task_persistence::load(app_data, server_hash, username, dek)?;
+        let count = loaded.len();
+
+        {
+            let mut map = self.tasks.lock().unwrap();
+            map.clear();
+            for t in loaded {
+                map.insert(t.task_id.clone(), t);
+            }
+        }
+
+        tracing::info!("Loaded {count} download tasks for user {username} on server {server_hash}");
+        Ok(count)
+    }
+
+    /// Clear all in-memory tasks and reset the persistence context.
+    ///
+    /// Called on logout so the queue is empty for the next user.
+    pub fn clear(&self) {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            map.clear();
+        }
+        {
+            let mut d = self.persist_dir.lock().unwrap();
+            *d = None;
+        }
+        {
+            let mut h = self.persist_server_hash.lock().unwrap();
+            *h = None;
+        }
+        {
+            let mut u = self.persist_username.lock().unwrap();
+            *u = None;
+        }
+        {
+            let mut k = self.persist_dek.lock().unwrap();
+            *k = None;
+        }
+    }
+
+    /// Persist the current task list to the encrypted JSON file.
+    ///
+    /// This is called automatically after every mutation.  It is a no-op
+    /// if the persistence context hasn't been set (i.e. before login).
+    fn save(&self) {
+        let (dir, hash, user, dek) = {
+            let d = self.persist_dir.lock().unwrap();
+            let h = self.persist_server_hash.lock().unwrap();
+            let u = self.persist_username.lock().unwrap();
+            let k = self.persist_dek.lock().unwrap();
+            (d.clone(), h.clone(), u.clone(), *k)
+        };
+
+        let (Some(dir), Some(hash), Some(user)) = (dir, hash, user) else {
+            // Persistence context not set — nothing to save.
+            return;
+        };
+
+        let tasks: Vec<DownloadTaskDto> = {
+            let map = self.tasks.lock().unwrap();
+            map.values().cloned().collect()
+        };
+
+        if let Err(e) = task_persistence::save(&dir, &hash, &user, dek.as_ref(), &tasks) {
+            tracing::error!("Failed to persist download tasks: {e}");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Read operations
+    // ------------------------------------------------------------------
+
+    /// Get a single task by ID.
+    pub fn get(&self, task_id: &str) -> Option<DownloadTaskDto> {
+        let map = self.tasks.lock().unwrap();
+        map.get(task_id).cloned()
+    }
+
+    /// Get all tasks, optionally filtered by status.
+    pub fn list(&self, status_filter: Option<DownloadTaskStatus>) -> Vec<DownloadTaskDto> {
+        let map = self.tasks.lock().unwrap();
+        let mut tasks: Vec<DownloadTaskDto> = match status_filter {
+            Some(s) => map.values().filter(|t| t.status == s).cloned().collect(),
+            None => map.values().cloned().collect(),
+        };
+        // Sort by priority DESC, then created_at ASC (like the old SQLite query).
+        tasks.sort_by(|a, b| {
+            b.priority
+                .cmp(&a.priority)
+                .then(a.created_at.cmp(&b.created_at))
+        });
+        tasks
+    }
+
+    /// Get all tasks with a specific status.
+    pub fn list_by_status(&self, status: DownloadTaskStatus) -> Vec<DownloadTaskDto> {
+        self.list(Some(status))
+    }
+
+    /// Count tasks with a given status.
+    pub fn count_by_status(&self, status: DownloadTaskStatus) -> u32 {
+        let map = self.tasks.lock().unwrap();
+        map.values().filter(|t| t.status == status).count() as u32
+    }
+
+    /// Count tasks in active-badge statuses.
+    pub fn active_count(&self) -> u32 {
+        let map = self.tasks.lock().unwrap();
+        map.values()
+            .filter(|t| ACTIVE_BADGE_STATUSES.contains(&t.status))
+            .count() as u32
+    }
+
+    /// Get all PENDING tasks ordered by priority descending.
+    pub fn pending_tasks(&self) -> Vec<DownloadTaskDto> {
+        let mut tasks = self.list_by_status(DownloadTaskStatus::Pending);
+        tasks.sort_by(|a, b| b.priority.cmp(&a.priority));
+        tasks
+    }
+
+    // ------------------------------------------------------------------
+    // Write operations
+    // ------------------------------------------------------------------
+
+    /// Insert a new download task.
+    pub fn insert(&self, task: &DownloadTaskDto) -> Result<()> {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            map.insert(task.task_id.clone(), task.clone());
+        }
+        self.save();
+        Ok(())
+    }
+
+    /// Update the status of a task.
+    pub fn update_status(&self, task_id: &str, status: DownloadTaskStatus) -> Result<()> {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.status = status;
+            }
+        }
+        self.save();
+        Ok(())
+    }
+
+    /// Update progress fields for an in-flight task.
+    pub fn update_progress(
+        &self,
+        task_id: &str,
+        status: DownloadTaskStatus,
+        progress: f64,
+        message: &str,
+        current_bytes: Option<u64>,
+        total_bytes: Option<u64>,
+    ) -> Result<()> {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.status = status;
+                t.progress = progress;
+                t.message = Some(message.to_string());
+                if let Some(cb) = current_bytes {
+                    t.current_bytes = cb;
+                }
+                if let Some(tb) = total_bytes {
+                    t.total_bytes = tb;
+                }
+            }
+        }
+        // Don't save on every progress update — too frequent.  The save-on-change
+        // pattern (on terminal states and explicit mutations) is sufficient.
+        Ok(())
+    }
+
+    /// Mark a task as started (called when download begins).
+    pub fn mark_started(&self, task_id: &str) -> Result<()> {
+        let now = unix_now();
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.started_at = Some(now);
+                t.status = DownloadTaskStatus::Downloading;
+            }
+        }
+        self.save();
+        Ok(())
+    }
+
+    /// Mark a task as completed successfully.
+    pub fn mark_completed(&self, task_id: &str, bytes: u64) -> Result<()> {
+        let now = unix_now();
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.status = DownloadTaskStatus::Completed;
+                t.progress = 1.0;
+                t.current_bytes = bytes;
+                t.total_bytes = bytes;
+                t.completed_at = Some(now);
+            }
+        }
+        self.save();
+        Ok(())
+    }
+
+    /// Mark a task as failed with an error message.
+    pub fn mark_failed(&self, task_id: &str, error: &str) -> Result<()> {
+        let now = unix_now();
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.status = DownloadTaskStatus::Failed;
+                t.error = Some(error.to_string());
+                t.completed_at = Some(now);
+            }
+        }
+        self.save();
+        Ok(())
+    }
+
+    /// Increment retry count and reset to pending (or fail if exhausted).
+    pub fn retry_or_fail(&self, task_id: &str, error: &str) -> Result<DownloadTaskStatus> {
+        let status = {
+            let mut map = self.tasks.lock().unwrap();
+            let Some(t) = map.get_mut(task_id) else {
+                return Ok(DownloadTaskStatus::Failed);
+            };
+            t.retry_count += 1;
+            if t.retry_count > t.max_retries {
+                t.status = DownloadTaskStatus::Failed;
+                t.error = Some(error.to_string());
+                t.completed_at = Some(unix_now());
+                DownloadTaskStatus::Failed
+            } else {
+                t.status = DownloadTaskStatus::Pending;
+                t.error = Some(error.to_string());
+                DownloadTaskStatus::Pending
+            }
+        };
+        self.save();
+        Ok(status)
+    }
+
+    /// Promote all SCHEDULED tasks whose scheduled_time has passed to PENDING.
+    /// Returns the number of tasks moved.
+    pub fn promote_scheduled(&self) -> usize {
+        let now = unix_now();
+        let mut count = 0;
+        {
+            let mut map = self.tasks.lock().unwrap();
+            for t in map.values_mut() {
+                if t.status == DownloadTaskStatus::Scheduled {
+                    if let Some(st) = t.scheduled_time {
+                        if st <= now {
+                            t.status = DownloadTaskStatus::Pending;
+                            t.scheduled_time = None;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        if count > 0 {
+            self.save();
+        }
+        count
+    }
+
+    /// Clear tasks with terminal statuses. Returns count removed.
+    pub fn clear_completed(&self) -> usize {
+        let count = {
+            let mut map = self.tasks.lock().unwrap();
+            let before = map.len();
+            map.retain(|_, t| {
+                t.status != DownloadTaskStatus::Completed
+                    && t.status != DownloadTaskStatus::Cancelled
+            });
+            before - map.len()
+        };
+        if count > 0 {
+            self.save();
+        }
+        count
+    }
+
+    /// Clear failed tasks. Returns count removed.
+    pub fn clear_failed(&self) -> usize {
+        let count = {
+            let mut map = self.tasks.lock().unwrap();
+            let before = map.len();
+            map.retain(|_, t| t.status != DownloadTaskStatus::Failed);
+            before - map.len()
+        };
+        if count > 0 {
+            self.save();
+        }
+        count
+    }
+
+    /// Delete a task by ID. Returns true if the task existed.
+    pub fn delete(&self, task_id: &str) -> bool {
+        let existed = {
+            let mut map = self.tasks.lock().unwrap();
+            map.remove(task_id).is_some()
+        };
+        if existed {
+            self.save();
+        }
+        existed
+    }
+
+    /// Set the pause_position for a task.
+    pub fn set_pause_position(&self, task_id: &str, position: u64) -> Result<()> {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.pause_position = Some(position);
+            }
+        }
+        self.save();
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ActiveRegistry
+// ---------------------------------------------------------------------------
 
 /// Tracks an active download's cancellation state.
 struct ActiveDownload {
@@ -99,23 +538,29 @@ impl ActiveRegistry {
     }
 }
 
-/// Run the download queue processing loop.
-pub async fn run(state: Arc<AppState>, store: TaskStore, mut shutdown_rx: watch::Receiver<bool>) {
-    // Crash recovery: reset tasks that were in-flight when the app exited.
-    match store.reset_in_flight() {
-        Ok(n) if n > 0 => tracing::info!("Reset {n} in-flight download tasks to pending"),
-        Err(e) => tracing::error!("Failed to reset in-flight tasks: {e}"),
-        _ => {}
-    }
+// ---------------------------------------------------------------------------
+// Main service loop
+// ---------------------------------------------------------------------------
 
-    let active = ActiveRegistry::new();
+/// Run the download queue processing loop.
+///
+/// The service starts immediately at app launch but will have no tasks to
+/// process until [`QueueState::load_for_user`] is called after login.
+pub async fn run(
+    state: Arc<AppState>,
+    queue: QueueState,
+    active: ActiveRegistry,
+    mut shutdown_rx: watch::Receiver<bool>,
+) {
+    // Note: we do NOT call reset_in_flight here — tasks aren't loaded yet.
+    // Crash recovery happens in QueueState::load_for_user() after login.
 
     loop {
         if *shutdown_rx.borrow() {
             break;
         }
 
-        tick(&state, &store, &active).await;
+        tick(&state, &queue, &active).await;
 
         tokio::select! {
             _ = tokio::time::sleep(INTERVAL) => {},
@@ -138,10 +583,11 @@ pub async fn run(state: Arc<AppState>, store: TaskStore, mut shutdown_rx: watch:
 }
 
 /// One processing tick.
-async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry) {
+async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry) {
     // 1. Promote scheduled tasks whose time has come.
-    if let Err(e) = store.promote_scheduled() {
-        tracing::error!("Failed to promote scheduled tasks: {e}");
+    let promoted = queue.promote_scheduled();
+    if promoted > 0 {
+        tracing::debug!("Promoted {promoted} scheduled tasks to pending");
     }
 
     // 2. Check available slots.
@@ -151,13 +597,7 @@ async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry)
     }
 
     // 3. Get pending tasks (already sorted by priority DESC).
-    let pending = match store.pending_tasks() {
-        Ok(tasks) => tasks,
-        Err(e) => {
-            tracing::error!("Failed to list pending tasks: {e}");
-            return;
-        }
-    };
+    let pending = queue.pending_tasks();
 
     // 4. Start new downloads up to the concurrency limit.
     let slots = MAX_CONCURRENT - active_count;
@@ -169,8 +609,8 @@ async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry)
 
         let cancel_flag = active.register(&task.task_id);
 
-        // Mark as downloading in the DB.
-        if let Err(e) = store.mark_started(&task.task_id) {
+        // Mark as downloading.
+        if let Err(e) = queue.mark_started(&task.task_id) {
             tracing::error!("Failed to mark task {} as started: {e}", task.task_id);
             active.unregister(&task.task_id);
             continue;
@@ -178,14 +618,14 @@ async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry)
 
         // Spawn the download as an independent Tokio task.
         let state = Arc::clone(state);
-        let store = store.clone();
+        let queue = queue.clone();
         let active = active.clone();
         let task_id = task.task_id.clone();
         let file_path = task.file_path.clone();
 
         tokio::spawn(async move {
             let tid = task_id.clone();
-            execute_download(tid.clone(), file_path, state, store, cancel_flag).await;
+            execute_download(tid.clone(), file_path, state, queue, cancel_flag).await;
             active.unregister(&tid);
         });
     }
@@ -194,7 +634,7 @@ async fn tick(state: &Arc<AppState>, store: &TaskStore, active: &ActiveRegistry)
 /// Execute a single download from start to finish.
 ///
 /// This function drives the download through the state machine, reporting
-/// progress and persisting status changes to the database.
+/// progress and persisting status changes.
 ///
 /// Mirrors the Python reference [`DownloadManagerService._download_task`]
 /// found in `reference/src/include/classes/services/download.py`.
@@ -202,28 +642,23 @@ async fn execute_download(
     task_id: String,
     file_path: String,
     state: Arc<AppState>,
-    store: TaskStore,
+    queue: QueueState,
     cancel_flag: Arc<AtomicBool>,
 ) {
     // Check cancellation before starting.
     if cancel_flag.load(Ordering::SeqCst) {
-        let _ = store.update_status(&task_id, DownloadTaskStatus::Cancelled);
+        let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
         return;
     }
 
     // --- Phase 1: Obtain a connection ---
-    //
-    // The Python reference creates a fresh connection per download via
-    // `get_connection()`.  In the Rust client we reuse the shared multiplexed
-    // connection stored in `AppState.conn` — each download opens its own
-    // virtual stream through `Connection::create_stream()`.
     let conn = {
         let guard = state.conn.read().await;
         match guard.as_ref() {
             Some(c) => c.clone(),
             None => {
                 tracing::error!("Download {task_id}: no active connection");
-                let _ = store.mark_failed(&task_id, "No active connection to server");
+                let _ = queue.mark_failed(&task_id, "No active connection to server");
                 let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
                     task_id: task_id.clone(),
                     error: "No active connection to server".into(),
@@ -234,40 +669,52 @@ async fn execute_download(
     };
 
     // --- Phase 2: DOWNLOADING ---
-    let _ = store.update_status(&task_id, DownloadTaskStatus::Downloading);
+    let _ = queue.update_status(&task_id, DownloadTaskStatus::Downloading);
+    emit_active_count(&queue, &state);
     let _ = state.event_tx.send(ServiceEvent::DownloadProgress {
         task_id: task_id.clone(),
         phase: "downloading".into(),
-        current: 0,
-        total: 0,
+        progress: 0.0,
+        message: String::new(),
     });
 
     tracing::info!("Download started: {task_id} → {file_path}");
 
-    // Progress callback invoked by `cfms_transfer::download::receive()` at
-    // each stage.  Updates the database and emits events so the frontend can
-    // show a real-time progress bar and the current phase label.
-    let store_for_progress = store.clone();
+    // Progress callback.
+    let queue_for_progress = queue.clone();
     let state_for_progress = state.clone();
     let tid = task_id.clone();
 
-    let on_progress = move |phase: DownloadPhase, current: u64, total: u64| {
+    let on_progress = move |phase: DownloadPhase,
+                            progress: f64,
+                            message: &str,
+                            current_bytes: u64,
+                            total_bytes: u64| {
         let status = download_phase_to_status(phase);
-        let _ = store_for_progress.update_progress(&tid, status, current, total);
+        let cb = if current_bytes > 0 || total_bytes > 0 {
+            Some(current_bytes)
+        } else {
+            None
+        };
+        let tb = if total_bytes > 0 {
+            Some(total_bytes)
+        } else {
+            None
+        };
+        let _ = queue_for_progress.update_progress(&tid, status, progress, message, cb, tb);
         let _ = state_for_progress
             .event_tx
             .send(ServiceEvent::DownloadProgress {
                 task_id: tid.clone(),
                 phase: phase_to_str(phase).to_string(),
-                current,
-                total,
+                progress,
+                message: message.to_string(),
             });
     };
 
     let dest = std::path::Path::new(&file_path);
 
-    // Race the actual download against the cancellation flag so the user can
-    // abort an in-progress transfer without waiting for the current chunk.
+    // Race the actual download against the cancellation flag.
     let result: Option<cfms_core::Result<()>> = tokio::select! {
         r = cfms_transfer::download::receive(&conn, &task_id, dest, &on_progress) => {
             Some(r)
@@ -280,9 +727,10 @@ async fn execute_download(
     match result {
         // --- Success ---
         Some(Ok(())) => {
-            if let Err(e) = store.mark_completed(&task_id, 0) {
+            if let Err(e) = queue.mark_completed(&task_id, 0) {
                 tracing::error!("Failed to mark task {task_id} as completed: {e}");
             }
+            emit_active_count(&queue, &state);
 
             let _ = state.event_tx.send(ServiceEvent::DownloadCompleted {
                 task_id: task_id.clone(),
@@ -297,8 +745,9 @@ async fn execute_download(
             let error_msg = e.to_string();
             tracing::error!("Download {task_id} failed: {error_msg}");
 
-            match store.retry_or_fail(&task_id, &error_msg) {
+            match queue.retry_or_fail(&task_id, &error_msg) {
                 Ok(DownloadTaskStatus::Failed) => {
+                    emit_active_count(&queue, &state);
                     let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
                         task_id: task_id.clone(),
                         error: error_msg,
@@ -306,6 +755,7 @@ async fn execute_download(
                 }
                 Ok(_) => {
                     // Task was reset to Pending for a retry on the next tick.
+                    emit_active_count(&queue, &state);
                     tracing::info!("Download {task_id} will be retried: {error_msg}");
                 }
                 Err(db_err) => {
@@ -323,7 +773,8 @@ async fn execute_download(
                 tracing::warn!("Failed to clean up partial file {file_path}: {e}");
             }
 
-            let _ = store.update_status(&task_id, DownloadTaskStatus::Cancelled);
+            let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
+            emit_active_count(&queue, &state);
             let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
                 task_id: task_id.clone(),
             });
@@ -338,12 +789,6 @@ async fn execute_download(
 // ---------------------------------------------------------------------------
 
 /// Map a [`DownloadPhase`] to the corresponding [`DownloadTaskStatus`].
-///
-/// The Python reference maps:
-/// - stage 0 (Downloading) → `DownloadTaskStatus.DOWNLOADING`
-/// - stage 1 (Decrypting) → `DownloadTaskStatus.DECRYPTING`
-/// - stage 2 (Cleaning)  → `DownloadTaskStatus.VERIFYING`
-/// - stage 3 (Verifying) → `DownloadTaskStatus.VERIFYING`
 fn download_phase_to_status(phase: DownloadPhase) -> DownloadTaskStatus {
     match phase {
         DownloadPhase::Downloading => DownloadTaskStatus::Downloading,
@@ -362,10 +807,16 @@ fn phase_to_str(phase: DownloadPhase) -> &'static str {
     }
 }
 
+/// Emit an [`ServiceEvent::ActiveCountChanged`] event if the badge-eligible
+/// task count has changed since the last emission.
+fn emit_active_count(queue: &QueueState, state: &AppState) {
+    let count = queue.active_count();
+    let _ = state
+        .event_tx
+        .send(ServiceEvent::ActiveCountChanged { count });
+}
+
 /// Returns when the cancellation flag is set to `true`.
-///
-/// Polls periodically so the runtime can still make progress on other tasks
-/// while waiting for a cancellation signal.
 async fn wait_for_cancellation(flag: Arc<AtomicBool>) {
     loop {
         if flag.load(Ordering::SeqCst) {
@@ -380,43 +831,52 @@ async fn wait_for_cancellation(flag: Arc<AtomicBool>) {
 // ---------------------------------------------------------------------------
 
 /// Add a new task to the download queue.
-pub fn add_task(store: &TaskStore, task: cfms_core::DownloadTaskDto) -> cfms_core::Result<()> {
-    store.insert(&task)
+pub fn add_task(queue: &QueueState, task: DownloadTaskDto) -> Result<()> {
+    queue.insert(&task)
 }
 
 /// Pause a download task.
-pub fn pause_task(store: &TaskStore, task_id: &str) -> cfms_core::Result<bool> {
-    let task = match store.get(task_id)? {
+///
+/// Mirrors [`DownloadManagerService.pause_task`] in the Python reference.
+/// Only tasks with `supports_resume` enabled and in DOWNLOADING or PENDING
+/// status can be paused.
+pub fn pause_task(queue: &QueueState, task_id: &str) -> Result<bool> {
+    let task = match queue.get(task_id) {
         Some(t) => t,
         None => return Ok(false),
     };
-    if !task.status.is_active() {
+    if !task.supports_resume {
         return Ok(false);
     }
-    store.update_status(task_id, DownloadTaskStatus::Paused)?;
+    if task.status != DownloadTaskStatus::Downloading && task.status != DownloadTaskStatus::Pending
+    {
+        return Ok(false);
+    }
+    let pause_pos = task.current_bytes;
+    queue.update_status(task_id, DownloadTaskStatus::Paused)?;
+    queue.set_pause_position(task_id, pause_pos)?;
     Ok(true)
 }
 
 /// Resume a paused download task.
-pub fn resume_task(store: &TaskStore, task_id: &str) -> cfms_core::Result<bool> {
-    let task = match store.get(task_id)? {
+pub fn resume_task(queue: &QueueState, task_id: &str) -> Result<bool> {
+    let task = match queue.get(task_id) {
         Some(t) => t,
         None => return Ok(false),
     };
     if task.status != DownloadTaskStatus::Paused {
         return Ok(false);
     }
-    store.update_status(task_id, DownloadTaskStatus::Pending)?;
+    queue.update_status(task_id, DownloadTaskStatus::Pending)?;
     Ok(true)
 }
 
 /// Cancel a download task.
-pub fn cancel_task(
-    store: &TaskStore,
-    active: &ActiveRegistry,
-    task_id: &str,
-) -> cfms_core::Result<bool> {
-    let task = match store.get(task_id)? {
+///
+/// Mirrors [`DownloadManagerService.cancel_task`] in the Python reference.
+/// Tasks in any non-terminal state (including SCHEDULED) can be cancelled.
+pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -> Result<bool> {
+    let task = match queue.get(task_id) {
         Some(t) => t,
         None => return Ok(false),
     };
@@ -427,6 +887,17 @@ pub fn cancel_task(
     if task.status.is_active() {
         active.cancel(task_id);
     }
-    store.update_status(task_id, DownloadTaskStatus::Cancelled)?;
+    queue.update_status(task_id, DownloadTaskStatus::Cancelled)?;
     Ok(true)
+}
+
+// ---------------------------------------------------------------------------
+// Unix timestamp helper
+// ---------------------------------------------------------------------------
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }

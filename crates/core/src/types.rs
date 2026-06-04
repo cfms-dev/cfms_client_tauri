@@ -150,6 +150,8 @@ pub struct DownloadTaskDto {
     pub current_bytes: u64,
     /// Total expected bytes (0 when unknown).
     pub total_bytes: u64,
+    /// Human-readable description of the current step (may be empty).
+    pub message: Option<String>,
     /// Error message if the task failed.
     pub error: Option<String>,
     /// Unix timestamp (seconds) when the task was created.
@@ -166,6 +168,14 @@ pub struct DownloadTaskDto {
     pub max_retries: u32,
     /// If set, the task will not start before this Unix timestamp.
     pub scheduled_time: Option<i64>,
+    /// Current stage number: 0=downloading, 1=decrypting, 2=cleaning, 3=verifying.
+    pub stage: i32,
+    /// Download speed limit in bytes/second (None = unlimited).
+    pub bandwidth_limit: Option<i64>,
+    /// Bytes downloaded before the last pause (for resume support).
+    pub pause_position: Option<u64>,
+    /// Whether the server supports pause/resume for this task.
+    pub supports_resume: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -180,8 +190,10 @@ pub enum ServiceEvent {
     DownloadProgress {
         task_id: String,
         phase: String,
-        current: u64,
-        total: u64,
+        /// Progress as a fraction (0.0–1.0).
+        progress: f64,
+        /// Human-readable message for the current step.
+        message: String,
     },
     /// A download has completed successfully.
     DownloadCompleted { task_id: String, file_path: String },
@@ -195,6 +207,8 @@ pub enum ServiceEvent {
     TokenExpired,
     /// A favorites validation cycle completed.
     FavoritesValidationComplete { invalid_count: u32 },
+    /// The number of active (non-terminal, badge-eligible) download tasks changed.
+    ActiveCountChanged { count: u32 },
 }
 
 // ---------------------------------------------------------------------------

@@ -86,16 +86,18 @@
     }
   }
 
-  /** Returns the color class for a status icon. */
+  /** Returns the color class for a status icon (per-status, mirrors reference). */
   function statusColor(status: DownloadTaskStatus): string {
     switch (status) {
+      case "pending":     return "text-md3-on-surface-variant";
+      case "downloading": return "text-md3-primary";
+      case "paused":      return "text-md3-warning";
+      case "decrypting":  return "text-md3-tertiary";
+      case "verifying":   return "text-md3-tertiary";
       case "completed":   return "text-md3-success";
       case "failed":      return "text-md3-error";
-      case "paused":      return "text-md3-warning";
       case "cancelled":   return "text-md3-on-surface-variant";
-      case "downloading":
-      case "decrypting":
-      case "verifying":   return "text-md3-primary";
+      case "scheduled":   return "text-md3-secondary";
       default:            return "text-md3-on-surface-variant";
     }
   }
@@ -107,24 +109,39 @@
       case "failed":
         return "bg-md3-error-container text-md3-on-error-container";
       case "downloading":
-      case "decrypting":
-      case "verifying":
         return "bg-md3-primary-container text-md3-on-primary-container";
+      case "decrypting":
+        return "bg-md3-tertiary-container text-md3-on-tertiary-container";
+      case "verifying":
+        return "bg-md3-tertiary-container text-md3-on-tertiary-container";
       case "paused":
         return "bg-md3-warning-container text-md3-on-warning-container";
       case "cancelled":
         return "bg-md3-surface-container-highest text-md3-on-surface-variant";
+      case "scheduled":
+        return "bg-md3-secondary-container text-md3-on-secondary-container";
       default:
         return "bg-md3-surface-container-high text-md3-on-surface-variant";
     }
   }
 
   const isActive = $derived(
-    ["downloading", "decrypting", "verifying", "pending"].includes(task.status),
+    ["downloading", "decrypting", "verifying"].includes(task.status),
   );
+  const isPending = $derived(task.status === "pending");
   const isPaused = $derived(task.status === "paused");
+  const isScheduled = $derived(task.status === "scheduled");
   const isTerminal = $derived(
     ["completed", "failed", "cancelled"].includes(task.status),
+  );
+  /** Whether the pause button should be visible (matches reference TaskTile). */
+  const canPause = $derived(
+    task.supports_resume &&
+    (task.status === "downloading" || task.status === "pending"),
+  );
+  /** Tasks that can be cancelled (matches reference — includes SCHEDULED). */
+  const canCancel = $derived(
+    !isTerminal && (isActive || isPending || isPaused || isScheduled),
   );
 </script>
 
@@ -174,14 +191,17 @@
       style="font-family: var(--font-md3-sans);"
     >
       {task.status}
+      {#if task.status === "pending" && task.retry_count > 0}
+        (Retry {task.retry_count}/{task.max_retries})
+      {/if}
     </span>
   </div>
 
-  <!-- Error message -->
+  <!-- Error message (reference format: "Failed: {error}" for failed, raw error otherwise) -->
   {#if task.error}
     <p class="text-xs text-md3-error mb-2 flex items-center gap-1">
       <Icon name="errorFilled" size="14px" />
-      {task.error}
+      {task.status === "failed" ? `Failed: ${task.error}` : task.error}
     </p>
   {/if}
 
@@ -190,35 +210,41 @@
     progress={task.progress}
     currentBytes={task.current_bytes}
     totalBytes={task.total_bytes}
+    message={task.message}
     status={task.status}
   />
 
-  <!-- Actions -->
+  <!-- Actions (mirrors reference TaskTile button visibility) -->
   <div class="flex gap-2 mt-3">
-    {#if isActive}
-      <button
-        class="text-xs px-3 py-1.5 rounded-full font-medium
-               bg-md3-warning-container text-md3-on-warning-container
-               hover:brightness-110
-               disabled:opacity-50 transition-all flex items-center gap-1"
-        onclick={handlePause}
-        disabled={actionPending}
-      >
-        <Icon name="pause" size="14px" />
-        Pause
-      </button>
-      <button
-        class="text-xs px-3 py-1.5 rounded-full font-medium
-               bg-md3-error-container text-md3-on-error-container
-               hover:brightness-110
-               disabled:opacity-50 transition-all flex items-center gap-1"
-        onclick={handleCancel}
-        disabled={actionPending}
-      >
-        <Icon name="cancel" size="14px" />
-        Cancel
-      </button>
+    <!-- Pause/Resume: only when supports_resume is true and status is downloading/pending -->
+    {#if canPause}
+      {#if task.status === "downloading"}
+        <button
+          class="text-xs px-3 py-1.5 rounded-full font-medium
+                 bg-md3-warning-container text-md3-on-warning-container
+                 hover:brightness-110
+                 disabled:opacity-50 transition-all flex items-center gap-1"
+          onclick={handlePause}
+          disabled={actionPending}
+        >
+          <Icon name="pause" size="14px" />
+          Pause
+        </button>
+      {:else}
+        <button
+          class="text-xs px-3 py-1.5 rounded-full font-medium
+                 bg-md3-primary-container text-md3-on-primary-container
+                 hover:brightness-110
+                 disabled:opacity-50 transition-all flex items-center gap-1"
+          onclick={handleResume}
+          disabled={actionPending}
+        >
+          <Icon name="resume" size="14px" />
+          Resume
+        </button>
+      {/if}
     {:else if isPaused}
+      <!-- Paused without supports_resume: only show Resume (server can't pause/resume, but user paused via queue) -->
       <button
         class="text-xs px-3 py-1.5 rounded-full font-medium
                bg-md3-primary-container text-md3-on-primary-container
@@ -230,6 +256,10 @@
         <Icon name="resume" size="14px" />
         Resume
       </button>
+    {/if}
+
+    <!-- Cancel: all non-terminal states (including scheduled) -->
+    {#if canCancel}
       <button
         class="text-xs px-3 py-1.5 rounded-full font-medium
                bg-md3-error-container text-md3-on-error-container
@@ -241,7 +271,10 @@
         <Icon name="cancel" size="14px" />
         Cancel
       </button>
-    {:else if task.status === "completed"}
+    {/if}
+
+    <!-- Open + Delete for completed tasks -->
+    {#if task.status === "completed"}
       <button
         class="text-xs px-3 py-1.5 rounded-full font-medium
                bg-md3-primary-container text-md3-on-primary-container

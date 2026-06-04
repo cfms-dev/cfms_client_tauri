@@ -18,11 +18,11 @@ export async function initEventListeners(): Promise<void> {
 
     switch (event.event) {
       case "DownloadProgress": {
-        const { task_id, phase, current, total } = event.data;
-        downloadStore.updateProgress(task_id, phase, current, total);
+        const { task_id, phase, progress, message } = event.data;
+        downloadStore.updateProgress(task_id, phase, progress, message);
         eventLog.push(
           "info",
-          `Download ${task_id.slice(0, 8)}…: ${phase} ${formatBytes(current)}/${formatBytes(total)}`,
+          `Download ${task_id.slice(0, 8)}…: ${message || phase} (${Math.round(progress * 100)}%)`,
         );
         break;
       }
@@ -45,6 +45,12 @@ export async function initEventListeners(): Promise<void> {
         const { task_id } = event.data;
         downloadStore.markCancelled(task_id);
         eventLog.push("info", `Download cancelled: ${task_id.slice(0, 8)}…`);
+        break;
+      }
+
+      case "ActiveCountChanged": {
+        const { count } = event.data;
+        downloadStore.activeBadgeCount = count;
         break;
       }
 
@@ -83,17 +89,4 @@ export function stopEventListeners(): void {
     unlisten();
     unlisten = null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KiB", "MiB", "GiB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const val = bytes / Math.pow(k, i);
-  return `${val.toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
 }

@@ -42,6 +42,7 @@ export interface DownloadTaskDto {
   progress: number;
   current_bytes: number;
   total_bytes: number;
+  message: string | null;
   error: string | null;
   created_at: number;
   started_at: number | null;
@@ -50,6 +51,10 @@ export interface DownloadTaskDto {
   retry_count: number;
   max_retries: number;
   scheduled_time: number | null;
+  stage: number;
+  bandwidth_limit: number | null;
+  pause_position: number | null;
+  supports_resume: boolean;
 }
 
 export interface FileEntry {
@@ -94,8 +99,8 @@ export interface FileMetadata {
 
 export interface DownloadProgress {
   phase: DownloadPhase;
-  current: number;
-  total: number;
+  progress: number;
+  message: string;
 }
 
 export interface UploadProgress {
@@ -108,10 +113,11 @@ export interface UploadProgress {
 // ---------------------------------------------------------------------------
 
 export type ServiceEvent =
-  | { event: "DownloadProgress"; data: { task_id: string; phase: string; current: number; total: number } }
+  | { event: "DownloadProgress"; data: { task_id: string; phase: string; progress: number; message: string } }
   | { event: "DownloadCompleted"; data: { task_id: string; file_path: string } }
   | { event: "DownloadFailed"; data: { task_id: string; error: string } }
   | { event: "DownloadCancelled"; data: { task_id: string } }
+  | { event: "ActiveCountChanged"; data: { count: number } }
   | { event: "Lockdown"; data: { status: boolean } }
   | { event: "TokenExpired" }
   | { event: "FavoritesValidationComplete"; data: { invalid_count: number } };
@@ -448,7 +454,10 @@ export async function saveUserPreference(
 // Download task reload (mirrors reference's reload_tasks_for_user)
 // ---------------------------------------------------------------------------
 
-/** Signal that the download task list should be refreshed for the current user. */
-export async function reloadTasksForUser(): Promise<void> {
+/** Reload download tasks for the current user from the encrypted persistence file.
+ *
+ * Returns the number of tasks loaded.  Must be called after login (when
+ * the DEK is available). */
+export async function reloadTasksForUser(): Promise<number> {
   return invoke("reload_tasks_for_user");
 }

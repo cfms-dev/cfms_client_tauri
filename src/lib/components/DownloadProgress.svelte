@@ -3,8 +3,9 @@
   //
   // Props:
   //   progress: 0.0–1.0 fraction
-  //   currentBytes: bytes processed
+  //   currentBytes: bytes processed (may be 0 during transfer)
   //   totalBytes: total bytes (0 when unknown)
+  //   message: human-readable description of the current step
   //   phase: current download phase label
   //   status: task status (controls colour and animation)
 
@@ -14,11 +15,12 @@
     progress: number;
     currentBytes: number;
     totalBytes: number;
+    message?: string | null;
     phase?: string;
     status: DownloadTaskStatus;
   }
 
-  let { progress, currentBytes, totalBytes, phase, status }: Props = $props();
+  let { progress, currentBytes, totalBytes, message, phase, status }: Props = $props();
 
   function barColor(): string {
     switch (status) {
@@ -69,7 +71,7 @@
 </script>
 
 <div class="w-full">
-  <!-- Info row -->
+  <!-- Info row (mirrors reference _get_progress_info) -->
   <div class="flex justify-between text-xs mb-1 {labelClass}">
     <span>
       {#if phase}
@@ -85,7 +87,19 @@
         <span class="text-md3-warning font-medium">Paused</span>
       {/if}
     </span>
-    <span>{pct}% · {formatBytes(currentBytes)}{totalBytes > 0 ? ` / ${formatBytes(totalBytes)}` : ""}</span>
+    <span>
+      {#if status === "completed"}
+        Download completed
+      {:else if status === "failed" || status === "cancelled"}
+        <!-- empty — reference shows nothing for these statuses -->
+      {:else if totalBytes > 0}
+        {formatBytes(currentBytes)} / {formatBytes(totalBytes)} ({pct}%)
+      {:else if progress > 0}
+        {pct}%
+      {:else}
+        Waiting to start&hellip;
+      {/if}
+    </span>
   </div>
 
   <!-- Bar — MD3 track with rounded caps -->

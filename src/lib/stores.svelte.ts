@@ -133,6 +133,8 @@ export const authStore = new AuthStoreImpl();
 
 class DownloadStoreImpl {
   tasks = $state<Map<string, DownloadTaskDto>>(new Map());
+  /** Number of badge-eligible tasks (mirrors _ACTIVE_BADGE_STATUSES). */
+  activeBadgeCount = $state(0);
 
   /** Replace the entire task map (batch update from backend). */
   setAll(tasks: DownloadTaskDto[]) {
@@ -157,12 +159,13 @@ class DownloadStoreImpl {
   }
 
   /** Update progress for a single task (from DownloadProgress event). */
-  updateProgress(taskId: string, phase: string, current: number, total: number) {
+  updateProgress(taskId: string, phase: string, progress: number, message: string) {
     const task = this.tasks.get(taskId);
     if (task) {
-      task.current_bytes = current;
-      task.total_bytes = total;
-      task.progress = total > 0 ? current / total : 0;
+      task.progress = progress;
+      task.current_bytes = 0;
+      task.total_bytes = 0;
+      task.message = message;
       if (phase === "downloading") task.status = "downloading";
       else if (phase === "decrypting") task.status = "decrypting";
       else if (phase === "verifying") task.status = "verifying";
@@ -202,7 +205,7 @@ class DownloadStoreImpl {
   // Derived views
   get activeTasks(): DownloadTaskDto[] {
     return [...this.tasks.values()].filter((t) =>
-      ["pending", "downloading", "decrypting", "verifying", "paused"].includes(
+      ["pending", "downloading", "decrypting", "verifying"].includes(
         t.status,
       ),
     );

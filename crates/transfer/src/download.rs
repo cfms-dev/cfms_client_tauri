@@ -19,8 +19,14 @@ use crate::chunks::ChunkStore;
 use crate::decrypt::decrypt_chunk;
 use crate::verify;
 
-/// Progress callback: `(phase, current, total)`.
-pub type ProgressFn = dyn Fn(DownloadPhase, u64, u64) + Send + Sync;
+/// Progress callback: `(phase, progress, message, current_bytes, total_bytes)`.
+///
+/// - `phase` — which download stage we are in.
+/// - `progress` — a value in `[0.0, 1.0]` indicating completion percentage.
+/// - `message` — a human-readable description for the current step.
+/// - `current_bytes` — bytes processed so far in this phase.
+/// - `total_bytes` — total bytes expected for this phase (0 when unknown).
+pub type ProgressFn = dyn Fn(DownloadPhase, f64, &str, u64, u64) + Send + Sync;
 
 /// Expected shape of the `download_file` / `transfer_file` server response.
 #[derive(Debug, Deserialize)]
@@ -74,7 +80,7 @@ struct ChunkData {
 /// - `conn` — established multiplexed connection.
 /// - `task_id` — server-side task identifier.
 /// - `dest` — path where the decrypted file will be written.
-/// - `on_progress` — called with `(phase, current, total)` at each step.
+/// - `on_progress` — called with `(phase, progress, message)` at each step.
 pub async fn receive(
     conn: &Connection,
     task_id: &str,
@@ -120,7 +126,13 @@ pub async fn receive(
     // --- Handle empty files ---
     if file_size == 0 || total_chunks == 0 {
         std::fs::write(dest, []).map_err(cfms_core::Error::Io)?;
-        on_progress(DownloadPhase::Verifying, 1, 1);
+        on_progress(
+            DownloadPhase::Verifying,
+            1.0,
+            "empty file, nothing to download",
+            0,
+            0,
+        );
         return Ok(());
     }
 
@@ -178,7 +190,18 @@ pub async fn receive(
             file_size
         };
 
-        on_progress(DownloadPhase::Downloading, received_bytes, file_size);
+        let progress = if file_size > 0 {
+            received_bytes as f64 / file_size as f64
+        } else {
+            0.0
+        };
+        on_progress(
+            DownloadPhase::Downloading,
+            progress,
+            "receiving encrypted chunks",
+            received_bytes,
+            file_size,
+        );
     }
 
     store.commit()?;
@@ -231,9 +254,18 @@ pub async fn receive(
 
         accumulated_bytes += decrypted.len() as u64;
 
-        // Report progress in bytes out of total file_size so the frontend
-        // can display a consistent byte-based progress percentage.
-        on_progress(DownloadPhase::Decrypting, accumulated_bytes, file_size);
+        let progress = if file_size > 0 {
+            accumulated_bytes as f64 / file_size as f64
+        } else {
+            0.0
+        };
+        on_progress(
+            DownloadPhase::Decrypting,
+            progress,
+            "decrypting chunks",
+            accumulated_bytes,
+            file_size,
+        );
     }
 
     // Flush and sync.
@@ -242,11 +274,23 @@ pub async fn receive(
     drop(out_file);
 
     // --- Step 6: clean up ---
-    on_progress(DownloadPhase::Cleaning, 1, 1);
+    on_progress(
+        DownloadPhase::Cleaning,
+        1.0,
+        "cleaning up temporary storage",
+        file_size,
+        file_size,
+    );
     store.purge()?;
 
     // --- Step 7: verify ---
-    on_progress(DownloadPhase::Verifying, 1, 1);
+    on_progress(
+        DownloadPhase::Verifying,
+        1.0,
+        "verifying file integrity",
+        file_size,
+        file_size,
+    );
     verify::size_matches(dest, file_size)?;
 
     Ok(())

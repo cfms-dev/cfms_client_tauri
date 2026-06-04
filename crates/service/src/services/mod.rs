@@ -6,4 +6,5 @@
 pub mod download_queue;
 pub mod favorites;
 pub mod lockdown;
+pub mod task_persistence;
 pub mod token_refresh;
