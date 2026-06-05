@@ -175,13 +175,13 @@ class DownloadStoreImpl {
       if (currentBytes > 0) newTask.current_bytes = currentBytes;
       if (totalBytes > 0) newTask.total_bytes = totalBytes;
       newTask.message = message;
-      
+
       if (phase === "downloading") newTask.status = "downloading";
       else if (phase === "decrypting") newTask.status = "decrypting";
       else if (phase === "verifying") newTask.status = "verifying";
 
       this.tasks.set(taskId, newTask);
-      
+
       this.tasks = new Map(this.tasks);
     }
   }
@@ -190,8 +190,12 @@ class DownloadStoreImpl {
   markCompleted(taskId: string) {
     const task = this.tasks.get(taskId);
     if (task) {
-      task.status = "completed";
-      task.progress = 1.0;
+      const newTask = { ...task };
+
+      newTask.status = "completed";
+      newTask.progress = 1.0;
+
+      this.tasks.set(taskId, newTask);
       this.tasks = new Map(this.tasks);
     }
   }
