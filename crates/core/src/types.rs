@@ -74,8 +74,6 @@ pub enum DownloadPhase {
     Cleaning = 2,
     /// Verifying file integrity.
     Verifying = 3,
-    /// Completed
-    Completed = 4,
 }
 
 // ---------------------------------------------------------------------------

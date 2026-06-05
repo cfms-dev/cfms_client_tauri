@@ -716,7 +716,6 @@ fn download_phase_to_status(phase: DownloadPhase) -> DownloadTaskStatus {
         DownloadPhase::Downloading => DownloadTaskStatus::Downloading,
         DownloadPhase::Decrypting => DownloadTaskStatus::Decrypting,
         DownloadPhase::Cleaning | DownloadPhase::Verifying => DownloadTaskStatus::Verifying,
-        DownloadPhase::Completed => DownloadTaskStatus::Completed,
     }
 }
 
@@ -726,7 +725,6 @@ fn phase_to_str(phase: DownloadPhase) -> &'static str {
         DownloadPhase::Decrypting => "decrypting",
         DownloadPhase::Cleaning => "cleaning",
         DownloadPhase::Verifying => "verifying",
-        DownloadPhase::Completed => "completed",
     }
 }
 
