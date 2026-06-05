@@ -78,6 +78,23 @@ impl ChunkStore {
 
     /// Return all chunks ordered by index (ascending).
     pub fn ordered_chunks(&self) -> Result<Vec<ChunkRow>> {
+        let mut chunks = Vec::new();
+        self.for_each_ordered_chunk(|chunk| {
+            chunks.push(chunk.clone());
+            Ok(())
+        })?;
+        Ok(chunks)
+    }
+
+    /// Process chunks in index order without materializing the full set.
+    ///
+    /// Each row is read lazily from SQLite and passed to `f`.  This avoids
+    /// allocating a `Vec` with every chunk simultaneously — peak memory is
+    /// bounded by the size of *one* chunk plus the output buffer.
+    pub fn for_each_ordered_chunk<F>(&self, mut f: F) -> Result<()>
+    where
+        F: FnMut(&ChunkRow) -> Result<()>,
+    {
         let mut stmt = self
             .db
             .prepare("SELECT idx, prefix, tag, chunk_data FROM chunks ORDER BY idx ASC")
@@ -106,11 +123,12 @@ impl ChunkStore {
             })
             .map_err(|e| cfms_core::Error::Other(format!("chunk row mapping failed: {e}")))?;
 
-        let mut chunks = Vec::new();
         for row in rows {
-            chunks.push(row.map_err(|e| cfms_core::Error::Other(format!("row error: {e}")))?);
+            let chunk = row.map_err(|e| cfms_core::Error::Other(format!("row error: {e}")))?;
+            f(&chunk)?;
         }
-        Ok(chunks)
+
+        Ok(())
     }
 
     /// Flush pending writes to disk.

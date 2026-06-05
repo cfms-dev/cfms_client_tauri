@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Compiler flags for cryptographic acceleration
+# ---------------------------------------------------------------------------
+#
+# The `aes-gcm` crate selects its AES backend at compile time via
+# `#[cfg(target_feature = "aes")]` / `#[cfg(target_feature = "ssse3")]`.
+# Without these features the crate falls back to a pure-Rust bitsliced
+# implementation, which is 3–10× slower than hardware-accelerated AES-NI.
+#
+# Each [target] section below enables AES-NI + SSSE3 for the three major
+# x86_64 platforms.  These are safe to enable on any x86_64 CPU shipped in
+# the last decade (Intel Westmere / AMD Bulldozer and newer).
+#
+# Alternative: replace the per-feature flags with `-C target-cpu=native`,
+# which enables *all* instruction-set extensions supported by the build
+# machine.  Use `native` for local development; use the explicit feature
+# set below for reproducible CI / distribution builds.
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+aes,+ssse3"]
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+aes,+ssse3"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-feature=+aes,+ssse3"]

@@ -12,7 +12,7 @@ use cfms_core::constants::KEY_LEN;
 use cfms_core::{DownloadPhase, Result};
 use cfms_transport::Connection;
 use serde::Deserialize;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 use crate::chunks::ChunkStore;
@@ -241,29 +241,36 @@ pub async fn receive(
     // move the entire phase onto a blocking thread via `block_in_place`,
     // which frees the async worker to process other work while the current
     // thread does the heavy lifting.
+    //
+    // PERFORMANCE NOTES:
+    // - Chunks are streamed from SQLite via `for_each_ordered_chunk` instead
+    //   of materializing a full `Vec` — peak memory stays O(chunk_size), not
+    //   O(file_size).
+    // - File I/O is wrapped in a `std::io::BufWriter` (64 KiB) to coalesce
+    //   many small `write(2)` calls into fewer, larger ones, dramatically
+    //   reducing system-call overhead.
+    // - For optimal AES-256-GCM throughput on x86_64, ensure the `aes-gcm`
+    //   crate is compiled with hardware AES-NI + SSSE3 support.  See
+    //   `.cargo/config.toml` for per-target rustflags.
     let dest = dest.to_path_buf();
     tokio::task::block_in_place(move || {
-        let chunks = store.ordered_chunks()?;
-
         // Ensure the destination directory exists.
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        let mut out_file = std::fs::File::create(&dest).map_err(cfms_core::Error::Io)?;
+        let out_file = std::fs::File::create(&dest).map_err(cfms_core::Error::Io)?;
+        let mut writer = BufWriter::with_capacity(64 * 1024, out_file);
 
         let mut accumulated_bytes: u64 = 0;
 
-        for chunk_row in chunks.iter() {
-            let decrypted = decrypt_chunk(
-                &aes_key,
-                &chunk_row.prefix,
-                chunk_row.idx,
-                &chunk_row.data,
-                &chunk_row.tag,
-            )?;
+        // Lazy iteration: each chunk is read, decrypted, written, and dropped
+        // before the next row is fetched — no full Vec materialization.
+        store.for_each_ordered_chunk(|chunk| {
+            let decrypted =
+                decrypt_chunk(&aes_key, &chunk.prefix, chunk.idx, &chunk.data, &chunk.tag)?;
 
-            std::io::Write::write_all(&mut out_file, &decrypted)?;
+            writer.write_all(&decrypted)?;
 
             accumulated_bytes += decrypted.len() as u64;
 
@@ -279,12 +286,13 @@ pub async fn receive(
                 accumulated_bytes,
                 file_size,
             );
-        }
+            Ok(())
+        })?;
 
-        // Flush and sync.
-        out_file.flush()?;
+        // Flush remaining buffered data and sync to disk.
+        writer.flush()?;
 
-        drop(out_file);
+        drop(writer);
 
         // --- Step 6: clean up ---
         on_progress(
