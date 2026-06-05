@@ -81,12 +81,14 @@ struct ChunkData {
 /// - `task_id` — server-side task identifier.
 /// - `dest` — path where the decrypted file will be written.
 /// - `on_progress` — called with `(phase, progress, message)` at each step.
+/// Returns the total file size (in bytes) on success so the caller can
+/// record accurate completion metadata.
 pub async fn receive(
     conn: &Connection,
     task_id: &str,
     dest: &Path,
     on_progress: &ProgressFn,
-) -> Result<()> {
+) -> Result<u64> {
     let mut stream = conn.create_stream().await?;
 
     // --- Step 1: request file metadata ---
@@ -135,7 +137,7 @@ pub async fn receive(
             0,
             0,
         );
-        return Ok(());
+        return Ok(0);
     }
 
     // --- Step 3: receive chunks into SQLite ---
@@ -304,8 +306,11 @@ pub async fn receive(
         );
         verify::size_matches(&dest, file_size)?;
 
+        // Completion is signalled by the function returning successfully —
+        // the caller (download queue) is responsible for marking the task
+        // as completed and emitting the DownloadCompleted event.
         Ok::<_, cfms_core::Error>(())
     })?;
 
-    Ok(())
+    Ok(file_size)
 }

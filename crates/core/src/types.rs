@@ -74,6 +74,8 @@ pub enum DownloadPhase {
     Cleaning = 2,
     /// Verifying file integrity.
     Verifying = 3,
+    /// Completed
+    Completed = 4,
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +170,8 @@ pub struct DownloadTaskDto {
     pub max_retries: u32,
     /// If set, the task will not start before this Unix timestamp.
     pub scheduled_time: Option<i64>,
-    /// Current stage number: 0=downloading, 1=decrypting, 2=cleaning, 3=verifying.
+    /// Current stage number:
+    /// 0=downloading, 1=decrypting, 2=cleaning, 3=verifying, 4=completed.
     pub stage: i32,
     /// Download speed limit in bytes/second (None = unlimited).
     pub bandwidth_limit: Option<i64>,

@@ -304,6 +304,7 @@ impl QueueState {
         message: &str,
         current_bytes: Option<u64>,
         total_bytes: Option<u64>,
+        stage: Option<i32>,
     ) -> Result<()> {
         {
             let mut map = self.tasks.lock().unwrap();
@@ -316,6 +317,9 @@ impl QueueState {
                 }
                 if let Some(tb) = total_bytes {
                     t.total_bytes = tb;
+                }
+                if let Some(s) = stage {
+                    t.stage = s;
                 }
             }
         }
@@ -348,6 +352,7 @@ impl QueueState {
                 t.progress = 1.0;
                 t.current_bytes = bytes;
                 t.total_bytes = bytes;
+                t.stage = 4;
                 t.completed_at = Some(now);
             }
         }
@@ -744,7 +749,15 @@ async fn execute_download(
         } else {
             None
         };
-        let _ = queue_for_progress.update_progress(&tid, status, progress, message, cb, tb);
+        let _ = queue_for_progress.update_progress(
+            &tid,
+            status,
+            progress,
+            message,
+            cb,
+            tb,
+            Some(phase as i32),
+        );
         let _ = state_for_progress
             .event_tx
             .send(ServiceEvent::DownloadProgress {
@@ -760,7 +773,7 @@ async fn execute_download(
     let dest = std::path::Path::new(&file_path);
 
     // Race the actual download against the cancellation flag.
-    let result: Option<cfms_core::Result<()>> = tokio::select! {
+    let result: Option<cfms_core::Result<u64>> = tokio::select! {
         r = cfms_transfer::download::receive(&transfer_conn, &task_id, dest, &on_progress) => {
             Some(r)
         }
@@ -775,8 +788,8 @@ async fn execute_download(
 
     match result {
         // --- Success ---
-        Some(Ok(())) => {
-            if let Err(e) = queue.mark_completed(&task_id, 0) {
+        Some(Ok(file_size)) => {
+            if let Err(e) = queue.mark_completed(&task_id, file_size) {
                 tracing::error!("Failed to mark task {task_id} as completed: {e}");
             }
             emit_active_count(&queue, &state);
@@ -786,7 +799,7 @@ async fn execute_download(
                 file_path,
             });
 
-            tracing::info!("Download completed: {task_id}");
+            tracing::info!("Download completed: {task_id} ({file_size} bytes)");
         }
 
         // --- Error (retry or fail) ---
@@ -861,6 +874,7 @@ fn download_phase_to_status(phase: DownloadPhase) -> DownloadTaskStatus {
         DownloadPhase::Downloading => DownloadTaskStatus::Downloading,
         DownloadPhase::Decrypting => DownloadTaskStatus::Decrypting,
         DownloadPhase::Cleaning | DownloadPhase::Verifying => DownloadTaskStatus::Verifying,
+        DownloadPhase::Completed => DownloadTaskStatus::Completed,
     }
 }
 
@@ -871,6 +885,7 @@ fn phase_to_str(phase: DownloadPhase) -> &'static str {
         DownloadPhase::Decrypting => "decrypting",
         DownloadPhase::Cleaning => "cleaning",
         DownloadPhase::Verifying => "verifying",
+        DownloadPhase::Completed => "completed",
     }
 }
 
