@@ -323,8 +323,14 @@ fn all_task_fields_roundtrip() {
         supports_resume: true,
     };
 
-    task_persistence::save(dir.path(), "abc123", "user", Some(&dek), &[task.clone()])
-        .expect("save");
+    task_persistence::save(
+        dir.path(),
+        "abc123",
+        "user",
+        Some(&dek),
+        std::slice::from_ref(&task),
+    )
+    .expect("save");
 
     let loaded = task_persistence::load(dir.path(), "abc123", "user", Some(&dek)).expect("load");
     assert_eq!(loaded.len(), 1);
