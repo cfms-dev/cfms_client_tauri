@@ -31,6 +31,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
+  import { info } from '@tauri-apps/plugin-log';
 
   let username = $state("");
   let password = $state("");
@@ -191,7 +192,9 @@
     passwordChangeRequired = false;
 
     try {
+      await info("Attempting login for user: {username}");
       const authResult = await login(username, password);
+      await info("Login response received: {authResult}");
 
       // Check if server requires 2FA.
       if (authResult.requires_2fa) {
@@ -205,7 +208,9 @@
 
       // Regular success — animate the loading phases.
       loadingPhase = loadingPhases[0];
+      await info("Login successful, running post-login loading phases...");
       await runLoadingPhases();
+      await info("Loading phases complete, finalizing auth state...");
 
       authStore.apply(authResult);
 
@@ -286,6 +291,7 @@
     busy = true;
     error = null;
     try {
+      await info("Disconnecting from server...");
       await disconnect();
       await logout();
       authStore.clear();

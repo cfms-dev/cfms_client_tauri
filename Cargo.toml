@@ -67,7 +67,7 @@ rustls-pemfile = "2"
 webpki-roots = "0.26"
 tokio-socks = "0.5"
 futures-util = "0.3"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["log"] }
 dashmap = "5"
 
 # ---------------------------------------------------------------------------

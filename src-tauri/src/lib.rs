@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::{Emitter, Manager};
+use tauri_plugin_log::log::LevelFilter;
+use tauri_plugin_log::{Target, TargetKind};
 
 use cfms_service::db::settings::SettingsStore;
 use cfms_service::service::manager::ServiceManager;
@@ -51,6 +53,16 @@ pub struct AppHandleState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(LevelFilter::Debug)
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Webview),
+                ])
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_background_service::init_with_service(

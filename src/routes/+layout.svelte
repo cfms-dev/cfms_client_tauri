@@ -15,10 +15,15 @@
   import "../app.css";
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { initEventListeners } from "$lib/events";
-  import { authStore, serverStateStore, serviceStatusStore, disclaimerStore } from "$lib/stores.svelte";
+  import {
+    authStore,
+    serverStateStore,
+    serviceStatusStore,
+    disclaimerStore,
+  } from "$lib/stores.svelte";
   import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
 
@@ -37,7 +42,7 @@
   // Auth guard — runs reactively whenever the URL or auth state changes.
   // ---------------------------------------------------------------------------
   $effect(() => {
-    const path = $page.url.pathname;
+    const path = page.url.pathname;
 
     // 1. Lockdown — only redirect authenticated users who lack bypass
     //    permission.  Users who haven't logged in yet can still reach the
@@ -65,10 +70,7 @@
     // 3. If not connected and trying to access protected/connection routes,
     //    redirect to connect.
     if (!serverStateStore.connected) {
-      if (
-        !PUBLIC_ROUTES.includes(path) &&
-        path !== LOCKDOWN_ROUTE
-      ) {
+      if (!PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE) {
         goto("/connect", { replaceState: true });
         return;
       }
@@ -111,7 +113,9 @@
         try {
           const status = await getServiceStatus();
           serviceStatusStore.setAll(status);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }, 2000);
     }
   });
@@ -122,7 +126,9 @@
       try {
         authStore.apply(await getAuthStatus());
         serverStateStore.apply(await getServerState());
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 30_000);
     return () => clearInterval(interval);
   });
