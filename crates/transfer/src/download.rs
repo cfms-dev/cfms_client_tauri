@@ -81,7 +81,9 @@ struct ChunkData {
 /// - `task_id` — server-side task identifier.
 /// - `dest` — path where the decrypted file will be written.
 /// - `on_progress` — called with `(phase, progress, message)` at each step.
-/// Returns the total file size (in bytes) on success so the caller can
+///
+/// # Returns
+/// The total file size (in bytes) on success so the caller can
 /// record accurate completion metadata.
 pub async fn receive(
     conn: &Connection,

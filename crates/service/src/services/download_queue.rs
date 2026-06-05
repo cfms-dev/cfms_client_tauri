@@ -182,7 +182,7 @@ impl QueueState {
 
     pub fn pending_tasks(&self) -> Vec<DownloadTaskDto> {
         let mut tasks = self.list_by_status(DownloadTaskStatus::Pending);
-        tasks.sort_by(|a, b| b.priority.cmp(&a.priority));
+        tasks.sort_by_key(|b| std::cmp::Reverse(b.priority));
         tasks
     }
 
@@ -210,29 +210,20 @@ impl QueueState {
         Ok(())
     }
 
-    pub fn update_progress(
-        &self,
-        task_id: &str,
-        status: DownloadTaskStatus,
-        progress: f64,
-        message: &str,
-        current_bytes: Option<u64>,
-        total_bytes: Option<u64>,
-        stage: Option<i32>,
-    ) -> Result<()> {
+    pub fn update_progress(&self, task_id: &str, params: UpdateProgressParams) -> Result<()> {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
-                t.status = status;
-                t.progress = progress;
-                t.message = Some(message.to_string());
-                if let Some(cb) = current_bytes {
+                t.status = params.status;
+                t.progress = params.progress;
+                t.message = Some(params.message.clone());
+                if let Some(cb) = params.current_bytes {
                     t.current_bytes = cb;
                 }
-                if let Some(tb) = total_bytes {
+                if let Some(tb) = params.total_bytes {
                     t.total_bytes = tb;
                 }
-                if let Some(s) = stage {
+                if let Some(s) = params.stage {
                     t.stage = s;
                 }
             }
@@ -312,14 +303,13 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             for t in map.values_mut() {
-                if t.status == DownloadTaskStatus::Scheduled {
-                    if let Some(st) = t.scheduled_time {
-                        if st <= now {
-                            t.status = DownloadTaskStatus::Pending;
-                            t.scheduled_time = None;
-                            count += 1;
-                        }
-                    }
+                if t.status == DownloadTaskStatus::Scheduled
+                    && let Some(st) = t.scheduled_time
+                    && st <= now
+                {
+                    t.status = DownloadTaskStatus::Pending;
+                    t.scheduled_time = None;
+                    count += 1;
                 }
             }
         }
@@ -379,6 +369,16 @@ impl QueueState {
         self.save();
         Ok(())
     }
+}
+
+/// Parameters for updating task progress in a single call.
+pub struct UpdateProgressParams {
+    pub status: DownloadTaskStatus,
+    pub progress: f64,
+    pub message: String,
+    pub current_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
+    pub stage: Option<i32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -605,12 +605,14 @@ async fn execute_download(
 
         let _ = queue_for_progress.update_progress(
             &tid,
-            status,
-            progress,
-            message,
-            cb,
-            tb,
-            Some(phase as i32),
+            UpdateProgressParams {
+                status,
+                progress,
+                message: message.to_string(),
+                current_bytes: cb,
+                total_bytes: tb,
+                stage: Some(phase as i32),
+            },
         );
         let _ = state_for_progress
             .event_tx
@@ -654,10 +656,10 @@ async fn execute_download(
 
         Some(Err(e)) => {
             if *cancel_rx.borrow() {
-                if let Err(rm_err) = std::fs::remove_file(&file_path) {
-                    if rm_err.kind() != std::io::ErrorKind::NotFound {
-                        tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
-                    }
+                if let Err(rm_err) = std::fs::remove_file(&file_path)
+                    && rm_err.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
                 }
                 let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
                 emit_active_count(&queue, &state);
@@ -690,10 +692,10 @@ async fn execute_download(
         }
 
         None => {
-            if let Err(e) = std::fs::remove_file(&file_path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    tracing::warn!("Failed to clean up partial file {file_path}: {e}");
-                }
+            if let Err(e) = std::fs::remove_file(&file_path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!("Failed to clean up partial file {file_path}: {e}");
             }
 
             let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
