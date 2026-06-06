@@ -65,7 +65,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(mobile_background_service())
+        .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
             let app_data_dir = app
@@ -222,6 +222,20 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn mobile_background_service<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+/// Returns the background-service Tauri plugin appropriate for this platform.
+///
+/// On mobile (Android / iOS) the real `tauri-plugin-background-service` plugin
+/// is used: it creates a foreground service that prevents the OS from
+/// suspending the process while CFMS tasks are running.
+///
+/// On desktop the plugin is not needed (the process is never suspended), so a
+/// lightweight no-op plugin is returned instead.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri_plugin_background_service::init_with_service(background::CfmsBackgroundService::new)
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("background-service-noop").build()
 }

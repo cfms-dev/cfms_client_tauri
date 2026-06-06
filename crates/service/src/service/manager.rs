@@ -82,10 +82,20 @@ impl ServiceManager {
         }));
     }
 
+    /// Returns `true` if all registered services have been activated (i.e.
+    /// [`activate`](Self::activate) has already been called and the pending
+    /// queue is empty).
+    pub fn is_active(&self) -> bool {
+        self.pending.is_empty()
+    }
+
     /// Spawn all previously registered services.
     ///
     /// **Must be called from within a Tokio runtime context** (e.g. inside
     /// `tauri::async_runtime::spawn()` or `tokio::spawn()`).
+    ///
+    /// Calling this a second time after all services are already activated is
+    /// a safe no-op (the pending queue is empty at that point).
     pub fn activate(&mut self) {
         for factory in self.pending.drain(..) {
             self.handles.push(factory());
