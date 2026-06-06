@@ -1030,7 +1030,6 @@ pub async fn connect(
 fn is_loopback_wss_url(url: &str) -> bool {
     let host = url
         .strip_prefix("wss://")
-        .or_else(|| url.strip_prefix("ws://"))
         .unwrap_or(url)
         .split('/')
         .next()
@@ -1179,9 +1178,7 @@ pub async fn validate_2fa(
 
 /// Cancel a pending TOTP setup before verification.
 #[tauri::command]
-pub async fn cancel_2fa_setup(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<(), String> {
+pub async fn cancel_2fa_setup(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
     let (conn, username, token) = get_connection_auth(&state).await?;
 
     let resp = send_action_request(

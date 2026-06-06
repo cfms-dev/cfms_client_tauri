@@ -20,7 +20,7 @@
   import Icon from "$lib/components/Icon.svelte";
 
   let hostPort = $state("localhost:5104");
-  let disableSsl = $state(true);
+  let disableSsl = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let protocolError = $state<{

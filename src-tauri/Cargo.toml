@@ -11,11 +11,7 @@ description = "CFMS Client — Tauri v2 desktop application"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "cfms_client_tauri_lib"
-# Desktop development only needs the Rust library crate. Building the mobile
-# staticlib/cdylib targets with the Windows GNU linker currently fails with
-# "export ordinal too large"; restore those crate types for mobile packaging
-# or build with an MSVC linker installed.
-crate-type = ["rlib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -37,8 +33,6 @@ tracing.workspace = true
 rand.workspace = true
 hex = "0.4.3"
 tauri-plugin-log = "2"
-
-[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-background-service.workspace = true
 
 [features]
