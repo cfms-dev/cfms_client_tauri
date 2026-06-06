@@ -214,6 +214,15 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
+                if matches!(
+                    t.status,
+                    DownloadTaskStatus::Cancelled
+                        | DownloadTaskStatus::Completed
+                        | DownloadTaskStatus::Failed
+                        | DownloadTaskStatus::Paused
+                ) {
+                    return Ok(());
+                }
                 t.status = params.status;
                 t.progress = params.progress;
                 t.message = Some(params.message.clone());
@@ -236,6 +245,9 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
+                if t.status == DownloadTaskStatus::Cancelled {
+                    return Ok(());
+                }
                 t.started_at = Some(now);
                 t.status = DownloadTaskStatus::Downloading;
             }
@@ -249,6 +261,9 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
+                if t.status == DownloadTaskStatus::Cancelled {
+                    return Ok(());
+                }
                 t.status = DownloadTaskStatus::Completed;
                 t.progress = 1.0;
                 t.current_bytes = bytes;
@@ -266,6 +281,9 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
+                if t.status == DownloadTaskStatus::Cancelled {
+                    return Ok(());
+                }
                 t.status = DownloadTaskStatus::Failed;
                 t.error = Some(error.to_string());
                 t.completed_at = Some(now);
@@ -281,6 +299,9 @@ impl QueueState {
             let Some(t) = map.get_mut(task_id) else {
                 return Ok(DownloadTaskStatus::Failed);
             };
+            if t.status == DownloadTaskStatus::Cancelled {
+                return Ok(DownloadTaskStatus::Cancelled);
+            }
             t.retry_count += 1;
             if t.retry_count > t.max_retries {
                 t.status = DownloadTaskStatus::Failed;
@@ -584,6 +605,7 @@ async fn execute_download(
 
     let queue_for_progress = queue.clone();
     let state_for_progress = state.clone();
+    let cancel_for_progress = cancel_rx.clone();
     let tid = task_id.clone();
 
     let on_progress = move |phase: DownloadPhase,
@@ -591,6 +613,10 @@ async fn execute_download(
                             message: &str,
                             current_bytes: u64,
                             total_bytes: u64| {
+        if *cancel_for_progress.borrow() {
+            return;
+        }
+
         let status = download_phase_to_status(phase);
         let cb = if current_bytes > 0 || total_bytes > 0 {
             Some(current_bytes)
@@ -638,6 +664,21 @@ async fn execute_download(
     };
 
     transfer_conn.close().await;
+
+    if *cancel_rx.borrow() {
+        if let Err(e) = std::fs::remove_file(&file_path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("Failed to clean up partial file {file_path}: {e}");
+        }
+        let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
+        emit_active_count(&queue, &state);
+        let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
+            task_id: task_id.clone(),
+        });
+        tracing::info!("Download cancelled: {task_id}");
+        return;
+    }
 
     match result {
         Some(Ok(file_size)) => {
@@ -804,9 +845,7 @@ pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -
     if task.status.is_terminal() {
         return Ok(false);
     }
-    if task.status.is_active() {
-        active.cancel(task_id);
-    }
+    active.cancel(task_id);
     queue.update_status(task_id, DownloadTaskStatus::Cancelled)?;
     Ok(true)
 }

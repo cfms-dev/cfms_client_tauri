@@ -16,12 +16,11 @@
   import {
     authStore,
     serverStateStore,
-    disclaimerStore,
   } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
 
   let hostPort = $state("localhost:5104");
-  let disableSsl = $state(false);
+  let disableSsl = $state(true);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let protocolError = $state<{
@@ -30,7 +29,7 @@
     needsUpdate: boolean;
   } | null>(null);
 
-  // On mount: close any stale connection, check disclaimer.
+  // On mount: close any stale connection.
   onMount(async () => {
     // Close any previous connection to start fresh.
     try {
@@ -40,12 +39,6 @@
     }
     authStore.clear();
     serverStateStore.clear();
-
-    // Check disclaimer acceptance.
-    await disclaimerStore.init();
-    if (disclaimerStore.checked && !disclaimerStore.accepted) {
-      goto("/connect/disclaimer");
-    }
   });
 
   function validateUrl(): boolean {

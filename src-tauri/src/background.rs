@@ -8,10 +8,8 @@
 //! benefit is on mobile where the OS would otherwise suspend the app.
 
 use async_trait::async_trait;
-use tauri::{Emitter, Manager, Runtime};
+use tauri::Runtime;
 use tauri_plugin_background_service::{BackgroundService, ServiceContext, ServiceError};
-
-use crate::AppHandleState;
 
 /// CFMS background service that keeps token refresh, lockdown monitoring,
 /// and download processing alive while the app is backgrounded.
@@ -46,87 +44,16 @@ impl<R: Runtime> BackgroundService<R> for CfmsBackgroundService {
         Ok(())
     }
 
-    /// Main service loop.  Runs until the OS kills the foreground service or
+    /// Main service loop. Runs until the OS kills the foreground service or
     /// the Tauri app explicitly calls `stopService()`.
+    ///
+    /// The actual CFMS workers are owned by `ServiceManager` in `lib.rs`.
+    /// This plugin hook only keeps the mobile foreground/background service
+    /// alive so the existing runtime tasks can continue to make progress.
     async fn run(&mut self, ctx: &ServiceContext<R>) -> Result<(), ServiceError> {
-        // Resolve the shared application state from Tauri managed state.
-        let app_handle = ctx.app.clone();
-
-        // Spawn the CFMS service infrastructure on the Tauri async runtime.
-        // This includes token refresh (60s), favourites validation (5min),
-        // lockdown monitoring (event-driven), and download queue processing.
-        //
-        // We use a Tokio join-set so a single service crash doesn't bring
-        // everything down.
-        let mut handles = tokio::task::JoinSet::new();
-
-        // --- Token refresh (every 60s) ---
-        {
-            let app_handle = app_handle.clone();
-            let shutdown = ctx.shutdown.clone();
-            handles.spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
-                loop {
-                    tokio::select! {
-                        _ = shutdown.cancelled() => break,
-                        _ = interval.tick() => {
-                            {
-                                let state = app_handle.state::<AppHandleState>();
-                                // Only refresh if we have a valid token.
-                                let should_refresh = state.inner.token
-                                    .try_read()
-                                    .map(|t| t.is_some())
-                                    .unwrap_or(false);
-                                if should_refresh {
-                                    tracing::debug!("Background: triggering token refresh");
-                                    let _ = app_handle.emit("background:tick", "token_refresh");
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // --- Health heartbeat (every 15s) ---
-        {
-            let app_handle = app_handle.clone();
-            let shutdown = ctx.shutdown.clone();
-            handles.spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
-                loop {
-                    tokio::select! {
-                        _ = shutdown.cancelled() => break,
-                        _ = interval.tick() => {
-                            {
-                                let state = app_handle.state::<AppHandleState>();
-                                let status = state.inner.snapshot_status();
-                                let _ = app_handle.emit("background:health", &status);
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Wait for all background tasks or shutdown signal.
-        tokio::select! {
-            _ = ctx.shutdown.cancelled() => {
-                tracing::info!("CFMS background service shutdown requested");
-            }
-            _ = async {
-                while let Some(result) = handles.join_next().await {
-                    match result {
-                        Ok(()) => tracing::debug!("Background sub-task completed normally"),
-                        Err(e) => tracing::warn!("Background sub-task panicked: {e}"),
-                    }
-                }
-            } => {}
-        }
-
-        // Graceful cleanup: cancel remaining tasks.
-        handles.abort_all();
-
+        tracing::info!("CFMS background service running");
+        ctx.shutdown.cancelled().await;
+        tracing::info!("CFMS background service shutdown requested");
         Ok(())
     }
 }

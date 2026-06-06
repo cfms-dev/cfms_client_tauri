@@ -3,6 +3,7 @@
 //! Configures the Tauri runtime, initialises background services, sets up
 //! the persistent SQLite database, and registers all IPC commands.
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod background;
 mod commands;
 
@@ -65,9 +66,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_background_service::init_with_service(
-            background::CfmsBackgroundService::new,
-        ))
+        .plugin(mobile_background_service())
         .setup(|app| {
             // --- Determine application data directory ---
             let app_data_dir = app
@@ -197,11 +196,17 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::login,
+            commands::change_password,
             commands::logout,
             commands::connect,
             commands::disconnect,
             commands::get_auth_status,
             commands::get_server_state,
+            commands::get_2fa_status,
+            commands::setup_2fa,
+            commands::validate_2fa,
+            commands::cancel_2fa_setup,
+            commands::disable_2fa,
             commands::delete_download,
             commands::create_directory,
             commands::delete_directory,
@@ -216,4 +221,14 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn mobile_background_service<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri_plugin_background_service::init_with_service(background::CfmsBackgroundService::new)
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn mobile_background_service<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("mobile-background-service-noop").build()
 }

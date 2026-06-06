@@ -726,6 +726,81 @@ pub async fn login(
     }
 }
 
+/// Change a user's password via the server's `set_passwd` action.
+///
+/// This supports the *self-change* flow used when the server rejects a login
+/// with code 4001/4002 ("password must be changed before login").  In that
+/// case the user is **not** authenticated yet, so no top-level token is sent —
+/// the server takes the self-change path, verifying `old_passwd` directly
+/// (see `RequestSetPasswdHandler` in the server reference).
+///
+/// Mirrors `PasswdDialogController.action_passwd_user` in the Python reference
+/// (`controllers/dialogs/passwd.py`) for the `passwd_other = False` case:
+/// `username`/`token` are omitted at the top level and the elevated flags
+/// (`bypass_passwd_requirements`, `force_update_after_login`) are kept `false`
+/// — the server rejects them for a self-change anyway.
+#[tauri::command]
+pub async fn change_password(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    old_password: String,
+    new_password: String,
+) -> Result<(), String> {
+    // --- Obtain the active connection ---
+    let conn = {
+        let c = state.inner.conn.read().await;
+        c.clone()
+    }
+    .ok_or_else(|| "Not connected to a server".to_string())?;
+
+    let request = serde_json::json!({
+        "action": "set_passwd",
+        "data": {
+            "username": &username,
+            "old_passwd": &old_password,
+            "new_passwd": &new_password,
+            "bypass_passwd_requirements": false,
+            "force_update_after_login": false,
+        },
+    });
+
+    let mut stream = conn
+        .create_stream()
+        .await
+        .map_err(|e| format!("Failed to create stream: {e}"))?;
+
+    let request_bytes = serde_json::to_vec(&request)
+        .map_err(|e| format!("Failed to encode change-password request: {e}"))?;
+
+    stream
+        .send(&conn, request_bytes)
+        .await
+        .map_err(|e| format!("Failed to send change-password request: {e}"))?;
+
+    let response_bytes = stream
+        .recv()
+        .await
+        .ok_or_else(|| "Connection closed before change-password response".to_string())?;
+
+    // Politely close the stream.
+    let _ = stream.send_final(&conn, vec![]).await;
+
+    let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
+        .map_err(|e| format!("Invalid change-password response from server: {e}"))?;
+
+    tracing::info!(
+        "set_passwd response: code={}, message={}",
+        response.code,
+        response.message
+    );
+
+    if response.code != 200 {
+        return Err(format!("({}) {}", response.code, response.message));
+    }
+
+    Ok(())
+}
+
 /// Log out and clear all authentication state.
 #[tauri::command]
 pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
@@ -813,7 +888,13 @@ pub async fn connect(
         .resolve("ca", tauri::path::BaseDirectory::Resource)
         .map_err(|e| format!("Cannot resolve CA directory: {e}"))?;
 
-    let tls_config = cfms_transport::tls::build_config(&ca_dir, disable_ssl_enforcement)
+    let effective_disable_ssl = disable_ssl_enforcement || is_loopback_wss_url(&url);
+
+    tracing::info!(
+        "Connecting to {url} (disable_ssl_enforcement={disable_ssl_enforcement}, effective_disable_ssl={effective_disable_ssl})"
+    );
+
+    let tls_config = cfms_transport::tls::build_config(&ca_dir, effective_disable_ssl)
         .map_err(|e| format!("TLS config error: {e}"))?;
 
     // Establish connection.
@@ -919,7 +1000,7 @@ pub async fn connect(
     // for dynamic changes, but this covers the static case during connect.
     {
         let mut dse = state.inner.disable_ssl_enforcement.write().await;
-        *dse = disable_ssl_enforcement;
+        *dse = effective_disable_ssl;
     }
     // Store the CA directory path so that dedicated transfer connections
     // can rebuild their TLS config on demand.
@@ -944,6 +1025,25 @@ pub async fn connect(
         "protocol_version": server_info.protocol_version,
         "lockdown": server_info.lockdown,
     }))
+}
+
+fn is_loopback_wss_url(url: &str) -> bool {
+    let host = url
+        .strip_prefix("wss://")
+        .or_else(|| url.strip_prefix("ws://"))
+        .unwrap_or(url)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .trim_start_matches('[')
+        .split(']')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("");
+
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
 /// Close the WSS connection and clear all server metadata.
@@ -1005,6 +1105,123 @@ pub async fn get_server_state(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
     Ok(build_server_state(&state.inner).await)
+}
+
+/// Get the authenticated user's two-factor authentication status.
+#[tauri::command]
+pub async fn get_2fa_status(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "get_2fa_status",
+        serde_json::json!({}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("({}) {}", resp.code, resp.message));
+    }
+
+    Ok(resp.data)
+}
+
+/// Start TOTP setup for the authenticated user.
+#[tauri::command]
+pub async fn setup_2fa(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "setup_2fa",
+        serde_json::json!({"method": "totp"}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("({}) {}", resp.code, resp.message));
+    }
+
+    Ok(resp.data)
+}
+
+/// Verify the TOTP setup code and enable two-factor authentication.
+#[tauri::command]
+pub async fn validate_2fa(
+    state: tauri::State<'_, AppHandleState>,
+    token: String,
+) -> Result<(), String> {
+    let (conn, username, auth_token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "validate_2fa",
+        serde_json::json!({"token": token}),
+        &username,
+        &auth_token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("({}) {}", resp.code, resp.message));
+    }
+
+    Ok(())
+}
+
+/// Cancel a pending TOTP setup before verification.
+#[tauri::command]
+pub async fn cancel_2fa_setup(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<(), String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "cancel_2fa_setup",
+        serde_json::json!({}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("({}) {}", resp.code, resp.message));
+    }
+
+    Ok(())
+}
+
+/// Disable two-factor authentication for the authenticated user.
+#[tauri::command]
+pub async fn disable_2fa(
+    state: tauri::State<'_, AppHandleState>,
+    password: String,
+) -> Result<(), String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "disable_2fa",
+        serde_json::json!({"password": password}),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("({}) {}", resp.code, resp.message));
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

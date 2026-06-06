@@ -103,11 +103,19 @@
   </div>
 
   <!-- Bar — MD3 track with rounded caps -->
-  <div class="w-full h-2 bg-md3-surface-container-high rounded-full overflow-hidden">
+  <div class="relative w-full h-2 bg-md3-surface-container-high rounded-full overflow-hidden">
+    {#if totalBytes === 0 && animate}
+      <div
+        class="absolute inset-0 bg-gradient-to-r from-transparent via-md3-on-surface/10 to-transparent animate-shimmer"
+      ></div>
+    {/if}
     <div
-      class="h-full {barClass} rounded-full transition-all duration-300 ease-out"
-      class:progress-stripe={animate}
+      class="relative h-full {barClass} rounded-full transition-[width] duration-300 ease-out overflow-hidden"
       style="width: {Math.max(pct, animate ? 2 : 0)}%"
-    ></div>
+    >
+      {#if animate}
+        <span class="absolute inset-0 animate-progress-stripe"></span>
+      {/if}
+    </div>
   </div>
 </div>

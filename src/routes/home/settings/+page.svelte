@@ -18,17 +18,17 @@
 
   const entries: SettingsEntry[] = [
     { label: 'Language', description: 'Application display language',
-      icon: 'language', href: '/home/settings' },
+      icon: 'language', href: '/home/settings/language' },
     { label: 'Connection', description: 'Proxy, TLS and timeout settings',
-      icon: 'connect', href: '/home/settings' },
+      icon: 'connect', href: '/home/settings/connection' },
     { label: 'Storage', description: 'Cache path and storage management',
-      icon: 'storage', href: '/home/settings' },
+      icon: 'storage', href: '/home/settings/storage' },
     { label: 'Security', description: 'Encryption parameters and CA certificates',
-      icon: 'security', href: '/home/settings' },
+      icon: 'security', href: '/home/settings/security' },
     { label: 'Updates', description: 'Software update channel and checking',
-      icon: 'browserUpdated', href: '/home/settings' },
+      icon: 'browserUpdated', href: '/home/settings/updates' },
     { label: 'Two-Factor Auth', description: '2FA setup and backup codes',
-      icon: 'verifiedUser', href: '/home/settings' },
+      icon: 'verifiedUser', href: '/home/settings/twofa' },
   ];
 </script>
 

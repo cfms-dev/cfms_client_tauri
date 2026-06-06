@@ -10,7 +10,7 @@
   import { onMount } from 'svelte';
   import type { DownloadTaskStatus } from '$lib/api';
   import { downloadStore } from '$lib/stores.svelte';
-  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload } from '$lib/api';
+  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -101,7 +101,7 @@
     try {
       for (const t of downloadStore.activeTasks) {
         if (t.status === 'pending') {
-          await resumeDownload(t.task_id); // cancel isn't available; just ignore for now
+          await cancelDownload(t.task_id);
         }
       }
       await refresh();

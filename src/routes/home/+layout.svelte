@@ -13,7 +13,7 @@
   import { page } from '$app/stores';
   import { authStore, serverStateStore, downloadStore } from '$lib/stores.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
 
   let { children }: { children: Snippet } = $props();
@@ -22,14 +22,6 @@
   const TAB_ROUTES = ['/home/overview', '/home/files', '/home/tasks', '/home/more'];
 
   const showTabBar = $derived(TAB_ROUTES.includes($page.url.pathname));
-
-  // Admin check — matches the reference's permission checks.
-  const isAdmin = $derived(
-    authStore.permissions.some((p) =>
-      ['manage_system', 'view_audit_logs', 'list_users', 'list_groups',
-       'apply_lockdown', 'bypass_lockdown'].includes(p)
-    )
-  );
 
   const activeTaskCount = $derived(downloadStore.activeTasks.length);
 
@@ -41,19 +33,21 @@
     hidden?: boolean;
   }
 
+  // The four primary destinations.  Management is intentionally NOT here —
+  // it is an admin-only area reached via More → Management, and the Manage
+  // screen itself runs without the bottom bar.
   const tabs = $derived<TabDef[]>([
     { href: '/home/files',    label: 'Files',   icon: 'files' },
     { href: '/home/tasks',    label: 'Tasks',   icon: 'tasks',   badge: activeTaskCount },
     { href: '/home/overview', label: 'Home',    icon: 'home' },
     { href: '/home/more',     label: 'More',    icon: 'more' },
-    { href: '/home/manage',   label: 'Manage',  icon: 'manage',  hidden: !isAdmin },
   ]);
 </script>
 
-<div class="flex flex-col h-full">
+<div class="relative flex flex-col h-full min-h-0">
   <!-- Top bar -->
   <header class="flex items-center h-12 px-4 bg-md3-surface/80 backdrop-blur-sm
-                  border-b border-md3-outline shrink-0">
+                  border-b border-md3-outline shrink-0 z-10">
     <span class="text-sm font-semibold text-md3-on-surface"
           style="font-family: var(--font-md3-sans);">
       CFMS
@@ -75,13 +69,22 @@
     </div>
   </header>
 
-  <!-- Page content -->
-  <main class="flex-1 overflow-y-auto page-enter">
-    {@render children()}
+  <!--
+    Scroll container.  `min-h-0` lets this flex child shrink so it actually
+    scrolls instead of growing the layout.  The keyed wrapper plays a smooth
+    entrance per route (in-only, so outgoing/incoming pages never overlap or
+    trap clicks).  Extra bottom padding clears the floating tab bar.
+  -->
+  <main class="flex-1 min-h-0 overflow-y-auto">
+    {#key $page.url.pathname}
+      <div in:flyScale={{ y: 12, duration: 300 }} class={showTabBar ? 'pb-28' : ''}>
+        {@render children()}
+      </div>
+    {/key}
   </main>
 
-  <!-- Bottom tab bar -->
+  <!-- Floating capsule tab bar (position: fixed, so it never affects flow). -->
   {#if showTabBar}
-    <TabBar tabs={tabs} />
+    <TabBar {tabs} />
   {/if}
 </div>

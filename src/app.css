@@ -180,3 +180,173 @@
   background-size: 2rem 2rem;
   animation: progressStripe 0.8s linear infinite;
 }
+
+/* ---------------------------------------------------------------------------
+ * Motion layer — MD3 expressive movement tokens and utilities
+ * --------------------------------------------------------------------------- */
+
+:root {
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+  --motion-duration-short1: 50ms;
+  --motion-duration-short2: 100ms;
+  --motion-duration-short3: 150ms;
+  --motion-duration-short4: 200ms;
+  --motion-duration-medium1: 250ms;
+  --motion-duration-medium2: 300ms;
+  --motion-duration-medium3: 350ms;
+  --motion-duration-medium4: 400ms;
+  --motion-duration-long1: 450ms;
+  --motion-duration-long2: 500ms;
+  --motion-duration-long3: 550ms;
+  --motion-duration-long4: 600ms;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translate3d(-120%, 0, 0);
+  }
+  100% {
+    transform: translate3d(120%, 0, 0);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 0.28;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+@keyframes fade-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes progress-stripe {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 2rem 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer var(--motion-duration-long4) linear infinite;
+  will-change: transform;
+}
+
+.animate-float {
+  animation: float 2.4s var(--motion-easing-standard) infinite;
+  will-change: transform;
+}
+
+.animate-fade-scale-in {
+  animation: fade-scale-in var(--motion-duration-medium2)
+    var(--motion-easing-emphasized-decelerate) both;
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+
+.animate-progress-stripe {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.18) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.18) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 2rem 2rem;
+  animation: progress-stripe 0.8s linear infinite;
+  will-change: background-position;
+}
+
+.motion-ripple {
+  position: absolute;
+  border-radius: 9999px;
+  background: currentColor;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple var(--motion-duration-medium3)
+    var(--motion-easing-emphasized-decelerate) forwards;
+  will-change: opacity, transform;
+}
+
+.motion-reveal {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0) scale(0.98);
+  transition:
+    opacity var(--motion-duration-medium3) var(--motion-easing-emphasized-decelerate),
+    transform var(--motion-duration-medium3) var(--motion-easing-emphasized-decelerate);
+  will-change: opacity, transform;
+}
+
+.motion-reveal.motion-revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+/* Floating tab bar entrance — gentle rise + fade on mount. */
+@keyframes navbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.motion-navbar-in {
+  animation: navbar-in var(--motion-duration-medium2, 300ms)
+    var(--motion-easing-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1)) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-navbar-in {
+    animation: none !important;
+  }
+
+  .animate-shimmer,
+  .animate-float,
+  .animate-fade-scale-in,
+  .animate-progress-stripe,
+  .progress-stripe,
+  .motion-ripple {
+    animation: none !important;
+  }
+
+  .motion-reveal,
+  .motion-reveal.motion-revealed {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
