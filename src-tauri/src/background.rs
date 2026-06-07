@@ -128,11 +128,11 @@ impl<R: Runtime> BackgroundService<R> for CfmsBackgroundService {
             let sm = Arc::clone(&state.service_manager);
             handles.spawn(async move {
                 let mut guard = sm.lock().await;
-                if let Some(ref mut mgr) = *guard {
-                    if !mgr.is_active() {
-                        tracing::info!("Background: activating ServiceManager (cold-start path)");
-                        mgr.activate();
-                    }
+                if let Some(ref mut mgr) = *guard
+                    && !mgr.is_active()
+                {
+                    tracing::info!("Background: activating ServiceManager (cold-start path)");
+                    mgr.activate();
                 }
             });
         }

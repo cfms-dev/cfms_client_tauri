@@ -666,10 +666,10 @@ async fn execute_download(
     transfer_conn.close().await;
 
     if *cancel_rx.borrow() {
-        if let Err(e) = std::fs::remove_file(&file_path) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!("Failed to clean up partial file {file_path}: {e}");
-            }
+        if let Err(e) = std::fs::remove_file(&file_path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("Failed to clean up partial file {file_path}: {e}");
         }
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
         emit_active_count(&queue, &state);
@@ -697,10 +697,10 @@ async fn execute_download(
 
         Some(Err(e)) => {
             if *cancel_rx.borrow() {
-                if let Err(rm_err) = std::fs::remove_file(&file_path) {
-                    if rm_err.kind() != std::io::ErrorKind::NotFound {
-                        tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
-                    }
+                if let Err(rm_err) = std::fs::remove_file(&file_path)
+                    && rm_err.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
                 }
                 let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
                 emit_active_count(&queue, &state);
@@ -733,10 +733,10 @@ async fn execute_download(
         }
 
         None => {
-            if let Err(e) = std::fs::remove_file(&file_path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    tracing::warn!("Failed to clean up partial file {file_path}: {e}");
-                }
+            if let Err(e) = std::fs::remove_file(&file_path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!("Failed to clean up partial file {file_path}: {e}");
             }
 
             let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
