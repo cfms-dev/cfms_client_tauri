@@ -17,6 +17,7 @@
   import { authStore, serverStateStore } from "$lib/stores.svelte";
   import {
     login,
+    changePassword,
     disconnect,
     logout,
     getAuthStatus,
@@ -31,6 +32,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
+  import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { info } from '@tauri-apps/plugin-log';
 
   let username = $state("");
@@ -38,7 +40,9 @@
   let passwordVisible = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let successMessage = $state<string | null>(null);
   let passwordChangeRequired = $state(false);
+  let showChangePassword = $state(false);
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
 
@@ -189,6 +193,7 @@
 
     busy = true;
     error = null;
+    successMessage = null;
     passwordChangeRequired = false;
 
     try {
@@ -226,8 +231,12 @@
       goto("/home/overview");
     } catch (e) {
       if (isPasswordChangeRequired(e)) {
+        // The server requires a password change before login (4001/4002).
+        // Open the self-change dialog directly so the user can resolve it
+        // in-app, mirroring the reference's PasswdUserDialog flow.
         passwordChangeRequired = true;
-        error = formatError(e);
+        showChangePassword = true;
+        error = null;
       } else {
         error = formatError(e);
       }
@@ -235,6 +244,27 @@
       busy = false;
       loadingPhase = "";
     }
+  }
+
+  /** Submit handler for ChangePasswordDialog (self-change flow).
+   *  Throws on failure so the dialog can surface the server's message
+   *  (e.g. password-rule violations); resolves on success. */
+  async function handleChangePassword(
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    await changePassword(username, oldPassword, newPassword);
+    // Success: close the dialog and let the user sign in with the new password.
+    showChangePassword = false;
+    passwordChangeRequired = false;
+    error = null;
+    password = newPassword; // pre-fill so they can sign in straight away
+    successMessage =
+      "Password changed successfully. Please sign in with your new password.";
+  }
+
+  function handleChangePasswordCancel() {
+    showChangePassword = false;
   }
 
   /** Callback from TwoFactorVerifyDialog — re-sends login with 2FA code. */
@@ -459,25 +489,49 @@
           {/if}
         </div>
 
-        <!-- Password change required -->
-        {#if error && passwordChangeRequired}
+        <!-- Password change required (4001/4002) — offer in-app change. -->
+        {#if passwordChangeRequired}
           <div
             class="bg-md3-tertiary-container/70 border border-md3-tertiary/40
                       text-md3-on-tertiary-container text-sm rounded-xl p-4 space-y-3"
           >
             <div class="flex items-start gap-2">
               <span class="shrink-0 mt-0.5"
-                ><Icon name="warning" size="18px" /></span
+                ><Icon name="lockPerson" size="18px" /></span
               >
               <div>
                 <p class="font-medium">Password change required</p>
                 <p class="mt-1">
-                  Your password must be changed before you can log in.
-                  Please contact your system administrator to reset your
-                  password.
+                  Your password must be changed before you can sign in.
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              class="w-full py-2 px-4 rounded-full font-medium text-sm
+                     bg-md3-tertiary text-md3-on-tertiary
+                     hover:brightness-110 transition-all
+                     flex items-center justify-center gap-2"
+              style="font-family: var(--font-md3-sans);"
+              onclick={() => (showChangePassword = true)}
+              disabled={busy}
+            >
+              <Icon name="lockPerson" size="16px" />
+              Change Password
+            </button>
+          </div>
+        {/if}
+
+        <!-- Success banner (e.g. after a password change). -->
+        {#if successMessage}
+          <div
+            class="bg-md3-primary/15 border border-md3-primary/30
+                   text-md3-on-surface text-sm rounded-xl p-3 flex items-start gap-2"
+          >
+            <span class="shrink-0 mt-0.5 text-md3-primary"
+              ><Icon name="checkCircle" size="16px" /></span
+            >
+            <span>{successMessage}</span>
           </div>
         {/if}
 
@@ -541,5 +595,15 @@
     onVerify={handle2faVerify}
     onCancel={handle2faCancel}
     method={authStore.twofaMethod}
+  />
+{/if}
+
+<!-- Change Password Dialog (self-change flow for 4001/4002) -->
+{#if showChangePassword}
+  <ChangePasswordDialog
+    {username}
+    initialOldPassword={password}
+    onSubmit={handleChangePassword}
+    onCancel={handleChangePasswordCancel}
   />
 {/if}

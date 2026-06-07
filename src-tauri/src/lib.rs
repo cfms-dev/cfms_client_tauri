@@ -65,9 +65,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_background_service::init_with_service(
-            background::CfmsBackgroundService::new,
-        ))
+        .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
             let app_data_dir = app
@@ -197,11 +195,17 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::login,
+            commands::change_password,
             commands::logout,
             commands::connect,
             commands::disconnect,
             commands::get_auth_status,
             commands::get_server_state,
+            commands::get_2fa_status,
+            commands::setup_2fa,
+            commands::validate_2fa,
+            commands::cancel_2fa_setup,
+            commands::disable_2fa,
             commands::delete_download,
             commands::create_directory,
             commands::delete_directory,
@@ -216,4 +220,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Returns the background-service Tauri plugin appropriate for this platform.
+///
+/// On mobile (Android / iOS) the real `tauri-plugin-background-service` plugin
+/// is used: it creates a foreground service that prevents the OS from
+/// suspending the process while CFMS tasks are running.
+///
+/// On desktop the plugin is not needed (the process is never suspended), so a
+/// lightweight no-op plugin is returned instead.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri_plugin_background_service::init_with_service(background::CfmsBackgroundService::new)
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("background-service-noop").build()
 }

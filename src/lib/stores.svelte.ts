@@ -169,6 +169,14 @@ class DownloadStoreImpl {
   ) {
     const oldTask = this.tasks.get(taskId);
     if (oldTask) {
+      if (
+        ["completed", "failed", "cancelled", "paused"].includes(
+          oldTask.status,
+        )
+      ) {
+        return;
+      }
+
       const newTask = { ...oldTask };
 
       newTask.progress = progress;

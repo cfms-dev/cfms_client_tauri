@@ -151,6 +151,18 @@ export interface ServerState {
   lockdown: boolean;
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean;
+  method: string | null;
+  backup_codes_count: number;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  provisioning_uri: string;
+  backup_codes: string[];
+}
+
 /** Metadata returned by the connect command after a successful server_info
  *  handshake.  Mirrors cfms_core::ServerInfo on the Rust side. */
 export interface ServerInfo {
@@ -207,6 +219,21 @@ export async function login(
   return invoke("login", { username, password, twofaToken: twofaToken ?? null });
 }
 
+/** Change the current user's password via the server `set_passwd` action.
+ *
+ * Used for the self-change flow when the server rejects login with code
+ * 4001/4002 (password must be changed before login).  No authentication token
+ * is required — the server verifies `oldPassword` directly.  Throws with the
+ * server's `(code) message` on failure (e.g. password-rule violations).
+ */
+export async function changePassword(
+  username: string,
+  oldPassword: string,
+  newPassword: string,
+): Promise<void> {
+  return invoke("change_password", { username, oldPassword, newPassword });
+}
+
 /** Log out — clears auth state and closes the connection. */
 export async function logout(): Promise<void> {
   return invoke("logout");
@@ -244,6 +271,31 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 /** Get the current server-connection state (connected, address, lockdown). */
 export async function getServerState(): Promise<ServerState> {
   return invoke("get_server_state");
+}
+
+/** Get the authenticated user's two-factor authentication status. */
+export async function getTwoFactorStatus(): Promise<TwoFactorStatus> {
+  return invoke("get_2fa_status");
+}
+
+/** Start TOTP setup for the authenticated user. */
+export async function setupTwoFactor(): Promise<TwoFactorSetup> {
+  return invoke("setup_2fa");
+}
+
+/** Verify the TOTP setup code and enable two-factor authentication. */
+export async function validateTwoFactor(token: string): Promise<void> {
+  return invoke("validate_2fa", { token });
+}
+
+/** Cancel a pending TOTP setup before verification. */
+export async function cancelTwoFactorSetup(): Promise<void> {
+  return invoke("cancel_2fa_setup");
+}
+
+/** Disable two-factor authentication for the authenticated user. */
+export async function disableTwoFactor(password: string): Promise<void> {
+  return invoke("disable_2fa", { password });
 }
 
 // ---------------------------------------------------------------------------

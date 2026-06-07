@@ -4,10 +4,17 @@
   // Reference: HomeView / WelcomeInfoCard in reference/src/include/ui/components/homepage.py
 
   import Icon from './Icon.svelte';
+  import { hoverLift, reveal } from '$lib/motion/actions';
+  import { flyScale } from '$lib/motion/transitions';
 </script>
 
-<div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-            border border-md3-outline p-5 flex items-start gap-4">
+<div
+  class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+         border border-md3-outline p-5 flex items-start gap-4"
+  transition:flyScale={{ y: 14, duration: 320 }}
+  use:hoverLift
+  use:reveal
+>
   <span class="text-md3-primary shrink-0 mt-0.5">
     <Icon name="guardian" size="40px" />
   </span>

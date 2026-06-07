@@ -25,7 +25,6 @@ cfms-transfer.workspace = true
 tauri.workspace = true
 tauri-plugin-opener = "2"
 tauri-plugin-notification.workspace = true
-tauri-plugin-background-service.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -34,6 +33,7 @@ tracing.workspace = true
 rand.workspace = true
 hex = "0.4.3"
 tauri-plugin-log = "2"
+tauri-plugin-background-service.workspace = true
 
 [features]
 default = ["custom-protocol"]

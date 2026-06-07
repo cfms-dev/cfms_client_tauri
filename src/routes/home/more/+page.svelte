@@ -8,7 +8,9 @@
 
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores.svelte';
+  import { changePassword } from '$lib/api';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
+  import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
 
@@ -19,17 +21,23 @@
     )
   );
 
+  let showChangePassword = $state(false);
+  let successMsg = $state<string | null>(null);
+
   interface MenuEntry {
     label: string;
     description: string;
     icon: IconName;
-    href: string;
+    /** Navigate to this route on click. */
+    href?: string;
+    /** Or run this action on click (takes precedence over href). */
+    action?: () => void;
     hidden?: boolean;
   }
 
   const menuEntries = $derived<MenuEntry[]>([
     { label: 'Change Password', description: 'Update your account password',
-      icon: 'password', href: '/home/more' }, // TODO: open dialog
+      icon: 'password', action: () => { successMsg = null; showChangePassword = true; } },
     { label: 'Settings', description: 'Application preferences and configuration',
       icon: 'settings', href: '/home/settings' },
     { label: 'About', description: 'Version info and software updates',
@@ -39,6 +47,20 @@
     { label: 'Management', description: 'User and group administration',
       icon: 'adminPanelSettings', href: '/home/manage', hidden: !isAdmin },
   ]);
+
+  function handleEntry(entry: MenuEntry) {
+    if (entry.action) entry.action();
+    else if (entry.href) goto(entry.href);
+  }
+
+  /** Submit handler for the change-password dialog (logged-in self-change). */
+  async function handleChangePassword(oldPassword: string, newPassword: string): Promise<void> {
+    const username = authStore.username;
+    if (!username) throw 'Not signed in.';
+    await changePassword(username, oldPassword, newPassword);
+    showChangePassword = false;
+    successMsg = 'Password changed successfully.';
+  }
 </script>
 
 <div class="p-6 space-y-6 max-w-lg mx-auto">
@@ -47,6 +69,17 @@
               border border-md3-outline p-5">
     <AccountBadge />
   </div>
+
+  <!-- Success banner (e.g. after a password change). -->
+  {#if successMsg}
+    <div
+      class="bg-md3-primary/15 border border-md3-primary/30
+             text-md3-on-surface text-sm rounded-xl p-3 flex items-start gap-2"
+    >
+      <span class="shrink-0 mt-0.5 text-md3-primary"><Icon name="checkCircle" size="16px" /></span>
+      <span>{successMsg}</span>
+    </div>
+  {/if}
 
   <!-- Menu entries -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
@@ -58,7 +91,7 @@
                transition-colors
                {i < menuEntries.filter((e) => !e.hidden).length - 1
                  ? 'border-b border-md3-outline/50' : ''}"
-        onclick={() => goto(entry.href)}
+        onclick={() => handleEntry(entry)}
       >
         <span class="text-md3-primary shrink-0">
           <Icon name={entry.icon} size="24px" />
@@ -79,3 +112,13 @@
     {/each}
   </div>
 </div>
+
+<!-- Change Password dialog (logged-in self-change). -->
+{#if showChangePassword}
+  <ChangePasswordDialog
+    username={authStore.username ?? ''}
+    tip="Enter your current password and choose a new one."
+    onSubmit={handleChangePassword}
+    onCancel={() => (showChangePassword = false)}
+  />
+{/if}

@@ -19,7 +19,7 @@
   let { username, size = 60, avatarPath = null }: Props = $props();
 
   const initial = $derived(username.trim().charAt(0).toUpperCase() || '?');
-  const hue = $derived(() => {
+  const hue = $derived.by(() => {
     // Deterministic color based on username
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
@@ -38,7 +38,7 @@
   class="rounded-full flex items-center justify-center
          text-white font-bold select-none shrink-0 overflow-hidden"
   style="width: {size}px; height: {size}px;
-         background: {avatarSrc ? 'transparent' : `hsl(${hue()}, 55%, 45%)`};
+         background: {avatarSrc ? 'transparent' : `hsl(${hue}, 55%, 45%)`};
          font-size: {Math.round(size * 0.4)}px;
          font-family: var(--font-md3-sans);"
   aria-label="Avatar for {username || 'unknown user'}"

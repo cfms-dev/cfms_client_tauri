@@ -44,6 +44,15 @@
   $effect(() => {
     const path = page.url.pathname;
 
+    if (
+      disclaimerStore.checked &&
+      !disclaimerStore.accepted &&
+      path !== "/connect/disclaimer"
+    ) {
+      goto("/connect/disclaimer", { replaceState: true });
+      return;
+    }
+
     // 1. Lockdown — only redirect authenticated users who lack bypass
     //    permission.  Users who haven't logged in yet can still reach the
     //    login page (the LockdownBanner will warn them).
@@ -144,7 +153,14 @@
 -->
 <div class="h-full flex flex-col">
   <LockdownBanner active={serverStateStore.lockdown} />
-  <div class="flex-1">
+  <!--
+    Bounded flex slot for the routed content.  `min-h-0` is essential: it lets
+    this flex child shrink to the available space so descendant scroll
+    containers (e.g. the home layout's <main>) work instead of growing the
+    whole document.  Per-page transitions live in the individual layouts
+    (e.g. /home) so navigation doesn't re-mount the entire app shell.
+  -->
+  <div class="flex-1 min-h-0">
     {@render children()}
   </div>
 </div>
