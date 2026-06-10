@@ -2,6 +2,7 @@ import { addMessages, init, locale, waitLocale } from 'svelte-i18n';
 import { getLocale, setLocale as setBackendLocale } from './api';
 
 export type AppLocale = 'en' | 'zh_CN';
+type FrontendLocale = 'en' | 'zh-CN';
 
 const fallbackLocale: AppLocale = 'zh_CN';
 
@@ -739,6 +740,10 @@ export function normalizeLocale(value: string | null | undefined): AppLocale {
   return fallbackLocale;
 }
 
+function toFrontendLocale(value: AppLocale): FrontendLocale {
+  return value === 'zh_CN' ? 'zh-CN' : 'en';
+}
+
 export async function initI18n(): Promise<void> {
   if (initialized) {
     await waitLocale();
@@ -746,7 +751,7 @@ export async function initI18n(): Promise<void> {
   }
 
   addMessages('en', en);
-  addMessages('zh_CN', zh_CN);
+  addMessages('zh-CN', zh_CN);
 
   let initial = fallbackLocale;
   try {
@@ -756,8 +761,8 @@ export async function initI18n(): Promise<void> {
   }
 
   init({
-    fallbackLocale,
-    initialLocale: initial,
+    fallbackLocale: toFrontendLocale(fallbackLocale),
+    initialLocale: toFrontendLocale(initial),
   });
   initialized = true;
   window.localStorage.setItem('cfms_locale', initial);
@@ -766,10 +771,10 @@ export async function initI18n(): Promise<void> {
 
 export async function setAppLocale(nextLocale: AppLocale): Promise<AppLocale> {
   const normalized = normalizeLocale(nextLocale);
-  locale.set(normalized);
+  locale.set(toFrontendLocale(normalized));
   window.localStorage.setItem('cfms_locale', normalized);
   const backendLocale = normalizeLocale(await setBackendLocale(normalized));
-  locale.set(backendLocale);
+  locale.set(toFrontendLocale(backendLocale));
   window.localStorage.setItem('cfms_locale', backendLocale);
   await waitLocale();
   return backendLocale;
