@@ -7,6 +7,7 @@
   // Reference: MoreView in reference/src/include/ui/views/more.py
 
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
   import { changePassword } from '$lib/api';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
@@ -36,15 +37,15 @@
   }
 
   const menuEntries = $derived<MenuEntry[]>([
-    { label: 'Change Password', description: 'Update your account password',
+    { label: $t('login.changePassword'), description: $t('more.changePasswordDescription'),
       icon: 'password', action: () => { successMsg = null; showChangePassword = true; } },
-    { label: 'Settings', description: 'Application preferences and configuration',
+    { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
-    { label: 'About', description: 'Version info and software updates',
+    { label: $t('more.about'), description: $t('more.aboutDescription'),
       icon: 'info', href: '/home/about' },
-    { label: 'Trash', description: 'Recycle bin for deleted files',
+    { label: $t('files.trash'), description: $t('more.trashDescription'),
       icon: 'delete', href: '/home/trash' },
-    { label: 'Management', description: 'User and group administration',
+    { label: $t('more.management'), description: $t('more.managementDescription'),
       icon: 'adminPanelSettings', href: '/home/manage', hidden: !isAdmin },
   ]);
 
@@ -56,10 +57,10 @@
   /** Submit handler for the change-password dialog (logged-in self-change). */
   async function handleChangePassword(oldPassword: string, newPassword: string): Promise<void> {
     const username = authStore.username;
-    if (!username) throw 'Not signed in.';
+    if (!username) throw $t('more.notSignedInError');
     await changePassword(username, oldPassword, newPassword);
     showChangePassword = false;
-    successMsg = 'Password changed successfully.';
+    successMsg = $t('more.passwordChanged');
   }
 </script>
 
@@ -117,7 +118,7 @@
 {#if showChangePassword}
   <ChangePasswordDialog
     username={authStore.username ?? ''}
-    tip="Enter your current password and choose a new one."
+    tip={$t('more.passwordTip')}
     onSubmit={handleChangePassword}
     onCancel={() => (showChangePassword = false)}
   />

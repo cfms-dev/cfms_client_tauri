@@ -11,6 +11,7 @@
 
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
   import { flyScale } from '$lib/motion/transitions';
 
   interface Props {
@@ -29,7 +30,7 @@
   let {
     username,
     initialOldPassword = '',
-    tip = 'Your password must be changed before you can sign in.',
+    tip = '',
     onSubmit,
     onCancel,
   }: Props = $props();
@@ -56,7 +57,14 @@
     if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
     if (/[0-9]/.test(pw)) score++;
     if (/[^A-Za-z0-9]/.test(pw)) score++;
-    const labels = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong', 'Strong'];
+    const labels = [
+      $t('dialog.changePassword.veryWeak'),
+      $t('dialog.changePassword.weak'),
+      $t('dialog.changePassword.fair'),
+      $t('dialog.changePassword.good'),
+      $t('dialog.changePassword.strong'),
+      $t('dialog.changePassword.strong'),
+    ];
     return { score, label: labels[score] };
   }
 
@@ -101,15 +109,15 @@
 
   async function handleSubmit() {
     if (!oldPassword) {
-      error = 'Please enter your current password.';
+      error = $t('dialog.changePassword.currentRequired');
       return;
     }
     if (!newPassword) {
-      error = 'Please enter a new password.';
+      error = $t('dialog.changePassword.newRequired');
       return;
     }
     if (newPassword === oldPassword) {
-      error = 'The new password must be different from the old one.';
+      error = $t('dialog.changePassword.mustDiffer');
       return;
     }
 
@@ -151,7 +159,7 @@
     onkeydown={() => {}}
     role="dialog"
     aria-modal="true"
-    aria-label="Change Password"
+    aria-label={$t('dialog.changePassword.title')}
     tabindex="-1"
   >
     <!-- Title bar -->
@@ -162,7 +170,7 @@
           class="text-lg font-semibold text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
         >
-          Change Password
+          {$t('dialog.changePassword.title')}
         </h2>
       </div>
       <button
@@ -171,7 +179,7 @@
                transition-colors rounded-full p-1"
         onclick={handleCancel}
         disabled={busy}
-        aria-label="Close"
+        aria-label={$t('common.close')}
       >
         <Icon name="close" size="20px" />
       </button>
@@ -186,7 +194,7 @@
       }}
     >
       <p class="text-sm text-md3-on-surface-variant">
-        Changing password for <span class="font-medium text-md3-on-surface">{username}</span>.
+        {$t('dialog.changePassword.changingFor', { values: { username } })}
       </p>
 
       <!-- Old password -->
@@ -196,7 +204,7 @@
           class="block text-sm font-medium mb-1.5 text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
         >
-          Current Password
+          {$t('dialog.changePassword.currentPassword')}
         </label>
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
@@ -210,7 +218,7 @@
                    placeholder:text-md3-on-surface-variant
                    focus:ring-2 focus:ring-md3-primary focus:border-transparent
                    transition-colors"
-            placeholder="Enter your current password"
+            placeholder={$t('dialog.changePassword.currentPasswordPlaceholder')}
             bind:value={oldPassword}
             disabled={busy}
             autocomplete="current-password"
@@ -221,7 +229,7 @@
                    hover:text-md3-on-surface transition-colors"
             onclick={() => (oldVisible = !oldVisible)}
             tabindex="-1"
-            aria-label={oldVisible ? 'Hide password' : 'Show password'}
+            aria-label={oldVisible ? $t('login.hidePassword') : $t('login.showPassword')}
           >
             <Icon name="visibility" size="18px" />
           </button>
@@ -235,7 +243,7 @@
           class="block text-sm font-medium mb-1.5 text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
         >
-          New Password
+          {$t('dialog.changePassword.newPassword')}
         </label>
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
@@ -249,7 +257,7 @@
                    placeholder:text-md3-on-surface-variant
                    focus:ring-2 focus:ring-md3-primary focus:border-transparent
                    transition-colors"
-            placeholder="Enter a new password"
+            placeholder={$t('dialog.changePassword.newPasswordPlaceholder')}
             bind:value={newPassword}
             disabled={busy}
             autocomplete="new-password"
@@ -262,8 +270,8 @@
               onclick={handleDice}
               disabled={busy}
               tabindex="-1"
-              title="Generate a strong password"
-              aria-label="Generate a strong password"
+              title={$t('dialog.changePassword.generateStrongPassword')}
+              aria-label={$t('dialog.changePassword.generateStrongPassword')}
             >
               <Icon name="refresh" size="18px" />
             </button>
@@ -273,7 +281,7 @@
                      transition-colors rounded-full p-1"
               onclick={() => (newVisible = !newVisible)}
               tabindex="-1"
-              aria-label={newVisible ? 'Hide password' : 'Show password'}
+              aria-label={newVisible ? $t('login.hidePassword') : $t('login.showPassword')}
             >
               <Icon name="visibility" size="18px" />
             </button>
@@ -299,10 +307,10 @@
         {/if}
       </div>
 
-      {#if tip}
+      {#if tip || $t('dialog.changePassword.defaultTip')}
         <p class="text-xs text-md3-on-surface-variant flex items-start gap-1.5">
           <span class="shrink-0 mt-0.5 text-md3-tertiary"><Icon name="info" size="14px" /></span>
-          <span>{tip}</span>
+          <span>{tip || $t('dialog.changePassword.defaultTip')}</span>
         </p>
       {/if}
 
@@ -328,7 +336,7 @@
           onclick={handleCancel}
           disabled={busy}
         >
-          Cancel
+          {$t('common.cancel')}
         </button>
         <button
           type="submit"
@@ -341,10 +349,10 @@
         >
           {#if busy}
             <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
-            Changing…
+            {$t('common.changing')}
           {:else}
             <Icon name="done" size="16px" />
-            Change Password
+            {$t('dialog.changePassword.title')}
           {/if}
         </button>
       </div>

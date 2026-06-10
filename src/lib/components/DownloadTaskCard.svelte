@@ -9,6 +9,7 @@
   import type { DownloadTaskDto, DownloadTaskStatus } from "../api";
   import { pauseDownload, resumeDownload, cancelDownload, deleteDownload } from "../api";
   import { openPath } from "@tauri-apps/plugin-opener";
+  import { _ as t } from 'svelte-i18n';
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
   import type { IconName } from "$lib/icons";
@@ -125,6 +126,21 @@
     }
   }
 
+  function statusLabel(status: DownloadTaskStatus): string {
+    switch (status) {
+      case "pending": return $t('tasks.pending');
+      case "downloading": return $t('tasks.downloading');
+      case "paused": return $t('tasks.paused');
+      case "completed": return $t('tasks.completed');
+      case "failed": return $t('tasks.failed');
+      case "cancelled": return $t('tasks.cancelled');
+      case "decrypting": return $t('login.settingUpEncryption');
+      case "verifying": return $t('common.verifying');
+      case "scheduled": return $t('tasks.pending');
+      default: return status;
+    }
+  }
+
   const isActive = $derived(
     ["downloading", "decrypting", "verifying"].includes(task.status),
   );
@@ -190,9 +206,9 @@
              shrink-0 {statusBadgeClass()}"
       style="font-family: var(--font-md3-sans);"
     >
-      {task.status}
+      {statusLabel(task.status)}
       {#if task.status === "pending" && task.retry_count > 0}
-        (Retry {task.retry_count}/{task.max_retries})
+        ({$t('tasks.retry', { values: { retry: task.retry_count, max: task.max_retries } })})
       {/if}
     </span>
   </div>
@@ -201,7 +217,7 @@
   {#if task.error}
     <p class="text-xs text-md3-error mb-2 flex items-center gap-1">
       <Icon name="errorFilled" size="14px" />
-      {task.status === "failed" ? `Failed: ${task.error}` : task.error}
+      {task.status === "failed" ? $t('tasks.failedWithError', { values: { error: task.error } }) : task.error}
     </p>
   {/if}
 
@@ -228,7 +244,7 @@
           disabled={actionPending}
         >
           <Icon name="pause" size="14px" />
-          Pause
+          {$t('tasks.pause')}
         </button>
       {:else}
         <button
@@ -240,7 +256,7 @@
           disabled={actionPending}
         >
           <Icon name="resume" size="14px" />
-          Resume
+          {$t('tasks.resume')}
         </button>
       {/if}
     {:else if isPaused}
@@ -254,7 +270,7 @@
         disabled={actionPending}
       >
         <Icon name="resume" size="14px" />
-        Resume
+        {$t('tasks.resume')}
       </button>
     {/if}
 
@@ -269,7 +285,7 @@
         disabled={actionPending}
       >
         <Icon name="cancel" size="14px" />
-        Cancel
+        {$t('tasks.cancel')}
       </button>
     {/if}
 
@@ -284,7 +300,7 @@
         disabled={actionPending}
       >
         <Icon name="openInNew" size="14px" />
-        Open
+        {$t('common.open')}
       </button>
       <button
         class="text-xs px-3 py-1.5 rounded-full font-medium
@@ -295,7 +311,7 @@
         disabled={actionPending}
       >
         <Icon name="delete" size="14px" />
-        Delete
+        {$t('common.delete')}
       </button>
     {/if}
 

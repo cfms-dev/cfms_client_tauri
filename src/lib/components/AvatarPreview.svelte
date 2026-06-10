@@ -8,6 +8,7 @@
   // Reference: AvatarPreviewContainer in reference/src/include/ui/controls/views/login.py
 
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import { _ as t } from 'svelte-i18n';
 
   interface Props {
     username: string;
@@ -41,12 +42,12 @@
          background: {avatarSrc ? 'transparent' : `hsl(${hue}, 55%, 45%)`};
          font-size: {Math.round(size * 0.4)}px;
          font-family: var(--font-md3-sans);"
-  aria-label="Avatar for {username || 'unknown user'}"
+  aria-label={$t('common.avatarFor', { values: { username: username || $t('common.unknownUser') } })}
 >
   {#if avatarSrc}
     <img
       src={avatarSrc}
-      alt="Avatar for {username}"
+      alt={$t('common.avatarFor', { values: { username } })}
       class="w-full h-full object-cover"
     />
   {:else}

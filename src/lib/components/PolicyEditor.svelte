@@ -6,6 +6,7 @@
   //   onSave: callback receiving the new JSON string on save
 
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
 
   interface Props {
     policyJson: string;
@@ -56,12 +57,12 @@
       class="text-sm font-medium text-md3-on-surface"
       style="font-family: var(--font-md3-sans);"
     >
-      Security Policy (JSON)
+      {$t('policy.title')}
     </span>
     <div class="flex items-center gap-2">
       {#if saved}
         <span class="text-xs text-md3-success font-medium flex items-center gap-1">
-          <Icon name="done" size="14px" /> Saved
+          <Icon name="done" size="14px" /> {$t('policy.saved')}
         </span>
       {/if}
       <!-- MD3 filled button: 20px radius -->
@@ -74,7 +75,7 @@
         onclick={handleSave}
         disabled={saving}
       >
-        {saving ? "Saving…" : "Save"}
+        {saving ? $t('common.saving') : $t('common.save')}
       </button>
     </div>
   </div>
@@ -94,12 +95,11 @@
 
   {#if error}
     <p class="text-xs text-md3-error">
-      Invalid JSON: {error}
+      {$t('policy.invalidJson', { values: { error } })}
     </p>
   {/if}
 
   <p class="text-xs text-md3-on-surface-variant">
-    Edit the server security policy. Changes take effect after saving.
-    Use valid JSON format.
+    {$t('policy.description')}
   </p>
 </div>

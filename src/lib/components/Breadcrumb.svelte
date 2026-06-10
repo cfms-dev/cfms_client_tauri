@@ -8,6 +8,7 @@
   //   onNavigate: callback receiving the path when a segment is clicked
 
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
   import { flyScale, staggeredList } from '$lib/motion/transitions';
 
   interface Props {
@@ -18,7 +19,7 @@
   let { segments, onNavigate }: Props = $props();
 </script>
 
-<nav aria-label="Breadcrumb" class="flex items-center gap-1 text-sm no-select">
+<nav aria-label={$t('common.breadcrumb')} class="flex items-center gap-1 text-sm no-select">
   <!-- Root -->
   <button
     class="text-md3-primary hover:underline font-medium transition-colors"

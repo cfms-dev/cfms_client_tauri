@@ -8,6 +8,7 @@
   // Reference: TasksView in reference/src/include/ui/views/tasks.py
 
   import { onMount } from 'svelte';
+  import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskStatus } from '$lib/api';
   import { downloadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
@@ -19,16 +20,17 @@
   let menuOpen = $state(false);
 
   const filters: Array<{ key: DownloadTaskStatus | 'all'; label: string }> = [
-    { key: 'all', label: 'All' },
-    { key: 'pending', label: 'Pending' },
-    { key: 'downloading', label: 'Downloading' },
-    { key: 'paused', label: 'Paused' },
-    { key: 'completed', label: 'Completed' },
-    { key: 'failed', label: 'Failed' },
-    { key: 'cancelled', label: 'Cancelled' },
+    { key: 'all', label: $t('tasks.all') },
+    { key: 'pending', label: $t('tasks.pending') },
+    { key: 'downloading', label: $t('tasks.downloading') },
+    { key: 'paused', label: $t('tasks.paused') },
+    { key: 'completed', label: $t('tasks.completed') },
+    { key: 'failed', label: $t('tasks.failed') },
+    { key: 'cancelled', label: $t('tasks.cancelled') },
   ];
 
   const filtered = $derived(downloadStore.getTasksByStatus(filter));
+  const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
 
   onMount(async () => {
     try {
@@ -122,13 +124,13 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        Download Tasks
+        {$t('tasks.title')}
       </h1>
       <button
         class="p-1.5 rounded-full text-md3-on-surface-variant
                hover:bg-md3-surface-container-high transition-colors"
         onclick={refresh}
-        title="Refresh"
+        title={$t('common.refresh')}
       >
         <Icon name="refresh" size="20px" />
       </button>
@@ -140,7 +142,7 @@
         class="p-1.5 rounded-full text-md3-on-surface-variant
                hover:bg-md3-surface-container-high transition-colors"
         onclick={() => (menuOpen = !menuOpen)}
-        title="More actions"
+        title={$t('tasks.moreActions')}
       >
         <Icon name="moreVert" size="20px" />
       </button>
@@ -161,7 +163,7 @@
             onclick={handlePauseAll}
             disabled={busy}
           >
-            <Icon name="pause" size="16px" /> Pause all
+            <Icon name="pause" size="16px" /> {$t('tasks.pauseAll')}
           </button>
           <button
             class="w-full flex items-center gap-2 px-4 py-2 text-sm
@@ -171,7 +173,7 @@
             onclick={handleResumeAll}
             disabled={busy}
           >
-            <Icon name="resume" size="16px" /> Resume all paused
+            <Icon name="resume" size="16px" /> {$t('tasks.resumeAllPaused')}
           </button>
           <button
             class="w-full flex items-center gap-2 px-4 py-2 text-sm
@@ -181,7 +183,7 @@
             onclick={handleCancelPending}
             disabled={busy}
           >
-            <Icon name="cancel" size="16px" /> Cancel all pending
+            <Icon name="cancel" size="16px" /> {$t('tasks.cancelAllPending')}
           </button>
           <div class="border-t border-md3-outline my-1"></div>
           <button
@@ -192,7 +194,7 @@
             onclick={handleClearCompleted}
             disabled={busy || downloadStore.completedTasks.length === 0}
           >
-            <Icon name="clearAll" size="16px" /> Clear completed
+            <Icon name="clearAll" size="16px" /> {$t('tasks.clearCompleted')}
           </button>
           <button
             class="w-full flex items-center gap-2 px-4 py-2 text-sm
@@ -202,7 +204,7 @@
             onclick={handleClearFailed}
             disabled={busy || downloadStore.failedTasks.length === 0}
           >
-            <Icon name="deleteSweep" size="16px" /> Clear failed
+            <Icon name="deleteSweep" size="16px" /> {$t('tasks.clearFailed')}
           </button>
         </div>
       {/if}
@@ -245,7 +247,7 @@
           <Icon name="downloadDone" size="64px" />
         </span>
         <p class="text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-          {filter === 'all' ? 'No download tasks' : `No ${filter} tasks`}
+          {filter === 'all' ? $t('tasks.noTasks') : $t('tasks.noTasksByStatus', { values: { status: currentFilterLabel } })}
         </p>
       </div>
     {/if}

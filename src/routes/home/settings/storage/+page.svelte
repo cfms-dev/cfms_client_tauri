@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import {
     clearCompletedTasks,
     clearFailedTasks,
@@ -22,7 +23,7 @@
   const storagePath = $derived(
     useExternalStorage && externalStoragePath.trim()
       ? externalStoragePath.trim()
-      : 'Default app data directory / downloads cache',
+      : $t('settings.storage.defaultPath'),
   );
 
   $effect(() => {
@@ -55,7 +56,7 @@
       };
       await saveUserPreference(next);
       preferences = next;
-      status = 'Storage preference saved.';
+      status = $t('settings.storage.saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -68,7 +69,7 @@
     error = null;
     try {
       const count = await clearCompletedTasks();
-      status = `Cleared ${count} completed task${count === 1 ? '' : 's'}.`;
+      status = $t('settings.storage.clearedCompleted', { values: { count } });
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -81,7 +82,7 @@
     error = null;
     try {
       const count = await clearFailedTasks();
-      status = `Cleared ${count} failed task${count === 1 ? '' : 's'}.`;
+      status = $t('settings.storage.clearedFailed', { values: { count } });
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -98,24 +99,24 @@
     onclick={() => goto('/home/settings')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Storage
+    {$t('settings.storage.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
     <div>
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        Download and Cache Path
+        {$t('settings.storage.pathTitle')}
       </h2>
       <p class="text-sm text-md3-on-surface-variant mt-1 break-words">{storagePath}</p>
     </div>
 
     <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Use external storage
+      {$t('settings.storage.useExternal')}
       <input
         class="accent-md3-primary"
         type="checkbox"
@@ -125,13 +126,13 @@
     </label>
 
     <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      External Storage Path
+      {$t('settings.storage.externalPath')}
       <input
         class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                px-3 py-2 text-md3-on-surface disabled:opacity-60"
         type="text"
         bind:value={externalStoragePath}
-        placeholder="Leave blank to use the default app location"
+        placeholder={$t('settings.storage.externalPathPlaceholder')}
         disabled={loading || saving || !useExternalStorage}
       />
     </label>
@@ -159,7 +160,7 @@
         disabled={loading || saving || !preferences}
       >
         <Icon name="done" size="18px" />
-        {saving ? 'Saving...' : 'Save Storage'}
+        {saving ? $t('common.saving') : $t('settings.storage.save')}
       </button>
       <button
         class="px-4 py-2 rounded-full font-medium text-sm
@@ -170,7 +171,7 @@
         disabled={clearing !== null}
       >
         <Icon name="clearAll" size="18px" />
-        {clearing === 'completed' ? 'Clearing...' : 'Clear Completed'}
+        {clearing === 'completed' ? $t('common.clearing') : $t('settings.storage.clearCompleted')}
       </button>
       <button
         class="px-4 py-2 rounded-full font-medium text-sm
@@ -181,7 +182,7 @@
         disabled={clearing !== null}
       >
         <Icon name="deleteSweep" size="18px" />
-        {clearing === 'failed' ? 'Clearing...' : 'Clear Failed'}
+        {clearing === 'failed' ? $t('common.clearing') : $t('settings.storage.clearFailed')}
       </button>
     </div>
   </div>

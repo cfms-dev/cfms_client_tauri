@@ -7,6 +7,7 @@
   // Reference: ManageModel in reference/src/include/ui/models/manage.py
 
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
@@ -18,9 +19,9 @@
   }
 
   const tabs: ManageTab[] = [
-    { key: 'accounts', label: 'Accounts', icon: 'supervisorAccount' },
-    { key: 'groups',   label: 'Groups',   icon: 'groups' },
-    { key: 'logs',     label: 'Logs',     icon: 'article' },
+    { key: 'accounts', label: $t('manage.accounts'), icon: 'supervisorAccount' },
+    { key: 'groups',   label: $t('manage.groups'),   icon: 'groups' },
+    { key: 'logs',     label: $t('manage.logs'),     icon: 'article' },
   ];
 
   let activeTab = $state('accounts');
@@ -43,17 +44,17 @@
     onclick={() => goto('/home/more')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Management
+    {$t('manage.title')}
   </h1>
 
   {#if !isAdmin}
     <div class="bg-md3-error-container/60 border border-md3-error/30
                 text-md3-on-error-container text-sm rounded-xl p-4">
-      You do not have permission to access this area.
+      {$t('manage.noPermission')}
     </div>
   {:else}
     <!-- Sub-tab bar -->
@@ -80,7 +81,7 @@
       {#if activeTab === 'accounts'}
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-            User Accounts
+            {$t('manage.userAccounts')}
           </h2>
           <button
             class="px-3 py-1 text-xs rounded-full font-medium
@@ -89,16 +90,16 @@
             style="font-family: var(--font-md3-sans);"
           >
             <Icon name="groupAdd" size="14px" />
-            Add Account
+            {$t('manage.addAccount')}
           </button>
         </div>
         <p class="text-sm text-md3-on-surface-variant text-center py-8">
-          Account management will be available when connected to a CFMS server.
+          {$t('manage.accountsUnavailable')}
         </p>
       {:else if activeTab === 'groups'}
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-            User Groups
+            {$t('manage.userGroups')}
           </h2>
           <button
             class="px-3 py-1 text-xs rounded-full font-medium
@@ -107,16 +108,16 @@
             style="font-family: var(--font-md3-sans);"
           >
             <Icon name="groupAdd" size="14px" />
-            Add Group
+            {$t('manage.addGroup')}
           </button>
         </div>
         <p class="text-sm text-md3-on-surface-variant text-center py-8">
-          Group management will be available when connected to a CFMS server.
+          {$t('manage.groupsUnavailable')}
         </p>
       {:else}
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-            Audit Logs
+            {$t('manage.auditLogs')}
           </h2>
           <button
             class="px-3 py-1 text-xs rounded-full font-medium
@@ -125,11 +126,11 @@
             style="font-family: var(--font-md3-sans);"
           >
             <Icon name="refresh" size="14px" />
-            Refresh
+            {$t('common.refresh')}
           </button>
         </div>
         <p class="text-sm text-md3-on-surface-variant text-center py-8">
-          Audit logs will be available when connected to a CFMS server.
+          {$t('manage.logsUnavailable')}
         </p>
       {/if}
     </div>

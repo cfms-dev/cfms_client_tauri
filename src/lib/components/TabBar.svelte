@@ -13,6 +13,7 @@
 
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { _ as t } from 'svelte-i18n';
   import Icon from './Icon.svelte';
   import type { IconName } from '$lib/icons';
   import { ripple } from '$lib/motion/actions';
@@ -89,7 +90,7 @@
            rounded-full border border-md3-outline/50
            bg-md3-surface-container/70 backdrop-blur-xl
            shadow-[0_12px_40px_-8px_rgba(0,0,0,0.55)]"
-    aria-label="Main navigation"
+    aria-label={$t('nav.mainNavigation')}
   >
     <!-- Sliding active-tab background. Glides between tabs on navigation. -->
     <span

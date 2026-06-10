@@ -8,25 +8,27 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
 
-  let stepText = $state('Checking configuration…');
+  let stepText = $state('');
   let complete = $state(false);
 
   onMount(async () => {
+    stepText = $t('init.checkingConfiguration');
     // In the reference app, this checks whether a CA manifest file exists.
     // For now, we check via the backend setting.
     try {
       // Stub: the actual CA manifest check is a Rust backend concern.
       // If the manifest doesn't exist, the backend would return false.
       // For now, assume it exists and proceed.
-      stepText = 'CA certificate store is ready.';
+      stepText = $t('init.caReady');
       complete = true;
 
       // Navigate to connect after a brief pause so the user can see the status.
       setTimeout(() => goto('/connect'), 1200);
     } catch {
-      stepText = 'Failed to initialize. Retrying…';
+      stepText = $t('init.failedRetrying');
       setTimeout(() => goto('/connect'), 2000);
     }
   });
@@ -46,11 +48,11 @@
         class="text-xl font-bold text-md3-on-surface"
         style="font-family: var(--font-md3-sans);"
       >
-        Initial Setup
+        {$t('init.title')}
       </h1>
 
       <p class="text-sm text-md3-on-surface-variant">
-        Setting up CA certificate store…
+        {$t('init.description')}
       </p>
 
       {#if !complete}

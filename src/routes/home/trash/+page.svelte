@@ -8,6 +8,7 @@
   // Reference: TrashModel in reference/src/include/ui/models/trash.py
 
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
 </script>
 
@@ -20,11 +21,11 @@
     onclick={() => goto('/home/more')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Recycle Bin
+    {$t('trash.title')}
   </h1>
 
   <!-- Empty state -->
@@ -34,11 +35,10 @@
       <Icon name="delete" size="64px" />
     </span>
     <p class="text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-      Recycle bin is empty
+      {$t('trash.empty')}
     </p>
     <p class="text-xs text-md3-on-surface-variant">
-      Deleted files and folders will appear here. You can restore them
-      or permanently delete them.
+      {$t('trash.description')}
     </p>
   </div>
 </div>

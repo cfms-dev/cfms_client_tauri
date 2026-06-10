@@ -11,6 +11,7 @@
 
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
+  import { _ as t } from 'svelte-i18n';
   import { authStore, serverStateStore, downloadStore } from '$lib/stores.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import { flyScale } from '$lib/motion/transitions';
@@ -37,10 +38,10 @@
   // it is an admin-only area reached via More → Management, and the Manage
   // screen itself runs without the bottom bar.
   const tabs = $derived<TabDef[]>([
-    { href: '/home/files',    label: 'Files',   icon: 'files' },
-    { href: '/home/tasks',    label: 'Tasks',   icon: 'tasks',   badge: activeTaskCount },
-    { href: '/home/overview', label: 'Home',    icon: 'home' },
-    { href: '/home/more',     label: 'More',    icon: 'more' },
+    { href: '/home/files',    label: $t('nav.files'),   icon: 'files' },
+    { href: '/home/tasks',    label: $t('nav.tasks'),   icon: 'tasks',   badge: activeTaskCount },
+    { href: '/home/overview', label: $t('nav.home'),    icon: 'home' },
+    { href: '/home/more',     label: $t('nav.more'),    icon: 'more' },
   ]);
 </script>
 
@@ -59,12 +60,12 @@
           {authStore.nickname ?? authStore.username}
         </span>
         {#if serverStateStore.connected}
-          <span class="w-2 h-2 bg-md3-success rounded-full" title="Connected"></span>
+          <span class="w-2 h-2 bg-md3-success rounded-full" title={$t('common.connected')}></span>
         {:else}
-          <span class="w-2 h-2 bg-md3-error rounded-full" title="Disconnected"></span>
+          <span class="w-2 h-2 bg-md3-error rounded-full" title={$t('common.disconnected')}></span>
         {/if}
       {:else}
-        <span class="text-xs text-md3-on-surface-variant">Not signed in</span>
+        <span class="text-xs text-md3-on-surface-variant">{$t('common.notSignedIn')}</span>
       {/if}
     </div>
   </header>

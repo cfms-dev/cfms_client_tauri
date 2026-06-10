@@ -4,6 +4,7 @@
   // Reference: HomeView / WelcomeInfoCard in reference/src/include/ui/components/homepage.py
 
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
   import { hoverLift, reveal } from '$lib/motion/actions';
   import { flyScale } from '$lib/motion/transitions';
 </script>
@@ -23,12 +24,10 @@
       class="text-lg font-bold text-md3-on-surface"
       style="font-family: var(--font-md3-sans);"
     >
-      Welcome to Confidential Document Management System (CFMS)
+      {$t('home.welcomeTitle')}
     </h1>
     <p class="text-sm text-md3-on-surface-variant mt-1.5 leading-relaxed">
-      Securely manage, transfer, and track your documents with end-to-end
-      encryption. All cryptographic operations are performed locally using
-      AES-256-GCM and PBKDF2-HMAC-SHA256.
+      {$t('home.welcomeBody')}
     </p>
   </div>
 </div>

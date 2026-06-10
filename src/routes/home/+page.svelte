@@ -6,6 +6,7 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
 
   onMount(() => {
     goto('/home/overview', { replaceState: true });
@@ -13,5 +14,5 @@
 </script>
 
 <div class="flex items-center justify-center h-full">
-  <p class="text-sm text-md3-on-surface-variant">Loading…</p>
+  <p class="text-sm text-md3-on-surface-variant">{$t('common.loadingEllipsis')}</p>
 </div>

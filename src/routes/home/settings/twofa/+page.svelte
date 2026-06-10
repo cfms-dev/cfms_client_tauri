@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import {
     cancelTwoFactorSetup,
     disableTwoFactor,
@@ -24,7 +25,7 @@
   let error = $state<string | null>(null);
 
   const enabled = $derived(Boolean(twofa?.enabled));
-  const statusLabel = $derived(enabled ? 'Enabled' : 'Disabled');
+  const statusLabel = $derived(enabled ? $t('common.enabled') : $t('common.disabled'));
   const canVerify = $derived(Boolean(setup && verificationCode.trim().length > 0));
   const canDisable = $derived(enabled && disablePassword.trim().length > 0);
 
@@ -62,7 +63,7 @@
     try {
       setup = await setupTwoFactor();
       verificationCode = '';
-      status = 'Scan the provisioning URI or enter the secret, then verify a code.';
+      status = $t('settings.twofa.setupStarted');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -78,7 +79,7 @@
       await validateTwoFactor(verificationCode.trim());
       setup = null;
       verificationCode = '';
-      status = 'Two-factor authentication enabled successfully.';
+      status = $t('settings.twofa.enabledStatus');
       await refreshStatus();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -94,7 +95,7 @@
       await cancelTwoFactorSetup();
       setup = null;
       verificationCode = '';
-      status = 'Two-factor authentication setup canceled.';
+      status = $t('settings.twofa.setupCanceled');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -109,7 +110,7 @@
     try {
       await disableTwoFactor(disablePassword);
       disablePassword = '';
-      status = 'Two-factor authentication disabled.';
+      status = $t('settings.twofa.disabledStatus');
       await refreshStatus();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -127,11 +128,11 @@
     onclick={() => goto('/home/settings')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Two-Factor Auth
+    {$t('settings.twofa.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
@@ -139,10 +140,10 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          TOTP Status
+          {$t('settings.twofa.statusTitle')}
         </h2>
         <p class="text-xs text-md3-on-surface-variant mt-1">
-          {authReady ? 'Authenticator app verification for this account.' : 'Sign in before managing account 2FA.'}
+          {authReady ? $t('settings.twofa.readyDescription') : $t('settings.twofa.signInDescription')}
         </p>
       </div>
       <span
@@ -153,29 +154,29 @@
         class:text-md3-on-surface-variant={!enabled}
         style="font-family: var(--font-md3-sans);"
       >
-        {loading ? 'Checking...' : statusLabel}
+        {loading ? $t('common.checking') : statusLabel}
       </span>
     </div>
 
     {#if twofa?.method}
       <p class="text-sm text-md3-on-surface-variant">
-        Method: <span class="text-md3-on-surface uppercase">{twofa.method}</span>
-        · Backup codes: {twofa.backup_codes_count}
+        {$t('settings.twofa.method')}: <span class="text-md3-on-surface uppercase">{twofa.method}</span>
+        · {$t('settings.twofa.backupCodesCount')}: {twofa.backup_codes_count}
       </p>
     {/if}
 
     {#if setup}
       <div class="space-y-3">
         <div class="rounded-lg border border-md3-outline/60 bg-md3-surface-container-high/40 p-3 space-y-2">
-          <p class="text-xs text-md3-on-surface-variant">Secret</p>
+          <p class="text-xs text-md3-on-surface-variant">{$t('settings.twofa.secret')}</p>
           <p class="text-sm text-md3-on-surface break-all">{setup.secret}</p>
-          <p class="text-xs text-md3-on-surface-variant">Provisioning URI</p>
+          <p class="text-xs text-md3-on-surface-variant">{$t('settings.twofa.provisioningUri')}</p>
           <p class="text-xs text-md3-on-surface-variant break-all">{setup.provisioning_uri}</p>
         </div>
 
         {#if setup.backup_codes.length > 0}
           <div class="rounded-lg border border-md3-outline/60 bg-md3-surface-container-high/40 p-3">
-            <p class="text-xs text-md3-on-surface-variant mb-2">Backup Codes</p>
+            <p class="text-xs text-md3-on-surface-variant mb-2">{$t('settings.twofa.backupCodes')}</p>
             <div class="grid grid-cols-2 gap-1 text-sm text-md3-on-surface">
               {#each setup.backup_codes as code}
                 <span>{code}</span>
@@ -185,7 +186,7 @@
         {/if}
 
         <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          Verification Code
+          {$t('settings.twofa.verificationCode')}
           <input
             class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                    px-3 py-2 text-md3-on-surface"
@@ -199,7 +200,7 @@
       </div>
     {:else if enabled}
       <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        Current Password
+        {$t('settings.twofa.currentPassword')}
         <input
           class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                  px-3 py-2 text-md3-on-surface"
@@ -234,7 +235,7 @@
           disabled={busy || !canVerify}
         >
           <Icon name="verified" size="18px" />
-          Verify and Enable
+          {$t('settings.twofa.verifyEnable')}
         </button>
         <button
           class="px-4 py-2 rounded-full font-medium text-sm
@@ -244,7 +245,7 @@
           onclick={cancelSetup}
           disabled={busy}
         >
-          Cancel Setup
+          {$t('settings.twofa.cancelSetup')}
         </button>
       {:else if enabled}
         <button
@@ -256,7 +257,7 @@
           disabled={busy || !canDisable}
         >
           <Icon name="lockOpen" size="18px" />
-          Disable Two-Factor Auth
+          {$t('settings.twofa.disable')}
         </button>
       {:else}
         <button
@@ -268,7 +269,7 @@
           disabled={loading || busy || !authReady}
         >
           <Icon name="security" size="18px" />
-          Enable Two-Factor Auth
+          {$t('settings.twofa.enable')}
         </button>
       {/if}
       <button
@@ -280,7 +281,7 @@
         disabled={loading || busy}
       >
         <Icon name="refresh" size="18px" />
-        Refresh
+        {$t('common.refresh')}
       </button>
     </div>
   </div>

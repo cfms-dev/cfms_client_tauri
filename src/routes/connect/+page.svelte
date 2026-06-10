@@ -12,6 +12,7 @@
 
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import { _ as t } from 'svelte-i18n';
   import { connect, disconnect, getAuthStatus, getServerState } from "$lib/api";
   import {
     authStore,
@@ -43,12 +44,11 @@
 
   function validateUrl(): boolean {
     if (!hostPort.trim()) {
-      error = "Server address is required.";
+      error = $t('connect.serverAddressRequired');
       return false;
     }
     if (!hostPort.includes(":") && !hostPort.includes(".")) {
-      error =
-        "Server address must include a host and port (e.g. example.com:5104)";
+      error = $t('connect.serverAddressInvalid');
       return false;
     }
     return true;
@@ -125,7 +125,7 @@
       CFMS Client
     </h1>
     <p class="text-xs text-center text-md3-on-surface-variant mb-8">
-      Connect to a CFMS server to get started
+      {$t('connect.tagline')}
     </p>
 
     <!-- Connect form — MD3 card -->
@@ -144,7 +144,7 @@
           class="block text-sm font-medium mb-1.5 text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
         >
-          Server Address
+          {$t('connect.serverAddress')}
         </label>
         <div
           class="flex items-center rounded-xl border border-md3-outline
@@ -182,7 +182,7 @@
           disabled={busy}
         />
         <span class="text-md3-on-surface-variant"
-          >Disable SSL verification (Insecure)</span
+          >{$t('connect.disableSsl')}</span
         >
       </label>
 
@@ -199,13 +199,13 @@
             <div>
               <p class="font-medium">
                 {protocolError.needsUpdate
-                  ? "Client update required"
-                  : "Server version not supported"}
+                  ? $t('connect.clientUpdateRequired')
+                  : $t('connect.serverVersionUnsupported')}
               </p>
               <p class="mt-1 text-md3-on-surface-variant">
                 {protocolError.needsUpdate
-                  ? `The server uses protocol version ${protocolError.serverVersion}, but your client only supports version ${protocolError.clientVersion}. Please update the client to connect.`
-                  : `The server uses protocol version ${protocolError.serverVersion}, which is older than the client's version ${protocolError.clientVersion} and is not supported.`}
+                  ? $t('connect.clientUpdateMessage', { values: { serverVersion: protocolError.serverVersion, clientVersion: protocolError.clientVersion } })
+                  : $t('connect.serverUnsupportedMessage', { values: { serverVersion: protocolError.serverVersion, clientVersion: protocolError.clientVersion } })}
               </p>
             </div>
           </div>
@@ -218,7 +218,7 @@
               style="font-family: var(--font-md3-sans);"
               onclick={goToAbout}
             >
-              Check for updates
+              {$t('connect.checkUpdates')}
             </button>
           {/if}
         </div>
@@ -246,10 +246,10 @@
       >
         {#if busy}
           <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
-          Connecting…
+          {$t('common.connecting')}
         {:else}
           <Icon name="connect" size="20px" />
-          Connect
+          {$t('connect.connect')}
         {/if}
       </button>
     </form>

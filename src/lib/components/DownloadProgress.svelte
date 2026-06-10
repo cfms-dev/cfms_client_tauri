@@ -10,6 +10,7 @@
   //   status: task status (controls colour and animation)
 
   import type { DownloadTaskStatus } from "../api";
+  import { _ as t } from 'svelte-i18n';
 
   interface Props {
     progress: number;
@@ -78,18 +79,18 @@
         <span class="capitalize">{phase}</span>
       {/if}
       {#if status === "completed"}
-        <span class="text-md3-success font-medium">Complete</span>
+        <span class="text-md3-success font-medium">{$t('tasks.complete')}</span>
       {:else if status === "failed"}
-        <span class="text-md3-error font-medium">Failed</span>
+        <span class="text-md3-error font-medium">{$t('tasks.failed')}</span>
       {:else if status === "cancelled"}
-        <span class="text-md3-on-surface-variant font-medium">Cancelled</span>
+        <span class="text-md3-on-surface-variant font-medium">{$t('tasks.cancelled')}</span>
       {:else if status === "paused"}
-        <span class="text-md3-warning font-medium">Paused</span>
+        <span class="text-md3-warning font-medium">{$t('tasks.paused')}</span>
       {/if}
     </span>
     <span>
       {#if status === "completed"}
-        Download completed
+        {$t('tasks.downloadCompleted')}
       {:else if status === "failed" || status === "cancelled"}
         <!-- empty — reference shows nothing for these statuses -->
       {:else if totalBytes > 0}
@@ -97,7 +98,7 @@
       {:else if progress > 0}
         {pct}%
       {:else}
-        Waiting to start&hellip;
+        {$t('tasks.waitingToStart')}
       {/if}
     </span>
   </div>

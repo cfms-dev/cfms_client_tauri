@@ -7,6 +7,7 @@
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
 
   interface Props {
     /** Called with (code, isRecoveryCode) when the user submits. Returns true on success. */
@@ -26,18 +27,18 @@
 
   const description = $derived(
     useRecoveryCode
-      ? 'Enter one of your recovery codes'
-      : 'Enter the 6-digit code from your authenticator app'
+      ? $t('dialog.twoFactor.recoveryDescription')
+      : $t('dialog.twoFactor.totpDescription')
   );
 
   const toggleLabel = $derived(
     useRecoveryCode
-      ? 'Use authenticator code instead'
-      : 'Use recovery code instead'
+      ? $t('dialog.twoFactor.useAuthenticator')
+      : $t('dialog.twoFactor.useRecovery')
   );
 
   const inputMaxLength = $derived(useRecoveryCode ? 20 : 6);
-  const inputPlaceholder = $derived(useRecoveryCode ? 'Recovery code' : '000000');
+  const inputPlaceholder = $derived(useRecoveryCode ? $t('dialog.twoFactor.recoveryPlaceholder') : '000000');
 
   function handleToggle() {
     useRecoveryCode = !useRecoveryCode;
@@ -49,12 +50,12 @@
     const trimmed = code.trim();
     if (!trimmed) {
       error = useRecoveryCode
-        ? 'Please enter a recovery code'
-        : 'Please enter a 6-digit code';
+        ? $t('dialog.twoFactor.enterRecovery')
+        : $t('dialog.twoFactor.enterTotp');
       return;
     }
     if (!useRecoveryCode && trimmed.length !== 6) {
-      error = 'Please enter a 6-digit code';
+      error = $t('dialog.twoFactor.enterTotp');
       return;
     }
 
@@ -66,8 +67,8 @@
       if (!success) {
         code = '';
         error = useRecoveryCode
-          ? 'Invalid recovery code'
-          : 'Invalid verification code';
+          ? $t('dialog.twoFactor.invalidRecovery')
+          : $t('dialog.twoFactor.invalidCode');
       }
     } catch (e) {
       error = String(e);
@@ -125,7 +126,7 @@
     onkeydown={() => {}}
     role="dialog"
     aria-modal="true"
-    aria-label="Two-Factor Authentication"
+    aria-label={$t('dialog.twoFactor.title')}
     tabindex="-1"
   >
     <!-- Title bar -->
@@ -134,7 +135,7 @@
         class="text-lg font-semibold text-md3-on-surface"
         style="font-family: var(--font-md3-sans);"
       >
-        Two-Factor Authentication
+        {$t('dialog.twoFactor.title')}
       </h2>
       <button
         type="button"
@@ -142,7 +143,7 @@
                transition-colors rounded-full p-1"
         onclick={handleCancel}
         disabled={busy}
-        aria-label="Close"
+        aria-label={$t('common.close')}
       >
         <Icon name="close" size="20px" />
       </button>
@@ -210,7 +211,7 @@
         onclick={handleCancel}
         disabled={busy}
       >
-        Cancel
+        {$t('common.cancel')}
       </button>
       <button
         type="button"
@@ -224,9 +225,9 @@
       >
         {#if busy}
           <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
-          Verifying…
+          {$t('common.verifying')}
         {:else}
-          Verify
+          {$t('dialog.twoFactor.verify')}
         {/if}
       </button>
     </div>

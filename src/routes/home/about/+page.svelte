@@ -8,6 +8,7 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import { cryptoInfo, protocolVersion } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -35,7 +36,7 @@
     updateResult = null;
     // Stub: actual update checking against GitHub releases is a Rust backend concern.
     await new Promise((r) => setTimeout(r, 1500));
-    updateResult = 'Already on the latest version.';
+    updateResult = $t('about.latestVersion');
     checkingUpdate = false;
   }
 </script>
@@ -49,32 +50,32 @@
     onclick={() => goto('/home/more')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    About CFMS Client
+    {$t('about.title')}
   </h1>
 
   <!-- App info -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-3">
     <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Confidential File Management System
+      {$t('about.productName')}
     </h2>
 
     <div class="text-sm space-y-1.5">
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Version:</span> 0.1.0
+        <span class="text-md3-on-surface">{$t('about.version')}:</span> 0.1.0
       </p>
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Protocol:</span> v{protoVer}
+        <span class="text-md3-on-surface">{$t('about.protocol')}:</span> v{protoVer}
       </p>
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Copyright:</span> © 2025–2026 Creeper Team
+        <span class="text-md3-on-surface">{$t('about.copyright')}:</span> © 2025–2026 Creeper Team
       </p>
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">License:</span> Apache License 2.0
+        <span class="text-md3-on-surface">{$t('about.license')}:</span> Apache License 2.0
       </p>
     </div>
   </div>
@@ -83,24 +84,24 @@
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5">
     <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Technical Details
+      {$t('about.technicalDetails')}
     </h2>
     <div class="text-sm space-y-1.5">
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Encryption:</span> AES-256-GCM · PBKDF2-HMAC-SHA256
+        <span class="text-md3-on-surface">{$t('about.encryption')}:</span> AES-256-GCM · PBKDF2-HMAC-SHA256
       </p>
       {#if cryptoInfoData}
         <p class="text-md3-on-surface-variant">
-          <span class="text-md3-on-surface">KDF:</span>
-          {cryptoInfoData.kdf_iterations.toLocaleString()} iterations,
-          {cryptoInfoData.salt_len}-byte salt
+          <span class="text-md3-on-surface">{$t('about.kdf')}:</span>
+          {cryptoInfoData.kdf_iterations.toLocaleString()} {$t('about.iterations')},
+          {$t('about.byteSalt', { values: { count: cryptoInfoData.salt_len } })}
         </p>
       {/if}
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Transport:</span> WSS with frame multiplexing
+        <span class="text-md3-on-surface">{$t('about.transport')}:</span> WSS with frame multiplexing
       </p>
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Frontend:</span> Svelte 5 + TailwindCSS v4 · MD3
+        <span class="text-md3-on-surface">{$t('about.frontend')}:</span> Svelte 5 + TailwindCSS v4 · MD3
       </p>
     </div>
   </div>
@@ -109,13 +110,13 @@
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
     <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Software Update
+      {$t('about.softwareUpdate')}
     </h2>
 
     {#if checkingUpdate}
       <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
         <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
-        Checking for updates…
+        {$t('about.checkingUpdates')}
       </div>
     {:else if updateResult}
       <p class="text-sm text-md3-success flex items-center gap-1.5">
@@ -134,7 +135,7 @@
       disabled={checkingUpdate}
     >
       <Icon name="update" size="18px" />
-      Check for Updates
+      {$t('about.checkForUpdates')}
     </button>
   </div>
 </div>

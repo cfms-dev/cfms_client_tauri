@@ -14,6 +14,7 @@
 
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import { _ as t } from 'svelte-i18n';
   import { authStore, serverStateStore } from "$lib/stores.svelte";
   import {
     login,
@@ -59,10 +60,10 @@
 
   // Loading phases after successful login (matching reference's DataLoadingView).
   const loadingPhases = [
-    "Loading user data…",
-    "Setting up encryption…",
-    "Downloading avatar…",
-    "Loading tasks…",
+    $t('login.loadingUserData'),
+    $t('login.settingUpEncryption'),
+    $t('login.downloadingAvatar'),
+    $t('login.loadingTasks'),
   ];
 
   /** Run the post-login loading phases with real backend work.
@@ -164,11 +165,11 @@
     fieldErrors = {};
     let valid = true;
     if (!username.trim()) {
-      fieldErrors.username = "Username is required.";
+      fieldErrors.username = $t('login.usernameRequired');
       valid = false;
     }
     if (!password) {
-      fieldErrors.password = "Password is required.";
+      fieldErrors.password = $t('login.passwordRequired');
       valid = false;
     }
     return valid;
@@ -178,7 +179,7 @@
   function formatError(e: unknown): string {
     if (typeof e === "string") return e;
     if (e instanceof Error) return e.message;
-    return "An unknown error occurred.";
+    return $t('login.unknownError');
   }
 
   /** Check whether an error indicates the server requires a password change
@@ -260,7 +261,7 @@
     error = null;
     password = newPassword; // pre-fill so they can sign in straight away
     successMessage =
-      "Password changed successfully. Please sign in with your new password.";
+      $t('login.passwordChangedSignIn');
   }
 
   function handleChangePasswordCancel() {
@@ -355,7 +356,7 @@
           {loadingPhase}
         </p>
         <p class="text-xs text-md3-on-surface-variant">
-          Please wait while your session is being set up.
+          {$t('login.setupWait')}
         </p>
       </div>
     {:else}
@@ -369,7 +370,7 @@
           {serverName}
         </p>
         <p class="text-xs text-md3-on-surface-variant">
-          Connected — sign in to continue
+          {$t('login.connectedSignIn')}
         </p>
       </div>
 
@@ -405,7 +406,7 @@
             class="block text-sm font-medium mb-1.5 text-md3-on-surface"
             style="font-family: var(--font-md3-sans);"
           >
-            Username
+            {$t('login.username')}
           </label>
           <div class="relative">
             <span
@@ -424,7 +425,7 @@
                      placeholder:text-md3-on-surface-variant
                      focus:ring-2 focus:ring-md3-primary focus:border-transparent
                      transition-colors"
-              placeholder="Enter your username"
+              placeholder={$t('login.usernamePlaceholder')}
               bind:value={username}
               disabled={busy}
               autocomplete="username"
@@ -444,7 +445,7 @@
             class="block text-sm font-medium mb-1.5 text-md3-on-surface"
             style="font-family: var(--font-md3-sans);"
           >
-            Password
+            {$t('login.password')}
           </label>
           <div class="relative">
             <span
@@ -463,7 +464,7 @@
                      placeholder:text-md3-on-surface-variant
                      focus:ring-2 focus:ring-md3-primary focus:border-transparent
                      transition-colors"
-              placeholder="Enter your password"
+              placeholder={$t('login.passwordPlaceholder')}
               bind:value={password}
               disabled={busy}
               autocomplete="current-password"
@@ -474,7 +475,7 @@
                      hover:text-md3-on-surface transition-colors"
               onclick={() => (passwordVisible = !passwordVisible)}
               tabindex="-1"
-              aria-label={passwordVisible ? "Hide password" : "Show password"}
+              aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
             >
               <Icon
                 name={passwordVisible ? "visibility" : "visibility"}
@@ -500,9 +501,9 @@
                 ><Icon name="lockPerson" size="18px" /></span
               >
               <div>
-                <p class="font-medium">Password change required</p>
+                <p class="font-medium">{$t('login.passwordChangeRequired')}</p>
                 <p class="mt-1">
-                  Your password must be changed before you can sign in.
+                  {$t('login.passwordChangeRequiredBody')}
                 </p>
               </div>
             </div>
@@ -517,7 +518,7 @@
               disabled={busy}
             >
               <Icon name="lockPerson" size="16px" />
-              Change Password
+              {$t('login.changePassword')}
             </button>
           </div>
         {/if}
@@ -561,7 +562,7 @@
             disabled={busy}
           >
             <Icon name="chevronLeft" size="18px" />
-            Disconnect
+            {$t('login.disconnect')}
           </button>
 
           <button
@@ -577,10 +578,10 @@
               <span class="animate-spin"
                 ><Icon name="refresh" size="18px" /></span
               >
-              Signing in…
+              {$t('common.signingIn')}
             {:else}
               <Icon name="login" size="20px" />
-              Login
+              {$t('login.login')}
             {/if}
           </button>
         </div>

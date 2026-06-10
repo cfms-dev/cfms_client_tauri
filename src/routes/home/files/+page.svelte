@@ -8,6 +8,7 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import {
     listDirectory,
     getDocument,
@@ -201,7 +202,7 @@
   // --- Toolbar actions ---
 
   async function handleCreateFolder() {
-    const name = window.prompt('New folder name:');
+    const name = window.prompt($t('files.newFolderPrompt'));
     if (!name || !name.trim()) return;
     try {
       await createDirectory(currentFolderId, name.trim(), true);
@@ -214,7 +215,7 @@
   async function handleDeleteSelected() {
     if (totalSelected === 0) return;
     const confirmed = window.confirm(
-      `Delete ${totalSelected} selected item(s)? This action cannot be undone.`,
+      $t('files.deleteSelectedConfirm', { values: { count: totalSelected } }),
     );
     if (!confirmed) return;
     try {
@@ -284,7 +285,7 @@
 
 <div class="p-6 space-y-4">
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    File Management
+    {$t('files.title')}
   </h1>
 
   <!-- Top toolbar -->
@@ -295,11 +296,11 @@
              bg-md3-surface-container-high text-md3-on-surface-variant
              hover:brightness-110 transition-all flex items-center gap-1.5"
       style="font-family: var(--font-md3-sans);"
-      title="Create folder"
+      title={$t('files.createFolder')}
       onclick={handleCreateFolder}
     >
       <Icon name="createNewFolder" size="16px" />
-      New Folder
+      {$t('files.newFolder')}
     </button>
 
     <!-- Selection mode toggle -->
@@ -313,7 +314,7 @@
       onclick={toggleSelectMode}
     >
       <Icon name="checklist" size="16px" />
-      Select
+      {$t('files.select')}
     </button>
 
     <!-- Trash -->
@@ -322,11 +323,11 @@
              bg-md3-surface-container-high text-md3-on-surface-variant
              hover:brightness-110 transition-all flex items-center gap-1.5"
       style="font-family: var(--font-md3-sans);"
-      title="Recycle bin"
+      title={$t('files.recycleBin')}
       onclick={handleNavigateTrash}
     >
       <Icon name="deleteSweep" size="16px" />
-      Trash
+      {$t('files.trash')}
     </button>
 
     <!-- Spacer -->
@@ -344,7 +345,7 @@
                placeholder:text-md3-on-surface-variant
                focus:ring-2 focus:ring-md3-primary focus:border-transparent
                transition-colors"
-        placeholder="Search…"
+        placeholder={$t('files.search')}
         bind:value={searchPattern}
       />
       <button
@@ -355,7 +356,7 @@
         style="font-family: var(--font-md3-sans);"
       >
         <Icon name="search" size="16px" />
-        Filter
+        {$t('files.filter')}
       </button>
     </form>
 
@@ -364,7 +365,7 @@
       class="p-1.5 rounded-full text-md3-on-surface-variant
              hover:bg-md3-surface-container-high transition-colors"
       onclick={() => loadDirectory(currentFolderId)}
-      title="Refresh"
+      title={$t('common.refresh')}
     >
       <Icon name="refresh" size="20px" />
     </button>
@@ -375,7 +376,7 @@
     <div class="flex items-center gap-2 bg-md3-primary-container/30 rounded-xl
                 border border-md3-primary/20 px-3 py-2">
       <span class="text-xs text-md3-on-surface-variant">
-        {totalSelected} selected
+        {$t('files.selected', { values: { count: totalSelected } })}
       </span>
       <button
         class="px-2.5 py-1 text-xs rounded-full font-medium
@@ -385,7 +386,7 @@
         onclick={handleDeleteSelected}
       >
         <Icon name="delete" size="14px" />
-        Delete
+        {$t('common.delete')}
       </button>
       <button
         class="px-2.5 py-1 text-xs rounded-full font-medium
@@ -395,7 +396,7 @@
         onclick={clearSelection}
       >
         <Icon name="close" size="14px" />
-        Clear
+        {$t('common.clear')}
       </button>
     </div>
   {/if}
@@ -417,7 +418,7 @@
       <span class="animate-spin">
         <Icon name="refresh" size="18px" />
       </span>
-      Loading…
+      {$t('common.loadingEllipsis')}
     </div>
   {/if}
 
@@ -433,14 +434,14 @@
                   border-b border-md3-outline"
            style="font-family: var(--font-md3-sans);">
         <span></span>
-        <span class="select-none">Name</span>
-        <span class="text-right select-none">Size</span>
-        <span class="text-right select-none">Modified</span>
+        <span class="select-none">{$t('files.name')}</span>
+        <span class="text-right select-none">{$t('files.size')}</span>
+        <span class="text-right select-none">{$t('files.modified')}</span>
       </div>
 
       {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
         <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
-          This directory is empty.
+          {$t('files.empty')}
         </p>
       {/if}
 
@@ -460,7 +461,7 @@
             &lt;…&gt;
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">Parent directory</span>
+          <span class="text-xs text-md3-on-surface-variant text-right self-center">{$t('files.parentDirectory')}</span>
         </button>
       {/if}
 
@@ -550,7 +551,7 @@
         onclick={contextDownload}
       >
         <Icon name="download" size="16px" />
-        Download
+        {$t('common.download')}
       </button>
     {/if}
     <button
@@ -562,7 +563,7 @@
       onclick={contextDelete}
     >
       <Icon name="delete" size="16px" />
-      Delete
+      {$t('common.delete')}
     </button>
   </div>
 {/if}

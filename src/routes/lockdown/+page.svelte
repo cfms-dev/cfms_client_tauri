@@ -7,6 +7,7 @@
   // Reference: LockdownModel in reference/src/include/ui/models/misc/lockdown.py
 
   import { onMount } from 'svelte';
+  import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
 
   let currentTime = $state('');
@@ -40,13 +41,11 @@
       class="text-2xl font-bold text-md3-on-surface"
       style="font-family: var(--font-md3-sans);"
     >
-      Lockdown
+      {$t('lockdown.title')}
     </h1>
 
     <p class="text-sm text-md3-on-surface-variant leading-relaxed">
-      The server is currently under lockdown. All file operations are suspended
-      and the connection is being held. Please contact your system administrator
-      for more information.
+      {$t('lockdown.body')}
     </p>
 
     <!-- Live clock -->
@@ -59,7 +58,7 @@
 
     <div class="border-t border-md3-outline pt-4">
       <p class="text-xs text-md3-on-surface-variant mb-4">
-        Wait until the state is lifted or
+        {$t('lockdown.wait')}
       </p>
       <button
         class="px-8 py-2.5 rounded-full font-medium
@@ -70,7 +69,7 @@
         onclick={() => window.close()}
       >
         <Icon name="close" size="18px" />
-        Quit
+        {$t('lockdown.quit')}
       </button>
     </div>
   </div>

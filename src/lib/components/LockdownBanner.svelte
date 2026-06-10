@@ -5,6 +5,7 @@
   // MD3 styling: error container with on-error-container text.
 
   import Icon from './Icon.svelte';
+  import { _ as t } from 'svelte-i18n';
   import { flyScale } from '$lib/motion/transitions';
 
   interface Props {
@@ -23,7 +24,6 @@
     transition:flyScale={{ y: -20, duration: 300 }}
   >
     <Icon name="warning" size="18px" />
-    LOCKDOWN ACTIVE — The server is in emergency lockdown mode.
-    All file operations are suspended. Contact your administrator.
+    {$t('lockdown.banner')}
   </div>
 {/if}

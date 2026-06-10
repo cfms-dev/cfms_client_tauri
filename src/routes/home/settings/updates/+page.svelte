@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import { getVersion } from '@tauri-apps/api/app';
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import { getSetting, setSetting } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
 
   type UpdateChannel = 'stable' | 'beta';
 
   let channel = $state<UpdateChannel>('stable');
-  let appVersion = $state('unknown');
+  let appVersion = $state('');
   let loading = $state(true);
   let saving = $state(false);
   let checking = $state(false);
@@ -17,8 +18,8 @@
 
   const channelDescription = $derived(
     channel === 'stable'
-      ? 'Stable releases with the most testing.'
-      : 'Pre-release builds for feature testing.',
+      ? $t('settings.updates.stableDescription')
+      : $t('settings.updates.betaDescription'),
   );
 
   $effect(() => {
@@ -31,7 +32,7 @@
     try {
       const [saved, version] = await Promise.all([
         getSetting('update_channel'),
-        getVersion().catch(() => 'unknown'),
+        getVersion().catch(() => $t('common.unknown')),
       ]);
       if (saved === 'stable' || saved === 'beta') {
         channel = saved;
@@ -49,7 +50,7 @@
     error = null;
     try {
       await setSetting('update_channel', channel);
-      status = 'Update channel saved.';
+      status = $t('settings.updates.saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -62,7 +63,7 @@
     error = null;
     try {
       await new Promise((resolve) => window.setTimeout(resolve, 600));
-      status = 'You are on the latest version.';
+      status = $t('settings.updates.latest');
     } finally {
       checking = false;
     }
@@ -77,41 +78,41 @@
     onclick={() => goto('/home/settings')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Updates
+    {$t('settings.updates.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
     <div class="text-sm space-y-1.5">
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Current version:</span> {appVersion}
+        <span class="text-md3-on-surface">{$t('settings.updates.currentVersion')}:</span> {appVersion}
       </p>
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">Channel:</span> {channelDescription}
+        <span class="text-md3-on-surface">{$t('settings.updates.channel')}:</span> {channelDescription}
       </p>
     </div>
 
     <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Update Channel
+      {$t('settings.updates.updateChannel')}
       <select
         class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                px-3 py-2 text-md3-on-surface"
         bind:value={channel}
         disabled={loading || saving}
       >
-        <option value="stable">Stable</option>
-        <option value="beta">Beta</option>
+        <option value="stable">{$t('settings.updates.stable')}</option>
+        <option value="beta">{$t('settings.updates.beta')}</option>
       </select>
     </label>
 
     {#if checking}
       <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
         <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
-        Checking for updates...
+        {$t('about.checkingUpdates')}
       </div>
     {/if}
     {#if status}
@@ -137,7 +138,7 @@
         disabled={loading || saving}
       >
         <Icon name="done" size="18px" />
-        {saving ? 'Saving...' : 'Save Channel'}
+        {saving ? $t('common.saving') : $t('settings.updates.save')}
       </button>
       <button
         class="px-4 py-2 rounded-full font-medium text-sm
@@ -148,7 +149,7 @@
         disabled={checking}
       >
         <Icon name="update" size="18px" />
-        Check for Updates
+        {$t('settings.updates.check')}
       </button>
     </div>
   </div>

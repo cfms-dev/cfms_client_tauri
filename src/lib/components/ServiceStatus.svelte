@@ -7,6 +7,8 @@
   //   name: service display name
   //   running: whether the service is currently active
 
+  import { _ as t } from 'svelte-i18n';
+
   interface Props {
     name: string;
     running: boolean;
@@ -28,6 +30,6 @@
     class:text-md3-success={running}
     class:text-md3-error={!running}
   >
-    {running ? "Running" : "Stopped"}
+    {running ? $t('home.serviceRunning') : $t('home.serviceStopped')}
   </span>
 </div>

@@ -6,10 +6,11 @@
   // Reference: AccountBadge in reference/src/include/ui/components/account.py
 
   import { authStore } from '$lib/stores.svelte';
+  import { _ as t } from 'svelte-i18n';
   import Icon from './Icon.svelte';
   import AvatarPreview from './AvatarPreview.svelte';
 
-  const username = $derived(authStore.username ?? 'Unknown');
+  const username = $derived(authStore.username ?? $t('common.unknown'));
   const nickname = $derived(authStore.nickname);
   const groups = $derived(authStore.groups);
   const avatarPath = $derived(authStore.avatarPath);

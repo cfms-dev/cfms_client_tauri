@@ -7,6 +7,7 @@
   // Reference: DisclaimerModel in reference/src/include/ui/models/misc/disclaimer.py
 
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import { disclaimerStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -26,12 +27,12 @@
           class="text-xl font-bold text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
         >
-          Disclaimer
+          {$t('disclaimer.title')}
         </h1>
       </div>
 
       <p class="text-sm text-md3-on-surface-variant">
-        Please read and accept the disclaimer before using the application.
+        {$t('disclaimer.intro')}
       </p>
 
       <div class="border-t border-md3-outline"></div>
@@ -40,33 +41,23 @@
       <div class="text-sm text-md3-on-surface-variant space-y-3 max-h-64 overflow-y-auto
                   bg-md3-surface-container-low/40 rounded-xl p-4">
         <p>
-          This software is provided "as is", without warranty of any kind, express or
-          implied, including but not limited to the warranties of merchantability,
-          fitness for a particular purpose and noninfringement.
+          {$t('disclaimer.paragraph1')}
         </p>
         <p>
-          In no event shall the authors or copyright holders be liable for any claim,
-          damages or other liability, whether in an action of contract, tort or otherwise,
-          arising from, out of or in connection with the software or the use or other
-          dealings in the software.
+          {$t('disclaimer.paragraph2')}
         </p>
         <p>
-          This application connects to remote servers over encrypted WebSocket (WSS)
-          connections. You are responsible for ensuring that you have proper authorization
-          to access any server you connect to.
+          {$t('disclaimer.paragraph3')}
         </p>
         <p>
-          All cryptographic operations are performed locally using industry-standard
-          algorithms (AES-256-GCM, PBKDF2-HMAC-SHA256). The application does not transmit
-          plaintext credentials or encryption keys over the network.
+          {$t('disclaimer.paragraph4')}
         </p>
       </div>
 
       <div class="border-t border-md3-outline"></div>
 
       <p class="text-sm font-semibold text-md3-warning">
-        You are solely responsible for your use of this application and compliance
-        with applicable laws and regulations.
+        {$t('disclaimer.responsibility')}
       </p>
 
       <!-- Actions -->
@@ -85,7 +76,7 @@
           disabled={busy}
         >
           <Icon name="done" size="18px" />
-          Accept
+          {$t('disclaimer.accept')}
         </button>
         <button
           class="flex-1 py-2.5 px-4 rounded-full font-medium
@@ -97,7 +88,7 @@
           disabled={busy}
         >
           <Icon name="close" size="18px" />
-          Reject and Quit
+          {$t('disclaimer.rejectAndQuit')}
         </button>
       </div>
     </div>
