@@ -5,18 +5,19 @@
 //! wire carry a [`FrameHeader`](super::frame::FrameHeader) so that multiple
 //! logical streams can share a single TCP/TLS connection.
 
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use cfms_core::Result;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{
-    Connector, MaybeTlsStream, WebSocketStream, connect_async_tls_with_config,
-};
+use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config};
 use tracing::{debug, error, info, warn};
 
 use crate::frame::{self, FrameHeader, FrameKind};
@@ -26,7 +27,52 @@ use crate::stream::Stream;
 // Type alias
 // ---------------------------------------------------------------------------
 
-type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
+type WsStream = WebSocketStream<MaybeTlsStream<MaybeProxyStream>>;
+
+enum MaybeProxyStream {
+    Direct(TcpStream),
+    Socks5(tokio_socks::tcp::Socks5Stream<TcpStream>),
+}
+
+impl AsyncRead for MaybeProxyStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            Self::Direct(stream) => Pin::new(stream).poll_read(cx, buf),
+            Self::Socks5(stream) => Pin::new(stream).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for MaybeProxyStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        data: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        match &mut *self {
+            Self::Direct(stream) => Pin::new(stream).poll_write(cx, data),
+            Self::Socks5(stream) => Pin::new(stream).poll_write(cx, data),
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            Self::Direct(stream) => Pin::new(stream).poll_flush(cx),
+            Self::Socks5(stream) => Pin::new(stream).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            Self::Direct(stream) => Pin::new(stream).poll_shutdown(cx),
+            Self::Socks5(stream) => Pin::new(stream).poll_shutdown(cx),
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Connection
@@ -82,36 +128,30 @@ impl Connection {
         url: &str,
         tls: rustls::ClientConfig,
         proxy: Option<&str>,
+        force_ipv4: bool,
     ) -> Result<Self> {
         if let Some(proxy_addr) = proxy {
             // Extract host and port from the URL for SOCKS5.
             let (host, port) = parse_ws_url(url)?;
 
             let tcp_stream = crate::proxy::socks5_connect(proxy_addr, &host, port).await?;
-
-            // Perform TLS handshake over the proxied TCP stream, then
-            // wrap in tungstenite.
-            // NOTE: Full custom TLS connector integration with rustls over
-            // SOCKS5 proxy is deferred to Phase 2.  For now we log a
-            // warning and fall back to a direct connection (which still
-            // uses the custom TLS config).
-            warn!(
-                "SOCKS5 proxy connected to {host}:{port}; \
-                 custom TLS over proxy will be completed in Phase 2. \
-                 Falling back to direct WSS connection."
-            );
-            // Drop the proxied stream for now.
-            drop(tcp_stream);
+            let transport = MaybeProxyStream::Socks5(tcp_stream);
+            return Self::connect_over_stream(url, tls, transport).await;
         }
 
-        Self::connect_direct(url, tls).await
+        let (host, port) = parse_ws_url(url)?;
+        let tcp_stream = connect_tcp(&host, port, force_ipv4).await?;
+        Self::connect_over_stream(url, tls, MaybeProxyStream::Direct(tcp_stream)).await
     }
 
-    /// Direct WSS connection (no proxy), using the provided TLS config.
-    async fn connect_direct(url: &str, tls: rustls::ClientConfig) -> Result<Self> {
+    async fn connect_over_stream(
+        url: &str,
+        tls: rustls::ClientConfig,
+        transport: MaybeProxyStream,
+    ) -> Result<Self> {
         let connector = Connector::Rustls(Arc::new(tls));
         let (ws_stream, _response) =
-            connect_async_tls_with_config(url, None, false, Some(connector))
+            client_async_tls_with_config(url, transport, None, Some(connector))
                 .await
                 .map_err(|e| cfms_core::Error::Connection(e.to_string()))?;
 
@@ -304,6 +344,40 @@ fn parse_ws_url(url: &str) -> Result<(String, u16)> {
             Ok((authority.to_string(), port))
         }
     }
+}
+
+fn format_host_port(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+async fn connect_tcp(host: &str, port: u16, force_ipv4: bool) -> Result<TcpStream> {
+    if !force_ipv4 {
+        return TcpStream::connect(format_host_port(host, port))
+            .await
+            .map_err(|e| cfms_core::Error::Connection(format!("TCP connect failed: {e}")));
+    }
+
+    let addrs = tokio::net::lookup_host(format_host_port(host, port))
+        .await
+        .map_err(|e| cfms_core::Error::Connection(format!("DNS lookup failed: {e}")))?;
+
+    let mut last_error = None;
+    for addr in addrs.filter(|addr| addr.is_ipv4()) {
+        match TcpStream::connect(addr).await {
+            Ok(stream) => return Ok(stream),
+            Err(err) => last_error = Some(err),
+        }
+    }
+
+    Err(cfms_core::Error::Connection(
+        last_error
+            .map(|err| format!("IPv4 TCP connect failed: {err}"))
+            .unwrap_or_else(|| format!("no IPv4 address found for {host}")),
+    ))
 }
 
 impl std::fmt::Debug for Connection {

@@ -781,20 +781,37 @@ fn emit_active_count(queue: &QueueState, state: &AppState) {
 async fn create_transfer_connection(
     state: &AppState,
 ) -> std::result::Result<cfms_transport::Connection, String> {
-    let (url, ca_dir, disable_ssl) = {
+    let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
         let addr = state.server_address.read().await;
         let ca = state.ca_dir.read().await;
         let dse = state.disable_ssl_enforcement.read().await;
-        (addr.clone(), ca.clone(), *dse)
+        let proxy = state.proxy_addr.read().await;
+        let force_ipv4 = state.force_ipv4.read().await;
+        let cert = state.client_cert_path.read().await;
+        let key = state.client_key_path.read().await;
+        (
+            addr.clone(),
+            ca.clone(),
+            *dse,
+            proxy.clone(),
+            *force_ipv4,
+            cert.clone(),
+            key.clone(),
+        )
     };
 
     let url = url.ok_or_else(|| "No server address configured".to_string())?;
     let ca_dir = ca_dir.ok_or_else(|| "No CA directory configured".to_string())?;
 
-    let tls_config = cfms_transport::tls::build_config(&ca_dir, disable_ssl)
-        .map_err(|e| format!("TLS config error: {e}"))?;
+    let tls_config = cfms_transport::tls::build_config_with_identity(
+        &ca_dir,
+        disable_ssl,
+        client_cert_path.as_deref(),
+        client_key_path.as_deref(),
+    )
+    .map_err(|e| format!("TLS config error: {e}"))?;
 
-    cfms_transport::Connection::connect(&url, tls_config, None)
+    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4)
         .await
         .map_err(|e| format!("Transfer connection failed: {e}"))
 }

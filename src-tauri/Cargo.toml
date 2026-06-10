@@ -32,6 +32,8 @@ tokio.workspace = true
 tracing.workspace = true
 rand.workspace = true
 hex = "0.4.3"
+fluent-bundle.workspace = true
+unic-langid.workspace = true
 tauri-plugin-log = "2"
 tauri-plugin-background-service.workspace = true
 

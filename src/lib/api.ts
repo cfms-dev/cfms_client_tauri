@@ -171,6 +171,15 @@ export interface ServerInfo {
   lockdown: boolean;
 }
 
+export interface ConnectionSettings {
+  enable_proxy: boolean;
+  follow_system_proxy: boolean;
+  custom_proxy: string;
+  force_ipv4: boolean;
+  client_cert_path: string;
+  client_key_path: string;
+}
+
 // ---------------------------------------------------------------------------
 // IPC command wrappers
 // ---------------------------------------------------------------------------
@@ -423,6 +432,33 @@ export async function getSetting(key: string): Promise<string | null> {
 /** Write a user setting. */
 export async function setSetting(key: string, value: string): Promise<void> {
   return invoke("set_setting", { key, value });
+}
+
+/** Get the active backend locale. */
+export async function getLocale(): Promise<string> {
+  return invoke("get_locale");
+}
+
+/** Set the active frontend/backend locale. */
+export async function setLocale(language: string): Promise<string> {
+  return invoke("set_locale", { language });
+}
+
+/** Translate a backend Fluent message key using the active locale. */
+export async function translateBackend(key: string): Promise<string> {
+  return invoke("translate_backend", { key });
+}
+
+/** Load connection settings that are consumed by backend connections. */
+export async function getConnectionSettings(): Promise<ConnectionSettings> {
+  return invoke("get_connection_settings");
+}
+
+/** Save connection settings consumed by backend connections. */
+export async function setConnectionSettings(
+  settings: ConnectionSettings,
+): Promise<void> {
+  return invoke("set_connection_settings", { settings });
 }
 
 // ---------------------------------------------------------------------------

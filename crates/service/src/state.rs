@@ -56,9 +56,17 @@ pub struct AppState {
     pub server_protocol_version: RwLock<Option<u32>>,
     /// If `true`, TLS certificate validation is skipped.
     pub disable_ssl_enforcement: RwLock<bool>,
+    /// If `true`, direct outbound connections only use IPv4 addresses.
+    pub force_ipv4: RwLock<bool>,
     /// Path to the CA certificate directory, stored so that dedicated
     /// transfer connections can rebuild TLS config on demand.
     pub ca_dir: RwLock<Option<PathBuf>>,
+    /// Optional SOCKS5 proxy address used for all outbound server connections.
+    pub proxy_addr: RwLock<Option<String>>,
+    /// Optional client certificate path for mutual TLS.
+    pub client_cert_path: RwLock<Option<PathBuf>>,
+    /// Optional client private key path for mutual TLS.
+    pub client_key_path: RwLock<Option<PathBuf>>,
 
     // --- Application ---
     /// Whether the server has activated lockdown mode.
@@ -103,7 +111,11 @@ impl AppState {
             server_name: RwLock::new(None),
             server_protocol_version: RwLock::new(None),
             disable_ssl_enforcement: RwLock::new(false),
+            force_ipv4: RwLock::new(false),
             ca_dir: RwLock::new(None),
+            proxy_addr: RwLock::new(None),
+            client_cert_path: RwLock::new(None),
+            client_key_path: RwLock::new(None),
             app_lockdown: AtomicBool::new(false),
             pending_2fa: AtomicBool::new(false),
             event_tx,

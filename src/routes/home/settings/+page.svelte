@@ -6,28 +6,29 @@
   // Reference: SettingsModel in reference/src/include/ui/models/settings/overview.py
 
   import { goto } from '$app/navigation';
+  import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
 
   interface SettingsEntry {
-    label: string;
-    description: string;
+    labelKey: string;
+    descriptionKey: string;
     icon: IconName;
     href: string;
   }
 
   const entries: SettingsEntry[] = [
-    { label: 'Language', description: 'Application display language',
+    { labelKey: 'settings.language.title', descriptionKey: 'settings.language.description',
       icon: 'language', href: '/home/settings/language' },
-    { label: 'Connection', description: 'Proxy, TLS and timeout settings',
+    { labelKey: 'settings.connection.title', descriptionKey: 'settings.connection.description',
       icon: 'connect', href: '/home/settings/connection' },
-    { label: 'Storage', description: 'Cache path and storage management',
+    { labelKey: 'settings.storage.title', descriptionKey: 'settings.storage.description',
       icon: 'storage', href: '/home/settings/storage' },
-    { label: 'Security', description: 'Encryption parameters and CA certificates',
+    { labelKey: 'settings.security.title', descriptionKey: 'settings.security.description',
       icon: 'security', href: '/home/settings/security' },
-    { label: 'Updates', description: 'Software update channel and checking',
+    { labelKey: 'settings.updates.title', descriptionKey: 'settings.updates.description',
       icon: 'browserUpdated', href: '/home/settings/updates' },
-    { label: 'Two-Factor Auth', description: '2FA setup and backup codes',
+    { labelKey: 'settings.twofa.title', descriptionKey: 'settings.twofa.description',
       icon: 'verifiedUser', href: '/home/settings/twofa' },
   ];
 </script>
@@ -41,11 +42,11 @@
     onclick={() => goto('/home/more')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Settings
+    {$t('settings.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
@@ -64,10 +65,10 @@
         <div class="min-w-0">
           <p class="text-sm font-medium text-md3-on-surface"
              style="font-family: var(--font-md3-sans);">
-            {entry.label}
+            {$t(entry.labelKey)}
           </p>
           <p class="text-xs text-md3-on-surface-variant truncate">
-            {entry.description}
+            {$t(entry.descriptionKey)}
           </p>
         </div>
         <span class="ml-auto text-md3-on-surface-variant">

@@ -1,24 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getSetting, setSetting } from '$lib/api';
+  import { _ as t } from 'svelte-i18n';
+  import { getLocale } from '$lib/api';
+  import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/i18n';
   import Icon from '$lib/components/Icon.svelte';
 
-  type LanguageCode = 'en' | 'zh_CN';
-
-  const languages: Array<{ value: LanguageCode; label: string }> = [
-    { value: 'en', label: 'English' },
-    { value: 'zh_CN', label: '简体中文' },
+  const languages: Array<{ value: AppLocale; labelKey: string }> = [
+    { value: 'zh_CN', labelKey: 'settings.language.chinese' },
+    { value: 'en', labelKey: 'settings.language.english' },
   ];
 
-  let language = $state<LanguageCode>('en');
+  let language = $state<AppLocale>('zh_CN');
   let loading = $state(true);
   let saving = $state(false);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
 
   const selectedLanguageLabel = $derived(
-    languages.find((item) => item.value === language)?.label ?? 'English',
+    $t(languages.find((item) => item.value === language)?.labelKey ?? 'settings.language.chinese'),
   );
 
   $effect(() => {
@@ -29,10 +29,7 @@
 
   onMount(async () => {
     try {
-      const saved = await getSetting('language');
-      if (saved === 'en' || saved === 'zh_CN') {
-        language = saved;
-      }
+      language = normalizeLocale(await getLocale());
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -44,8 +41,8 @@
     saving = true;
     error = null;
     try {
-      await setSetting('language', language);
-      status = 'Language setting saved. Language change applies on restart.';
+      language = await setAppLocale(language);
+      status = $t('settings.language.saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -62,21 +59,21 @@
     onclick={() => goto('/home/settings')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Language
+    {$t('settings.language.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
     <div>
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        Display Language
+        {$t('settings.language.display')}
       </h2>
       <p class="text-xs text-md3-on-surface-variant mt-1">
-        Current selection: {selectedLanguageLabel}
+        {$t('settings.language.current', { values: { language: selectedLanguageLabel } })}
       </p>
     </div>
 
@@ -96,13 +93,13 @@
             bind:group={language}
             disabled={loading || saving}
           />
-          {option.label}
+          {$t(option.labelKey)}
         </label>
       {/each}
     </div>
 
     <p class="text-xs text-md3-on-surface-variant">
-      Language change applies on restart.
+      {$t('settings.language.restart')}
     </p>
 
     {#if status}
@@ -128,7 +125,7 @@
       disabled={loading || saving}
     >
       <Icon name="done" size="18px" />
-      {saving ? 'Saving...' : 'Save Language'}
+      {saving ? $t('common.saving') : $t('settings.language.save')}
     </button>
   </div>
 </div>

@@ -1,37 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getSetting, setSetting } from '$lib/api';
+  import { _ as t } from 'svelte-i18n';
+  import {
+    getConnectionSettings,
+    setConnectionSettings,
+    type ConnectionSettings,
+  } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
 
-  type ProxyMode = 'none' | 'system' | 'manual';
-  type ProxyType = 'http' | 'socks5';
-
-  interface ConnectionConfig {
-    proxyMode: ProxyMode;
-    manualHost: string;
-    manualPort: number;
-    manualType: ProxyType;
-    verifyTls: boolean;
-    timeoutSeconds: number;
-  }
-
-  const defaultConfig: ConnectionConfig = {
-    proxyMode: 'none',
-    manualHost: '',
-    manualPort: 1080,
-    manualType: 'http',
-    verifyTls: true,
-    timeoutSeconds: 30,
+  const defaultConfig: ConnectionSettings = {
+    enable_proxy: false,
+    follow_system_proxy: false,
+    custom_proxy: '',
+    force_ipv4: false,
+    client_cert_path: '',
+    client_key_path: '',
   };
 
-  let config = $state<ConnectionConfig>({ ...defaultConfig });
+  let config = $state<ConnectionSettings>({ ...defaultConfig });
   let loading = $state(true);
   let saving = $state(false);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
 
-  const isManual = $derived(config.proxyMode === 'manual');
+  const showCustomProxy = $derived(config.enable_proxy && !config.follow_system_proxy);
 
   $effect(() => {
     if (!status) return;
@@ -39,27 +32,9 @@
     return () => window.clearTimeout(timeout);
   });
 
-  function normalizeConfig(value: unknown): ConnectionConfig {
-    if (!value || typeof value !== 'object') return { ...defaultConfig };
-    const candidate = value as Partial<ConnectionConfig>;
-    return {
-      proxyMode: candidate.proxyMode === 'system' || candidate.proxyMode === 'manual'
-        ? candidate.proxyMode
-        : 'none',
-      manualHost: typeof candidate.manualHost === 'string' ? candidate.manualHost : '',
-      manualPort: Number.isFinite(candidate.manualPort) ? Number(candidate.manualPort) : 1080,
-      manualType: candidate.manualType === 'socks5' ? 'socks5' : 'http',
-      verifyTls: typeof candidate.verifyTls === 'boolean' ? candidate.verifyTls : true,
-      timeoutSeconds: Number.isFinite(candidate.timeoutSeconds) ? Number(candidate.timeoutSeconds) : 30,
-    };
-  }
-
   onMount(async () => {
     try {
-      const saved = await getSetting('connection');
-      if (saved) {
-        config = normalizeConfig(JSON.parse(saved));
-      }
+      config = await getConnectionSettings();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -71,14 +46,15 @@
     saving = true;
     error = null;
     try {
-      const payload: ConnectionConfig = {
+      const payload: ConnectionSettings = {
         ...config,
-        manualPort: Math.max(1, Math.min(65535, Number(config.manualPort) || 1080)),
-        timeoutSeconds: Math.max(1, Math.min(300, Number(config.timeoutSeconds) || 30)),
+        custom_proxy: config.custom_proxy.trim(),
+        client_cert_path: config.client_cert_path.trim(),
+        client_key_path: config.client_key_path.trim(),
       };
+      await setConnectionSettings(payload);
       config = payload;
-      await setSetting('connection', JSON.stringify(payload));
-      status = 'Connection settings saved.';
+      status = $t('settings.connection.saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -88,7 +64,7 @@
 
   function resetConnection() {
     config = { ...defaultConfig };
-    status = 'Connection settings reset locally. Save to apply.';
+    status = $t('settings.connection.resetStatus');
     error = null;
   }
 </script>
@@ -101,92 +77,97 @@
     onclick={() => goto('/home/settings')}
   >
     <Icon name="arrowBack" size="18px" />
-    Back
+    {$t('common.back')}
   </button>
 
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    Connection
+    {$t('settings.connection.title')}
   </h1>
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-4">
-    <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Proxy Mode
-      <select
-        class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-               px-3 py-2 text-md3-on-surface"
-        bind:value={config.proxyMode}
-        disabled={loading || saving}
-      >
-        <option value="none">None</option>
-        <option value="system">System</option>
-        <option value="manual">Manual</option>
-      </select>
-    </label>
+              border border-md3-outline p-5 space-y-5">
+    <section class="space-y-3">
+      <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.basic')}
+      </h2>
 
-    {#if isManual}
-      <div class="grid grid-cols-3 gap-3">
-        <label class="col-span-2 block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          Host
+      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.enableProxy')}
+        <input
+          class="accent-md3-primary"
+          type="checkbox"
+          bind:checked={config.enable_proxy}
+          disabled={loading || saving}
+        />
+      </label>
+
+      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.followSystemProxy')}
+        <input
+          class="accent-md3-primary"
+          type="checkbox"
+          bind:checked={config.follow_system_proxy}
+          disabled={loading || saving || !config.enable_proxy}
+        />
+      </label>
+
+      {#if showCustomProxy}
+        <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('settings.connection.customProxy')}
           <input
             class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                    px-3 py-2 text-md3-on-surface"
             type="text"
-            bind:value={config.manualHost}
-            placeholder="proxy.example.com"
+            bind:value={config.custom_proxy}
+            placeholder={$t('settings.connection.customProxyHint')}
             disabled={loading || saving}
           />
         </label>
-        <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          Port
-          <input
-            class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                   px-3 py-2 text-md3-on-surface"
-            type="number"
-            min="1"
-            max="65535"
-            bind:value={config.manualPort}
-            disabled={loading || saving}
-          />
-        </label>
+      {/if}
+
+      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.forceIpv4')}
+        <input
+          class="accent-md3-primary"
+          type="checkbox"
+          bind:checked={config.force_ipv4}
+          disabled={loading || saving}
+        />
+      </label>
+    </section>
+
+    <section class="space-y-3">
+      <div>
+        <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('settings.connection.identity')}
+        </h2>
+        <p class="text-xs text-md3-on-surface-variant mt-1">
+          {$t('settings.connection.identityHint')}
+        </p>
       </div>
 
       <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        Proxy Type
-        <select
+        {$t('settings.connection.certPath')}
+        <input
           class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                  px-3 py-2 text-md3-on-surface"
-          bind:value={config.manualType}
+          type="text"
+          bind:value={config.client_cert_path}
           disabled={loading || saving}
-        >
-          <option value="http">HTTP</option>
-          <option value="socks5">SOCKS5</option>
-        </select>
+        />
       </label>
-    {/if}
 
-    <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Verify TLS certificates
-      <input
-        class="accent-md3-primary"
-        type="checkbox"
-        bind:checked={config.verifyTls}
-        disabled={loading || saving}
-      />
-    </label>
-
-    <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Timeout Seconds
-      <input
-        class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-               px-3 py-2 text-md3-on-surface"
-        type="number"
-        min="1"
-        max="300"
-        bind:value={config.timeoutSeconds}
-        disabled={loading || saving}
-      />
-    </label>
+      <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.keyPath')}
+        <input
+          class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
+                 px-3 py-2 text-md3-on-surface"
+          type="text"
+          bind:value={config.client_key_path}
+          disabled={loading || saving}
+        />
+      </label>
+    </section>
 
     {#if status}
       <p class="text-sm text-md3-success flex items-center gap-1.5">
@@ -211,7 +192,7 @@
         disabled={loading || saving}
       >
         <Icon name="done" size="18px" />
-        {saving ? 'Saving...' : 'Save Connection'}
+        {saving ? $t('common.saving') : $t('settings.connection.save')}
       </button>
       <button
         class="px-4 py-2 rounded-full font-medium text-sm
@@ -221,7 +202,7 @@
         onclick={resetConnection}
         disabled={loading || saving}
       >
-        Reset
+        {$t('common.reset')}
       </button>
     </div>
   </div>

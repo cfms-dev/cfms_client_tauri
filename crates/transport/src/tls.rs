@@ -59,12 +59,32 @@ impl ServerCertVerifier for NoOpVerifier {
 }
 
 pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientConfig> {
+    build_config_with_identity(ca_dir, disable_enforcement, None, None)
+}
+
+pub fn build_config_with_identity(
+    ca_dir: &Path,
+    disable_enforcement: bool,
+    client_cert_path: Option<&Path>,
+    client_key_path: Option<&Path>,
+) -> Result<ClientConfig> {
+    let identity = match (client_cert_path, client_key_path) {
+        (Some(cert), Some(key)) if !cert.as_os_str().is_empty() && !key.as_os_str().is_empty() => {
+            Some(load_client_identity_pair(cert, key)?)
+        }
+        _ => None,
+    };
+
     if disable_enforcement {
-        let config = ClientConfig::builder()
+        let builder = ClientConfig::builder()
             .dangerous()
-            .with_custom_certificate_verifier(Arc::new(NoOpVerifier))
-            .with_no_client_auth();
-        return Ok(config);
+            .with_custom_certificate_verifier(Arc::new(NoOpVerifier));
+        return match identity {
+            Some((certs, key)) => builder
+                .with_client_auth_cert(certs, key)
+                .map_err(|e| cfms_core::Error::Connection(format!("client identity error: {e}"))),
+            None => Ok(builder.with_no_client_auth()),
+        };
     }
 
     let mut root_store = load_trust_store(ca_dir)?;
@@ -73,11 +93,14 @@ pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientCo
         root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     }
 
-    let config = ClientConfig::builder()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
+    let builder = ClientConfig::builder().with_root_certificates(root_store);
 
-    Ok(config)
+    match identity {
+        Some((certs, key)) => builder
+            .with_client_auth_cert(certs, key)
+            .map_err(|e| cfms_core::Error::Connection(format!("client identity error: {e}"))),
+        None => Ok(builder.with_no_client_auth()),
+    }
 }
 
 /// Check whether a filename matches the OpenSSL `c_rehash` convention:
@@ -192,6 +215,20 @@ pub fn load_client_identity(
     cert_path: &Path,
     key_path: &Path,
 ) -> Result<rustls::sign::CertifiedKey> {
+    let (certs, private_key) = load_client_identity_pair(cert_path, key_path)?;
+
+    let signing_key = rustls::crypto::aws_lc_rs::default_provider()
+        .key_provider
+        .load_private_key(private_key)
+        .map_err(|e| cfms_core::Error::Connection(format!("failed to load private key: {e}")))?;
+
+    Ok(rustls::sign::CertifiedKey::new(certs, signing_key))
+}
+
+fn load_client_identity_pair(
+    cert_path: &Path,
+    key_path: &Path,
+) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
     let cert_pem = fs::read(cert_path)?;
     let mut cert_reader = cert_pem.as_slice();
     let certs: Vec<CertificateDer> =
@@ -232,12 +269,7 @@ pub fn load_client_identity(
         )));
     };
 
-    let signing_key = rustls::crypto::aws_lc_rs::default_provider()
-        .key_provider
-        .load_private_key(private_key)
-        .map_err(|e| cfms_core::Error::Connection(format!("failed to load private key: {e}")))?;
-
-    Ok(rustls::sign::CertifiedKey::new(certs, signing_key))
+    Ok((certs, private_key))
 }
 
 #[cfg(test)]

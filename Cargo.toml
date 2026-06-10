@@ -69,6 +69,8 @@ tokio-socks = "0.5"
 futures-util = "0.3"
 tracing = { version = "0.1", features = ["log"] }
 dashmap = "5"
+fluent-bundle = "0.15"
+unic-langid = "0.9"
 
 # ---------------------------------------------------------------------------
 # Tauri

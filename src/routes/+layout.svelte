@@ -18,6 +18,7 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { initEventListeners } from "$lib/events";
+  import { initI18n } from "$lib/i18n";
   import {
     authStore,
     serverStateStore,
@@ -107,6 +108,8 @@
   // Initialization
   // ---------------------------------------------------------------------------
   onMount(async () => {
+    await initI18n();
+
     // Initialize disclaimer check.
     disclaimerStore.init();
 

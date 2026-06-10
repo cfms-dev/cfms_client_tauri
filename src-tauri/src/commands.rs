@@ -17,9 +17,110 @@ use cfms_core::{
 use cfms_crypto::{config as crypto_config, dek};
 use cfms_service::services::download_queue;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::AppHandleState;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionSettingsDto {
+    pub enable_proxy: bool,
+    pub follow_system_proxy: bool,
+    pub custom_proxy: String,
+    pub force_ipv4: bool,
+    pub client_cert_path: String,
+    pub client_key_path: String,
+}
+
+impl Default for ConnectionSettingsDto {
+    fn default() -> Self {
+        Self {
+            enable_proxy: false,
+            follow_system_proxy: false,
+            custom_proxy: String::new(),
+            force_ipv4: false,
+            client_cert_path: String::new(),
+            client_key_path: String::new(),
+        }
+    }
+}
+
+impl ConnectionSettingsDto {
+    fn load(settings: &cfms_service::db::settings::SettingsStore) -> Self {
+        let proxy_settings = settings.get("proxy_settings").ok().flatten();
+        let custom_proxy = settings
+            .get("custom_proxy")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        let follow_system_proxy = matches!(
+            proxy_settings.as_deref(),
+            Some("system") | Some("true") | Some("True")
+        );
+
+        let enable_proxy = proxy_settings
+            .as_deref()
+            .map(|value| !value.trim().is_empty() && value != "none" && value != "null")
+            .unwrap_or(false);
+
+        Self {
+            enable_proxy,
+            follow_system_proxy,
+            custom_proxy,
+            force_ipv4: settings
+                .get("force_ipv4")
+                .ok()
+                .flatten()
+                .map(|value| value == "true")
+                .unwrap_or(false),
+            client_cert_path: settings
+                .get("client_cert_path")
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+            client_key_path: settings
+                .get("client_key_path")
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+        }
+    }
+
+    fn proxy_setting_value(&self) -> String {
+        if !self.enable_proxy {
+            String::new()
+        } else if self.follow_system_proxy {
+            "system".to_string()
+        } else {
+            self.custom_proxy.trim().to_string()
+        }
+    }
+
+    fn proxy_addr(&self) -> Result<Option<String>, String> {
+        if !self.enable_proxy {
+            return Ok(None);
+        }
+
+        let raw = if self.follow_system_proxy {
+            system_proxy_setting()
+        } else {
+            Some(self.custom_proxy.trim().to_string())
+        };
+
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        normalize_socks5_proxy(&raw)
+    }
+
+    fn client_identity_paths(&self) -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {
+        let cert = trimmed_path(&self.client_cert_path);
+        let key = trimmed_path(&self.client_key_path);
+        (cert, key)
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Health / info (existing commands, preserved for backward compat)
@@ -480,10 +581,84 @@ pub async fn set_setting(
     key: String,
     value: String,
 ) -> Result<(), String> {
+    if key == "language" {
+        state.localizer.set_locale(&value)?;
+    }
+
     state
         .settings
         .set(&key, &value)
         .map_err(|e| format!("Failed to write setting: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_locale(state: tauri::State<'_, AppHandleState>) -> Result<String, String> {
+    Ok(state.localizer.locale())
+}
+
+#[tauri::command]
+pub async fn set_locale(
+    state: tauri::State<'_, AppHandleState>,
+    language: String,
+) -> Result<String, String> {
+    let normalized = state.localizer.set_locale(&language)?;
+    state
+        .settings
+        .set("language", &normalized)
+        .map_err(|e| format!("Failed to write setting: {e}"))?;
+    Ok(normalized)
+}
+
+#[tauri::command]
+pub async fn translate_backend(
+    state: tauri::State<'_, AppHandleState>,
+    key: String,
+) -> Result<String, String> {
+    Ok(state.localizer.translate(&key))
+}
+
+#[tauri::command]
+pub async fn get_connection_settings(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<ConnectionSettingsDto, String> {
+    Ok(ConnectionSettingsDto::load(&state.settings))
+}
+
+#[tauri::command]
+pub async fn set_connection_settings(
+    state: tauri::State<'_, AppHandleState>,
+    settings: ConnectionSettingsDto,
+) -> Result<(), String> {
+    if settings.enable_proxy && !settings.follow_system_proxy {
+        normalize_socks5_proxy(settings.custom_proxy.trim())?;
+    }
+    let proxy_setting = settings.proxy_setting_value();
+
+    state
+        .settings
+        .set("proxy_settings", &proxy_setting)
+        .map_err(|e| format!("Failed to write proxy setting: {e}"))?;
+    state
+        .settings
+        .set("custom_proxy", settings.custom_proxy.trim())
+        .map_err(|e| format!("Failed to write custom proxy: {e}"))?;
+    state
+        .settings
+        .set(
+            "force_ipv4",
+            if settings.force_ipv4 { "true" } else { "false" },
+        )
+        .map_err(|e| format!("Failed to write IPv4 setting: {e}"))?;
+    state
+        .settings
+        .set("client_cert_path", settings.client_cert_path.trim())
+        .map_err(|e| format!("Failed to write client certificate path: {e}"))?;
+    state
+        .settings
+        .set("client_key_path", settings.client_key_path.trim())
+        .map_err(|e| format!("Failed to write client key path: {e}"))?;
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -888,19 +1063,34 @@ pub async fn connect(
         .resolve("ca", tauri::path::BaseDirectory::Resource)
         .map_err(|e| format!("Cannot resolve CA directory: {e}"))?;
 
+    let connection_settings = ConnectionSettingsDto::load(&state.settings);
+    let proxy_addr = connection_settings.proxy_addr()?;
+    let (client_cert_path, client_key_path) = connection_settings.client_identity_paths();
     let effective_disable_ssl = disable_ssl_enforcement || is_loopback_wss_url(&url);
 
     tracing::info!(
-        "Connecting to {url} (disable_ssl_enforcement={disable_ssl_enforcement}, effective_disable_ssl={effective_disable_ssl})"
+        "Connecting to {url} (disable_ssl_enforcement={disable_ssl_enforcement}, effective_disable_ssl={effective_disable_ssl}, proxy={}, force_ipv4={})",
+        proxy_addr.as_deref().unwrap_or("none"),
+        connection_settings.force_ipv4,
     );
 
-    let tls_config = cfms_transport::tls::build_config(&ca_dir, effective_disable_ssl)
-        .map_err(|e| format!("TLS config error: {e}"))?;
+    let tls_config = cfms_transport::tls::build_config_with_identity(
+        &ca_dir,
+        effective_disable_ssl,
+        client_cert_path.as_deref(),
+        client_key_path.as_deref(),
+    )
+    .map_err(|e| format!("TLS config error: {e}"))?;
 
     // Establish connection.
-    let conn = cfms_transport::Connection::connect(&url, tls_config, None)
-        .await
-        .map_err(|e| format!("Connection failed: {e}"))?;
+    let conn = cfms_transport::Connection::connect(
+        &url,
+        tls_config,
+        proxy_addr.as_deref(),
+        connection_settings.force_ipv4,
+    )
+    .await
+    .map_err(|e| format!("Connection failed: {e}"))?;
 
     // --- Post-connect handshake: request server_info ---
     //
@@ -1002,6 +1192,22 @@ pub async fn connect(
         let mut dse = state.inner.disable_ssl_enforcement.write().await;
         *dse = effective_disable_ssl;
     }
+    {
+        let mut force_ipv4 = state.inner.force_ipv4.write().await;
+        *force_ipv4 = connection_settings.force_ipv4;
+    }
+    {
+        let mut proxy = state.inner.proxy_addr.write().await;
+        *proxy = proxy_addr;
+    }
+    {
+        let mut cert = state.inner.client_cert_path.write().await;
+        *cert = client_cert_path;
+    }
+    {
+        let mut key = state.inner.client_key_path.write().await;
+        *key = client_key_path;
+    }
     // Store the CA directory path so that dedicated transfer connections
     // can rebuild their TLS config on demand.
     {
@@ -1045,6 +1251,55 @@ fn is_loopback_wss_url(url: &str) -> bool {
     matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
+fn trimmed_path(value: &str) -> Option<std::path::PathBuf> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(std::path::PathBuf::from(trimmed))
+    }
+}
+
+fn system_proxy_setting() -> Option<String> {
+    [
+        "CFMS_PROXY",
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+    ]
+    .iter()
+    .find_map(|key| std::env::var(key).ok())
+    .map(|value| value.trim().to_string())
+    .filter(|value| !value.is_empty())
+}
+
+fn normalize_socks5_proxy(raw: &str) -> Result<Option<String>, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let without_scheme = trimmed
+        .strip_prefix("socks5h://")
+        .or_else(|| trimmed.strip_prefix("socks5://"))
+        .unwrap_or(trimmed)
+        .trim_end_matches('/');
+
+    if trimmed.contains("://")
+        && !trimmed.starts_with("socks5://")
+        && !trimmed.starts_with("socks5h://")
+    {
+        return Err("Only SOCKS5 proxy URLs are supported for CFMS connections.".to_string());
+    }
+
+    if !without_scheme.contains(':') {
+        return Err("Proxy must include host and port, e.g. socks5h://127.0.0.1:1080.".to_string());
+    }
+
+    Ok(Some(without_scheme.to_string()))
+}
+
 /// Close the WSS connection and clear all server metadata.
 ///
 /// Resets the connection, address, server name, protocol version, and
@@ -1084,6 +1339,22 @@ pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), S
     {
         let mut ca = state.inner.ca_dir.write().await;
         *ca = None;
+    }
+    {
+        let mut force_ipv4 = state.inner.force_ipv4.write().await;
+        *force_ipv4 = false;
+    }
+    {
+        let mut proxy = state.inner.proxy_addr.write().await;
+        *proxy = None;
+    }
+    {
+        let mut cert = state.inner.client_cert_path.write().await;
+        *cert = None;
+    }
+    {
+        let mut key = state.inner.client_key_path.write().await;
+        *key = None;
     }
 
     tracing::info!("Disconnected");

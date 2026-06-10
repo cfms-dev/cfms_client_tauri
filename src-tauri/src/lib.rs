@@ -5,6 +5,7 @@
 
 mod background;
 mod commands;
+mod localization;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use cfms_service::db::settings::SettingsStore;
 use cfms_service::service::manager::ServiceManager;
 use cfms_service::services::download_queue::{ActiveRegistry, QueueState};
 use cfms_service::state::AppState;
+use localization::LocalizationManager;
 
 // ---------------------------------------------------------------------------
 // Tauri managed state
@@ -37,6 +39,9 @@ pub struct AppHandleState {
 
     /// Registry of active downloads (cancellation flags).
     pub active_downloads: ActiveRegistry,
+
+    /// Backend localization state (Fluent-backed).
+    pub localizer: Arc<LocalizationManager>,
 
     /// Application data directory (for persistence file paths).
     pub app_data_dir: PathBuf,
@@ -83,6 +88,12 @@ pub fn run() {
 
             let state = AppState::new();
             let settings = SettingsStore::new(db);
+            let initial_locale = settings
+                .get("language")
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "zh_CN".to_string());
+            let localizer = Arc::new(LocalizationManager::new(initial_locale));
             let tasks = QueueState::new();
             let active_downloads = ActiveRegistry::new();
 
@@ -169,6 +180,7 @@ pub fn run() {
                 tasks,
                 settings,
                 active_downloads,
+                localizer,
                 app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
             });
@@ -194,6 +206,11 @@ pub fn run() {
             commands::get_document,
             commands::get_setting,
             commands::set_setting,
+            commands::get_locale,
+            commands::set_locale,
+            commands::translate_backend,
+            commands::get_connection_settings,
+            commands::set_connection_settings,
             commands::login,
             commands::change_password,
             commands::logout,
