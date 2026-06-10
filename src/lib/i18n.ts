@@ -312,11 +312,7 @@ const en = {
       externalPath: 'External Storage Path',
       externalPathPlaceholder: 'Leave blank to use the default app location',
       saved: 'Storage preference saved.',
-      clearedCompleted: 'Cleared {count} completed task(s).',
-      clearedFailed: 'Cleared {count} failed task(s).',
       save: 'Save Storage',
-      clearCompleted: 'Clear Completed',
-      clearFailed: 'Clear Failed',
     },
     security: {
       title: 'Security',
@@ -674,11 +670,7 @@ const zh_CN = {
       externalPath: '外部存储路径',
       externalPathPlaceholder: '留空以使用默认应用位置',
       saved: '存储偏好已保存。',
-      clearedCompleted: '已清除 {count} 个已完成任务。',
-      clearedFailed: '已清除 {count} 个失败任务。',
       save: '保存存储设置',
-      clearCompleted: '清除已完成',
-      clearFailed: '清除失败',
     },
     security: {
       title: '安全',

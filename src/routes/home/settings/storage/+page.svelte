@@ -3,8 +3,6 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import {
-    clearCompletedTasks,
-    clearFailedTasks,
     loadUserPreference,
     saveUserPreference,
     type UserPreference,
@@ -14,7 +12,6 @@
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
   let saving = $state(false);
-  let clearing = $state<'completed' | 'failed' | null>(null);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   let useExternalStorage = $state(false);
@@ -61,32 +58,6 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       saving = false;
-    }
-  }
-
-  async function clearCompleted() {
-    clearing = 'completed';
-    error = null;
-    try {
-      const count = await clearCompletedTasks();
-      status = $t('settings.storage.clearedCompleted', { values: { count } });
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      clearing = null;
-    }
-  }
-
-  async function clearFailed() {
-    clearing = 'failed';
-    error = null;
-    try {
-      const count = await clearFailedTasks();
-      status = $t('settings.storage.clearedFailed', { values: { count } });
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      clearing = null;
     }
   }
 </script>
@@ -161,28 +132,6 @@
       >
         <Icon name="done" size="18px" />
         {saving ? $t('common.saving') : $t('settings.storage.save')}
-      </button>
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-surface-container-high text-md3-on-surface
-               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        onclick={clearCompleted}
-        disabled={clearing !== null}
-      >
-        <Icon name="clearAll" size="18px" />
-        {clearing === 'completed' ? $t('common.clearing') : $t('settings.storage.clearCompleted')}
-      </button>
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-surface-container-high text-md3-error
-               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        onclick={clearFailed}
-        disabled={clearing !== null}
-      >
-        <Icon name="deleteSweep" size="18px" />
-        {clearing === 'failed' ? $t('common.clearing') : $t('settings.storage.clearFailed')}
       </button>
     </div>
   </div>
