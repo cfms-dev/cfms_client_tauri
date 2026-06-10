@@ -86,6 +86,71 @@ export interface ListDirectoryResponse {
   parent_id: string | null;
 }
 
+export interface DeletedDirectoryEntry {
+  id: string;
+  name: string;
+  created_time?: number | null;
+}
+
+export interface DeletedDocumentEntry {
+  id: string;
+  title: string;
+  created_time?: number | null;
+}
+
+export interface DeletedItemsResponse {
+  folders: DeletedDirectoryEntry[];
+  documents: DeletedDocumentEntry[];
+}
+
+export interface ManagedUser {
+  username: string;
+  nickname?: string | null;
+  permissions?: string[];
+  groups?: string[];
+  created_time?: number | null;
+  last_login?: number | null;
+  passwd_last_modified?: number | null;
+}
+
+export interface ManagedGroup {
+  name: string;
+  display_name?: string | null;
+  permissions?: string[];
+  members?: string[];
+}
+
+export interface UserBlockTarget {
+  type: "all" | "directory" | "document";
+  id?: string;
+}
+
+export interface UserBlock {
+  block_id: string;
+  block_types: string[];
+  target_type?: string;
+  target_id?: string | null;
+  timestamp?: number | null;
+  not_before?: number | null;
+  not_after?: number | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  username: string;
+  target: string;
+  data: unknown;
+  result: string;
+  remote_address: string;
+  logged_time: number;
+}
+
+export interface AuditLogsResponse {
+  total: number;
+  entries: AuditLogEntry[];
+}
+
 export interface ServiceStatusInfo {
   name: string;
   running: boolean;
@@ -406,6 +471,180 @@ export async function deleteDirectory(folderId: string): Promise<boolean> {
 /** Delete a document on the CFMS server. */
 export async function deleteDocument(documentId: string): Promise<boolean> {
   return invoke("delete_document", { documentId });
+}
+
+// ---------------------------------------------------------------------------
+// Trash / recycle bin
+// ---------------------------------------------------------------------------
+
+export async function listDeletedItems(
+  folderId = "/",
+): Promise<DeletedItemsResponse> {
+  const data = await invoke<Partial<DeletedItemsResponse>>("list_deleted_items", {
+    folderId,
+  });
+  return {
+    folders: data.folders ?? [],
+    documents: data.documents ?? [],
+  };
+}
+
+export async function restoreDocument(
+  documentId: string,
+  newTitle?: string | null,
+  targetFolderId?: string | null,
+): Promise<boolean> {
+  return invoke("restore_document", {
+    documentId,
+    newTitle: newTitle ?? null,
+    targetFolderId: targetFolderId ?? null,
+  });
+}
+
+export async function restoreDirectory(
+  folderId: string,
+  newName?: string | null,
+  targetParentId?: string | null,
+): Promise<boolean> {
+  return invoke("restore_directory", {
+    folderId,
+    newName: newName ?? null,
+    targetParentId: targetParentId ?? null,
+  });
+}
+
+export async function purgeDocument(documentId: string): Promise<boolean> {
+  return invoke("purge_document", { documentId });
+}
+
+export async function purgeDirectory(folderId: string): Promise<boolean> {
+  return invoke("purge_directory", { folderId });
+}
+
+// ---------------------------------------------------------------------------
+// Administration / management
+// ---------------------------------------------------------------------------
+
+export async function listUsers(): Promise<ManagedUser[]> {
+  const data = await invoke<{ users?: ManagedUser[] }>("list_users");
+  return data.users ?? [];
+}
+
+export async function createUser(
+  username: string,
+  password: string,
+  nickname: string,
+): Promise<boolean> {
+  return invoke("create_user", { username, password, nickname });
+}
+
+export async function renameUser(
+  username: string,
+  nickname: string,
+): Promise<boolean> {
+  return invoke("rename_user", { username, nickname });
+}
+
+export async function deleteUser(username: string): Promise<boolean> {
+  return invoke("delete_user", { username });
+}
+
+export async function getUserInfo(username: string): Promise<ManagedUser> {
+  return invoke("get_user_info", { username });
+}
+
+export async function changeUserGroups(
+  username: string,
+  groups: string[],
+): Promise<boolean> {
+  return invoke("change_user_groups", { username, groups });
+}
+
+export async function resetUserPassword(
+  username: string,
+  newPassword: string,
+  bypassPasswdRequirements = false,
+  forceUpdateAfterLogin = false,
+): Promise<boolean> {
+  return invoke("reset_user_password", {
+    username,
+    newPassword,
+    bypassPasswdRequirements,
+    forceUpdateAfterLogin,
+  });
+}
+
+export async function blockUser(
+  username: string,
+  blockTypes: string[],
+  target: UserBlockTarget,
+  notAfter?: number | null,
+): Promise<boolean> {
+  return invoke("block_user", {
+    username,
+    blockTypes,
+    target,
+    notAfter: notAfter ?? null,
+  });
+}
+
+export async function listUserBlocks(username: string): Promise<UserBlock[]> {
+  const data = await invoke<{ blocks?: UserBlock[] }>("list_user_blocks", {
+    username,
+  });
+  return data.blocks ?? [];
+}
+
+export async function unblockUser(blockId: string): Promise<boolean> {
+  return invoke("unblock_user", { blockId });
+}
+
+export async function listGroups(): Promise<ManagedGroup[]> {
+  const data = await invoke<{ groups?: ManagedGroup[] }>("list_groups");
+  return data.groups ?? [];
+}
+
+export async function createGroup(
+  groupName: string,
+  displayName: string,
+): Promise<boolean> {
+  return invoke("create_group", { groupName, displayName });
+}
+
+export async function renameGroup(
+  groupName: string,
+  displayName: string,
+): Promise<boolean> {
+  return invoke("rename_group", { groupName, displayName });
+}
+
+export async function deleteGroup(groupName: string): Promise<boolean> {
+  return invoke("delete_group", { groupName });
+}
+
+export async function getGroupInfo(groupName: string): Promise<ManagedGroup> {
+  return invoke("get_group_info", { groupName });
+}
+
+export async function changeGroupPermissions(
+  groupName: string,
+  permissions: string[],
+): Promise<boolean> {
+  return invoke("change_group_permissions", { groupName, permissions });
+}
+
+export async function viewAuditLogs(
+  offset: number,
+  count: number,
+): Promise<AuditLogsResponse> {
+  const data = await invoke<Partial<AuditLogsResponse>>("view_audit_logs", {
+    offset,
+    count,
+  });
+  return {
+    total: data.total ?? 0,
+    entries: data.entries ?? [],
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -372,6 +372,340 @@ pub async fn delete_document(
 }
 
 // ---------------------------------------------------------------------------
+// Trash / recycle-bin operations
+// ---------------------------------------------------------------------------
+
+/// List deleted folders and documents for a server-side folder.
+///
+/// Mirrors the Python reference's `list_deleted_items` action used by the
+/// TrashViewController.
+#[tauri::command]
+pub async fn list_deleted_items(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "list_deleted_items",
+        serde_json::json!({ "folder_id": folder_id }),
+    )
+    .await
+}
+
+/// Restore a deleted document, optionally with a new title or destination.
+#[tauri::command]
+pub async fn restore_document(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    new_title: Option<String>,
+    target_folder_id: Option<String>,
+) -> Result<bool, String> {
+    let mut data = serde_json::json!({ "document_id": document_id });
+    if let Some(value) = non_empty_optional(new_title) {
+        data["new_title"] = serde_json::Value::String(value);
+    }
+    if let Some(value) = non_empty_optional(target_folder_id) {
+        data["target_folder_id"] = serde_json::Value::String(value);
+    }
+
+    server_action_bool(&state, "restore_document", data).await
+}
+
+/// Restore a deleted directory, optionally with a new name or destination.
+#[tauri::command]
+pub async fn restore_directory(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+    new_name: Option<String>,
+    target_parent_id: Option<String>,
+) -> Result<bool, String> {
+    let mut data = serde_json::json!({ "folder_id": folder_id });
+    if let Some(value) = non_empty_optional(new_name) {
+        data["new_name"] = serde_json::Value::String(value);
+    }
+    if let Some(value) = non_empty_optional(target_parent_id) {
+        data["target_parent_id"] = serde_json::Value::String(value);
+    }
+
+    server_action_bool(&state, "restore_directory", data).await
+}
+
+/// Permanently delete a document already marked as deleted.
+#[tauri::command]
+pub async fn purge_document(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "purge_document",
+        serde_json::json!({ "document_id": document_id }),
+    )
+    .await
+}
+
+/// Permanently delete a directory already marked as deleted.
+#[tauri::command]
+pub async fn purge_directory(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "purge_directory",
+        serde_json::json!({ "folder_id": folder_id }),
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------------
+// Administration / management operations
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn list_users(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    server_action_json(&state, "list_users", serde_json::json!({})).await
+}
+
+#[tauri::command]
+pub async fn create_user(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    password: String,
+    nickname: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "create_user",
+        serde_json::json!({
+            "username": username,
+            "password": password,
+            "nickname": nickname,
+            "permissions": [],
+            "groups": [],
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn rename_user(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    nickname: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "rename_user",
+        serde_json::json!({ "username": username, "nickname": nickname }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_user(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "delete_user",
+        serde_json::json!({ "username": username }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_user_info(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "get_user_info",
+        serde_json::json!({ "username": username }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn change_user_groups(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    groups: Vec<String>,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "change_user_groups",
+        serde_json::json!({ "username": username, "groups": groups }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn reset_user_password(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    new_password: String,
+    bypass_passwd_requirements: bool,
+    force_update_after_login: bool,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "set_passwd",
+        serde_json::json!({
+            "username": username,
+            "old_passwd": "",
+            "new_passwd": new_password,
+            "bypass_passwd_requirements": bypass_passwd_requirements,
+            "force_update_after_login": force_update_after_login,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn block_user(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    block_types: Vec<String>,
+    target: serde_json::Value,
+    not_after: Option<f64>,
+) -> Result<bool, String> {
+    let mut data = serde_json::json!({
+        "username": username,
+        "block_types": block_types,
+        "target": target,
+    });
+    if let Some(value) = not_after {
+        data["not_after"] = serde_json::json!(value);
+    }
+
+    server_action_bool(&state, "block_user", data).await
+}
+
+#[tauri::command]
+pub async fn list_user_blocks(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "list_user_blocks",
+        serde_json::json!({ "username": username }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn unblock_user(
+    state: tauri::State<'_, AppHandleState>,
+    block_id: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "unblock_user",
+        serde_json::json!({ "block_id": block_id }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_groups(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    server_action_json(&state, "list_groups", serde_json::json!({})).await
+}
+
+#[tauri::command]
+pub async fn create_group(
+    state: tauri::State<'_, AppHandleState>,
+    group_name: String,
+    display_name: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "create_group",
+        serde_json::json!({
+            "group_name": group_name,
+            "display_name": display_name,
+            "permissions": [],
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn rename_group(
+    state: tauri::State<'_, AppHandleState>,
+    group_name: String,
+    display_name: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "rename_group",
+        serde_json::json!({ "group_name": group_name, "display_name": display_name }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_group(
+    state: tauri::State<'_, AppHandleState>,
+    group_name: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "delete_group",
+        serde_json::json!({ "group_name": group_name }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_group_info(
+    state: tauri::State<'_, AppHandleState>,
+    group_name: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "get_group_info",
+        serde_json::json!({ "group_name": group_name }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn change_group_permissions(
+    state: tauri::State<'_, AppHandleState>,
+    group_name: String,
+    permissions: Vec<String>,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "change_group_permissions",
+        serde_json::json!({ "group_name": group_name, "permissions": permissions }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn view_audit_logs(
+    state: tauri::State<'_, AppHandleState>,
+    offset: u32,
+    count: u32,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "view_audit_logs",
+        serde_json::json!({ "offset": offset, "count": count }),
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------------
 // File scanning
 // ---------------------------------------------------------------------------
 
@@ -1899,6 +2233,41 @@ async fn get_connection_auth(
         .clone()
         .ok_or_else(|| "Not logged in".to_string())?;
     Ok((conn, username, token))
+}
+
+async fn server_action_json(
+    state: &AppHandleState,
+    action: &str,
+    data: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let (conn, username, token) = get_connection_auth(state).await?;
+    let resp = send_action_request(&conn, action, data, &username, &token).await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    Ok(resp.data)
+}
+
+async fn server_action_bool(
+    state: &AppHandleState,
+    action: &str,
+    data: serde_json::Value,
+) -> Result<bool, String> {
+    server_action_json(state, action, data).await?;
+    Ok(true)
+}
+
+fn non_empty_optional(value: Option<String>) -> Option<String> {
+    value.and_then(|v| {
+        let trimmed = v.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    })
 }
 
 /// Build a JSON auth-status payload (auth fields only — no server state).
