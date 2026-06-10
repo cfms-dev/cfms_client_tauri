@@ -108,6 +108,7 @@ export const ICONS = {
   storage:        'storage',
   security:       'security',
   verifiedUser:   'verified_user',
+  qrCode:         'qr_code_2',
   browserUpdated: 'browser_updated',
 
   // ---- Misc UI ----
