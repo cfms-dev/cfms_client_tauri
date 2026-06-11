@@ -340,7 +340,7 @@
                   border border-md3-outline p-10 text-center space-y-4"
       >
         <div class="flex justify-center">
-          <span class="animate-spin text-md3-primary">
+          <span class="animate-spin text-md3-primary-emphasis">
             <Icon name="refresh" size="36px" />
           </span>
         </div>
@@ -524,7 +524,7 @@
             class="bg-md3-primary/15 border border-md3-primary/30
                    text-md3-on-surface text-sm rounded-xl p-3 flex items-start gap-2"
           >
-            <span class="shrink-0 mt-0.5 text-md3-primary"
+            <span class="shrink-0 mt-0.5 text-md3-primary-emphasis"
               ><Icon name="checkCircle" size="16px" /></span
             >
             <span>{successMessage}</span>

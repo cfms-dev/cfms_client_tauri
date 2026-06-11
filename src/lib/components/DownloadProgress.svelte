@@ -19,9 +19,10 @@
     message?: string | null;
     phase?: string;
     status: DownloadTaskStatus;
+    completedText?: string;
   }
 
-  let { progress, currentBytes, totalBytes, message, phase, status }: Props = $props();
+  let { progress, currentBytes, totalBytes, message, phase, status, completedText }: Props = $props();
 
   function barColor(): string {
     switch (status) {
@@ -90,7 +91,7 @@
     </span>
     <span>
       {#if status === "completed"}
-        {$t('tasks.downloadCompleted')}
+        {completedText ?? $t('tasks.downloadCompleted')}
       {:else if status === "failed" || status === "cancelled"}
         <!-- empty — reference shows nothing for these statuses -->
       {:else if totalBytes > 0}

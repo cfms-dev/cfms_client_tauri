@@ -13,6 +13,7 @@
 
   /* Primary — deep indigo, same as reference PRIMARY_COLOR #4f46e5 */
   --color-md3-primary: #4f46e5;
+  --color-md3-primary-emphasis: #8fb4ff;
   --color-md3-primary-container: #312e81;
   --color-md3-on-primary: #ffffff;
   --color-md3-on-primary-container: #c7d2fe;

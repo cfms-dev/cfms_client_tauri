@@ -512,14 +512,26 @@
     background: var(--color-md3-field);
     color: var(--color-md3-on-surface-variant);
     padding: 0 0.75rem;
+    color-scheme: dark;
   }
 
   .date-field input {
     min-width: 0;
     background: transparent;
     color: var(--color-md3-on-surface);
+    color-scheme: dark;
     font-size: 0.875rem;
     outline: none;
+  }
+
+  .date-field input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(84%) sepia(16%) saturate(391%) hue-rotate(179deg) brightness(94%) contrast(91%);
+    opacity: 0.95;
+  }
+
+  .date-field input::-webkit-calendar-picker-indicator:hover {
+    filter: invert(96%) sepia(8%) saturate(240%) hue-rotate(177deg) brightness(102%) contrast(95%);
   }
 
   .choice-button:disabled,

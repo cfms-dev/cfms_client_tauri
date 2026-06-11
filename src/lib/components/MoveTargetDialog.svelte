@@ -138,7 +138,7 @@
   <div class="flex max-h-[78vh] flex-col">
     <div class="space-y-3 border-b border-md3-outline/60 p-5">
       <div class="flex min-w-0 items-center gap-2 text-sm text-md3-on-surface-variant">
-        <span class="text-md3-primary">
+        <span class="text-md3-primary-emphasis">
           <Icon name="folderOpen" size="18px" />
         </span>
         <span class="shrink-0 font-medium">{$t('files.currentLocation')}</span>
@@ -210,10 +210,10 @@
               disabled={moving}
               onclick={navigateToParent}
             >
-              <span class="text-md3-primary">
+              <span class="text-md3-primary-emphasis">
                 <Icon name="arrowUpward" size="20px" />
               </span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary">
+              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
                 {$t('files.parentDirectory')}
               </span>
             </button>
@@ -226,10 +226,10 @@
               disabled={moving}
               onclick={() => navigateToFolder(folder)}
             >
-              <span class="text-md3-primary">
+              <span class="text-md3-primary-emphasis">
                 <Icon name="folder" size="20px" />
               </span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary">
+              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
                 {folder.name}
               </span>
             </button>

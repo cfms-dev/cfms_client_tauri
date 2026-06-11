@@ -12,7 +12,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
   import { _ as t } from 'svelte-i18n';
-  import { authStore, serverStateStore, downloadStore } from '$lib/stores.svelte';
+  import { authStore, serverStateStore, downloadStore, uploadStore, chromeStore } from '$lib/stores.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
@@ -24,7 +24,8 @@
 
   const showTabBar = $derived(TAB_ROUTES.includes($page.url.pathname));
 
-  const activeTaskCount = $derived(downloadStore.activeTasks.length);
+  const activeTaskCount = $derived(downloadStore.activeTasks.length + uploadStore.activeTasks.length);
+  const tabPadding = $derived(showTabBar ? 112 + chromeStore.snackbarStackHeight : 0);
 
   interface TabDef {
     href: string;
@@ -78,7 +79,10 @@
   -->
   <main class="flex-1 min-h-0 overflow-y-auto">
     {#key $page.url.pathname}
-      <div in:flyScale={{ y: 12, duration: 300 }} class={showTabBar ? 'pb-28' : ''}>
+      <div
+        in:flyScale={{ y: 12, duration: 300 }}
+        style={showTabBar ? `padding-bottom: ${tabPadding}px; transition: padding-bottom 520ms var(--motion-easing-emphasized-decelerate);` : ''}
+      >
         {@render children()}
       </div>
     {/key}

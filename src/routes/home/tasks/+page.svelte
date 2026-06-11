@@ -10,10 +10,10 @@
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskStatus } from '$lib/api';
-  import type { UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
+  import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   let filter: DownloadTaskStatus | 'all' = $state('all');
@@ -78,6 +78,9 @@
           await pauseDownload(t.task_id);
         }
       }
+      for (const task of uploadStore.activeTasks) {
+        await uploadStore.pause(task.upload_id);
+      }
       await refresh();
     } finally {
       busy = false;
@@ -92,6 +95,9 @@
         if (t.status === 'paused') {
           await resumeDownload(t.task_id);
         }
+      }
+      for (const task of uploadStore.pausedTasks) {
+        await uploadStore.resume(task.upload_id);
       }
       await refresh();
     } finally {
@@ -108,6 +114,9 @@
           await cancelDownload(t.task_id);
         }
       }
+      for (const task of uploadStore.activeTasks) {
+        await uploadStore.cancel(task.upload_id);
+      }
       await refresh();
     } finally {
       busy = false;
@@ -120,12 +129,16 @@
     refresh();
   }
 
-  function uploadStatusLabel(task: UploadTaskDto) {
-    if (task.status === 'pending') return $t('tasks.uploadQueued');
-    if (task.status === 'completed') return $t('tasks.uploadCompleted');
-    if (task.status === 'failed') return task.error ?? $t('tasks.failed');
-    if (task.status === 'skipped') return $t('tasks.cancelled');
-    return task.message ?? $t('tasks.downloading');
+  async function handlePauseUpload(uploadId: string) {
+    await uploadStore.pause(uploadId);
+  }
+
+  async function handleResumeUpload(uploadId: string) {
+    await uploadStore.resume(uploadId);
+  }
+
+  async function handleCancelUpload(uploadId: string) {
+    await uploadStore.cancel(uploadId);
   }
 </script>
 
@@ -238,23 +251,12 @@
       </div>
       <div class="grid gap-3">
         {#each uploadTasks as task (task.upload_id)}
-          <article class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-4 shadow-sm">
-            <div class="mb-2 flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-md3-on-surface">{task.file_name}</p>
-                <p class="mt-0.5 truncate text-xs text-md3-on-surface-variant">{uploadStatusLabel(task)}</p>
-              </div>
-              <span class="shrink-0 rounded-full bg-md3-surface-container-high px-2 py-0.5 text-xs text-md3-on-surface-variant">
-                {Math.round(task.progress * 100)}%
-              </span>
-            </div>
-            <div class="h-1.5 overflow-hidden rounded-full bg-md3-surface-container-high">
-              <span
-                class="block h-full rounded-full bg-md3-primary transition-[width] duration-200"
-                style={`width: ${Math.max(0, Math.min(1, task.progress)) * 100}%`}
-              ></span>
-            </div>
-          </article>
+          <UploadTaskCard
+            {task}
+            onPause={handlePauseUpload}
+            onResume={handleResumeUpload}
+            onCancel={handleCancelUpload}
+          />
         {/each}
       </div>
     </section>

@@ -77,7 +77,7 @@
       class="bg-md3-primary/15 border border-md3-primary/30
              text-md3-on-surface text-sm rounded-xl p-3 flex items-start gap-2"
     >
-      <span class="shrink-0 mt-0.5 text-md3-primary"><Icon name="checkCircle" size="16px" /></span>
+      <span class="shrink-0 mt-0.5 text-md3-primary-emphasis"><Icon name="checkCircle" size="16px" /></span>
       <span>{successMsg}</span>
     </div>
   {/if}
@@ -94,7 +94,7 @@
                  ? 'border-b border-md3-outline/50' : ''}"
         onclick={() => handleEntry(entry)}
       >
-        <span class="text-md3-primary shrink-0">
+        <span class="text-md3-primary-emphasis shrink-0">
           <Icon name={entry.icon} size="24px" />
         </span>
         <div class="min-w-0">

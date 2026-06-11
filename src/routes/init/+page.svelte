@@ -39,7 +39,7 @@
     <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
                 border border-md3-outline p-8 text-center space-y-5">
       <div class="flex justify-center">
-        <span class="text-md3-primary">
+        <span class="text-md3-primary-emphasis">
           <Icon name="security" size="48px" />
         </span>
       </div>
@@ -57,7 +57,7 @@
 
       {#if !complete}
         <div class="flex justify-center">
-          <span class="animate-spin text-md3-primary">
+          <span class="animate-spin text-md3-primary-emphasis">
             <Icon name="refresh" size="32px" />
           </span>
         </div>

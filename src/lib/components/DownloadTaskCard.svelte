@@ -13,6 +13,7 @@
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
   import type { IconName } from "$lib/icons";
+  import { shortIdentifier } from "$lib/identifiers";
 
   interface Props {
     task: DownloadTaskDto;
@@ -91,7 +92,7 @@
   function statusColor(status: DownloadTaskStatus): string {
     switch (status) {
       case "pending":     return "text-md3-on-surface-variant";
-      case "downloading": return "text-md3-primary";
+      case "downloading": return "text-md3-primary-emphasis";
       case "paused":      return "text-md3-warning";
       case "decrypting":  return "text-md3-tertiary";
       case "verifying":   return "text-md3-tertiary";
@@ -317,7 +318,7 @@
 
     <!-- Task ID -->
     <span class="ml-auto text-[10px] text-md3-on-surface-variant self-end font-mono">
-      {task.task_id.slice(0, 12)}&hellip;
+      {shortIdentifier(task.task_id, 12)}&hellip;
     </span>
   </div>
 </div>

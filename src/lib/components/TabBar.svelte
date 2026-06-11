@@ -17,6 +17,7 @@
   import Icon from './Icon.svelte';
   import type { IconName } from '$lib/icons';
   import { ripple } from '$lib/motion/actions';
+  import { chromeStore } from '$lib/stores.svelte';
 
   interface Tab {
     href: string;
@@ -33,6 +34,7 @@
   let { tabs }: Props = $props();
 
   const visibleTabs = $derived(tabs.filter((t) => !t.hidden));
+  const lift = $derived(chromeStore.snackbarStackHeight);
 
   function isActive(href: string): boolean {
     return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
@@ -84,6 +86,7 @@
 <div
   class="fixed inset-x-0 bottom-5 z-40 flex justify-center px-4
          pointer-events-none motion-navbar-in"
+  style={`transform: translate3d(0, -${lift}px, 0); transition: transform 520ms var(--motion-easing-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1));`}
 >
   <nav
     class="pointer-events-auto relative flex items-stretch gap-1 p-1.5
@@ -143,3 +146,11 @@
     {/each}
   </nav>
 </div>
+
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    div {
+      transition: none !important;
+    }
+  }
+</style>

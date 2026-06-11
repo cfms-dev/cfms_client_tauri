@@ -617,7 +617,7 @@
                         hover:bg-md3-primary-container/10 transition-colors"
                  role="listitem"
                  oncontextmenu={(event) => showUserContextMenu(event, user)}>
-              <span class="text-md3-primary"><Icon name="accountCircle" size="24px" /></span>
+              <span class="text-md3-primary-emphasis"><Icon name="accountCircle" size="24px" /></span>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-md3-on-surface truncate">
                   {user.nickname || user.username}
@@ -673,7 +673,7 @@
                         hover:bg-md3-primary-container/10 transition-colors"
                  role="listitem"
                  oncontextmenu={(event) => showGroupContextMenu(event, group)}>
-              <span class="text-md3-primary"><Icon name="groups" size="24px" /></span>
+              <span class="text-md3-primary-emphasis"><Icon name="groups" size="24px" /></span>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-md3-on-surface truncate">
                   {group.display_name || group.name}
@@ -872,7 +872,7 @@
     class="p-1.5 rounded-full transition-colors disabled:opacity-40
            {danger
              ? 'text-md3-error hover:bg-md3-error-container/40'
-             : 'text-md3-on-surface-variant hover:bg-md3-primary-container/40 hover:text-md3-primary'}"
+             : 'text-md3-on-surface-variant hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis'}"
     {title}
     onclick={onClick}
     {disabled}

@@ -22,7 +22,7 @@
 <nav aria-label={$t('common.breadcrumb')} class="flex items-center gap-1 text-sm no-select">
   <!-- Root -->
   <button
-    class="text-md3-primary hover:underline font-medium transition-colors"
+    class="text-md3-primary-emphasis hover:underline font-medium transition-colors"
     onclick={() => onNavigate("/")}
     transition:flyScale={staggeredList(0, { y: 4, duration: 220, step: 28 })}
   >
@@ -45,7 +45,7 @@
       </span>
     {:else}
       <button
-        class="text-md3-primary hover:underline transition-colors"
+        class="text-md3-primary-emphasis hover:underline transition-colors"
         onclick={() => onNavigate(seg.path)}
         transition:flyScale={staggeredList(i * 2 + 2, { y: 4, duration: 220, step: 28 })}
       >

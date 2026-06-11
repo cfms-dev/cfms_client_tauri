@@ -16,7 +16,7 @@
   use:hoverLift
   use:reveal
 >
-  <span class="text-md3-primary shrink-0 mt-0.5">
+  <span class="text-md3-primary-emphasis shrink-0 mt-0.5">
     <Icon name="guardian" size="40px" />
   </span>
   <div>

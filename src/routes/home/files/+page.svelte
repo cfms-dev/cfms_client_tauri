@@ -58,6 +58,7 @@
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { normalizeDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
+  import { shortIdentifier } from '$lib/identifiers';
   import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
@@ -69,7 +70,8 @@
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
   let searchQuery = $state('');
-  let uploadSchedule = Promise.resolve();
+  let navigationRootId = $state<string | null>(null);
+  let navigationRootLabel = $state<string | null>(null);
 
   // Selection mode
   let selectMode = $state(false);
@@ -151,10 +153,17 @@
   let navHistory = $state<Array<{ label: string; id: string }>>([]);
 
   const breadcrumbSegments = $derived(
-    navHistory.map((h) => ({ label: h.label, path: h.id })),
+    [
+      ...(navigationRootId !== null
+        ? [{ label: navigationRootLabel ?? shortIdentifier(navigationRootId), path: navigationRootId }]
+        : []),
+      ...navHistory.map((h) => ({ label: h.label, path: h.id })),
+    ],
   );
   const moveInitialBreadcrumb = $derived<DirectoryBreadcrumbSegment[]>(
-    navHistory.map((h) => ({ label: h.label, id: h.id })),
+    breadcrumbSegments
+      .filter((segment) => segment.path !== '/')
+      .map((segment) => ({ label: segment.label, id: segment.path })),
   );
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
   const revisionRows = $derived(
@@ -176,22 +185,27 @@
 
   // --- Data loading ---
 
-  async function loadDirectory(folderId: string | null) {
+  async function loadDirectory(folderId: string | null, preserveOnError = false): Promise<boolean> {
     loading = true;
     error = null;
-    currentFolderId = folderId;
     selectedFolderIds = new Set();
     selectedDocumentIds = new Set();
     try {
-      const resp = await listDirectory(folderId);
+      const normalizedFolderId = normalizeDirectoryId(folderId);
+      const resp = await listDirectory(normalizedFolderId);
+      currentFolderId = normalizedFolderId;
       folders = resp.folders;
       documents = resp.documents;
-      parentId = resp.parent_id;
+      parentId = normalizeDirectoryId(resp.parent_id);
+      return true;
     } catch (e) {
       error = String(e);
-      folders = [];
-      documents = [];
-      parentId = null;
+      if (!preserveOnError) {
+        folders = [];
+        documents = [];
+        parentId = null;
+      }
+      return false;
     } finally {
       loading = false;
     }
@@ -199,32 +213,68 @@
 
   // --- Navigation ---
 
-  function handleNavigate(folderId: string, folderName: string) {
-    navHistory.push({ label: folderName, id: folderId });
-    loadDirectory(folderId);
+  async function handleNavigate(folderId: string, folderName: string) {
+    const ok = await loadDirectory(folderId);
+    if (ok) {
+      navHistory = [...navHistory, { label: folderName, id: folderId }];
+    }
   }
 
-  function handleBreadcrumbNavigate(targetId: string) {
+  async function handleBreadcrumbNavigate(targetId: string) {
     // "/" means root
     if (targetId === '/') {
+      navigationRootId = null;
+      navigationRootLabel = null;
       navHistory = [];
-      loadDirectory(null);
+      await loadDirectory(null);
+      return;
+    }
+    if (sameDirectory(targetId, navigationRootId)) {
+      const ok = await loadDirectory(navigationRootId);
+      if (ok) navHistory = [];
       return;
     }
     // Truncate history to the clicked segment
     const idx = navHistory.findIndex((h) => h.id === targetId);
     if (idx >= 0) {
-      navHistory = navHistory.slice(0, idx + 1);
+      const ok = await loadDirectory(targetId);
+      if (ok) navHistory = navHistory.slice(0, idx + 1);
+      return;
     }
-    loadDirectory(targetId);
+    await loadDirectory(targetId);
   }
 
-  function handleGoToParent() {
+  async function handleGoToParent() {
+    if (sameDirectory(currentFolderId, navigationRootId)) return;
     // Pop the last entry and navigate to its parent
-    if (navHistory.length > 0) {
-      navHistory.pop();
+    const ok = await loadDirectory(parentId);
+    if (ok && navHistory.length > 0) {
+      navHistory = navHistory.slice(0, -1);
     }
-    loadDirectory(parentId);
+  }
+
+  function sameDirectory(a: string | null | undefined, b: string | null | undefined) {
+    return normalizeDirectoryId(a) === normalizeDirectoryId(b);
+  }
+
+  async function handleJumpToDirectory() {
+    const value = await dialogStore.prompt({
+      title: $t('files.jumpToDirectory'),
+      message: $t('files.jumpToDirectoryPrompt'),
+      defaultValue: currentFolderId ?? '/',
+      confirmLabel: $t('common.open'),
+      cancelLabel: $t('common.cancel'),
+    });
+    if (value === null) return;
+
+    const target = normalizeDirectoryId(value);
+    const ok = await loadDirectory(target, true);
+    if (!ok) return;
+
+    navigationRootId = target;
+    navigationRootLabel = target === null ? null : shortIdentifier(target);
+    navHistory = [];
+    status = $t('files.jumpToDirectorySuccess');
   }
 
   // --- Selection ---
@@ -859,20 +909,15 @@
 
   function scheduleUpload(sourcePath: string, action: (uploadId: string) => Promise<unknown>) {
     const uploadId = createUploadId();
-    uploadStore.addQueued(uploadId, basename(sourcePath), sourcePath);
-    uploadSchedule = uploadSchedule
-      .then(async () => {
-        try {
-          await action(uploadId);
-          await loadDirectory(currentFolderId);
-        } catch (e) {
-          uploadStore.markFailed(uploadId, formatError(e));
-          error = formatError(e);
-        }
-      })
-      .catch((e) => {
-        uploadStore.markFailed(uploadId, formatError(e));
-      });
+    uploadStore.addQueued(
+      uploadId,
+      basename(sourcePath),
+      sourcePath,
+      action,
+      async () => {
+        await loadDirectory(currentFolderId);
+      },
+    );
   }
 
   function createUploadId() {
@@ -923,17 +968,26 @@
     searchDialog = { ...searchDialog, open: false };
   }
 
-  function navigateToSearchDirectory(directory: { id: string; name: string }) {
-    navHistory = [{ label: directory.name, id: directory.id }];
+  async function navigateToSearchDirectory(directory: { id: string; name: string }) {
     closeSearchDialog();
-    loadDirectory(directory.id);
+    const ok = await loadDirectory(directory.id);
+    if (ok) {
+      navigationRootId = directory.id;
+      navigationRootLabel = directory.name;
+      navHistory = [];
+    }
   }
 
-  function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {
-    navHistory = [];
+  async function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {
     closeSearchDialog();
-    loadDirectory(document.parent_id ?? null);
-    status = $t('files.searchOpenedParent', { values: { name: document.name ?? document.title ?? '' } });
+    const parent = normalizeDirectoryId(document.parent_id);
+    const ok = await loadDirectory(parent);
+    if (ok) {
+      navigationRootId = parent;
+      navigationRootLabel = parent === null ? null : shortIdentifier(parent);
+      navHistory = [];
+      status = $t('files.searchOpenedParent', { values: { name: document.name ?? document.title ?? '' } });
+    }
   }
 
   function handleNavigateTrash() {
@@ -1162,6 +1216,18 @@
       {$t('files.trash')}
     </button>
 
+    <button
+      class="px-3 py-1.5 text-xs rounded-full font-medium
+             bg-md3-surface-container-high text-md3-on-surface-variant
+             hover:brightness-110 transition-all flex items-center gap-1.5"
+      style="font-family: var(--font-md3-sans);"
+      title={$t('files.jumpToDirectory')}
+      onclick={handleJumpToDirectory}
+    >
+      <Icon name="folderEye" size="16px" />
+      {$t('files.jumpToDirectory')}
+    </button>
+
     <!-- Spacer -->
     <span class="flex-1"></span>
 
@@ -1270,7 +1336,7 @@
       {/if}
 
       <!-- Parent directory link -->
-      {#if parentId !== null}
+      {#if parentId !== null && !sameDirectory(currentFolderId, navigationRootId)}
         <button
           class="grid grid-cols-[auto_1fr_100px_160px] gap-3 px-4 py-2.5 w-full text-left
                  hover:bg-md3-primary-container/20
@@ -1278,10 +1344,10 @@
                  transition-colors select-none"
           onclick={handleGoToParent}
         >
-          <span class="self-center text-md3-primary">
+          <span class="self-center text-md3-primary-emphasis">
             <Icon name="arrowBack" size="20px" />
           </span>
-          <span class="text-sm font-medium text-md3-primary truncate">
+          <span class="text-sm font-medium text-md3-primary-emphasis truncate">
             &lt;…&gt;
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
@@ -1302,14 +1368,14 @@
           {#if selectMode}
             <span class="self-center">
               <input type="checkbox" checked={selectedFolderIds.has(folder.id)}
-                     class="rounded border-md3-outline text-md3-primary" />
+                     class="rounded border-md3-outline text-md3-primary-emphasis" />
             </span>
           {:else}
-            <span class="self-center text-md3-primary">
+            <span class="self-center text-md3-primary-emphasis">
               <Icon name="folder" size="20px" />
             </span>
           {/if}
-          <span class="text-sm font-medium text-md3-primary truncate">
+          <span class="text-sm font-medium text-md3-primary-emphasis truncate">
             {folder.name}
           </span>
           <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
@@ -1332,7 +1398,7 @@
           {#if selectMode}
             <span class="self-center">
               <input type="checkbox" checked={selectedDocumentIds.has(doc.id)}
-                     class="rounded border-md3-outline text-md3-primary" />
+                     class="rounded border-md3-outline text-md3-primary-emphasis" />
             </span>
           {:else}
             <span class="self-center text-md3-on-surface-variant">
@@ -1425,8 +1491,8 @@
               class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-primary-container/20"
               onclick={() => navigateToSearchDirectory(directory)}
             >
-              <span class="text-md3-primary"><Icon name="folder" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary">{directory.name}</span>
+              <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
+              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{directory.name}</span>
               <span class="text-xs text-md3-on-surface-variant">{formatDate(directory.created_time)}</span>
             </button>
           {/each}
@@ -1451,9 +1517,9 @@
   <ModalFrame title={detailTitle} maxWidth="max-w-lg" closeLabel={$t('common.close')} onClose={() => (detailTitle = null)}>
       <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
         {#each detailRows as row}
-          <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
+          <div class="grid min-w-0 grid-cols-[140px_minmax(0,1fr)] gap-3 text-sm">
             <span class="text-md3-on-surface-variant">{row.label}</span>
-            <span class="text-md3-on-surface whitespace-pre-wrap break-words">{row.value || '—'}</span>
+            <span class="min-w-0 whitespace-pre-wrap text-md3-on-surface" style="overflow-wrap: anywhere;">{row.value || '—'}</span>
           </div>
         {/each}
       </div>
@@ -1520,11 +1586,12 @@
                   <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.end_time)}</td>
                   <td class="px-3 py-2 text-right">
                     <button
-                      class="px-2.5 py-1 text-xs rounded-full bg-md3-error-container
-                             text-md3-on-error-container hover:brightness-110"
+                      class="rounded-full bg-md3-error-container p-2 text-md3-on-error-container transition-all hover:brightness-110"
+                      title={$t('files.revoke')}
+                      aria-label={$t('files.revoke')}
                       onclick={() => handleRevokeAccess(entry.id)}
                     >
-                      {$t('files.revoke')}
+                      <Icon name="delete" size="17px" />
                     </button>
                   </td>
                 </tr>
@@ -1632,7 +1699,7 @@
                 ></span>
                 {#if row.hasBranch}
                   <span
-                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-[#c084fc]"
+                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-md3-primary-emphasis"
                     style={`left: ${laneX(row.lane) + 8}px; top: calc(50% - 8px); transform: translate(-50%, -50%);`}
                     aria-hidden="true"
                   ></span>
@@ -1647,8 +1714,8 @@
 
                 <div class="min-w-0 py-3">
                   <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-semibold text-md3-on-surface">
-                      {$t('files.revision')} #{row.revision.id}
+                    <p class="text-sm font-semibold text-md3-on-surface" title={row.revision.id}>
+                      {$t('files.revision')} #{shortIdentifier(row.revision.id)}
                     </p>
                     {#if row.revision.is_current}
                       <span class="rounded-full bg-md3-primary-container px-2 py-0.5 text-[11px] font-medium text-md3-on-primary-container">
@@ -1660,7 +1727,9 @@
                     {#if row.revision.parent_id === null || row.revision.parent_id === undefined}
                       {$t('files.rootRevision')}
                     {:else}
-                      {$t('files.parentRevision')}: #{row.revision.parent_id}
+                      <span title={String(row.revision.parent_id)}>
+                        {$t('files.parentRevision')}: #{shortIdentifier(row.revision.parent_id)}
+                      </span>
                     {/if}
                     · {$t('files.created')}: {formatDate(row.revision.created_time ?? null)}
                   </p>

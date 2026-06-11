@@ -253,7 +253,7 @@
             class="grid grid-cols-[auto_1fr_180px_auto] gap-3 px-4 py-2.5
                    border-b border-md3-outline/50 last:border-b-0 items-center"
           >
-            <span class={item.kind === 'directory' ? 'text-md3-primary' : 'text-md3-on-surface-variant'}>
+            <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
               <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
             </span>
             <div class="min-w-0">
@@ -268,7 +268,7 @@
             <div class="flex items-center justify-end gap-1">
               <button
                 class="p-1.5 rounded-full text-md3-on-surface-variant
-                       hover:bg-md3-primary-container/40 hover:text-md3-primary
+                       hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
                        disabled:opacity-40 transition-colors"
                 title="Restore"
                 onclick={() => handleRestore(item.kind, item.id, item.name)}

@@ -59,7 +59,7 @@
                {i < entries.length - 1 ? 'border-b border-md3-outline/50' : ''}"
         onclick={() => goto(entry.href)}
       >
-        <span class="text-md3-primary shrink-0">
+        <span class="text-md3-primary-emphasis shrink-0">
           <Icon name={entry.icon} size="24px" />
         </span>
         <div class="min-w-0">

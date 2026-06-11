@@ -69,7 +69,7 @@
       <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
         {$t('home.activeDownloads')}
       </p>
-      <p class="text-2xl font-bold text-md3-primary mt-1" style="font-family: var(--font-md3-sans);">
+      <p class="text-2xl font-bold text-md3-primary-emphasis mt-1" style="font-family: var(--font-md3-sans);">
         {activeCount}
       </p>
     </div>

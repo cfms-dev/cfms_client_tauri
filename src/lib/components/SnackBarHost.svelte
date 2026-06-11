@@ -1,17 +1,37 @@
 <script lang="ts">
   import Icon from '$lib/components/Icon.svelte';
   import { flyScale } from '$lib/motion/transitions';
-  import { notificationStore, type NotificationEntry } from '$lib/stores.svelte';
+  import { chromeStore, notificationStore, type NotificationEntry } from '$lib/stores.svelte';
 
   let now = $state(Date.now());
   const timers = new Map<number, { timer: number; createdAt: number }>();
   let expandedIds = $state<Set<number>>(new Set());
+  let hostEl = $state<HTMLDivElement | null>(null);
 
   $effect(() => {
     const interval = window.setInterval(() => {
       now = Date.now();
     }, 100);
     return () => window.clearInterval(interval);
+  });
+
+  $effect(() => {
+    if (!hostEl || typeof ResizeObserver === 'undefined') {
+      chromeStore.setSnackbarStackHeight(notificationStore.entries.length > 0 ? 96 : 0);
+      return;
+    }
+
+    const updateHeight = () => {
+      const rect = hostEl?.getBoundingClientRect();
+      chromeStore.setSnackbarStackHeight(notificationStore.entries.length > 0 ? (rect?.height ?? 0) + 12 : 0);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(hostEl);
+    return () => {
+      observer.disconnect();
+      chromeStore.setSnackbarStackHeight(0);
+    };
   });
 
   $effect(() => {
@@ -79,7 +99,7 @@
   }
 </script>
 
-<div class="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 px-4">
+<div bind:this={hostEl} class="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 px-4">
   {#each notificationStore.entries as entry (entry.id)}
     <div
       class="snackbar pointer-events-auto relative flex w-full max-w-md items-start gap-3 overflow-hidden rounded-lg px-4 py-3 shadow-2xl {toneClass(entry.type)}"

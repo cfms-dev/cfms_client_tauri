@@ -26,8 +26,10 @@ export type DownloadTaskStatus =
 export type UploadTaskStatus =
   | "pending"
   | "uploading"
+  | "paused"
   | "completed"
   | "failed"
+  | "cancelled"
   | "skipped";
 
 export type DownloadPhase =
@@ -767,6 +769,18 @@ export async function uploadDirectory(
     uploadId,
     conflictStrategy,
   });
+}
+
+export async function pauseUpload(uploadId: string): Promise<boolean> {
+  return invoke("pause_upload", { uploadId });
+}
+
+export async function resumeUpload(uploadId: string): Promise<boolean> {
+  return invoke("resume_upload", { uploadId });
+}
+
+export async function cancelUpload(uploadId: string): Promise<boolean> {
+  return invoke("cancel_upload", { uploadId });
 }
 
 export async function searchFiles(

@@ -20,7 +20,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 
-use crate::AppHandleState;
+use crate::{AppHandleState, UploadInterruption};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionSettingsDto {
@@ -939,6 +939,31 @@ pub async fn upload_directory(
         "total_files": total_files,
         "uploaded_files": uploaded_files,
     }))
+}
+
+#[tauri::command]
+pub async fn pause_upload(
+    state: tauri::State<'_, AppHandleState>,
+    upload_id: String,
+) -> Result<bool, String> {
+    Ok(state
+        .active_uploads
+        .interrupt(&upload_id, UploadInterruption::Paused))
+}
+
+#[tauri::command]
+pub async fn resume_upload(_upload_id: String) -> Result<bool, String> {
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn cancel_upload(
+    state: tauri::State<'_, AppHandleState>,
+    upload_id: String,
+) -> Result<bool, String> {
+    Ok(state
+        .active_uploads
+        .interrupt(&upload_id, UploadInterruption::Cancelled))
 }
 
 /// Search documents and directories on the server.
@@ -2942,6 +2967,7 @@ async fn upload_local_file(
         .and_then(|name| name.to_str())
         .ok_or_else(|| "Selected file has no valid name".to_string())?
         .to_string();
+    let mut upload_control = state.active_uploads.register(&upload_id);
 
     emit_upload_progress(
         app_handle,
@@ -2954,8 +2980,14 @@ async fn upload_local_file(
         Some("Preparing upload".to_string()),
     );
 
-    let (conn, username, token) = get_connection_auth(state).await?;
-    let create_resp = send_action_request(
+    let (conn, username, token) = match get_connection_auth(state).await {
+        Ok(auth) => auth,
+        Err(err) => {
+            state.active_uploads.unregister(&upload_id);
+            return Err(err);
+        }
+    };
+    let create_resp = match send_action_request(
         &conn,
         "create_document",
         serde_json::json!({
@@ -2966,7 +2998,14 @@ async fn upload_local_file(
         &username,
         &token,
     )
-    .await?;
+    .await
+    {
+        Ok(response) => response,
+        Err(err) => {
+            state.active_uploads.unregister(&upload_id);
+            return Err(err);
+        }
+    };
 
     let mut overwritten = false;
     let (task_id, document_id, skipped) = if create_resp.code == 409 {
@@ -2992,6 +3031,7 @@ async fn upload_local_file(
                     "skipped",
                     Some("Skipped existing document".to_string()),
                 );
+                state.active_uploads.unregister(&upload_id);
                 return Ok(UploadFileResult {
                     upload_id,
                     task_id: None,
@@ -3002,16 +3042,24 @@ async fn upload_local_file(
                 });
             }
             (UploadConflictStrategy::Overwrite, Some("document"), Some(document_id)) => {
-                let upload_resp = send_action_request(
+                let upload_resp = match send_action_request(
                     &conn,
                     "upload_document",
                     serde_json::json!({ "document_id": document_id }),
                     &username,
                     &token,
                 )
-                .await?;
+                .await
+                {
+                    Ok(response) => response,
+                    Err(err) => {
+                        state.active_uploads.unregister(&upload_id);
+                        return Err(err);
+                    }
+                };
 
                 if upload_resp.code != 200 {
+                    state.active_uploads.unregister(&upload_id);
                     return Err(format!(
                         "Server returned {}: {}",
                         upload_resp.code, upload_resp.message
@@ -3019,10 +3067,17 @@ async fn upload_local_file(
                 }
 
                 overwritten = true;
-                let task_id = extract_task_id(&upload_resp.data)?;
+                let task_id = match extract_task_id(&upload_resp.data) {
+                    Ok(id) => id,
+                    Err(err) => {
+                        state.active_uploads.unregister(&upload_id);
+                        return Err(err);
+                    }
+                };
                 (task_id, Some(document_id), false)
             }
             _ => {
+                state.active_uploads.unregister(&upload_id);
                 return Err(format!(
                     "Server returned {}: {}",
                     create_resp.code, create_resp.message
@@ -3030,12 +3085,19 @@ async fn upload_local_file(
             }
         }
     } else if create_resp.code != 200 {
+        state.active_uploads.unregister(&upload_id);
         return Err(format!(
             "Server returned {}: {}",
             create_resp.code, create_resp.message
         ));
     } else {
-        let task_id = extract_task_id(&create_resp.data)?;
+        let task_id = match extract_task_id(&create_resp.data) {
+            Ok(id) => id,
+            Err(err) => {
+                state.active_uploads.unregister(&upload_id);
+                return Err(err);
+            }
+        };
         let document_id = create_resp
             .data
             .get("id")
@@ -3045,7 +3107,22 @@ async fn upload_local_file(
         (task_id, document_id, false)
     };
 
-    let transfer_conn = create_transfer_connection(&state.inner).await?;
+    if let Some(reason) = *upload_control.borrow() {
+        emit_interrupted_upload(app_handle, &upload_id, Some(&task_id), &file_name, reason);
+        state.active_uploads.unregister(&upload_id);
+        return Err(upload_interruption_message(reason).to_string());
+    }
+
+    let transfer_conn = match create_transfer_connection(&state.inner).await {
+        Ok(conn) => conn,
+        Err(err) => {
+            state.active_uploads.unregister(&upload_id);
+            return Err(err);
+        }
+    };
+    state
+        .active_uploads
+        .set_transfer_conn(&upload_id, transfer_conn.clone());
     let emit_handle = app_handle.clone();
     let progress_upload_id = upload_id.clone();
     let progress_task_id = task_id.clone();
@@ -3063,11 +3140,28 @@ async fn upload_local_file(
         );
     };
 
-    let result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress).await;
+    let result = tokio::select! {
+        result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress) => {
+            result.map_err(|err| format!("Upload failed: {err}"))
+        }
+        changed = upload_control.changed() => {
+            let reason = if changed.is_ok() {
+                (*upload_control.borrow()).unwrap_or(UploadInterruption::Cancelled)
+            } else {
+                UploadInterruption::Cancelled
+            };
+            Err(upload_interruption_message(reason).to_string())
+        }
+    };
     transfer_conn.close().await;
 
-    if let Err(err) = result {
-        let message = format!("Upload failed: {err}");
+    if let Err(message) = result {
+        if let Some(reason) = *upload_control.borrow() {
+            emit_interrupted_upload(app_handle, &upload_id, Some(&task_id), &file_name, reason);
+            state.active_uploads.unregister(&upload_id);
+            return Err(message);
+        }
+
         emit_upload_progress(
             app_handle,
             &upload_id,
@@ -3078,6 +3172,7 @@ async fn upload_local_file(
             "failed",
             Some(message.clone()),
         );
+        state.active_uploads.unregister(&upload_id);
         return Err(message);
     }
 
@@ -3091,6 +3186,7 @@ async fn upload_local_file(
         "completed",
         Some("Upload completed".to_string()),
     );
+    state.active_uploads.unregister(&upload_id);
 
     Ok(UploadFileResult {
         upload_id,
@@ -3100,6 +3196,36 @@ async fn upload_local_file(
         skipped,
         overwritten,
     })
+}
+
+fn upload_interruption_message(reason: UploadInterruption) -> &'static str {
+    match reason {
+        UploadInterruption::Paused => "Upload paused",
+        UploadInterruption::Cancelled => "Upload cancelled",
+    }
+}
+
+fn emit_interrupted_upload(
+    app_handle: &tauri::AppHandle,
+    upload_id: &str,
+    task_id: Option<&str>,
+    file_name: &str,
+    reason: UploadInterruption,
+) {
+    let status = match reason {
+        UploadInterruption::Paused => "paused",
+        UploadInterruption::Cancelled => "cancelled",
+    };
+    emit_upload_progress(
+        app_handle,
+        upload_id,
+        task_id,
+        file_name,
+        0,
+        0,
+        status,
+        Some(upload_interruption_message(reason).to_string()),
+    );
 }
 
 fn emit_upload_progress(

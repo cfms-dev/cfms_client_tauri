@@ -188,7 +188,7 @@
       <!-- Toggle mode -->
       <button
         type="button"
-        class="flex items-center gap-1.5 text-sm text-md3-primary
+        class="flex items-center gap-1.5 text-sm text-md3-primary-emphasis
                hover:brightness-110 transition-all disabled:opacity-50"
         onclick={handleToggle}
         disabled={busy}

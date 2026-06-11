@@ -165,7 +165,7 @@
     <!-- Title bar -->
     <div class="flex items-center justify-between px-6 pt-6 pb-2">
       <div class="flex items-center gap-2.5">
-        <span class="text-md3-primary"><Icon name="lockPerson" size="22px" /></span>
+        <span class="text-md3-primary-emphasis"><Icon name="lockPerson" size="22px" /></span>
         <h2
           class="text-lg font-semibold text-md3-on-surface"
           style="font-family: var(--font-md3-sans);"
@@ -265,7 +265,7 @@
           <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <button
               type="button"
-              class="text-md3-on-surface-variant hover:text-md3-primary
+              class="text-md3-on-surface-variant hover:text-md3-primary-emphasis
                      transition-colors rounded-full p-1"
               onclick={handleDice}
               disabled={busy}

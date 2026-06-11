@@ -7,18 +7,80 @@ mod background;
 mod commands;
 mod localization;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::log::LevelFilter;
 use tauri_plugin_log::{Target, TargetKind};
+use tokio::sync::watch;
 
 use cfms_service::db::settings::SettingsStore;
 use cfms_service::service::manager::ServiceManager;
 use cfms_service::services::download_queue::{ActiveRegistry, QueueState};
 use cfms_service::state::AppState;
 use localization::LocalizationManager;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UploadInterruption {
+    Paused,
+    Cancelled,
+}
+
+struct ActiveUpload {
+    control_tx: watch::Sender<Option<UploadInterruption>>,
+    transfer_conn: Option<cfms_transport::Connection>,
+}
+
+#[derive(Clone, Default)]
+pub struct ActiveUploadRegistry {
+    inner: Arc<Mutex<HashMap<String, ActiveUpload>>>,
+}
+
+impl ActiveUploadRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&self, upload_id: &str) -> watch::Receiver<Option<UploadInterruption>> {
+        let (control_tx, control_rx) = watch::channel(None);
+        let mut map = self.inner.lock().unwrap();
+        map.insert(
+            upload_id.to_string(),
+            ActiveUpload {
+                control_tx,
+                transfer_conn: None,
+            },
+        );
+        control_rx
+    }
+
+    pub fn set_transfer_conn(&self, upload_id: &str, conn: cfms_transport::Connection) {
+        let mut map = self.inner.lock().unwrap();
+        if let Some(active) = map.get_mut(upload_id) {
+            active.transfer_conn = Some(conn);
+        }
+    }
+
+    pub fn unregister(&self, upload_id: &str) {
+        let mut map = self.inner.lock().unwrap();
+        map.remove(upload_id);
+    }
+
+    pub fn interrupt(&self, upload_id: &str, reason: UploadInterruption) -> bool {
+        let mut map = self.inner.lock().unwrap();
+        if let Some(active) = map.get_mut(upload_id) {
+            let _ = active.control_tx.send(Some(reason));
+            if let Some(conn) = active.transfer_conn.take() {
+                tauri::async_runtime::spawn(async move { conn.close().await });
+            }
+            true
+        } else {
+            false
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Tauri managed state
@@ -39,6 +101,9 @@ pub struct AppHandleState {
 
     /// Registry of active downloads (cancellation flags).
     pub active_downloads: ActiveRegistry,
+
+    /// Registry of active uploads (pause/cancel flags).
+    pub active_uploads: ActiveUploadRegistry,
 
     /// Backend localization state (Fluent-backed).
     pub localizer: Arc<LocalizationManager>,
@@ -97,6 +162,7 @@ pub fn run() {
             let localizer = Arc::new(LocalizationManager::new(initial_locale));
             let tasks = QueueState::new();
             let active_downloads = ActiveRegistry::new();
+            let active_uploads = ActiveUploadRegistry::new();
 
             // --- Register background services (no Tokio context needed) ---
             // Services are activated later inside a Tauri async runtime block.
@@ -181,6 +247,7 @@ pub fn run() {
                 tasks,
                 settings,
                 active_downloads,
+                active_uploads,
                 localizer,
                 app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
@@ -245,6 +312,9 @@ pub fn run() {
             commands::upload_new_revision,
             commands::upload_document_file,
             commands::upload_directory,
+            commands::pause_upload,
+            commands::resume_upload,
+            commands::cancel_upload,
             commands::search_files,
             commands::list_deleted_items,
             commands::restore_document,

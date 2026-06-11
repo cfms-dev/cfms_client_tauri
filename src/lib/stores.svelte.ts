@@ -3,7 +3,7 @@
 // All application state lives here as `$state` runes.  Components import
 // these and use them directly — no legacy Svelte stores needed.
 
-import { getSetting, setSetting } from "./api";
+import { cancelUpload, getSetting, pauseUpload, resumeUpload, setSetting } from "./api";
 import type {
   DownloadTaskDto,
   DownloadTaskStatus,
@@ -260,8 +260,17 @@ export const downloadStore = new DownloadStoreImpl();
 
 class UploadStoreImpl {
   tasks = $state<Map<string, UploadTaskDto>>(new Map());
+  private runners = new Map<string, (uploadId: string) => Promise<unknown>>();
+  private completionCallbacks = new Map<string, () => Promise<void> | void>();
+  private processing = false;
 
-  addQueued(uploadId: string, fileName: string, sourcePath: string) {
+  addQueued(
+    uploadId: string,
+    fileName: string,
+    sourcePath: string,
+    runner?: (uploadId: string) => Promise<unknown>,
+    onCompleted?: () => Promise<void> | void,
+  ) {
     const now = Math.floor(Date.now() / 1000);
     this.tasks.set(uploadId, {
       upload_id: uploadId,
@@ -277,27 +286,127 @@ class UploadStoreImpl {
       created_at: now,
       completed_at: null,
     });
+    if (runner) this.runners.set(uploadId, runner);
+    if (onCompleted) this.completionCallbacks.set(uploadId, onCompleted);
     this.tasks = new Map(this.tasks);
+    void this.processQueue();
+  }
+
+  async pause(uploadId: string) {
+    const task = this.tasks.get(uploadId);
+    if (!task || ["completed", "failed", "cancelled", "skipped"].includes(task.status)) return;
+
+    if (task.status === "uploading") {
+      const interrupted = await pauseUpload(uploadId);
+      if (interrupted) return;
+    }
+
+    this.setStatus(uploadId, "paused", "Upload paused");
+  }
+
+  async resume(uploadId: string) {
+    const task = this.tasks.get(uploadId);
+    if (!task || task.status !== "paused") return;
+    await resumeUpload(uploadId);
+    this.tasks.set(uploadId, {
+      ...task,
+      status: "pending",
+      message: null,
+      error: null,
+      completed_at: null,
+    });
+    this.tasks = new Map(this.tasks);
+    void this.processQueue();
+  }
+
+  async cancel(uploadId: string) {
+    const task = this.tasks.get(uploadId);
+    if (!task || ["completed", "failed", "cancelled", "skipped"].includes(task.status)) return;
+
+    if (task.status === "uploading") {
+      const interrupted = await cancelUpload(uploadId);
+      if (interrupted) return;
+    }
+
+    this.setStatus(uploadId, "cancelled", "Upload cancelled", true);
+  }
+
+  async processQueue() {
+    if (this.processing) return;
+    this.processing = true;
+
+    try {
+      while (true) {
+        const next = [...this.tasks.values()]
+          .sort((a, b) => a.created_at - b.created_at)
+          .find((task) => task.status === "pending" && this.runners.has(task.upload_id));
+        if (!next) break;
+
+        this.tasks.set(next.upload_id, {
+          ...next,
+          status: "uploading",
+          message: next.message ?? "Preparing upload",
+          error: null,
+          completed_at: null,
+        });
+        this.tasks = new Map(this.tasks);
+
+        try {
+          await this.runners.get(next.upload_id)?.(next.upload_id);
+          const current = this.tasks.get(next.upload_id);
+          if (current && current.status === "uploading") {
+            this.tasks.set(next.upload_id, {
+              ...current,
+              status: "completed",
+              progress: 1,
+              current_bytes: current.total_bytes || current.current_bytes || 1,
+              total_bytes: current.total_bytes || current.current_bytes || 1,
+              message: "Upload completed",
+              completed_at: Math.floor(Date.now() / 1000),
+            });
+            this.tasks = new Map(this.tasks);
+          }
+
+          const after = this.completionCallbacks.get(next.upload_id);
+          const finished = this.tasks.get(next.upload_id);
+          if (after && finished && ["completed", "skipped"].includes(finished.status)) {
+            await after();
+          }
+        } catch (err) {
+          const current = this.tasks.get(next.upload_id);
+          if (!current || ["paused", "cancelled", "failed"].includes(current.status)) {
+            continue;
+          }
+          this.markFailed(next.upload_id, formatStoreError(err));
+        }
+      }
+    } finally {
+      this.processing = false;
+    }
   }
 
   applyProgress(event: UploadProgressEvent) {
     const oldTask = this.tasks.get(event.upload_id);
+    const terminal = event.status === "completed"
+      || event.status === "failed"
+      || event.status === "skipped"
+      || event.status === "cancelled";
     const next: UploadTaskDto = {
       upload_id: event.upload_id,
       task_id: event.task_id,
       file_name: event.file_name,
       source_path: oldTask?.source_path ?? "",
       status: event.status,
-      progress: event.progress,
-      current_bytes: event.current_bytes,
-      total_bytes: event.total_bytes,
+      progress:
+        event.total_bytes === 0 && (event.status === "paused" || event.status === "cancelled")
+          ? (oldTask?.progress ?? event.progress)
+          : event.progress,
+      current_bytes: event.current_bytes || oldTask?.current_bytes || 0,
+      total_bytes: event.total_bytes || oldTask?.total_bytes || 0,
       message: event.message,
       error: event.status === "failed" ? event.message : null,
       created_at: oldTask?.created_at ?? Math.floor(Date.now() / 1000),
-      completed_at:
-        event.status === "completed" || event.status === "failed" || event.status === "skipped"
-          ? Math.floor(Date.now() / 1000)
-          : null,
+      completed_at: terminal ? Math.floor(Date.now() / 1000) : null,
     };
     this.tasks.set(event.upload_id, next);
     this.tasks = new Map(this.tasks);
@@ -318,13 +427,24 @@ class UploadStoreImpl {
 
   remove(uploadId: string) {
     this.tasks.delete(uploadId);
+    this.runners.delete(uploadId);
+    this.completionCallbacks.delete(uploadId);
     this.tasks = new Map(this.tasks);
   }
 
   clearFinished() {
+    for (const task of this.allTasks) {
+      if (["completed", "failed", "cancelled", "skipped"].includes(task.status)) {
+        this.runners.delete(task.upload_id);
+        this.completionCallbacks.delete(task.upload_id);
+      }
+    }
     this.tasks = new Map(
       [...this.tasks].filter(([, task]) =>
-        task.status !== "completed" && task.status !== "failed" && task.status !== "skipped"
+        task.status !== "completed"
+        && task.status !== "failed"
+        && task.status !== "cancelled"
+        && task.status !== "skipped"
       ),
     );
   }
@@ -336,9 +456,35 @@ class UploadStoreImpl {
   get activeTasks(): UploadTaskDto[] {
     return this.allTasks.filter((task) => task.status === "pending" || task.status === "uploading");
   }
+
+  get pausedTasks(): UploadTaskDto[] {
+    return this.allTasks.filter((task) => task.status === "paused");
+  }
+
+  private setStatus(
+    uploadId: string,
+    status: UploadTaskDto["status"],
+    message: string,
+    complete = false,
+  ) {
+    const task = this.tasks.get(uploadId);
+    if (!task) return;
+    this.tasks.set(uploadId, {
+      ...task,
+      status,
+      message,
+      error: status === "failed" ? message : task.error,
+      completed_at: complete ? Math.floor(Date.now() / 1000) : null,
+    });
+    this.tasks = new Map(this.tasks);
+  }
 }
 
 export const uploadStore = new UploadStoreImpl();
+
+function formatStoreError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // ---------------------------------------------------------------------------
 // Service status store
@@ -353,6 +499,20 @@ class ServiceStatusStoreImpl {
 }
 
 export const serviceStatusStore = new ServiceStatusStoreImpl();
+
+// ---------------------------------------------------------------------------
+// Shared UI chrome measurements
+// ---------------------------------------------------------------------------
+
+class ChromeStoreImpl {
+  snackbarStackHeight = $state(0);
+
+  setSnackbarStackHeight(height: number) {
+    this.snackbarStackHeight = Math.max(0, Math.round(height));
+  }
+}
+
+export const chromeStore = new ChromeStoreImpl();
 
 // ---------------------------------------------------------------------------
 // Event log (last N events for the dashboard activity feed)
