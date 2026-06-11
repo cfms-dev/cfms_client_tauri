@@ -114,6 +114,6 @@ jobs:
         with:
           name: cfms-client-windows-x86_64
           path: |
-            msi/*.msi
-            nsis/*.exe
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
           if-no-files-found: warn

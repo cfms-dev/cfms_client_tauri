@@ -1,4 +1,4 @@
-name: Build Android
+name: Build — Android
 
 on:
   workflow_dispatch:
@@ -19,45 +19,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: checkout
+      - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
-      - name: setup Java
+      - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: microsoft
           java-version: "25"
 
-      - name: setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
-      - name: setup pnpm
+      - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: latest
 
-      - name: setup Rust
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: >-
             aarch64-linux-android,
             x86_64-linux-android
 
-      - name: setup Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      - name: install Android NDK
+      - name: Install Android NDK
         run: |
           sdkmanager "ndk;${NDK_VERSION}"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
           echo "NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
-      - name: install frontend dependencies
+      - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: setup Android signing
+      - name: Setup Android signing
         run: |
           cd src-tauri/gen/android
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
@@ -65,10 +67,10 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > $RUNNER_TEMP/keystore.jks
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
-      - name: build Tauri Android
+      - name: Build Tauri Android
         run: pnpm tauri android build --apk --aab
 
-      - name: upload Android artifacts
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
         with:
           name: android-artifacts
