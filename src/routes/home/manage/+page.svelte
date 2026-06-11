@@ -27,7 +27,9 @@
     type UserBlockTarget,
   } from '$lib/api';
   import { authStore } from '$lib/stores.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
 
   type ManageTabKey = 'accounts' | 'groups' | 'logs';
@@ -37,6 +39,10 @@
     labelKey: string;
     icon: IconName;
   }
+
+  type ManageContextTarget =
+    | { kind: 'user'; user: ManagedUser }
+    | { kind: 'group'; group: ManagedGroup };
 
   const tabs: ManageTab[] = [
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
@@ -61,6 +67,12 @@
   let detailTitle = $state<string | null>(null);
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
   let blocksDialog = $state<{ username: string; blocks: UserBlock[] } | null>(null);
+  let contextMenu = $state<{
+    open: boolean;
+    x: number;
+    y: number;
+    target: ManageContextTarget | null;
+  }>({ open: false, x: 0, y: 0, target: null });
 
   const isAdmin = $derived(
     authStore.permissions.some((p) =>
@@ -81,6 +93,11 @@
   const canViewLogs = $derived(hasAnyPermission('view_audit_logs', 'manage_system'));
   const canBlock = $derived(hasAnyPermission('block', 'manage_system'));
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
+  const contextMenuItems = $derived.by<ContextMenuItem[]>(() => {
+    if (!contextMenu.target) return [];
+    if (contextMenu.target.kind === 'user') return getUserContextMenuItems(contextMenu.target.user);
+    return getGroupContextMenuItems(contextMenu.target.group);
+  });
 
   $effect(() => {
     if (!status) return;
@@ -102,9 +119,126 @@
   }
 
   function loadActiveTab() {
+    hideContextMenu();
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
     else loadAuditLogPage(auditOffset);
+  }
+
+  function hideContextMenu() {
+    contextMenu = { open: false, x: 0, y: 0, target: null };
+  }
+
+  function showUserContextMenu(event: MouseEvent, user: ManagedUser) {
+    event.preventDefault();
+    contextMenu = {
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      target: { kind: 'user', user },
+    };
+  }
+
+  function showGroupContextMenu(event: MouseEvent, group: ManagedGroup) {
+    event.preventDefault();
+    contextMenu = {
+      open: true,
+      x: event.clientX,
+      y: event.clientY,
+      target: { kind: 'group', group },
+    };
+  }
+
+  function getUserContextMenuItems(user: ManagedUser): ContextMenuItem[] {
+    const disabled = busyKey !== null;
+
+    return [
+      {
+        id: 'view-user',
+        label: 'Properties',
+        icon: 'info',
+        onSelect: () => handleViewUser(user),
+        disabled,
+      },
+      { type: 'divider' },
+      {
+        id: 'rename-user',
+        label: 'Change nickname',
+        icon: 'edit',
+        onSelect: () => handleRenameUser(user),
+        disabled,
+      },
+      {
+        id: 'edit-user-groups',
+        label: 'Edit groups',
+        icon: 'formatListBulleted',
+        onSelect: () => handleEditUserGroups(user),
+        disabled,
+      },
+      {
+        id: 'reset-user-password',
+        label: 'Reset password',
+        icon: 'password',
+        onSelect: () => handleResetPassword(user),
+        disabled,
+      },
+      { type: 'divider', hidden: !canBlock && !canListBlocks },
+      {
+        id: 'block-user',
+        label: 'Block user',
+        icon: 'block',
+        onSelect: () => handleBlockUser(user),
+        disabled,
+        hidden: !canBlock,
+      },
+      {
+        id: 'view-user-blocks',
+        label: 'View/Revoke blocks',
+        icon: 'manageAccounts',
+        onSelect: () => handleListBlocks(user),
+        disabled,
+        hidden: !canListBlocks,
+      },
+      { type: 'divider' },
+      {
+        id: 'delete-user',
+        label: 'Delete',
+        icon: 'delete',
+        onSelect: () => handleDeleteUser(user),
+        disabled,
+        danger: true,
+      },
+    ];
+  }
+
+  function getGroupContextMenuItems(group: ManagedGroup): ContextMenuItem[] {
+    const disabled = busyKey !== null;
+
+    return [
+      {
+        id: 'rename-group',
+        label: 'Rename',
+        icon: 'edit',
+        onSelect: () => handleRenameGroup(group),
+        disabled,
+      },
+      {
+        id: 'edit-group-permissions',
+        label: 'Set permissions',
+        icon: 'settings',
+        onSelect: () => handleEditGroupPermissions(group),
+        disabled,
+      },
+      { type: 'divider' },
+      {
+        id: 'delete-group',
+        label: 'Delete',
+        icon: 'groupRemove',
+        onSelect: () => handleDeleteGroup(group),
+        disabled,
+        danger: true,
+      },
+    ];
   }
 
   async function loadUserList() {
@@ -473,7 +607,10 @@
         {:else}
           {#each users as user (user.username)}
             <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
-                        border-b border-md3-outline/50 last:border-b-0 items-center">
+                        border-b border-md3-outline/50 last:border-b-0 items-center
+                        hover:bg-md3-primary-container/10 transition-colors"
+                 role="listitem"
+                 oncontextmenu={(event) => showUserContextMenu(event, user)}>
               <span class="text-md3-primary"><Icon name="accountCircle" size="24px" /></span>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-md3-on-surface truncate">
@@ -526,7 +663,10 @@
         {:else}
           {#each groups as group (group.name)}
             <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
-                        border-b border-md3-outline/50 last:border-b-0 items-center">
+                        border-b border-md3-outline/50 last:border-b-0 items-center
+                        hover:bg-md3-primary-container/10 transition-colors"
+                 role="listitem"
+                 oncontextmenu={(event) => showGroupContextMenu(event, group)}>
               <span class="text-md3-primary"><Icon name="groups" size="24px" /></span>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-md3-on-surface truncate">
@@ -616,6 +756,14 @@
     </div>
   {/if}
 </div>
+
+<ContextMenu
+  open={contextMenu.open}
+  x={contextMenu.x}
+  y={contextMenu.y}
+  items={contextMenuItems}
+  onClose={hideContextMenu}
+/>
 
 {#if detailTitle}
   <div
