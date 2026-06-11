@@ -8,11 +8,19 @@
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from '$lib/stores.svelte';
-  import { changePassword } from '$lib/api';
+  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import {
+    changePassword,
+    downloadAvatar,
+    getUserAvatar,
+    setUserAvatar,
+    type ServerDocumentEntry,
+  } from '$lib/api';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
   import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ServerDocumentPicker from '$lib/components/ServerDocumentPicker.svelte';
+  import { isImageDocumentName } from '$lib/image-documents';
   import type { IconName } from '$lib/icons';
 
   const isAdmin = $derived(
@@ -23,6 +31,8 @@
   );
 
   let showChangePassword = $state(false);
+  let showAvatarPicker = $state(false);
+  let savingAvatar = $state(false);
   let successMsg = $state<string | null>(null);
 
   interface MenuEntry {
@@ -62,13 +72,40 @@
     showChangePassword = false;
     successMsg = $t('more.passwordChanged');
   }
+
+  async function handleSelectAvatar(document: ServerDocumentEntry) {
+    const username = authStore.username;
+    if (!username || savingAvatar) return;
+    savingAvatar = true;
+
+    try {
+      const success = await setUserAvatar(username, document.id);
+      if (!success) throw new Error($t('avatar.setFailed'));
+
+      const taskData = await getUserAvatar(username);
+      if (taskData) {
+        const path = await downloadAvatar(taskData, username, true);
+        if (path) authStore.avatarPath = path;
+      }
+
+      showAvatarPicker = false;
+      notificationStore.success($t('avatar.updated'));
+    } catch (err) {
+      notificationStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      savingAvatar = false;
+    }
+  }
 </script>
 
 <div class="p-6 space-y-6 max-w-lg mx-auto">
   <!-- Account badge -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5">
-    <AccountBadge />
+    <AccountBadge
+      avatarBusy={savingAvatar}
+      onAvatarClick={() => (showAvatarPicker = true)}
+    />
   </div>
 
   <!-- Success banner (e.g. after a password change). -->
@@ -121,5 +158,16 @@
     tip={$t('more.passwordTip')}
     onSubmit={handleChangePassword}
     onCancel={() => (showChangePassword = false)}
+  />
+{/if}
+
+{#if showAvatarPicker}
+  <ServerDocumentPicker
+    title={$t('avatar.selectTitle')}
+    documentFilter={(document) => isImageDocumentName(document.title)}
+    onSelect={handleSelectAvatar}
+    onCancel={() => {
+      if (!savingAvatar) showAvatarPicker = false;
+    }}
   />
 {/if}
