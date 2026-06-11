@@ -10,6 +10,8 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { cryptoInfo, protocolVersion } from '$lib/api';
+  import { loadAppVersion } from '$lib/app-info';
+  import { authStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
@@ -21,10 +23,12 @@
     tag_len: number;
   } | null>(null);
   let protoVer = $state(0);
+  let appVersion = $state('');
   let checkingUpdate = $state(false);
   let updateResult = $state<string | null>(null);
 
   onMount(async () => {
+    appVersion = await loadAppVersion();
     try {
       const [info, ver] = await Promise.all([cryptoInfo(), protocolVersion()]);
       cryptoInfoData = info;
@@ -40,6 +44,10 @@
     updateResult = $t('about.latestVersion');
     checkingUpdate = false;
   }
+
+  function goBack() {
+    goto(authStore.isLoggedIn ? '/home/more' : '/connect');
+  }
 </script>
 
 <div class="p-6 space-y-6 max-w-lg mx-auto">
@@ -48,7 +56,7 @@
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
     style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/more')}
+    onclick={goBack}
   >
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}
@@ -67,7 +75,7 @@
 
     <div class="text-sm space-y-1.5">
       <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.version')}:</span> 0.1.0
+        <span class="text-md3-on-surface">{$t('about.version')}:</span> {appVersion || '...'}
       </p>
       <p class="text-md3-on-surface-variant">
         <span class="text-md3-on-surface">{$t('about.protocol')}:</span> v{protoVer}

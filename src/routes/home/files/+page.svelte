@@ -8,11 +8,13 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
   import {
     listDirectory,
+    loadUserPreference,
     getDocument,
     getRevision,
     createDirectory,
@@ -39,6 +41,7 @@
     type RevisionEntry,
     type SearchFilesResponse,
     type UploadRevisionProgressEvent,
+    type UserPreference,
   } from '$lib/api';
   import type {
     ServerDirectoryEntry,
@@ -61,6 +64,14 @@
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { normalizeDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
+  import {
+    directoryToRecord,
+    documentToRecord,
+    type FileRecord,
+    isFavoriteRecord,
+    rememberVisit,
+    setFavoriteRecord,
+  } from '$lib/file-preferences';
   import { shortIdentifier } from '$lib/identifiers';
   import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
 
@@ -75,6 +86,8 @@
   let searchQuery = $state('');
   let navigationRootId = $state<string | null>(null);
   let navigationRootLabel = $state<string | null>(null);
+  let userPreference = $state<UserPreference | null>(null);
+  let batchBusy = $state(false);
 
   // Selection mode
   let selectMode = $state(false);
@@ -121,6 +134,10 @@
     objectId: string;
     objectName: string;
     originalParentId: string | null;
+    excludedDirectoryIds: string[];
+    saving: boolean;
+  } | null>(null);
+  let batchMoveDialog = $state<{
     excludedDirectoryIds: string[];
     saving: boolean;
   } | null>(null);
@@ -221,9 +238,16 @@
   // --- Navigation ---
 
   async function handleNavigate(folderId: string, folderName: string) {
+    const previousFolderId = currentFolderId;
     const ok = await loadDirectory(folderId);
     if (ok) {
       navHistory = [...navHistory, { label: folderName, id: folderId }];
+      rememberVisit({
+        type: 'directory',
+        id: folderId,
+        name: folderName,
+        parentId: previousFolderId,
+      });
     }
   }
 
@@ -328,6 +352,9 @@
   }
 
   const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
+  const selectedItemsLabel = $derived(
+    $t('files.batchSelectionName', { values: { count: totalSelected } }),
+  );
   const totalVisibleSelectable = $derived(folders.length + documents.length);
   const allVisibleSelected = $derived(
     totalVisibleSelectable > 0
@@ -340,6 +367,7 @@
   async function handleDownload(doc: ServerDocumentEntry) {
     try {
       await getDocument(doc.id, doc.title);
+      rememberVisit(documentToRecord(doc, currentFolderId));
     } catch (e) {
       error = String(e);
     }
@@ -384,12 +412,20 @@
 
     if (contextMenu.kind === 'document') {
       const doc = contextMenu.item as ServerDocumentEntry;
+      const record = documentToRecord(doc, currentFolderId);
+      const favorite = isFavoriteRecord(userPreference, record);
       return [
         {
           id: 'download-document',
           label: $t('common.download'),
           icon: 'download',
           onSelect: () => handleDownload(doc),
+        },
+        {
+          id: 'favorite-document',
+          label: favorite ? $t('files.removeFavorite') : $t('files.addFavorite'),
+          icon: favorite ? 'star' : 'starOutline',
+          onSelect: () => handleToggleFavorite(record, !favorite),
         },
         { type: 'divider' },
         {
@@ -461,12 +497,20 @@
     }
 
     const folder = contextMenu.item as ServerDirectoryEntry;
+    const record = directoryToRecord(folder, currentFolderId);
+    const favorite = isFavoriteRecord(userPreference, record);
     return [
       {
         id: 'open-folder',
         label: $t('common.open'),
         icon: 'folderOpen',
         onSelect: () => handleNavigate(folder.id, folder.name),
+      },
+      {
+        id: 'favorite-folder',
+        label: favorite ? $t('files.removeFavorite') : $t('files.addFavorite'),
+        icon: favorite ? 'star' : 'starOutline',
+        onSelect: () => handleToggleFavorite(record, !favorite),
       },
       { type: 'divider' },
       {
@@ -633,6 +677,37 @@
     } catch (err) {
       error = formatError(err);
       moveTargetDialog = { ...dialog, saving: false };
+    }
+  }
+
+  async function handleBatchMoveToTarget(targetFolderId: string | null) {
+    if (!batchMoveDialog || totalSelected === 0) return;
+    const target = normalizeDirectoryId(targetFolderId);
+    const selectedFolders = [...selectedFolderIds];
+    const selectedDocuments = [...selectedDocumentIds];
+
+    if (target && selectedFolders.includes(target)) {
+      error = $t('files.moveSelfError');
+      return;
+    }
+
+    batchMoveDialog = { ...batchMoveDialog, saving: true };
+    error = null;
+
+    try {
+      for (const id of selectedDocuments) {
+        await moveDocument(id, target);
+      }
+      for (const id of selectedFolders) {
+        await moveDirectory(id, target);
+      }
+      batchMoveDialog = null;
+      clearSelection();
+      status = $t('files.batchMoved', { values: { count: selectedDocuments.length + selectedFolders.length } });
+      await loadDirectory(currentFolderId);
+    } catch (err) {
+      error = formatError(err);
+      batchMoveDialog = { excludedDirectoryIds: selectedFolders, saving: false };
     }
   }
 
@@ -867,6 +942,21 @@
     }
   }
 
+  async function reloadUserPreference() {
+    try {
+      userPreference = await loadUserPreference();
+    } catch {
+      userPreference = null;
+    }
+  }
+
+  async function handleToggleFavorite(record: FileRecord, favorite: boolean) {
+    await runFileAction(async () => {
+      userPreference = await setFavoriteRecord(record, favorite);
+      status = favorite ? $t('files.favoriteAdded') : $t('files.favoriteRemoved');
+    });
+  }
+
   // --- Toolbar actions ---
 
   async function handleCreateFolder() {
@@ -907,6 +997,101 @@
     } catch (e) {
       error = String(e);
     }
+  }
+
+  async function handleDownloadSelected() {
+    if (totalSelected === 0 || batchBusy) return;
+    batchBusy = true;
+    error = null;
+
+    const selectedDocuments = documents.filter((doc) => selectedDocumentIds.has(doc.id));
+    const selectedFolders = folders.filter((folder) => selectedFolderIds.has(folder.id));
+    let queued = 0;
+    let failed = 0;
+
+    try {
+      for (const doc of selectedDocuments) {
+        try {
+          await queueDocumentDownload(doc, []);
+          queued += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      for (const folder of selectedFolders) {
+        try {
+          const result = await queueDirectoryDownloads(folder, [folder.name]);
+          queued += result.queued;
+          failed += result.failed;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      if (queued > 0) {
+        status = $t('files.batchDownloadQueued', { values: { count: queued } });
+      }
+      if (failed > 0) {
+        error = $t('files.batchDownloadPartialFailed', { values: { count: failed } });
+      }
+      if (queued > 0 && failed === 0) clearSelection();
+    } finally {
+      batchBusy = false;
+    }
+  }
+
+  async function queueDocumentDownload(
+    doc: Pick<ServerDocumentEntry, 'id' | 'title'>,
+    pathParts: string[],
+  ) {
+    await getDocument(doc.id, makeDownloadFilename([...pathParts, doc.title]));
+  }
+
+  async function queueDirectoryDownloads(
+    folder: Pick<ServerDirectoryEntry, 'id' | 'name'>,
+    pathParts: string[],
+  ): Promise<{ queued: number; failed: number }> {
+    const response = await listDirectory(folder.id);
+    let queued = 0;
+    let failed = 0;
+
+    for (const doc of response.documents) {
+      try {
+        await queueDocumentDownload(doc, pathParts);
+        queued += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    for (const child of response.folders) {
+      try {
+        const result = await queueDirectoryDownloads(child, [...pathParts, child.name]);
+        queued += result.queued;
+        failed += result.failed;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    return { queued, failed };
+  }
+
+  function makeDownloadFilename(parts: string[]) {
+    return parts
+      .filter(Boolean)
+      .map((part) => part.replace(/[\\/:*?"<>|]+/g, ' ').trim())
+      .filter(Boolean)
+      .join(' - ');
+  }
+
+  function handleMoveSelected() {
+    if (totalSelected === 0) return;
+    batchMoveDialog = {
+      excludedDirectoryIds: [...selectedFolderIds],
+      saving: false,
+    };
   }
 
   async function handleUploadFiles() {
@@ -1006,6 +1191,7 @@
       navigationRootId = directory.id;
       navigationRootLabel = directory.name;
       navHistory = [];
+      rememberVisit(directoryToRecord(directory, null));
     }
   }
 
@@ -1231,7 +1417,14 @@
     }).then((fn) => {
       unlisten = fn;
     });
-    loadDirectory(null);
+    const initialFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
+    const initialName = page.url.searchParams.get('name');
+    if (initialFolder) {
+      navigationRootId = initialFolder;
+      navigationRootLabel = initialName || shortIdentifier(initialFolder);
+    }
+    loadDirectory(initialFolder);
+    reloadUserPreference();
     return () => {
       if (unlisten) unlisten();
     };
@@ -1322,6 +1515,22 @@
         tone="danger"
         disabled={totalSelected === 0}
         onclick={handleDeleteSelected}
+        class="!h-8 !w-8"
+        size={17}
+      />
+      <IconButton
+        icon="download"
+        label={$t('files.downloadSelected')}
+        disabled={totalSelected === 0 || batchBusy}
+        onclick={handleDownloadSelected}
+        class="!h-8 !w-8"
+        size={17}
+      />
+      <IconButton
+        icon="driveFileMove"
+        label={$t('files.moveSelected')}
+        disabled={totalSelected === 0 || batchBusy}
+        onclick={handleMoveSelected}
         class="!h-8 !w-8"
         size={17}
       />
@@ -1621,6 +1830,20 @@
     moving={moveTargetDialog.saving}
     onMove={handleMoveToTarget}
     onCancel={() => (moveTargetDialog = null)}
+  />
+{/if}
+
+{#if batchMoveDialog}
+  <MoveTargetDialog
+    objectType="directory"
+    objectName={selectedItemsLabel}
+    initialFolderId={currentFolderId}
+    originalParentId={currentFolderId}
+    initialBreadcrumb={moveInitialBreadcrumb}
+    excludedDirectoryIds={batchMoveDialog.excludedDirectoryIds}
+    moving={batchMoveDialog.saving}
+    onMove={handleBatchMoveToTarget}
+    onCancel={() => (batchMoveDialog = null)}
   />
 {/if}
 

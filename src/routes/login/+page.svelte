@@ -333,8 +333,9 @@
   }
 </script>
 
-<div class="flex items-center justify-center min-h-full p-6">
-  <div class="w-full" style="max-width: 420px;">
+<div class="grid min-h-full overflow-hidden bg-[#0e1217] lg:grid-cols-[minmax(360px,45vw)_1fr]">
+  <section class="flex min-h-full items-center justify-center px-6 py-12">
+  <div class="w-full animate-fade-scale-in" style="max-width: 420px;">
     {#if busy && loadingPhase}
       <!-- Data loading state -->
       <div
@@ -577,6 +578,15 @@
       </form>
     {/if}
   </div>
+  </section>
+
+  <section class="hidden min-h-full overflow-hidden lg:block">
+    <img
+      src="/astronomy.jpg"
+      alt=""
+      class="h-full w-full object-cover"
+    />
+  </section>
 </div>
 
 <!-- 2FA Verification Dialog -->

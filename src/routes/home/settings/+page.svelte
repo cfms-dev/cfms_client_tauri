@@ -7,6 +7,7 @@
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
+  import { authStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
 
@@ -15,6 +16,7 @@
     descriptionKey: string;
     icon: IconName;
     href: string;
+    requiresAuth?: boolean;
   }
 
   const entries: SettingsEntry[] = [
@@ -23,14 +25,20 @@
     { labelKey: 'settings.connection.title', descriptionKey: 'settings.connection.description',
       icon: 'connect', href: '/home/settings/connection' },
     { labelKey: 'settings.storage.title', descriptionKey: 'settings.storage.description',
-      icon: 'storage', href: '/home/settings/storage' },
+      icon: 'storage', href: '/home/settings/storage', requiresAuth: true },
     { labelKey: 'settings.security.title', descriptionKey: 'settings.security.description',
       icon: 'security', href: '/home/settings/security' },
     { labelKey: 'settings.updates.title', descriptionKey: 'settings.updates.description',
       icon: 'browserUpdated', href: '/home/settings/updates' },
     { labelKey: 'settings.twofa.title', descriptionKey: 'settings.twofa.description',
-      icon: 'verifiedUser', href: '/home/settings/twofa' },
+      icon: 'verifiedUser', href: '/home/settings/twofa', requiresAuth: true },
   ];
+
+  const visibleEntries = $derived(entries.filter((entry) => !entry.requiresAuth || authStore.isLoggedIn));
+
+  function goBack() {
+    goto(authStore.isLoggedIn ? '/home/more' : '/connect');
+  }
 </script>
 
 <div class="p-6 space-y-4 max-w-lg mx-auto">
@@ -39,7 +47,7 @@
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
     style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/more')}
+    onclick={goBack}
   >
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}
@@ -51,12 +59,12 @@
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline overflow-hidden">
-    {#each entries as entry, i}
+    {#each visibleEntries as entry, i}
       <button
         class="w-full flex items-center gap-4 px-5 py-3.5 text-left
                hover:bg-md3-surface-container-high/50
                transition-colors
-               {i < entries.length - 1 ? 'border-b border-md3-outline/50' : ''}"
+               {i < visibleEntries.length - 1 ? 'border-b border-md3-outline/50' : ''}"
         onclick={() => goto(entry.href)}
       >
         <span class="text-md3-primary-emphasis shrink-0">

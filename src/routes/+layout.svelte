@@ -38,8 +38,14 @@
   const CONNECTION_ROUTES = ["/login"];
   // Lockdown override route.
   const LOCKDOWN_ROUTE = "/lockdown";
+  // Home routes that are intentionally reachable from /connect before login.
+  const PUBLIC_HOME_ROUTES = ["/home/about", "/home/settings"];
   // Auth-protected route prefix.
   const HOME_PREFIX = "/home";
+
+  function isPublicHomeRoute(path: string) {
+    return PUBLIC_HOME_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
+  }
 
   // ---------------------------------------------------------------------------
   // Auth guard — runs reactively whenever the URL or auth state changes.
@@ -82,7 +88,7 @@
     // 3. If not connected and trying to access protected/connection routes,
     //    redirect to connect.
     if (!serverStateStore.connected) {
-      if (!PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE) {
+      if (!PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE && !isPublicHomeRoute(path)) {
         goto("/connect", { replaceState: true });
         return;
       }
@@ -91,7 +97,7 @@
     // 4. If connected but not logged in, and trying to access home routes,
     //    redirect to login.
     if (serverStateStore.connected && !authStore.isLoggedIn) {
-      if (path.startsWith(HOME_PREFIX)) {
+      if (path.startsWith(HOME_PREFIX) && !isPublicHomeRoute(path)) {
         goto("/login", { replaceState: true });
         return;
       }

@@ -1,188 +1,157 @@
 <script lang="ts">
-  // Home overview page — Dashboard with welcome card, stats, and activity feed.
-  //
-  // Adapted from the existing +page.svelte dashboard.
-  // Reference: HomeView in reference/src/include/ui/components/homepage.py
-
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { authStore, serverStateStore, downloadStore, serviceStatusStore, eventLog } from '$lib/stores.svelte';
-  import {
-    getServiceStatus,
-    getDownloadTasks,
-    getAuthStatus,
-    getServerState,
-    cryptoInfo,
-    protocolVersion,
-  } from '$lib/api';
-  import ServiceStatus from '$lib/components/ServiceStatus.svelte';
-  import WelcomeCard from '$lib/components/WelcomeCard.svelte';
+  import { getDocument } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import {
+    getRecentVisits,
+    loadFavoriteRecords,
+    rememberVisit,
+    type FileRecord,
+    type RecentFileRecord,
+  } from '$lib/file-preferences';
+  import { notificationStore } from '$lib/stores.svelte';
 
-  let cryptoInfoData = $state<{
-    kdf_iterations: number;
-    salt_len: number;
-    key_len: number;
-    nonce_len: number;
-    tag_len: number;
-  } | null>(null);
-
-  let protoVer = $state<number>(0);
+  let recent = $state<RecentFileRecord[]>([]);
+  let favorites = $state<FileRecord[]>([]);
+  let loadingFavorites = $state(true);
+  let openingId = $state<string | null>(null);
 
   onMount(async () => {
+    recent = getRecentVisits();
     try {
-      const [status, tasks, auth, serverState, info, ver] = await Promise.all([
-        getServiceStatus(),
-        getDownloadTasks(),
-        getAuthStatus(),
-        getServerState(),
-        cryptoInfo(),
-        protocolVersion(),
-      ]);
-      serviceStatusStore.setAll(status);
-      downloadStore.setAll(tasks);
-      authStore.apply(auth);
-      serverStateStore.apply(serverState);
-      serverStateStore.protocolVersion = ver;
-      cryptoInfoData = info;
-      protoVer = ver;
+      favorites = await loadFavoriteRecords();
     } catch {
-      // Backend might still be initializing.
+      favorites = [];
+    } finally {
+      loadingFavorites = false;
     }
   });
 
-  // Derived stats
-  const activeCount = $derived(downloadStore.activeTasks.length);
-  const completedCount = $derived(downloadStore.completedTasks.length);
-  const failedCount = $derived(downloadStore.failedTasks.length);
-  const totalCount = $derived(downloadStore.tasks.size);
+  async function openRecord(record: FileRecord) {
+    openingId = `${record.type}:${record.id}`;
+    try {
+      rememberVisit(record);
+      recent = getRecentVisits();
+
+      if (record.type === 'directory') {
+        const params = new URLSearchParams({
+          folder: record.id,
+          name: record.name,
+        });
+        await goto(`/home/files?${params.toString()}`);
+      } else {
+        await getDocument(record.id, record.name);
+        notificationStore.success($t('home.downloadQueued', { values: { name: record.name } }));
+      }
+    } catch (err) {
+      notificationStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      openingId = null;
+    }
+  }
+
+  function formatVisitTime(timestamp: number) {
+    return new Date(timestamp).toLocaleString();
+  }
 </script>
 
-<div class="p-6 space-y-6">
-  <!-- Welcome card -->
-  <WelcomeCard />
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+  <section class="space-y-2">
+    <p class="text-sm text-md3-on-surface-variant">{$t('home.welcomeBack')}</p>
+    <h1 class="text-2xl font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      {$t('home.workspace')}
+    </h1>
+  </section>
 
-  <!-- Stats cards — MD3 surface containers, 4-column grid -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-        {$t('home.activeDownloads')}
-      </p>
-      <p class="text-2xl font-bold text-md3-primary-emphasis mt-1" style="font-family: var(--font-md3-sans);">
-        {activeCount}
-      </p>
-    </div>
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-        {$t('home.completed')}
-      </p>
-      <p class="text-2xl font-bold text-md3-success mt-1" style="font-family: var(--font-md3-sans);">
-        {completedCount}
-      </p>
-    </div>
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-        {$t('home.failed')}
-      </p>
-      <p class="text-2xl font-bold text-md3-error mt-1" style="font-family: var(--font-md3-sans);">
-        {failedCount}
-      </p>
-    </div>
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <p class="text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-        {$t('home.totalTasks')}
-      </p>
-      <p class="text-2xl font-bold text-md3-on-surface mt-1" style="font-family: var(--font-md3-sans);">
-        {totalCount}
-      </p>
-    </div>
-  </div>
-
-  <!-- Two-column: Service status + Crypto info -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Service status -->
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('home.backgroundServices')}
-      </h2>
-      <div class="space-y-2">
-        {#if serviceStatusStore.services.length > 0}
-          {#each serviceStatusStore.services as svc}
-            <ServiceStatus name={svc.name} running={svc.running} />
-          {/each}
-        {:else}
-          <p class="text-sm text-md3-on-surface-variant">{$t('home.noServices')}</p>
-        {/if}
+  <div class="grid gap-5 lg:grid-cols-2">
+    <section class="min-w-0 overflow-hidden rounded-lg border border-md3-outline bg-md3-surface-container/70 backdrop-blur-sm">
+      <div class="flex items-center gap-2 border-b border-md3-outline/60 px-5 py-4">
+        <span class="text-md3-primary-emphasis"><Icon name="history" size="20px" /></span>
+        <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('home.recent')}
+        </h2>
       </div>
-    </div>
 
-    <!-- Crypto info -->
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline p-4">
-      <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('home.cryptographicParameters')}
-      </h2>
-      {#if cryptoInfoData}
-        <div class="grid grid-cols-2 gap-2 text-sm">
-          <span class="text-md3-on-surface-variant">{$t('home.kdfIterations')}:</span>
-          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
-            {cryptoInfoData.kdf_iterations.toLocaleString()}
-          </span>
-          <span class="text-md3-on-surface-variant">{$t('home.saltLength')}:</span>
-          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
-            {cryptoInfoData.salt_len} {$t('common.bytes')}
-          </span>
-          <span class="text-md3-on-surface-variant">{$t('home.keyLength')}:</span>
-          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
-            {cryptoInfoData.key_len} {$t('common.bytes')} (AES-256)
-          </span>
-          <span class="text-md3-on-surface-variant">{$t('home.nonceLength')}:</span>
-          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
-            {cryptoInfoData.nonce_len} {$t('common.bytes')}
-          </span>
-          <span class="text-md3-on-surface-variant">{$t('home.tagLength')}:</span>
-          <span class="text-md3-on-surface" style="font-family: var(--font-md3-mono);">
-            {cryptoInfoData.tag_len} {$t('common.bytes')}
-          </span>
-        </div>
+      {#if recent.length === 0}
+        <p class="px-5 py-10 text-center text-sm text-md3-on-surface-variant">
+          {$t('home.noRecent')}
+        </p>
       {:else}
-        <p class="text-sm text-md3-on-surface-variant">{$t('common.loadingEllipsis')}</p>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Activity feed -->
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-4">
-    <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      {$t('home.activity')}
-    </h2>
-    {#if eventLog.entries.length > 0}
-      <div class="space-y-1 max-h-48 overflow-y-auto">
-        {#each eventLog.entries as entry}
-          <div class="flex items-center gap-2 text-xs">
-            <span class="text-md3-on-surface-variant shrink-0 w-14 text-right font-mono">
-              {entry.time.toLocaleTimeString()}
-            </span>
-            <span
-              class="truncate"
-              class:text-md3-success={entry.type === "success"}
-              class:text-md3-error={entry.type === "error"}
-              class:text-md3-warning={entry.type === "warning"}
-              class:text-md3-on-surface-variant={entry.type === "info"}
+        <div class="divide-y divide-md3-outline/45">
+          {#each recent as item (item.type + item.id)}
+            <button
+              type="button"
+              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-md3-surface-container-high/45 disabled:cursor-wait disabled:opacity-70"
+              disabled={openingId === `${item.type}:${item.id}`}
+              onclick={() => openRecord(item)}
             >
-              {entry.text}
-            </span>
-          </div>
-        {/each}
+              <span class={item.type === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                <Icon name={item.type === 'directory' ? 'folder' : 'filePresent'} size="22px" />
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium text-md3-on-surface">{item.name}</span>
+                <span class="mt-0.5 block truncate text-xs text-md3-on-surface-variant">
+                  {formatVisitTime(item.visitedAt)}
+                </span>
+              </span>
+              {#if openingId === `${item.type}:${item.id}`}
+                <ProgressRing size={16} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
+              {:else}
+                <Icon name={item.type === 'directory' ? 'folderOpen' : 'download'} size="18px" />
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <section class="min-w-0 overflow-hidden rounded-lg border border-md3-outline bg-md3-surface-container/70 backdrop-blur-sm">
+      <div class="flex items-center gap-2 border-b border-md3-outline/60 px-5 py-4">
+        <span class="text-md3-warning"><Icon name="star" size="20px" /></span>
+        <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('home.favorites')}
+        </h2>
       </div>
-    {:else}
-      <p class="text-sm text-md3-on-surface-variant">{$t('home.noActivity')}</p>
-    {/if}
+
+      {#if loadingFavorites}
+        <div class="flex items-center gap-2 px-5 py-10 text-sm text-md3-on-surface-variant">
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+          {$t('common.loadingEllipsis')}
+        </div>
+      {:else if favorites.length === 0}
+        <p class="px-5 py-10 text-center text-sm text-md3-on-surface-variant">
+          {$t('home.noFavorites')}
+        </p>
+      {:else}
+        <div class="divide-y divide-md3-outline/45">
+          {#each favorites as item (item.type + item.id)}
+            <button
+              type="button"
+              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-md3-surface-container-high/45 disabled:cursor-wait disabled:opacity-70"
+              disabled={openingId === `${item.type}:${item.id}`}
+              onclick={() => openRecord(item)}
+            >
+              <span class={item.type === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                <Icon name={item.type === 'directory' ? 'folder' : 'filePresent'} size="22px" />
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium text-md3-on-surface">{item.name}</span>
+                <span class="mt-0.5 block truncate text-xs text-md3-on-surface-variant">
+                  {item.type === 'directory' ? $t('files.directory') : $t('files.document')}
+                </span>
+              </span>
+              {#if openingId === `${item.type}:${item.id}`}
+                <ProgressRing size={16} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
+              {:else}
+                <Icon name={item.type === 'directory' ? 'folderOpen' : 'download'} size="18px" />
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </section>
   </div>
 </div>

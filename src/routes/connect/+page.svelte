@@ -14,6 +14,7 @@
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
   import { connect, disconnect, getAuthStatus, getServerState } from "$lib/api";
+  import { loadAppVersion } from "$lib/app-info";
   import {
     authStore,
     notificationStore,
@@ -27,6 +28,7 @@
   let disableSsl = $state(false);
   let busy = $state(false);
   let serverAddressError = $state<string | null>(null);
+  let appVersion = $state('');
   let protocolError = $state<{
     serverVersion: number;
     clientVersion: number;
@@ -35,6 +37,7 @@
 
   // On mount: close any stale connection.
   onMount(async () => {
+    appVersion = await loadAppVersion();
     // Close any previous connection to start fresh.
     try {
       await disconnect();
@@ -117,30 +120,55 @@
   async function goToAbout() {
     await goto("/home/about");
   }
+
+  async function goToSettings() {
+    await goto("/home/settings");
+  }
 </script>
 
-<div class="flex items-center justify-center min-h-full p-6">
-  <div class="w-full" style="max-width: 420px;">
-    <!-- App title -->
-    <h1
-      class="text-2xl font-bold text-center mb-2 text-md3-on-surface"
-      style="font-family: var(--font-md3-sans);"
+<div class="relative flex min-h-full items-center justify-center p-6">
+  <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      title={$t('settings.title')}
+      aria-label={$t('settings.title')}
+      onclick={goToSettings}
     >
-      CFMS Client
-    </h1>
-    <p class="text-xs text-center text-md3-on-surface-variant mb-8">
-      {$t('connect.tagline')}
-    </p>
+      <Icon name="settings" size="18px" />
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      title={$t('more.about')}
+      aria-label={$t('more.about')}
+      onclick={goToAbout}
+    >
+      <Icon name="info" size="18px" />
+    </button>
+  </div>
 
-    <!-- Connect form — MD3 card -->
-    <form
-      class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+  <div class="w-full animate-fade-scale-in" style="max-width: 420px;">
+      <!-- App title -->
+      <h1
+        class="mb-2 text-center text-2xl font-bold text-md3-on-surface"
+        style="font-family: var(--font-md3-serif);"
+      >
+        CFMS Client
+      </h1>
+      <p class="mb-8 text-center text-xs text-md3-on-surface-variant">
+        {$t('connect.tagline')}
+      </p>
+
+      <!-- Connect form — MD3 card -->
+      <form
+        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
              border border-md3-outline p-6 space-y-4"
-      onsubmit={(e) => {
-        e.preventDefault();
-        handleConnect();
-      }}
-    >
+        onsubmit={(e) => {
+          e.preventDefault();
+          handleConnect();
+        }}
+      >
       <!-- Server URL — MD3 outlined text field -->
       <div>
         <label
@@ -247,6 +275,10 @@
           {$t('connect.connect')}
         {/if}
       </button>
-    </form>
+      </form>
+
+      <p class="mt-4 text-center text-xs text-md3-on-surface-variant">
+        {$t('about.version')} {appVersion || '...'}
+      </p>
   </div>
 </div>

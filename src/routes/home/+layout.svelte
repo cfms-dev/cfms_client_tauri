@@ -65,8 +65,6 @@
         {:else}
           <span class="w-2 h-2 bg-md3-error rounded-full" title={$t('common.disconnected')}></span>
         {/if}
-      {:else}
-        <span class="text-xs text-md3-on-surface-variant">{$t('common.notSignedIn')}</span>
       {/if}
     </div>
   </header>
