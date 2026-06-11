@@ -62,10 +62,14 @@
 
 <style>
   .modal-panel {
+    background:
+      linear-gradient(145deg, rgba(31, 41, 55, 0.98) 0%, rgba(20, 29, 43, 0.98) 48%, rgba(15, 23, 42, 0.98) 100%);
     backdrop-filter: blur(22px);
+    border-color: rgba(99, 102, 241, 0.22);
     box-shadow:
-      0 24px 72px rgba(0, 0, 0, 0.30),
-      0 2px 12px rgba(255, 255, 255, 0.08) inset;
+      0 28px 90px rgba(0, 0, 0, 0.42),
+      0 0 0 1px rgba(148, 163, 184, 0.06) inset,
+      0 1px 24px rgba(79, 70, 229, 0.10) inset;
   }
 
   .modal-light {
@@ -73,9 +77,10 @@
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(115deg, rgba(255, 255, 255, 0.20), transparent 32%),
-      radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.16), transparent 30%);
-    opacity: 0.75;
+      linear-gradient(125deg, rgba(79, 70, 229, 0.16), transparent 35%),
+      radial-gradient(circle at 12% -8%, rgba(45, 212, 191, 0.10), transparent 30%),
+      linear-gradient(180deg, rgba(148, 163, 184, 0.05), transparent 28%);
+    opacity: 1;
   }
 
   @media (prefers-reduced-motion: no-preference) {

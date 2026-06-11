@@ -41,6 +41,10 @@ export const ICONS = {
   update:        'update',
   close:         'close',
   done:          'done',
+  add:           'add',
+  remove:        'remove',
+  code:          'code',
+  rule:          'rule',
   menu:          'menu',
   moreVert:      'more_vert',
 

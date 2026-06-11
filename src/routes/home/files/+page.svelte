@@ -47,9 +47,11 @@
     ServerObjectType,
   } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
@@ -85,6 +87,14 @@
     objectType: ServerObjectType;
     objectId: string;
     entries: AccessEntry[];
+  } | null>(null);
+  let accessRulesDialog = $state<{
+    title: string;
+    objectType: ServerObjectType;
+    objectId: string;
+    rules: unknown;
+    inheritParent: boolean;
+    saving: boolean;
   } | null>(null);
   let revisionsDialog = $state<{
     title: string;
@@ -643,25 +653,39 @@
   ) {
     await runFileAction(async () => {
       const current = await getAccessRules(objectType, objectId);
-      const next = await dialogStore.prompt({
-        title: $t('files.setPermissions'),
-        message: $t('files.accessRulesPrompt', { values: { name: objectName } }),
-        defaultValue: JSON.stringify(current.rules ?? {}, null, 2),
-        confirmLabel: $t('common.save'),
-        cancelLabel: $t('common.cancel'),
-        multiline: true,
-      });
-      if (next === null) return;
-      const parsed = JSON.parse(next);
-      const inheritParent = await dialogStore.confirm({
-        title: $t('files.setPermissions'),
-        message: $t('files.inheritParentRulesPrompt'),
-        confirmLabel: $t('common.enabled'),
-        cancelLabel: $t('common.disabled'),
-      });
-      await setAccessRules(objectType, objectId, parsed, inheritParent);
-      status = $t('files.accessRulesSaved');
+      accessRulesDialog = {
+        title: $t('files.ruleManagerTitle', { values: { name: objectName } }),
+        objectType,
+        objectId,
+        rules: current.rules ?? {},
+        inheritParent: Boolean(current.inherit),
+        saving: false,
+      };
     });
+  }
+
+  async function handleSaveAccessRules(
+    accessRules: AccessRulesRecord,
+    inheritParent: boolean,
+  ) {
+    if (!accessRulesDialog) return;
+    const dialog = accessRulesDialog;
+    accessRulesDialog = { ...dialog, saving: true };
+    error = null;
+
+    try {
+      await setAccessRules(
+        dialog.objectType,
+        dialog.objectId,
+        accessRules,
+        inheritParent,
+      );
+      accessRulesDialog = null;
+      status = $t('files.accessRulesSaved');
+    } catch (err) {
+      error = formatError(err);
+      accessRulesDialog = { ...dialog, saving: false };
+    }
   }
 
   async function handleUploadNewVersion(doc: ServerDocumentEntry) {
@@ -1474,6 +1498,18 @@
           </table>
         {/if}
       </div>
+  </ModalFrame>
+{/if}
+
+{#if accessRulesDialog}
+  <ModalFrame title={accessRulesDialog.title} maxWidth="max-w-6xl" closeLabel={$t('common.close')} onClose={() => (accessRulesDialog = null)}>
+    <AccessRulesManager
+      rules={accessRulesDialog.rules}
+      inheritParent={accessRulesDialog.inheritParent}
+      saving={accessRulesDialog.saving}
+      onSave={handleSaveAccessRules}
+      onCancel={() => (accessRulesDialog = null)}
+    />
   </ModalFrame>
 {/if}
 
