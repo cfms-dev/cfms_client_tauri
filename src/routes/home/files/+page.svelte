@@ -67,13 +67,14 @@
   import {
     directoryToRecord,
     documentToRecord,
+    type FilePreferenceScope,
     type FileRecord,
     isFavoriteRecord,
     rememberVisit,
     setFavoriteRecord,
   } from '$lib/file-preferences';
   import { shortIdentifier } from '$lib/identifiers';
-  import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -242,12 +243,15 @@
     const ok = await loadDirectory(folderId);
     if (ok) {
       navHistory = [...navHistory, { label: folderName, id: folderId }];
-      rememberVisit({
-        type: 'directory',
-        id: folderId,
-        name: folderName,
-        parentId: previousFolderId,
-      });
+      rememberVisit(
+        currentFilePreferenceScope(),
+        {
+          type: 'directory',
+          id: folderId,
+          name: folderName,
+          parentId: previousFolderId,
+        },
+      );
     }
   }
 
@@ -367,7 +371,7 @@
   async function handleDownload(doc: ServerDocumentEntry) {
     try {
       await getDocument(doc.id, doc.title);
-      rememberVisit(documentToRecord(doc, currentFolderId));
+      rememberVisit(currentFilePreferenceScope(), documentToRecord(doc, currentFolderId));
     } catch (e) {
       error = String(e);
     }
@@ -952,7 +956,7 @@
 
   async function handleToggleFavorite(record: FileRecord, favorite: boolean) {
     await runFileAction(async () => {
-      userPreference = await setFavoriteRecord(record, favorite);
+      userPreference = await setFavoriteRecord(currentFilePreferenceScope(), record, favorite);
       status = favorite ? $t('files.favoriteAdded') : $t('files.favoriteRemoved');
     });
   }
@@ -1191,8 +1195,15 @@
       navigationRootId = directory.id;
       navigationRootLabel = directory.name;
       navHistory = [];
-      rememberVisit(directoryToRecord(directory, null));
+      rememberVisit(currentFilePreferenceScope(), directoryToRecord(directory, null));
     }
+  }
+
+  function currentFilePreferenceScope(): FilePreferenceScope {
+    return {
+      serverAddress: serverStateStore.remoteAddress,
+      username: authStore.username,
+    };
   }
 
   async function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {

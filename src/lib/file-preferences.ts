@@ -23,7 +23,12 @@ export interface RecentFileRecord extends FileRecord {
   visitedAt: number;
 }
 
-const RECENT_VISITS_KEY = 'cfms.recentVisits';
+export interface FilePreferenceScope {
+  serverAddress: string | null;
+  username: string | null;
+}
+
+const RECENT_VISITS_KEY_PREFIX = 'cfms.recentVisits.v2';
 const MAX_RECENT_VISITS = 12;
 
 export function documentToRecord(
@@ -50,10 +55,13 @@ export function directoryToRecord(
   };
 }
 
-export function getRecentVisits(): RecentFileRecord[] {
+export function getRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] {
   if (typeof localStorage === 'undefined') return [];
+  const key = recentVisitsKey(scope);
+  if (!key) return [];
+
   try {
-    const raw = localStorage.getItem(RECENT_VISITS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -66,8 +74,10 @@ export function getRecentVisits(): RecentFileRecord[] {
   }
 }
 
-export function rememberVisit(record: FileRecord): RecentFileRecord[] {
+export function rememberVisit(scope: FilePreferenceScope, record: FileRecord): RecentFileRecord[] {
   if (typeof localStorage === 'undefined') return [];
+  const key = recentVisitsKey(scope);
+  if (!key) return [];
 
   const next: RecentFileRecord = {
     ...record,
@@ -76,14 +86,15 @@ export function rememberVisit(record: FileRecord): RecentFileRecord[] {
   };
   const records = [
     next,
-    ...getRecentVisits().filter((item) => item.type !== record.type || item.id !== record.id),
+    ...getRecentVisits(scope).filter((item) => item.type !== record.type || item.id !== record.id),
   ].slice(0, MAX_RECENT_VISITS);
 
-  localStorage.setItem(RECENT_VISITS_KEY, JSON.stringify(records));
+  localStorage.setItem(key, JSON.stringify(records));
   return records;
 }
 
-export async function loadFavoriteRecords(): Promise<FileRecord[]> {
+export async function loadFavoriteRecords(scope: FilePreferenceScope): Promise<FileRecord[]> {
+  if (!hasFilePreferenceScope(scope)) return [];
   const preferences = await loadUserPreference();
   return favoriteRecordsFromPreference(preferences);
 }
@@ -104,7 +115,12 @@ export function favoriteRecordsFromPreference(preferences: UserPreference): File
   ];
 }
 
-export async function setFavoriteRecord(record: FileRecord, favorite: boolean): Promise<UserPreference> {
+export async function setFavoriteRecord(
+  scope: FilePreferenceScope,
+  record: FileRecord,
+  favorite: boolean,
+): Promise<UserPreference> {
+  assertFilePreferenceScope(scope);
   const preferences = await loadUserPreference();
   const favourites = normalizeFavourites(preferences.favourites);
   const target = record.type === 'directory' ? favourites.directories : favourites.files;
@@ -129,6 +145,31 @@ export function isFavoriteRecord(preferences: UserPreference | null, record: Fil
   return record.type === 'directory'
     ? Object.hasOwn(favourites.directories, record.id)
     : Object.hasOwn(favourites.files, record.id);
+}
+
+export function hasFilePreferenceScope(
+  scope: FilePreferenceScope | null | undefined,
+): scope is { serverAddress: string; username: string } {
+  return Boolean(scopeParts(scope));
+}
+
+function assertFilePreferenceScope(scope: FilePreferenceScope) {
+  if (!hasFilePreferenceScope(scope)) {
+    throw new Error('Missing server address or username for file preferences.');
+  }
+}
+
+function recentVisitsKey(scope: FilePreferenceScope): string | null {
+  const parts = scopeParts(scope);
+  if (!parts) return null;
+  return `${RECENT_VISITS_KEY_PREFIX}:${encodeURIComponent(parts.serverAddress)}:${encodeURIComponent(parts.username)}`;
+}
+
+function scopeParts(scope: FilePreferenceScope | null | undefined) {
+  const serverAddress = scope?.serverAddress?.trim();
+  const username = scope?.username?.trim();
+  if (!serverAddress || !username) return null;
+  return { serverAddress, username };
 }
 
 function normalizeFavourites(value: Favourites | null | undefined): Favourites {

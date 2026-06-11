@@ -9,10 +9,11 @@
     getRecentVisits,
     loadFavoriteRecords,
     rememberVisit,
+    type FilePreferenceScope,
     type FileRecord,
     type RecentFileRecord,
   } from '$lib/file-preferences';
-  import { notificationStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
 
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);
@@ -20,9 +21,10 @@
   let openingId = $state<string | null>(null);
 
   onMount(async () => {
-    recent = getRecentVisits();
+    const scope = currentFilePreferenceScope();
+    recent = getRecentVisits(scope);
     try {
-      favorites = await loadFavoriteRecords();
+      favorites = await loadFavoriteRecords(scope);
     } catch {
       favorites = [];
     } finally {
@@ -33,8 +35,9 @@
   async function openRecord(record: FileRecord) {
     openingId = `${record.type}:${record.id}`;
     try {
-      rememberVisit(record);
-      recent = getRecentVisits();
+      const scope = currentFilePreferenceScope();
+      rememberVisit(scope, record);
+      recent = getRecentVisits(scope);
 
       if (record.type === 'directory') {
         const params = new URLSearchParams({
@@ -55,6 +58,13 @@
 
   function formatVisitTime(timestamp: number) {
     return new Date(timestamp).toLocaleString();
+  }
+
+  function currentFilePreferenceScope(): FilePreferenceScope {
+    return {
+      serverAddress: serverStateStore.remoteAddress,
+      username: authStore.username,
+    };
   }
 </script>
 
