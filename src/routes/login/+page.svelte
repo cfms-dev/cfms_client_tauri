@@ -333,9 +333,9 @@
   }
 </script>
 
-<div class="grid min-h-full overflow-hidden bg-[#0e1217] lg:grid-cols-[minmax(360px,45vw)_1fr]">
-  <section class="flex min-h-full items-center justify-center px-6 py-12">
-  <div class="w-full animate-fade-scale-in" style="max-width: 420px;">
+<div class="grid min-h-full overflow-hidden bg-[#0e1217] lg:grid-cols-[520px_minmax(0,1fr)]">
+  <section class="flex min-h-full items-center justify-center px-5 py-12">
+  <div class="w-full max-w-[360px] animate-fade-scale-in">
     {#if busy && loadingPhase}
       <!-- Data loading state -->
       <div
