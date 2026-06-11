@@ -30,6 +30,10 @@
   },
   "bundle": {
     "active": true,
+    "android": {
+      "autoIncrementVersionCode": false,
+      "minSdkVersion": 24
+    },
     "targets": "all",
     "resources": {
       "ca/*": "ca/"
