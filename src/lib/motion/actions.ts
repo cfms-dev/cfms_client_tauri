@@ -21,6 +21,10 @@ export const ripple: Action<HTMLElement> = (node) => {
     return { destroy() {} };
   }
 
+  const rippleRoot = document.createElement("span");
+  rippleRoot.className = "motion-ripple-root";
+  node.prepend(rippleRoot);
+
   const handleClick = (event: MouseEvent) => {
     const rect = node.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height) * 2;
@@ -32,7 +36,7 @@ export const ripple: Action<HTMLElement> = (node) => {
     circle.style.left = `${event.clientX - rect.left}px`;
     circle.style.top = `${event.clientY - rect.top}px`;
 
-    node.appendChild(circle);
+    rippleRoot.appendChild(circle);
     circle.addEventListener("animationend", () => circle.remove(), { once: true });
   };
 
@@ -41,6 +45,7 @@ export const ripple: Action<HTMLElement> = (node) => {
   return {
     destroy() {
       node.removeEventListener("click", handleClick);
+      rippleRoot.remove();
     },
   };
 };

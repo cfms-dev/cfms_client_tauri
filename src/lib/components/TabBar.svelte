@@ -111,7 +111,7 @@
     {#each visibleTabs as tab, i}
       <button
         bind:this={btnEls[i]}
-        class="relative z-10 overflow-hidden rounded-full
+        class="relative z-10 overflow-visible rounded-full
                flex flex-col items-center justify-center gap-0.5
                px-4 py-1.5 min-w-[3.75rem]
                transition-colors duration-300 active:scale-95"

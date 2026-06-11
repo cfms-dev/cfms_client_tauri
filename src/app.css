@@ -300,6 +300,14 @@
   will-change: opacity, transform;
 }
 
+.motion-ripple-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
 .motion-reveal {
   opacity: 0;
   transform: translate3d(0, 10px, 0) scale(0.98);
