@@ -44,8 +44,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy (lib + tests only)
-        run: cargo clippy --workspace --lib --tests -- -D warnings
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Run workspace tests
         run: cargo test --workspace -- --test-threads=4
@@ -73,7 +73,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: SvelteKit sync + type-check
-        run: pnpm svelte-check --workspace
+        run: pnpm svelte-check
 
       - name: Production build
         run: pnpm build
