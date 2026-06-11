@@ -360,7 +360,9 @@ impl QueueState {
         let count = {
             let mut map = self.tasks.lock().unwrap();
             let before = map.len();
-            map.retain(|_, t| t.status != DownloadTaskStatus::Failed);
+            map.retain(|_, t| {
+                t.status != DownloadTaskStatus::Failed && t.status != DownloadTaskStatus::Cancelled
+            });
             before - map.len()
         };
         if count > 0 {

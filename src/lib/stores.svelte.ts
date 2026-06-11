@@ -246,6 +246,10 @@ class DownloadStoreImpl {
     return [...this.tasks.values()].filter((t) => t.status === "failed");
   }
 
+  get cancelledTasks(): DownloadTaskDto[] {
+    return [...this.tasks.values()].filter((t) => t.status === "cancelled");
+  }
+
   getTasksByStatus(status: DownloadTaskStatus | "all"): DownloadTaskDto[] {
     if (status === "all") return [...this.tasks.values()];
     return [...this.tasks.values()].filter((t) => t.status === status);
@@ -433,18 +437,28 @@ class UploadStoreImpl {
   }
 
   clearFinished() {
+    this.clearTerminalByStatus(["completed", "failed", "cancelled", "skipped"]);
+  }
+
+  clearCompletedAndCancelled() {
+    this.clearTerminalByStatus(["completed", "cancelled", "skipped"]);
+  }
+
+  clearFailedAndCancelled() {
+    this.clearTerminalByStatus(["failed", "cancelled", "skipped"]);
+  }
+
+  private clearTerminalByStatus(statuses: UploadTaskDto["status"][]) {
+    const toClear = new Set(statuses);
     for (const task of this.allTasks) {
-      if (["completed", "failed", "cancelled", "skipped"].includes(task.status)) {
+      if (toClear.has(task.status)) {
         this.runners.delete(task.upload_id);
         this.completionCallbacks.delete(task.upload_id);
       }
     }
     this.tasks = new Map(
       [...this.tasks].filter(([, task]) =>
-        task.status !== "completed"
-        && task.status !== "failed"
-        && task.status !== "cancelled"
-        && task.status !== "skipped"
+        !toClear.has(task.status)
       ),
     );
   }
@@ -459,6 +473,18 @@ class UploadStoreImpl {
 
   get pausedTasks(): UploadTaskDto[] {
     return this.allTasks.filter((task) => task.status === "paused");
+  }
+
+  get completedTasks(): UploadTaskDto[] {
+    return this.allTasks.filter((task) => task.status === "completed" || task.status === "skipped");
+  }
+
+  get failedTasks(): UploadTaskDto[] {
+    return this.allTasks.filter((task) => task.status === "failed");
+  }
+
+  get cancelledTasks(): UploadTaskDto[] {
+    return this.allTasks.filter((task) => task.status === "cancelled");
   }
 
   private setStatus(

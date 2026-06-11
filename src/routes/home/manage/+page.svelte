@@ -30,6 +30,9 @@
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
+  import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
+  import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
 
@@ -44,6 +47,24 @@
   type ManageContextTarget =
     | { kind: 'user'; user: ManagedUser }
     | { kind: 'group'; group: ManagedGroup };
+
+  type ManageDialogState =
+    | { kind: 'user-groups'; user: ManagedUser }
+    | { kind: 'reset-password'; user: ManagedUser }
+    | { kind: 'block-user'; user: ManagedUser }
+    | { kind: 'group-permissions'; group: ManagedGroup }
+    | null;
+
+  interface ListEditorItem {
+    id: string;
+    label?: string;
+    meta?: string;
+  }
+
+  interface ListEditorData {
+    items: ListEditorItem[];
+    selected: string[];
+  }
 
   const tabs: ManageTab[] = [
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
@@ -68,6 +89,7 @@
   let detailTitle = $state<string | null>(null);
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
   let blocksDialog = $state<{ username: string; blocks: UserBlock[] } | null>(null);
+  let activeDialog = $state<ManageDialogState>(null);
   let contextMenu = $state<{
     open: boolean;
     x: number;
@@ -162,7 +184,7 @@
     return [
       {
         id: 'view-user',
-        label: 'Properties',
+        label: $t('manage.properties'),
         icon: 'info',
         onSelect: () => handleViewUser(user),
         disabled,
@@ -170,21 +192,21 @@
       { type: 'divider' },
       {
         id: 'rename-user',
-        label: 'Change nickname',
+        label: $t('manage.changeNickname'),
         icon: 'edit',
         onSelect: () => handleRenameUser(user),
         disabled,
       },
       {
         id: 'edit-user-groups',
-        label: 'Edit groups',
+        label: $t('manage.editGroups'),
         icon: 'formatListBulleted',
         onSelect: () => handleEditUserGroups(user),
         disabled,
       },
       {
         id: 'reset-user-password',
-        label: 'Reset password',
+        label: $t('manage.resetPassword'),
         icon: 'password',
         onSelect: () => handleResetPassword(user),
         disabled,
@@ -192,7 +214,7 @@
       { type: 'divider', hidden: !canBlock && !canListBlocks },
       {
         id: 'block-user',
-        label: 'Block user',
+        label: $t('manage.blockUser'),
         icon: 'block',
         onSelect: () => handleBlockUser(user),
         disabled,
@@ -200,7 +222,7 @@
       },
       {
         id: 'view-user-blocks',
-        label: 'View/Revoke blocks',
+        label: $t('manage.viewBlocks'),
         icon: 'manageAccounts',
         onSelect: () => handleListBlocks(user),
         disabled,
@@ -209,7 +231,7 @@
       { type: 'divider' },
       {
         id: 'delete-user',
-        label: 'Delete',
+        label: $t('common.delete'),
         icon: 'delete',
         onSelect: () => handleDeleteUser(user),
         disabled,
@@ -224,14 +246,14 @@
     return [
       {
         id: 'rename-group',
-        label: 'Rename',
+        label: $t('manage.rename'),
         icon: 'edit',
         onSelect: () => handleRenameGroup(group),
         disabled,
       },
       {
         id: 'edit-group-permissions',
-        label: 'Set permissions',
+        label: $t('manage.setPermissions'),
         icon: 'settings',
         onSelect: () => handleEditGroupPermissions(group),
         disabled,
@@ -239,7 +261,7 @@
       { type: 'divider' },
       {
         id: 'delete-group',
-        label: 'Delete',
+        label: $t('common.delete'),
         icon: 'groupRemove',
         onSelect: () => handleDeleteGroup(group),
         disabled,
@@ -295,74 +317,53 @@
   }
 
   async function handleCreateUser() {
-    const username = (await dialogStore.prompt('Username:'))?.trim();
+    const username = (await dialogStore.prompt($t('manage.usernamePrompt')))?.trim();
     if (!username) return;
-    const nickname = (await dialogStore.prompt('Nickname:', username))?.trim() ?? '';
-    const password = await dialogStore.prompt({ message: 'Initial password:', inputType: 'password' }) ?? '';
+    const nickname = (await dialogStore.prompt($t('manage.nicknamePrompt'), username))?.trim() ?? '';
+    const password = await dialogStore.prompt({
+      message: $t('manage.initialPasswordPrompt'),
+      inputType: 'password',
+    }) ?? '';
     if (!password) return;
 
     await runBusy('create-user', async () => {
       await createUser(username, password, nickname);
-      status = `User ${username} created.`;
+      status = $t('manage.userCreated', { values: { username } });
       await loadUserList();
     });
   }
 
   async function handleRenameUser(user: ManagedUser) {
-    const nickname = await dialogStore.prompt('New nickname:', user.nickname ?? user.username);
+    const nickname = await dialogStore.prompt($t('manage.newNicknamePrompt'), user.nickname ?? user.username);
     if (nickname === null) return;
 
     await runBusy(`rename-user:${user.username}`, async () => {
       await renameUser(user.username, nickname.trim());
-      status = `User ${user.username} updated.`;
+      status = $t('manage.userUpdated', { values: { username: user.username } });
       await loadUserList();
     });
   }
 
   async function handleEditUserGroups(user: ManagedUser) {
-    const allGroups = groups.length ? groups : await listGroups();
-    if (!groups.length) groups = allGroups;
-    const next = await dialogStore.prompt(
-      `Groups for ${user.username} (comma separated):`,
-      (user.groups ?? []).join(', '),
-    );
-    if (next === null) return;
-
-    const selected = splitList(next);
-    await runBusy(`groups-user:${user.username}`, async () => {
-      await changeUserGroups(user.username, selected);
-      status = `Groups for ${user.username} updated.`;
-      await loadUserList();
-    });
+    activeDialog = { kind: 'user-groups', user };
   }
 
   async function handleResetPassword(user: ManagedUser) {
-    const newPassword = await dialogStore.prompt({
-      message: `New password for ${user.username}:`,
-      inputType: 'password',
-    }) ?? '';
-    if (!newPassword) return;
-    const bypass = await dialogStore.confirm('Bypass password requirements?');
-    const forceUpdate = await dialogStore.confirm('Force user to update password after next login?');
-
-    await runBusy(`passwd-user:${user.username}`, async () => {
-      await resetUserPassword(user.username, newPassword, bypass, forceUpdate);
-      status = `Password for ${user.username} changed.`;
-    });
+    activeDialog = { kind: 'reset-password', user };
   }
 
   async function handleViewUser(user: ManagedUser) {
     await runBusy(`view-user:${user.username}`, async () => {
       const info = await getUserInfo(user.username);
-      detailTitle = `User Details: ${info.username}`;
+      detailTitle = $t('manage.userDetailsFor', { values: { username: info.username } });
       detailRows = [
-        { label: 'Username', value: info.username },
-        { label: 'Nickname', value: info.nickname || '-' },
-        { label: 'Permissions', value: formatList(info.permissions) },
-        { label: 'Groups', value: formatList(info.groups) },
-        { label: 'Registered', value: formatDate(info.created_time) },
-        { label: 'Last login', value: formatDate(info.last_login) },
-        { label: 'Password changed', value: formatDate(info.passwd_last_modified) },
+        { label: $t('manage.username'), value: info.username },
+        { label: $t('manage.nickname'), value: info.nickname || '-' },
+        { label: $t('manage.permissions'), value: formatList(info.permissions) },
+        { label: $t('manage.groups'), value: formatList(info.groups) },
+        { label: $t('manage.registered'), value: formatDate(info.created_time) },
+        { label: $t('manage.lastLogin'), value: formatDate(info.last_login) },
+        { label: $t('manage.passwordChangedAt'), value: formatDate(info.passwd_last_modified) },
       ];
     });
   }
@@ -370,51 +371,20 @@
   async function handleDeleteUser(user: ManagedUser) {
     if (!(await dialogStore.confirm({
       title: $t('common.delete'),
-      message: `Delete user ${user.username}?`,
+      message: $t('manage.deleteUserConfirm', { values: { username: user.username } }),
       confirmLabel: $t('common.delete'),
       cancelLabel: $t('common.cancel'),
       danger: true,
     }))) return;
     await runBusy(`delete-user:${user.username}`, async () => {
       await deleteUser(user.username);
-      status = `User ${user.username} deleted.`;
+      status = $t('manage.userDeleted', { values: { username: user.username } });
       await loadUserList();
     });
   }
 
   async function handleBlockUser(user: ManagedUser) {
-    const typesRaw = await dialogStore.prompt('Block types (comma separated):', 'read, write, move');
-    if (typesRaw === null) return;
-    const blockTypes = splitList(typesRaw);
-    if (blockTypes.length === 0) {
-      error = 'Please select at least one block type.';
-      return;
-    }
-
-    const targetTypeRaw = (await dialogStore.prompt('Target type: all, directory, or document', 'all') ?? 'all')
-      .trim()
-      .toLowerCase();
-    const targetType = ['directory', 'document'].includes(targetTypeRaw)
-      ? (targetTypeRaw as 'directory' | 'document')
-      : 'all';
-    const target: UserBlockTarget = { type: targetType };
-    if (targetType !== 'all') {
-      const targetId = (await dialogStore.prompt(`${targetType} ID:`))?.trim();
-      if (!targetId) return;
-      target.id = targetId;
-    }
-
-    const expiry = await dialogStore.prompt('Expiry time as local date/time, or blank for permanent:', '');
-    const notAfter = expiry?.trim() ? new Date(expiry.trim()).getTime() / 1000 : null;
-    if (expiry?.trim() && Number.isNaN(notAfter)) {
-      error = 'Invalid expiry time.';
-      return;
-    }
-
-    await runBusy(`block-user:${user.username}`, async () => {
-      await blockUser(user.username, blockTypes, target, notAfter);
-      status = `User ${user.username} blocked.`;
-    });
+    activeDialog = { kind: 'block-user', user };
   }
 
   async function handleListBlocks(user: ManagedUser) {
@@ -432,59 +402,155 @@
         username: blocksDialog!.username,
         blocks: await listUserBlocks(blocksDialog!.username),
       };
-      status = 'Block revoked.';
+      status = $t('manage.blockRevoked');
     });
   }
 
   async function handleCreateGroup() {
-    const groupName = (await dialogStore.prompt('User group name:'))?.trim();
+    const groupName = (await dialogStore.prompt($t('manage.groupNamePrompt')))?.trim();
     if (!groupName) return;
-    const displayName = (await dialogStore.prompt('Display name:', groupName))?.trim() ?? groupName;
+    const displayName = (await dialogStore.prompt($t('manage.displayNamePrompt'), groupName))?.trim() ?? groupName;
 
     await runBusy('create-group', async () => {
       await createGroup(groupName, displayName);
-      status = `Group ${groupName} created.`;
+      status = $t('manage.groupCreated', { values: { group: groupName } });
       await loadGroupList();
     });
   }
 
   async function handleRenameGroup(group: ManagedGroup) {
-    const displayName = await dialogStore.prompt('New display name:', group.display_name ?? group.name);
+    const displayName = await dialogStore.prompt($t('manage.newDisplayNamePrompt'), group.display_name ?? group.name);
     if (displayName === null || !displayName.trim()) return;
 
     await runBusy(`rename-group:${group.name}`, async () => {
       await renameGroup(group.name, displayName.trim());
-      status = `Group ${group.name} updated.`;
+      status = $t('manage.groupUpdated', { values: { group: group.name } });
       await loadGroupList();
     });
   }
 
   async function handleEditGroupPermissions(group: ManagedGroup) {
-    const info = await getGroupInfo(group.name);
-    const next = await dialogStore.prompt(
-      `Permissions for ${group.name} (comma separated):`,
-      formatList(info.permissions),
-    );
-    if (next === null) return;
+    activeDialog = { kind: 'group-permissions', group };
+  }
 
-    await runBusy(`perms-group:${group.name}`, async () => {
-      await changeGroupPermissions(group.name, splitList(next));
-      status = `Permissions for ${group.name} updated.`;
-      await loadGroupList();
-    });
+  async function loadUserGroupEditorData(user: ManagedUser): Promise<ListEditorData> {
+    const [allGroups, userInfo] = await Promise.all([
+      listGroups(),
+      getUserInfo(user.username),
+    ]);
+    groups = allGroups;
+
+    return {
+      items: allGroups.map((group) => ({
+        id: group.name,
+        label: group.display_name || group.name,
+        meta: group.display_name && group.display_name !== group.name ? group.name : undefined,
+      })),
+      selected: userInfo.groups ?? [],
+    };
+  }
+
+  async function saveUserGroups(user: ManagedUser, selected: string[]) {
+    await changeUserGroups(user.username, selected);
+    status = $t('manage.userGroupsUpdated', { values: { username: user.username } });
+    activeDialog = null;
+    await loadUserList();
+  }
+
+  async function saveResetPassword(
+    user: ManagedUser,
+    password: string,
+    bypassRequirements: boolean,
+    forceUpdateAfterLogin: boolean,
+  ) {
+    await resetUserPassword(user.username, password, bypassRequirements, forceUpdateAfterLogin);
+    status = $t('manage.passwordChanged', { values: { username: user.username } });
+    activeDialog = null;
+  }
+
+  async function saveBlockUser(
+    user: ManagedUser,
+    blockTypes: string[],
+    target: UserBlockTarget,
+    notAfter: number | null,
+  ) {
+    await blockUser(user.username, blockTypes, target, notAfter);
+    status = $t('manage.userBlocked', { values: { username: user.username } });
+    activeDialog = null;
+  }
+
+  async function loadGroupPermissionEditorData(group: ManagedGroup): Promise<ListEditorData> {
+    const info = await getGroupInfo(group.name);
+    return {
+      items: (info.permissions ?? []).map((permission) => ({
+        id: permission,
+        label: permission,
+      })),
+      selected: info.permissions ?? [],
+    };
+  }
+
+  async function saveGroupPermissions(group: ManagedGroup, selected: string[]) {
+    await changeGroupPermissions(group.name, selected);
+    status = $t('manage.groupPermissionsUpdated', { values: { group: group.name } });
+    activeDialog = null;
+    await loadGroupList();
+  }
+
+  async function refreshActiveUserGroups() {
+    if (activeDialog?.kind !== 'user-groups') return { items: [], selected: [] };
+    return loadUserGroupEditorData(activeDialog.user);
+  }
+
+  async function saveActiveUserGroups(selected: string[]) {
+    if (activeDialog?.kind !== 'user-groups') return;
+    await saveUserGroups(activeDialog.user, selected);
+  }
+
+  async function saveActiveResetPassword(
+    password: string,
+    bypassRequirements: boolean,
+    forceUpdateAfterLogin: boolean,
+  ) {
+    if (activeDialog?.kind !== 'reset-password') return;
+    await saveResetPassword(
+      activeDialog.user,
+      password,
+      bypassRequirements,
+      forceUpdateAfterLogin,
+    );
+  }
+
+  async function saveActiveBlockUser(
+    blockTypes: string[],
+    target: UserBlockTarget,
+    notAfter: number | null,
+  ) {
+    if (activeDialog?.kind !== 'block-user') return;
+    await saveBlockUser(activeDialog.user, blockTypes, target, notAfter);
+  }
+
+  async function refreshActiveGroupPermissions() {
+    if (activeDialog?.kind !== 'group-permissions') return { items: [], selected: [] };
+    return loadGroupPermissionEditorData(activeDialog.group);
+  }
+
+  async function saveActiveGroupPermissions(selected: string[]) {
+    if (activeDialog?.kind !== 'group-permissions') return;
+    await saveGroupPermissions(activeDialog.group, selected);
   }
 
   async function handleDeleteGroup(group: ManagedGroup) {
     if (!(await dialogStore.confirm({
       title: $t('common.delete'),
-      message: `Delete group ${group.name}?`,
+      message: $t('manage.deleteGroupConfirm', { values: { group: group.name } }),
       confirmLabel: $t('common.delete'),
       cancelLabel: $t('common.cancel'),
       danger: true,
     }))) return;
     await runBusy(`delete-group:${group.name}`, async () => {
       await deleteGroup(group.name);
-      status = `Group ${group.name} deleted.`;
+      status = $t('manage.groupDeleted', { values: { group: group.name } });
       await loadGroupList();
     });
   }
@@ -501,15 +567,8 @@
     }
   }
 
-  function splitList(value: string) {
-    return value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
   function formatList(value: string[] | undefined | null) {
-    return value?.length ? value.join(', ') : '';
+    return value?.length ? value.join(', ') : $t('common.none');
   }
 
   function formatDate(ts: number | null | undefined) {
@@ -521,6 +580,13 @@
     if (value === null || value === undefined || value === '') return '-';
     if (typeof value === 'string') return value;
     return JSON.stringify(value);
+  }
+
+  function formatBlockTarget(block: UserBlock) {
+    const targetType = block.target_type ?? 'all';
+    if (targetType === 'all') return $t('tasks.all');
+    if (block.target_id) return `${targetType}: ${block.target_id}`;
+    return targetType;
   }
 
   function formatError(err: unknown) {
@@ -602,13 +668,13 @@
 
         {#if !canListUsers}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            Missing permission: list_users
+            {$t('manage.missingPermission', { values: { permission: 'list_users' } })}
           </p>
         {:else if loadingUsers}
           {@render LoadingRow()}
         {:else if users.length === 0}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            No users found.
+            {$t('manage.noUsers')}
           </p>
         {:else}
           {#each users as user (user.username)}
@@ -623,17 +689,23 @@
                   {user.nickname || user.username}
                 </p>
                 <p class="text-xs text-md3-on-surface-variant truncate">
-                  {user.username} | Groups: {formatList(user.groups) || '-'} | Last login: {formatDate(user.last_login)}
+                  {$t('manage.userSummary', {
+                    values: {
+                      username: user.username,
+                      groups: formatList(user.groups),
+                      lastLogin: formatDate(user.last_login),
+                    },
+                  })}
                 </p>
               </div>
               <div class="flex flex-wrap justify-end gap-1">
-                {@render ActionButton('info', 'Properties', () => handleViewUser(user), busyKey !== null)}
-                {@render ActionButton('edit', 'Change nickname', () => handleRenameUser(user), busyKey !== null)}
-                {@render ActionButton('formatListBulleted', 'Edit groups', () => handleEditUserGroups(user), busyKey !== null)}
-                {@render ActionButton('password', 'Reset password', () => handleResetPassword(user), busyKey !== null)}
-                {@render ActionButton('block', 'Block user', () => handleBlockUser(user), !canBlock || busyKey !== null)}
-                {@render ActionButton('manageAccounts', 'View blocks', () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
-                {@render ActionButton('delete', 'Delete', () => handleDeleteUser(user), busyKey !== null, true)}
+                {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
+                {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
+                {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
+                {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
+                {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
               </div>
             </div>
           {/each}
@@ -658,13 +730,13 @@
 
         {#if !canListGroups}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            Missing permission: list_groups
+            {$t('manage.missingPermission', { values: { permission: 'list_groups' } })}
           </p>
         {:else if loadingGroups}
           {@render LoadingRow()}
         {:else if groups.length === 0}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            No groups found.
+            {$t('manage.noGroups')}
           </p>
         {:else}
           {#each groups as group (group.name)}
@@ -679,13 +751,19 @@
                   {group.display_name || group.name}
                 </p>
                 <p class="text-xs text-md3-on-surface-variant truncate">
-                  {group.name} | Permissions: {formatList(group.permissions) || '-'} | Members: {formatList(group.members) || '-'}
+                  {$t('manage.groupSummary', {
+                    values: {
+                      name: group.name,
+                      permissions: formatList(group.permissions),
+                      members: formatList(group.members),
+                    },
+                  })}
                 </p>
               </div>
               <div class="flex flex-wrap justify-end gap-1">
-                {@render ActionButton('edit', 'Rename', () => handleRenameGroup(group), busyKey !== null)}
-                {@render ActionButton('settings', 'Set permissions', () => handleEditGroupPermissions(group), busyKey !== null)}
-                {@render ActionButton('groupRemove', 'Delete', () => handleDeleteGroup(group), busyKey !== null, true)}
+                {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
+                {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
+                {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
               </div>
             </div>
           {/each}
@@ -697,11 +775,19 @@
           </h2>
           <div class="flex items-center gap-2">
             <span class="text-xs text-md3-on-surface-variant">
-              {auditTotal === 0 ? '0 of 0' : `${auditOffset + 1} - ${auditOffset + auditEntries.length} of ${auditTotal}`}
+              {auditTotal === 0
+                ? $t('manage.auditRangeEmpty')
+                : $t('manage.auditRange', {
+                    values: {
+                      start: auditOffset + 1,
+                      end: auditOffset + auditEntries.length,
+                      total: auditTotal,
+                    },
+                  })}
             </span>
             <button
               class="p-1.5 rounded-full text-md3-on-surface-variant hover:bg-md3-surface-container-high disabled:opacity-40"
-              title="Previous"
+              title={$t('common.previous')}
               onclick={() => loadAuditLogPage(auditOffset - auditCount)}
               disabled={auditOffset <= 0 || loadingLogs}
             >
@@ -709,7 +795,7 @@
             </button>
             <button
               class="p-1.5 rounded-full text-md3-on-surface-variant hover:bg-md3-surface-container-high disabled:opacity-40"
-              title="Next"
+              title={$t('common.next')}
               onclick={() => loadAuditLogPage(auditOffset + auditCount)}
               disabled={auditOffset + auditCount >= auditTotal || loadingLogs}
             >
@@ -720,26 +806,26 @@
 
         {#if !canViewLogs}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            Missing permission: view_audit_logs
+            {$t('manage.missingPermission', { values: { permission: 'view_audit_logs' } })}
           </p>
         {:else if loadingLogs}
           {@render LoadingRow()}
         {:else if auditEntries.length === 0}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            No audit logs found.
+            {$t('manage.noAuditLogs')}
           </p>
         {:else}
           <div class="overflow-x-auto">
             <table class="min-w-[920px] w-full text-left text-sm">
               <thead class="bg-md3-surface-container-high/50 text-xs uppercase text-md3-on-surface-variant">
                 <tr>
-                  <th class="px-3 py-2">ID</th>
-                  <th class="px-3 py-2">Action</th>
-                  <th class="px-3 py-2">Username</th>
-                  <th class="px-3 py-2">Target</th>
-                  <th class="px-3 py-2">Result</th>
-                  <th class="px-3 py-2">Remote</th>
-                  <th class="px-3 py-2 text-right">Time</th>
+                  <th class="px-3 py-2">{$t('manage.id')}</th>
+                  <th class="px-3 py-2">{$t('manage.action')}</th>
+                  <th class="px-3 py-2">{$t('manage.username')}</th>
+                  <th class="px-3 py-2">{$t('manage.target')}</th>
+                  <th class="px-3 py-2">{$t('manage.result')}</th>
+                  <th class="px-3 py-2">{$t('manage.remote')}</th>
+                  <th class="px-3 py-2 text-right">{$t('manage.time')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -771,6 +857,46 @@
   onClose={hideContextMenu}
 />
 
+{#if activeDialog?.kind === 'user-groups'}
+  <ManageListEditorDialog
+    title={$t('manage.editUserGroupsTitle', { values: { username: activeDialog.user.username } })}
+    description={$t('manage.editUserGroupsDescription')}
+    icon="formatListBulleted"
+    items={(activeDialog.user.groups ?? []).map((group) => ({ id: group, label: group }))}
+    selected={activeDialog.user.groups ?? []}
+    emptyMessage={$t('manage.noGroups')}
+    onRefresh={refreshActiveUserGroups}
+    onSave={saveActiveUserGroups}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'reset-password'}
+  <ResetUserPasswordDialog
+    username={activeDialog.user.username}
+    onSave={saveActiveResetPassword}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'block-user'}
+  <BlockUserDialog
+    username={activeDialog.user.username}
+    onSave={saveActiveBlockUser}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'group-permissions'}
+  <ManageListEditorDialog
+    title={$t('manage.editGroupPermissionsTitle', { values: { group: activeDialog.group.name } })}
+    description={$t('manage.editGroupPermissionsDescription')}
+    icon="adminPanelSettings"
+    items={(activeDialog.group.permissions ?? []).map((permission) => ({ id: permission, label: permission }))}
+    selected={activeDialog.group.permissions ?? []}
+    allowAdd={true}
+    addPlaceholder={$t('manage.addPermissionPlaceholder')}
+    emptyMessage={$t('manage.noPermissions')}
+    onRefresh={refreshActiveGroupPermissions}
+    onSave={saveActiveGroupPermissions}
+    onClose={() => (activeDialog = null)}
+  />
+{/if}
+
 {#if detailTitle}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -789,7 +915,11 @@
     >
       <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
         <h3 class="text-base font-semibold text-md3-on-surface">{detailTitle}</h3>
-        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (detailTitle = null)}>
+        <button
+          class="p-1 rounded-full hover:bg-md3-surface-container-high"
+          aria-label={$t('common.close')}
+          onclick={() => (detailTitle = null)}
+        >
           <Icon name="close" size="20px" />
         </button>
       </div>
@@ -822,23 +952,36 @@
       }}
     >
       <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">Blocks: {blocksDialog.username}</h3>
-        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (blocksDialog = null)}>
+        <h3 class="text-base font-semibold text-md3-on-surface">
+          {$t('manage.blocksFor', { values: { username: blocksDialog.username } })}
+        </h3>
+        <button
+          class="p-1 rounded-full hover:bg-md3-surface-container-high"
+          aria-label={$t('common.close')}
+          onclick={() => (blocksDialog = null)}
+        >
           <Icon name="close" size="20px" />
         </button>
       </div>
       <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
         {#if blocksDialog.blocks.length === 0}
-          <p class="text-sm text-md3-on-surface-variant">No active blocks found.</p>
+          <p class="text-sm text-md3-on-surface-variant">{$t('manage.noActiveBlocks')}</p>
         {:else}
           {#each blocksDialog.blocks as block (block.block_id)}
             <div class="border border-md3-outline rounded-xl p-3 space-y-2">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-sm font-medium text-md3-on-surface truncate">
-                    {formatList(block.block_types)} | {block.target_type ?? 'all'}{block.target_id ? `: ${block.target_id}` : ''}
+                    {$t('manage.blockRecordTitle', {
+                      values: {
+                        types: formatList(block.block_types),
+                        target: formatBlockTarget(block),
+                      },
+                    })}
                   </p>
-                  <p class="text-xs text-md3-on-surface-variant break-all">ID: {block.block_id}</p>
+                  <p class="text-xs text-md3-on-surface-variant break-all">
+                    {$t('manage.idWithValue', { values: { id: block.block_id } })}
+                  </p>
                 </div>
                 <button
                   class="px-3 py-1 text-xs rounded-full bg-md3-error-container
@@ -846,11 +989,17 @@
                   onclick={() => handleUnblock(block.block_id)}
                   disabled={busyKey !== null}
                 >
-                  Revoke
+                  {$t('files.revoke')}
                 </button>
               </div>
               <p class="text-xs text-md3-on-surface-variant">
-                Created: {formatDate(block.timestamp)} | Period: {formatDate(block.not_before)} - {block.not_after === -1 ? 'Permanent' : formatDate(block.not_after)}
+                {$t('manage.blockRecordPeriod', {
+                  values: {
+                    created: formatDate(block.timestamp),
+                    start: formatDate(block.not_before),
+                    end: block.not_after === -1 ? $t('manage.permanent') : formatDate(block.not_after),
+                  },
+                })}
               </p>
             </div>
           {/each}

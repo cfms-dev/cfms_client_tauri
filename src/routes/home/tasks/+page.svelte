@@ -33,6 +33,18 @@
   const filtered = $derived(downloadStore.getTasksByStatus(filter));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
   const uploadTasks = $derived(uploadStore.allTasks);
+  const completedOrCancelledCount = $derived(
+    downloadStore.completedTasks.length
+      + downloadStore.cancelledTasks.length
+      + uploadStore.completedTasks.length
+      + uploadStore.cancelledTasks.length,
+  );
+  const failedOrCancelledCount = $derived(
+    downloadStore.failedTasks.length
+      + downloadStore.cancelledTasks.length
+      + uploadStore.failedTasks.length
+      + uploadStore.cancelledTasks.length,
+  );
 
   onMount(async () => {
     try {
@@ -52,6 +64,7 @@
     busy = true;
     try {
       await clearCompletedTasks();
+      uploadStore.clearCompletedAndCancelled();
       await refresh();
     } finally {
       busy = false;
@@ -63,6 +76,7 @@
     busy = true;
     try {
       await clearFailedTasks();
+      uploadStore.clearFailedAndCancelled();
       await refresh();
     } finally {
       busy = false;
@@ -215,7 +229,7 @@
                    text-md3-success"
             style="font-family: var(--font-md3-sans);"
             onclick={handleClearCompleted}
-            disabled={busy || downloadStore.completedTasks.length === 0}
+            disabled={busy || completedOrCancelledCount === 0}
           >
             <Icon name="clearAll" size="16px" /> {$t('tasks.clearCompleted')}
           </button>
@@ -225,7 +239,7 @@
                    text-md3-error"
             style="font-family: var(--font-md3-sans);"
             onclick={handleClearFailed}
-            disabled={busy || downloadStore.failedTasks.length === 0}
+            disabled={busy || failedOrCancelledCount === 0}
           >
             <Icon name="deleteSweep" size="16px" /> {$t('tasks.clearFailed')}
           </button>
@@ -240,14 +254,6 @@
         <h2 class="text-sm font-semibold uppercase text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
           {$t('tasks.uploads')}
         </h2>
-        <button
-          class="px-3 py-1.5 text-xs rounded-full font-medium
-                 bg-md3-surface-container-high text-md3-on-surface-variant
-                 hover:brightness-110 transition-all"
-          onclick={() => uploadStore.clearFinished()}
-        >
-          {$t('tasks.clearCompleted')}
-        </button>
       </div>
       <div class="grid gap-3">
         {#each uploadTasks as task (task.upload_id)}

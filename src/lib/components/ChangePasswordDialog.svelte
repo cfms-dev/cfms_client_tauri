@@ -13,6 +13,7 @@
   import Icon from './Icon.svelte';
   import { _ as t } from 'svelte-i18n';
   import { flyScale } from '$lib/motion/transitions';
+  import { notificationStore } from '$lib/stores.svelte';
 
   interface Props {
     /** The username whose password is being changed. */
@@ -127,7 +128,7 @@
       await onSubmit(oldPassword, newPassword);
       // On success the parent closes the dialog.
     } catch (e) {
-      error = typeof e === 'string' ? e : e instanceof Error ? e.message : String(e);
+      notificationStore.error(formatError(e));
     } finally {
       busy = false;
     }
@@ -139,6 +140,10 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') handleCancel();
+  }
+
+  function formatError(err: unknown) {
+    return err instanceof Error ? err.message : String(err);
   }
 </script>
 
