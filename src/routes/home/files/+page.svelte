@@ -36,7 +36,6 @@
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
-    type AccessType,
     type RevisionEntry,
     type SearchFilesResponse,
     type UploadRevisionProgressEvent,
@@ -47,10 +46,12 @@
     ServerObjectType,
   } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import AuthorizeAccessDialog from '$lib/components/AuthorizeAccessDialog.svelte';
   import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import type { AccessGrantFormValue } from '$lib/access-grants';
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
@@ -87,6 +88,13 @@
     objectType: ServerObjectType;
     objectId: string;
     entries: AccessEntry[];
+  } | null>(null);
+  let authorizeDialog = $state<{
+    title: string;
+    targetType: ServerObjectType;
+    targetIdentifier: string;
+    targetName: string;
+    saving: boolean;
   } | null>(null);
   let accessRulesDialog = $state<{
     title: string;
@@ -585,65 +593,42 @@
     targetIdentifier: string,
     targetName: string,
   ) {
-    const entityTypeRaw = await dialogStore.prompt({
-      title: $t('files.authorize'),
-      message: $t('files.authorizeEntityTypePrompt'),
-      defaultValue: 'user',
-      placeholder: 'user / group',
-      confirmLabel: $t('common.save'),
-      cancelLabel: $t('common.cancel'),
-    });
-    if (entityTypeRaw === null) return;
-    const entityType = entityTypeRaw.trim().toLowerCase() === 'group' ? 'group' : 'user';
-    const entityIdentifier = (await dialogStore.prompt({
-      title: $t('files.authorize'),
-      message: $t('files.authorizeEntityPrompt'),
-      confirmLabel: $t('common.save'),
-      cancelLabel: $t('common.cancel'),
-    }))?.trim();
-    if (!entityIdentifier) return;
-    const accessTypesRaw = await dialogStore.prompt({
-      title: $t('files.authorize'),
-      message: $t('files.authorizeAccessPrompt'),
-      defaultValue: 'read',
-      confirmLabel: $t('common.save'),
-      cancelLabel: $t('common.cancel'),
-    });
-    if (accessTypesRaw === null) return;
-    const accessTypes = splitAccessTypes(accessTypesRaw);
-    if (!accessTypes.length) {
-      error = $t('files.authorizeAccessError');
-      return;
-    }
+    authorizeDialog = {
+      title: $t('files.authorizeTitle', { values: { name: targetName } }),
+      targetType,
+      targetIdentifier,
+      targetName,
+      saving: false,
+    };
+  }
 
-    const now = Math.floor(Date.now() / 1000);
-    const defaultEnd = new Date((now + 24 * 60 * 60) * 1000).toLocaleString();
-    const endInput = await dialogStore.prompt({
-      title: $t('files.authorize'),
-      message: $t('files.authorizeEndPrompt'),
-      defaultValue: defaultEnd,
-      confirmLabel: $t('common.save'),
-      cancelLabel: $t('common.cancel'),
-    });
-    if (endInput === null) return;
-    const endTime = Math.floor(new Date(endInput).getTime() / 1000);
-    if (!Number.isFinite(endTime) || endTime <= now) {
-      error = $t('files.authorizeEndError');
-      return;
-    }
+  async function handleSubmitAuthorize(value: AccessGrantFormValue) {
+    if (!authorizeDialog) return;
+    const dialog = authorizeDialog;
+    authorizeDialog = { ...dialog, saving: true };
+    error = null;
 
-    await runFileAction(async () => {
+    try {
       await grantAccess(
-        entityIdentifier,
-        entityType,
-        targetType,
-        targetIdentifier,
-        accessTypes,
-        now,
-        endTime,
+        value.entityIdentifier,
+        value.entityType,
+        dialog.targetType,
+        dialog.targetIdentifier,
+        value.accessTypes,
+        value.startTime,
+        value.endTime,
       );
-      status = $t('files.accessGranted', { values: { name: targetName } });
-    });
+      authorizeDialog = null;
+      status = $t('files.accessGrantedTo', {
+        values: {
+          entity: value.entityIdentifier,
+          name: dialog.targetName,
+        },
+      });
+    } catch (err) {
+      error = formatError(err);
+      authorizeDialog = { ...dialog, saving: false };
+    }
   }
 
   async function handleSetAccessRules(
@@ -770,14 +755,6 @@
     } catch (err) {
       error = formatError(err);
     }
-  }
-
-  function splitAccessTypes(value: string): AccessType[] {
-    const allowed = new Set<AccessType>(['read', 'write', 'move', 'manage']);
-    return value
-      .split(',')
-      .map((item) => item.trim().toLowerCase())
-      .filter((item): item is AccessType => allowed.has(item as AccessType));
   }
 
   // --- Toolbar actions ---
@@ -1451,6 +1428,20 @@
           </div>
         {/each}
       </div>
+  </ModalFrame>
+{/if}
+
+{#if authorizeDialog}
+  <ModalFrame title={authorizeDialog.title} maxWidth="max-w-2xl" closeLabel={$t('common.close')} onClose={() => (authorizeDialog = null)}>
+    <AuthorizeAccessDialog
+      targetName={authorizeDialog.targetName}
+      targetType={authorizeDialog.targetType}
+      canListUsers={authStore.permissions.includes('list_users')}
+      canListGroups={authStore.permissions.includes('list_groups')}
+      saving={authorizeDialog.saving}
+      onSubmit={handleSubmitAuthorize}
+      onCancel={() => (authorizeDialog = null)}
+    />
   </ModalFrame>
 {/if}
 
