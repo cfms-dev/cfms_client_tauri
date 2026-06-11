@@ -122,6 +122,7 @@ export const ICONS = {
   expandLess:     'expand_less',
   warningAmber:   'warning_amber',
   supervisedUserCircleOff: 'supervised_user_circle_off',
+  ifl:            'ifl',
 } as const;
 
 export type IconName = keyof typeof ICONS;

@@ -273,7 +273,7 @@
               title={$t('dialog.changePassword.generateStrongPassword')}
               aria-label={$t('dialog.changePassword.generateStrongPassword')}
             >
-              <Icon name="refresh" size="18px" />
+              <Icon name="ifl" size="18px" />
             </button>
             <button
               type="button"

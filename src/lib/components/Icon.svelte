@@ -7,8 +7,8 @@
   //
   // Icons are referenced by their semantic name defined in $lib/icons.ts.
 
-  import type { IconName } from '$lib/icons';
-  import { ICONS } from '$lib/icons';
+  import type { IconName } from "$lib/icons";
+  import { ICONS } from "$lib/icons";
 
   interface Props {
     name: IconName;
@@ -16,12 +16,20 @@
     class?: string;
   }
 
-  let { name, size = '24px', class: className = '' }: Props = $props();
+  let { name, size = "24px", class: className = "" }: Props = $props();
 
   /** Convert "24px" or 24 → "24px"; leave custom units (em, rem) as-is. */
-  const iconSize = $derived(
-    typeof size === 'number' ? `${size}px` : size,
-  );
+  const iconSize = $derived.by(() => {
+    if (typeof size === "number") {
+      return `${size}px`;
+    }
+
+    if (/^\d+(\.\d+)?(px|em|rem|%)$/.test(size)) {
+      return size;
+    }
+
+    return "24px";
+  });
 
   /**
    * The Material Symbols font ligature name.
