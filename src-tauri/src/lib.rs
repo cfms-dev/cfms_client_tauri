@@ -356,10 +356,11 @@ pub fn run() {
 /// is used: it creates a foreground service that prevents the OS from
 /// suspending the process while CFMS tasks are running.
 ///
-/// On desktop the plugin is not needed (the process is never suspended), so a
-/// lightweight no-op plugin is returned instead.
+/// On desktop the plugin is not needed, so a lightweight no-op plugin is
+/// returned instead.
 #[cfg(any(target_os = "android", target_os = "ios"))]
-fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+fn background_service_plugin<R: tauri::Runtime>()
+-> tauri::plugin::TauriPlugin<R, tauri_plugin_background_service::PluginConfig> {
     tauri_plugin_background_service::init_with_service(background::CfmsBackgroundService::new)
 }
 
