@@ -51,10 +51,13 @@
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import MoveTargetDialog from '$lib/components/MoveTargetDialog.svelte';
+  import { accessEntrySubject } from '$lib/access-entries';
   import type { AccessGrantFormValue } from '$lib/access-grants';
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
+  import { normalizeDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
   import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
@@ -104,6 +107,14 @@
     inheritParent: boolean;
     saving: boolean;
   } | null>(null);
+  let moveTargetDialog = $state<{
+    objectType: ServerObjectType;
+    objectId: string;
+    objectName: string;
+    originalParentId: string | null;
+    excludedDirectoryIds: string[];
+    saving: boolean;
+  } | null>(null);
   let revisionsDialog = $state<{
     title: string;
     documentId: string;
@@ -141,6 +152,9 @@
 
   const breadcrumbSegments = $derived(
     navHistory.map((h) => ({ label: h.label, path: h.id })),
+  );
+  const moveInitialBreadcrumb = $derived<DirectoryBreadcrumbSegment[]>(
+    navHistory.map((h) => ({ label: h.label, id: h.id })),
   );
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
   const revisionRows = $derived(
@@ -490,40 +504,55 @@
   }
 
   async function handleMoveDocument(doc: ServerDocumentEntry) {
-    const target = await promptTargetFolderId();
-    if (target === undefined) return;
-    await runFileAction(async () => {
-      await moveDocument(doc.id, target);
-      status = $t('files.moved');
-      await loadDirectory(currentFolderId);
-    });
+    openMoveTargetDialog('document', doc.id, doc.title);
   }
 
   async function handleMoveFolder(folder: ServerDirectoryEntry) {
-    const target = await promptTargetFolderId();
-    if (target === undefined) return;
-    if (target === folder.id) {
+    openMoveTargetDialog('directory', folder.id, folder.name, [folder.id]);
+  }
+
+  function openMoveTargetDialog(
+    objectType: ServerObjectType,
+    objectId: string,
+    objectName: string,
+    excludedDirectoryIds: string[] = [],
+  ) {
+    moveTargetDialog = {
+      objectType,
+      objectId,
+      objectName,
+      originalParentId: normalizeDirectoryId(currentFolderId),
+      excludedDirectoryIds,
+      saving: false,
+    };
+  }
+
+  async function handleMoveToTarget(targetFolderId: string | null) {
+    if (!moveTargetDialog) return;
+    const dialog = moveTargetDialog;
+    const target = normalizeDirectoryId(targetFolderId);
+
+    if (dialog.objectType === 'directory' && target === dialog.objectId) {
       error = $t('files.moveSelfError');
       return;
     }
-    await runFileAction(async () => {
-      await moveDirectory(folder.id, target);
+
+    moveTargetDialog = { ...dialog, saving: true };
+    error = null;
+
+    try {
+      if (dialog.objectType === 'directory') {
+        await moveDirectory(dialog.objectId, target);
+      } else {
+        await moveDocument(dialog.objectId, target);
+      }
+      moveTargetDialog = null;
       status = $t('files.moved');
       await loadDirectory(currentFolderId);
-    });
-  }
-
-  async function promptTargetFolderId(): Promise<string | null | undefined> {
-    const target = await dialogStore.prompt({
-      title: $t('files.move'),
-      message: $t('files.movePrompt'),
-      defaultValue: currentFolderId ?? '',
-      confirmLabel: $t('files.move'),
-      cancelLabel: $t('common.cancel'),
-    });
-    if (target === null) return undefined;
-    const trimmed = target.trim();
-    return trimmed === '' || trimmed === '/' ? null : trimmed;
+    } catch (err) {
+      error = formatError(err);
+      moveTargetDialog = { ...dialog, saving: false };
+    }
   }
 
   async function handleDocumentProperties(doc: ServerDocumentEntry) {
@@ -1445,6 +1474,20 @@
   </ModalFrame>
 {/if}
 
+{#if moveTargetDialog}
+  <MoveTargetDialog
+    objectType={moveTargetDialog.objectType}
+    objectName={moveTargetDialog.objectName}
+    initialFolderId={currentFolderId}
+    originalParentId={moveTargetDialog.originalParentId}
+    initialBreadcrumb={moveInitialBreadcrumb}
+    excludedDirectoryIds={moveTargetDialog.excludedDirectoryIds}
+    moving={moveTargetDialog.saving}
+    onMove={handleMoveToTarget}
+    onCancel={() => (moveTargetDialog = null)}
+  />
+{/if}
+
 {#if accessEntriesDialog}
   <ModalFrame title={accessEntriesDialog.title} maxWidth="max-w-5xl" closeLabel={$t('common.close')} onClose={() => (accessEntriesDialog = null)}>
       <div class="p-5 overflow-auto max-h-[70vh]">
@@ -1457,8 +1500,8 @@
             <thead class="text-xs uppercase text-md3-on-surface-variant">
               <tr>
                 <th class="px-3 py-2">{$t('files.id')}</th>
-                <th class="px-3 py-2">{$t('files.entity')}</th>
-                <th class="px-3 py-2">{$t('files.target')}</th>
+                <th class="px-3 py-2">{$t('files.entityType')}</th>
+                <th class="px-3 py-2">{$t('files.entityName')}</th>
                 <th class="px-3 py-2">{$t('files.accessType')}</th>
                 <th class="px-3 py-2">{$t('files.startTime')}</th>
                 <th class="px-3 py-2">{$t('files.endTime')}</th>
@@ -1467,10 +1510,11 @@
             </thead>
             <tbody>
               {#each accessEntriesDialog.entries as entry (entry.id)}
+                {@const subject = accessEntrySubject(entry)}
                 <tr class="border-t border-md3-outline/50">
                   <td class="px-3 py-2 text-xs text-md3-on-surface-variant">{entry.id}</td>
-                  <td class="px-3 py-2">{entry.entity_type}: {entry.entity_identifier}</td>
-                  <td class="px-3 py-2">{entry.target_type}: {entry.target_identifier}</td>
+                  <td class="px-3 py-2">{subject.type || '—'}</td>
+                  <td class="px-3 py-2">{subject.name || '—'}</td>
                   <td class="px-3 py-2">{entry.access_type}</td>
                   <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.start_time)}</td>
                   <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.end_time)}</td>
