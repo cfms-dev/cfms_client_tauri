@@ -7,6 +7,7 @@
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
   import Icon from './Icon.svelte';
+  import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
 
   interface Props {
@@ -224,7 +225,7 @@
         disabled={busy || !code.trim()}
       >
         {#if busy}
-          <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+          <ProgressRing size={16} strokeWidth={2.4} label={$t('common.verifying')} />
           {$t('common.verifying')}
         {:else}
           {$t('dialog.twoFactor.verify')}

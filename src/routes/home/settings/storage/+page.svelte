@@ -9,6 +9,7 @@
   } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import MdSwitch from '$lib/components/MdSwitch.svelte';
 
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
@@ -93,15 +94,14 @@
       <p class="text-sm text-md3-on-surface-variant mt-1 break-words">{storagePath}</p>
     </div>
 
-    <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+    <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
       {$t('settings.storage.useExternal')}
-      <input
-        class="accent-md3-primary"
-        type="checkbox"
+      <MdSwitch
         bind:checked={useExternalStorage}
         disabled={loading || saving}
+        ariaLabel={$t('settings.storage.useExternal')}
       />
-    </label>
+    </div>
 
     <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
       {$t('settings.storage.externalPath')}

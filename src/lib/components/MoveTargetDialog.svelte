@@ -16,6 +16,7 @@
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   let {
     objectType,
@@ -173,9 +174,7 @@
     <div class="min-h-[18rem] overflow-auto p-5">
       {#if loading}
         <div class="flex items-center gap-2 py-10 text-sm text-md3-on-surface-variant">
-          <span class="animate-spin">
-            <Icon name="refresh" size="18px" />
-          </span>
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
           {$t('common.loadingEllipsis')}
         </div>
       {:else if loadError}
@@ -264,9 +263,7 @@
         onclick={handleMoveHere}
       >
         {#if moving}
-          <span class="animate-spin">
-            <Icon name="refresh" size="16px" />
-          </span>
+          <ProgressRing size={16} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
         {:else}
           <Icon name="driveFileMove" size="16px" />
         {/if}

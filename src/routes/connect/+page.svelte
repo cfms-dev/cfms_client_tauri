@@ -20,6 +20,8 @@
     serverStateStore,
   } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import MdSwitch from "$lib/components/MdSwitch.svelte";
+  import ProgressRing from "$lib/components/ProgressRing.svelte";
 
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
@@ -178,18 +180,16 @@
       </div>
 
       <!-- TLS toggle -->
-      <label class="flex items-center gap-2.5 text-sm cursor-pointer">
-        <input
-          type="checkbox"
-          class="rounded border-md3-outline bg-md3-field
-                 text-md3-primary focus:ring-md3-primary"
+      <div class="flex items-center gap-2.5 text-sm">
+        <MdSwitch
           bind:checked={disableSsl}
           disabled={busy}
+          ariaLabel={$t('connect.disableSsl')}
         />
         <span class="text-md3-on-surface-variant"
           >{$t('connect.disableSsl')}</span
         >
-      </label>
+      </div>
 
       <!-- Protocol version mismatch -->
       {#if protocolError}
@@ -240,7 +240,7 @@
         disabled={busy}
       >
         {#if busy}
-          <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.connecting')} />
           {$t('common.connecting')}
         {:else}
           <Icon name="connect" size="20px" />

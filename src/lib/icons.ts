@@ -47,6 +47,10 @@ export const ICONS = {
   rule:          'rule',
   menu:          'menu',
   moreVert:      'more_vert',
+  checkBox:      'check_box',
+  checkBoxBlank: 'check_box_outline_blank',
+  radioChecked:  'radio_button_checked',
+  radioUnchecked:'radio_button_unchecked',
 
   // ---- Download status ----
   checkCircle:   'check_circle',
@@ -78,6 +82,9 @@ export const ICONS = {
   folderEye:        'folder_eye',
   arrowUpward:      'arrow_upward',
   arrowDownward:    'arrow_downward',
+  sortByAlpha:      'sort_by_alpha',
+  sort:             'sort',
+  swapVert:         'swap_vert',
   lock:             'lock',
   lockPerson:       'lock_person',
   history:          'history',

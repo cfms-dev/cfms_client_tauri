@@ -6,6 +6,7 @@
   import { getSetting, setSetting } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   type UpdateChannel = 'stable' | 'beta';
 
@@ -118,7 +119,7 @@
 
     {#if checking}
       <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-        <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+        <ProgressRing size={16} strokeWidth={2.4} label={$t('about.checkingUpdates')} />
         {$t('about.checkingUpdates')}
       </div>
     {/if}

@@ -86,22 +86,23 @@
 
     <div class="space-y-2">
       {#each languages as option}
-        <label
-          class="flex items-center gap-3 px-3 py-2.5 rounded-lg
+        <button
+          type="button"
+          class="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left
                  bg-md3-surface-container-high/40 text-sm text-md3-on-surface
-                 border border-md3-outline/50"
+                 border border-md3-outline/50 transition-colors hover:bg-md3-primary-container/15 disabled:cursor-not-allowed disabled:opacity-60"
           style="font-family: var(--font-md3-sans);"
+          disabled={loading || saving}
+          onclick={() => (language = option.value)}
         >
-          <input
-            class="accent-md3-primary"
-            type="radio"
-            name="language"
-            value={option.value}
-            bind:group={language}
-            disabled={loading || saving}
-          />
+          <span
+            class="{language === option.value ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+            aria-hidden="true"
+          >
+            <Icon name={language === option.value ? 'radioChecked' : 'radioUnchecked'} size="22px" />
+          </span>
           {$t(option.labelKey)}
-        </label>
+        </button>
       {/each}
     </div>
 

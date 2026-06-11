@@ -19,6 +19,8 @@
     type MatchMode,
   } from '$lib/access-rules';
   import Icon from '$lib/components/Icon.svelte';
+  import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   interface Props {
     rules: unknown;
@@ -244,14 +246,13 @@
         <Icon name="code" size="17px" />
         {$t('files.sourceCode')}
       </button>
-      <label class="ml-auto flex items-center gap-2 text-sm text-md3-on-surface-variant">
-        <input
-          type="checkbox"
-          class="rounded border-md3-outline text-md3-primary"
+      <div class="ml-auto flex items-center gap-2 text-sm text-md3-on-surface-variant">
+        <MdSwitch
           bind:checked={inherit}
+          ariaLabel={$t('files.inheritParentRules')}
         />
         {$t('files.inheritParentRules')}
-      </label>
+      </div>
     </div>
   </div>
 
@@ -527,7 +528,7 @@
       disabled={saving}
     >
       {#if saving}
-        <span class="animate-spin"><Icon name="refresh" size="17px" /></span>
+        <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
         {$t('common.saving')}
       {:else}
         <Icon name="done" size="17px" />

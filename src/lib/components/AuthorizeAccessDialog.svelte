@@ -16,6 +16,7 @@
   } from '$lib/access-grants';
   import { ACCESS_OPERATIONS } from '$lib/access-rules';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   interface EntityOption {
     id: string;
@@ -265,7 +266,7 @@
             disabled={saving || searching}
           >
             {#if searching}
-              <span class="animate-spin"><Icon name="refresh" size="17px" /></span>
+              <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
             {:else}
               <Icon name="search" size="17px" />
             {/if}
@@ -406,7 +407,7 @@
       disabled={saving}
     >
       {#if saving}
-        <span class="animate-spin"><Icon name="refresh" size="17px" /></span>
+        <ProgressRing size={17} strokeWidth={2.4} label={$t('common.saving')} />
         {$t('common.saving')}
       {:else}
         <Icon name="lockPerson" size="17px" />

@@ -10,6 +10,7 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   let stepText = $state('');
   let complete = $state(false);
@@ -57,9 +58,7 @@
 
       {#if !complete}
         <div class="flex justify-center">
-          <span class="animate-spin text-md3-primary-emphasis">
-            <Icon name="refresh" size="32px" />
-          </span>
+          <ProgressRing size={32} strokeWidth={3} label={$t('common.loadingEllipsis')} />
         </div>
       {:else}
         <div class="flex justify-center text-md3-success">

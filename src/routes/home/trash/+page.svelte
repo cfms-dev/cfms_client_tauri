@@ -14,6 +14,7 @@
   import { dialogStore } from '$lib/dialogs.svelte';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   type TrashKind = 'directory' | 'document';
 
@@ -222,7 +223,7 @@
 
   {#if loading}
     <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-      <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+      <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
       {$t('common.loadingEllipsis')}
     </div>
   {:else}

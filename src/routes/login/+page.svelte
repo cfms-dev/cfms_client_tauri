@@ -31,6 +31,7 @@
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
@@ -45,6 +46,7 @@
   let showChangePassword = $state(false);
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
+  let passwordInput: HTMLInputElement | null = $state(null);
 
   // Cached avatar path — populated reactively as the user types a username.
   // When non-null it contains a local filesystem path to a previously
@@ -340,9 +342,7 @@
                   border border-md3-outline p-10 text-center space-y-4"
       >
         <div class="flex justify-center">
-          <span class="animate-spin text-md3-primary-emphasis">
-            <Icon name="refresh" size="36px" />
-          </span>
+          <ProgressRing size={36} strokeWidth={3.5} label={$t('common.loadingEllipsis')} />
         </div>
         <p
           class="text-sm font-medium text-md3-on-surface"
@@ -423,7 +423,15 @@
               placeholder={$t('login.usernamePlaceholder')}
               bind:value={username}
               disabled={busy}
-              autocomplete="username"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              onkeydown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  passwordInput?.focus();
+                }
+              }}
             />
           </div>
           {#if fieldErrors.username}
@@ -461,6 +469,7 @@
                      transition-colors"
               placeholder={$t('login.passwordPlaceholder')}
               bind:value={password}
+              bind:this={passwordInput}
               disabled={busy}
               autocomplete="current-password"
             />
@@ -557,9 +566,7 @@
             disabled={busy}
           >
             {#if busy}
-              <span class="animate-spin"
-                ><Icon name="refresh" size="18px" /></span
-              >
+              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.signingIn')} />
               {$t('common.signingIn')}
             {:else}
               <Icon name="login" size="20px" />

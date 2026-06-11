@@ -1,6 +1,8 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
+  import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
 
   let {
@@ -171,30 +173,28 @@
     </div>
 
     <div class="space-y-2 rounded-lg border border-md3-outline/60 p-3">
-      <label class="flex cursor-pointer items-start gap-3 text-sm text-md3-on-surface">
-        <input
-          type="checkbox"
-          class="mt-1 h-4 w-4 accent-md3-primary"
+      <div class="flex items-start gap-3 text-sm text-md3-on-surface">
+        <MdSwitch
           bind:checked={bypassRequirements}
           disabled={busy}
+          ariaLabel={$t('manage.bypassPasswordRequirements')}
         />
         <span>
           <span class="block font-medium">{$t('manage.bypassPasswordRequirements')}</span>
           <span class="text-xs text-md3-on-surface-variant">{$t('manage.bypassPasswordRequirementsHelp')}</span>
         </span>
-      </label>
-      <label class="flex cursor-pointer items-start gap-3 text-sm text-md3-on-surface">
-        <input
-          type="checkbox"
-          class="mt-1 h-4 w-4 accent-md3-primary"
+      </div>
+      <div class="flex items-start gap-3 text-sm text-md3-on-surface">
+        <MdSwitch
           bind:checked={forceUpdateAfterLogin}
           disabled={busy}
+          ariaLabel={$t('manage.forcePasswordUpdate')}
         />
         <span>
           <span class="block font-medium">{$t('manage.forcePasswordUpdate')}</span>
           <span class="text-xs text-md3-on-surface-variant">{$t('manage.forcePasswordUpdateHelp')}</span>
         </span>
-      </label>
+      </div>
     </div>
 
     {#if error}
@@ -219,7 +219,7 @@
         disabled={busy || !password}
       >
         {#if busy}
-          <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+          <ProgressRing size={16} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
           {$t('common.saving')}
         {:else}
           <Icon name="done" size="16px" />

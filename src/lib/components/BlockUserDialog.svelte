@@ -2,6 +2,8 @@
   import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import type { UserBlockTarget } from '$lib/api';
   import type { IconName } from '$lib/icons';
 
@@ -179,18 +181,17 @@
     </section>
 
     <section class="space-y-3 rounded-lg border border-md3-outline/60 p-3">
-      <label class="flex cursor-pointer items-start gap-3">
-        <input
-          class="mt-1 h-4 w-4 accent-md3-primary"
-          type="checkbox"
+      <div class="flex items-start gap-3">
+        <MdSwitch
           bind:checked={expiryEnabled}
           disabled={busy}
+          ariaLabel={$t('manage.setExpiry')}
         />
         <span>
           <span class="block text-sm font-semibold text-md3-on-surface">{$t('manage.setExpiry')}</span>
           <span class="text-xs text-md3-on-surface-variant">{$t('manage.setExpiryHelp')}</span>
         </span>
-      </label>
+      </div>
 
       {#if expiryEnabled}
         <div class="grid gap-3 sm:grid-cols-2">
@@ -238,7 +239,7 @@
         disabled={busy}
       >
         {#if busy}
-          <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+          <ProgressRing size={16} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
           {$t('common.saving')}
         {:else}
           <Icon name="block" size="16px" />

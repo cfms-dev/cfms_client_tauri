@@ -4,6 +4,7 @@
   import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import type { IconName } from '$lib/icons';
 
   interface EditorItem {
@@ -204,7 +205,7 @@
     <div class="min-h-[18rem] overflow-auto p-5">
       {#if loading}
         <div class="flex items-center justify-center gap-2 py-12 text-sm text-md3-on-surface-variant">
-          <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
           {$t('common.loadingEllipsis')}
         </div>
       {:else if error}
@@ -221,16 +222,19 @@
       {:else}
         <div class="overflow-hidden rounded-lg border border-md3-outline">
           {#each visibleItems as item (item.id)}
-            <label
-              class="grid cursor-pointer grid-cols-[auto_1fr] items-start gap-3 border-b border-md3-outline/50 px-4 py-3 transition-colors hover:bg-md3-primary-container/15 last:border-b-0"
+            <button
+              type="button"
+              class="grid w-full cursor-pointer grid-cols-[auto_1fr] items-start gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/15 disabled:cursor-not-allowed disabled:opacity-60 last:border-b-0"
+              disabled={saving}
+              onclick={() => setSelected(item.id, !selectedSet.has(item.id))}
             >
-              <input
-                type="checkbox"
-                class="mt-1 h-4 w-4 accent-md3-primary"
-                checked={selectedSet.has(item.id)}
-                disabled={saving}
-                onchange={(event) => setSelected(item.id, event.currentTarget.checked)}
-              />
+              <span
+                class="mt-[-1px] inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors
+                       {selectedSet.has(item.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+                aria-hidden="true"
+              >
+                <Icon name={selectedSet.has(item.id) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
+              </span>
               <span class="min-w-0">
                 <span class="block truncate text-sm font-medium text-md3-on-surface">
                   {displayLabel(item)}
@@ -241,7 +245,7 @@
                   </span>
                 {/if}
               </span>
-            </label>
+            </button>
           {/each}
         </div>
       {/if}
@@ -263,7 +267,7 @@
         onclick={save}
       >
         {#if saving}
-          <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+          <ProgressRing size={16} strokeWidth={2.4} label={$t('common.saving')} />
           {$t('common.saving')}
         {:else}
           <Icon name="done" size="16px" />

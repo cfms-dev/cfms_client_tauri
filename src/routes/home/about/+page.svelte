@@ -11,6 +11,7 @@
   import { _ as t } from 'svelte-i18n';
   import { cryptoInfo, protocolVersion } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   let cryptoInfoData = $state<{
     kdf_iterations: number;
@@ -115,7 +116,7 @@
 
     {#if checkingUpdate}
       <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-        <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+        <ProgressRing size={16} strokeWidth={2.4} label={$t('about.checkingUpdates')} />
         {$t('about.checkingUpdates')}
       </div>
     {:else if updateResult}

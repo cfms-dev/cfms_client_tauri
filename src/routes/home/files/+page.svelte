@@ -50,8 +50,11 @@
   import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
+  import MdCheckbox from '$lib/components/MdCheckbox.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/components/MoveTargetDialog.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import { accessEntrySubject } from '$lib/access-entries';
   import type { AccessGrantFormValue } from '$lib/access-grants';
   import type { AccessRulesRecord } from '$lib/access-rules';
@@ -77,6 +80,10 @@
   let selectMode = $state(false);
   let selectedFolderIds = $state<Set<string>>(new Set());
   let selectedDocumentIds = $state<Set<string>>(new Set());
+  type SortField = 'name' | 'size' | 'modified';
+  type SortDirection = 'asc' | 'desc';
+  let sortField = $state<SortField>('name');
+  let sortDirection = $state<SortDirection>('asc');
 
   // Context menu state
   let contextMenu = $state<{
@@ -297,12 +304,36 @@
     selectMode = false;
   }
 
+  function deselectAll() {
+    selectedFolderIds = new Set();
+    selectedDocumentIds = new Set();
+  }
+
+  function selectAllVisible() {
+    selectedFolderIds = new Set(filteredFolders.map((folder) => folder.id));
+    selectedDocumentIds = new Set(filteredDocuments.map((doc) => doc.id));
+  }
+
+  function toggleAllVisibleSelection() {
+    if (allVisibleSelected) {
+      deselectAll();
+    } else {
+      selectAllVisible();
+    }
+  }
+
   function toggleSelectMode() {
     selectMode = !selectMode;
     if (!selectMode) clearSelection();
   }
 
   const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
+  const totalVisibleSelectable = $derived(folders.length + documents.length);
+  const allVisibleSelected = $derived(
+    totalVisibleSelectable > 0
+      && folders.every((folder) => selectedFolderIds.has(folder.id))
+      && documents.every((doc) => selectedDocumentIds.has(doc.id)),
+  );
 
   // --- Download ---
 
@@ -994,6 +1025,76 @@
     goto('/home/trash');
   }
 
+  function setSort(field: SortField) {
+    if (sortField === field) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      return;
+    }
+    sortField = field;
+    sortDirection = field === 'name' ? 'asc' : 'desc';
+  }
+
+  function sortIcon(field: SortField) {
+    if (sortField !== field) return 'swapVert';
+    return sortDirection === 'asc' ? 'arrowUpward' : 'arrowDownward';
+  }
+
+  function sortTitle(field: SortField) {
+    const label = field === 'name'
+      ? $t('files.sortByName')
+      : field === 'size'
+        ? $t('files.sortBySize')
+        : $t('files.sortByModified');
+    const direction = sortField === field
+      ? (sortDirection === 'asc' ? $t('files.ascending') : $t('files.descending'))
+      : $t('files.notSorted');
+    return `${label} · ${direction}`;
+  }
+
+  function sortedFolders(input: ServerDirectoryEntry[]) {
+    return [...input].sort((a, b) => compareEntries(
+      {
+        name: a.name,
+        size: 0,
+        modified: a.created_time ?? 0,
+      },
+      {
+        name: b.name,
+        size: 0,
+        modified: b.created_time ?? 0,
+      },
+    ));
+  }
+
+  function sortedDocuments(input: ServerDocumentEntry[]) {
+    return [...input].sort((a, b) => compareEntries(
+      {
+        name: a.title,
+        size: a.size ?? 0,
+        modified: a.last_modified ?? 0,
+      },
+      {
+        name: b.title,
+        size: b.size ?? 0,
+        modified: b.last_modified ?? 0,
+      },
+    ));
+  }
+
+  function compareEntries(
+    a: { name: string; size: number; modified: number },
+    b: { name: string; size: number; modified: number },
+  ) {
+    const sign = sortDirection === 'asc' ? 1 : -1;
+    if (sortField === 'name') {
+      return sign * a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    }
+    if (sortField === 'size') {
+      return sign * ((a.size - b.size) || a.name.localeCompare(b.name));
+    }
+    return sign * ((a.modified - b.modified) || a.name.localeCompare(b.name));
+  }
+
   // --- Formatting helpers ---
 
   function formatBytes(bytes: number): string {
@@ -1138,8 +1239,8 @@
 
   // --- Display lists ---
 
-  const filteredFolders = $derived(folders);
-  const filteredDocuments = $derived(documents);
+  const filteredFolders = $derived.by(() => sortedFolders(folders));
+  const filteredDocuments = $derived.by(() => sortedDocuments(documents));
 </script>
 
 <div class="p-6 space-y-4">
@@ -1148,85 +1249,23 @@
   </h1>
 
   <!-- Top toolbar -->
-  <div class="flex flex-wrap items-center gap-2">
-    <!-- Create folder -->
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             bg-md3-surface-container-high text-md3-on-surface-variant
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
-      title={$t('files.createFolder')}
-      onclick={handleCreateFolder}
-    >
-      <Icon name="createNewFolder" size="16px" />
-      {$t('files.newFolder')}
-    </button>
-
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             bg-md3-surface-container-high text-md3-on-surface-variant
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
-      title={$t('files.uploadFiles')}
-      onclick={handleUploadFiles}
-    >
-      <Icon name="uploadFile" size="16px" />
-      {$t('files.uploadFiles')}
-    </button>
-
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             bg-md3-surface-container-high text-md3-on-surface-variant
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
-      title={$t('files.uploadFolder')}
+  <div class="flex flex-wrap items-center gap-1.5">
+    <IconButton icon="createNewFolder" label={$t('files.createFolder')} onclick={handleCreateFolder} />
+    <IconButton icon="uploadFile" label={$t('files.uploadFiles')} onclick={handleUploadFiles} />
+    <IconButton
+      icon="folderUpload"
+      label={$t('files.uploadFolder')}
       onclick={handleUploadFolder}
-    >
-      <Icon name="folderUpload" size="16px" />
-      {$t('files.uploadFolder')}
-      {#if uploadActiveCount > 0}
-        <span class="rounded-full bg-md3-primary px-1.5 text-[10px] text-md3-on-primary">{uploadActiveCount}</span>
-      {/if}
-    </button>
-
-    <!-- Selection mode toggle -->
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             {selectMode
-               ? 'bg-md3-primary-container text-md3-on-primary-container'
-               : 'bg-md3-surface-container-high text-md3-on-surface-variant'}
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
+      badge={uploadActiveCount}
+    />
+    <IconButton
+      icon="checklist"
+      label={$t('files.select')}
+      active={selectMode}
       onclick={toggleSelectMode}
-    >
-      <Icon name="checklist" size="16px" />
-      {$t('files.select')}
-    </button>
-
-    <!-- Trash -->
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             bg-md3-surface-container-high text-md3-on-surface-variant
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
-      title={$t('files.recycleBin')}
-      onclick={handleNavigateTrash}
-    >
-      <Icon name="deleteSweep" size="16px" />
-      {$t('files.trash')}
-    </button>
-
-    <button
-      class="px-3 py-1.5 text-xs rounded-full font-medium
-             bg-md3-surface-container-high text-md3-on-surface-variant
-             hover:brightness-110 transition-all flex items-center gap-1.5"
-      style="font-family: var(--font-md3-sans);"
-      title={$t('files.jumpToDirectory')}
-      onclick={handleJumpToDirectory}
-    >
-      <Icon name="folderEye" size="16px" />
-      {$t('files.jumpToDirectory')}
-    </button>
+    />
+    <IconButton icon="deleteSweep" label={$t('files.recycleBin')} onclick={handleNavigateTrash} />
+    <IconButton icon="folderEye" label={$t('files.jumpToDirectory')} onclick={handleJumpToDirectory} />
 
     <!-- Spacer -->
     <span class="flex-1"></span>
@@ -1248,66 +1287,63 @@
       />
       <button
         type="submit"
-        class="px-3 py-1.5 text-xs rounded-full font-medium
+        class="inline-flex h-9 w-9 items-center justify-center rounded-full
                bg-md3-primary-container text-md3-on-primary-container
-               hover:brightness-110 transition-all flex items-center gap-1"
-        style="font-family: var(--font-md3-sans);"
+               transition-all hover:brightness-110 active:scale-95"
+        title={$t('files.serverSearch')}
+        aria-label={$t('files.serverSearch')}
       >
         <Icon name="search" size="16px" />
-        {$t('files.serverSearch')}
       </button>
     </form>
 
-    <!-- Refresh -->
-    <button
-      class="p-1.5 rounded-full text-md3-on-surface-variant
-             hover:bg-md3-surface-container-high transition-colors"
-      onclick={() => loadDirectory(currentFolderId)}
-      title={$t('common.refresh')}
-    >
-      <Icon name="refresh" size="20px" />
-    </button>
+    <IconButton icon="refresh" label={$t('common.refresh')} onclick={() => loadDirectory(currentFolderId)} />
   </div>
 
   <!-- Selection toolbar -->
-  {#if selectMode && totalSelected > 0}
+  {#if selectMode}
     <div class="flex items-center gap-2 bg-md3-primary-container/30 rounded-xl
                 border border-md3-primary/20 px-3 py-2">
       <span class="text-xs text-md3-on-surface-variant">
         {$t('files.selected', { values: { count: totalSelected } })}
       </span>
-      <button
-        class="px-2.5 py-1 text-xs rounded-full font-medium
-               bg-md3-error-container text-md3-on-error-container
-               hover:brightness-110 transition-all flex items-center gap-1"
-        style="font-family: var(--font-md3-sans);"
+      <IconButton
+        icon={allVisibleSelected ? 'clearAll' : 'selectAll'}
+        label={allVisibleSelected ? $t('files.selectNone') : $t('files.selectAll')}
+        active={allVisibleSelected}
+        disabled={totalVisibleSelectable === 0}
+        onclick={toggleAllVisibleSelection}
+        class="!h-8 !w-8"
+        size={17}
+      />
+      <IconButton
+        icon="delete"
+        label={$t('common.delete')}
+        tone="danger"
+        disabled={totalSelected === 0}
         onclick={handleDeleteSelected}
-      >
-        <Icon name="delete" size="14px" />
-        {$t('common.delete')}
-      </button>
-      <button
-        class="px-2.5 py-1 text-xs rounded-full font-medium
-               bg-md3-surface-container-high text-md3-on-surface-variant
-               hover:brightness-110 transition-all flex items-center gap-1"
-        style="font-family: var(--font-md3-sans);"
+        class="!h-8 !w-8"
+        size={17}
+      />
+      <IconButton
+        icon="close"
+        label={$t('common.clear')}
         onclick={clearSelection}
-      >
-        <Icon name="close" size="14px" />
-        {$t('common.clear')}
-      </button>
+        class="!h-8 !w-8"
+        size={17}
+      />
     </div>
   {/if}
 
   <!-- Breadcrumb -->
-  <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+  <div class="pt-2">
+    <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+  </div>
 
   <!-- Loading -->
   {#if loading}
     <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-      <span class="animate-spin">
-        <Icon name="refresh" size="18px" />
-      </span>
+      <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
       {$t('common.loadingEllipsis')}
     </div>
   {/if}
@@ -1323,10 +1359,34 @@
                   uppercase tracking-wider
                   border-b border-md3-outline"
            style="font-family: var(--font-md3-sans);">
-        <span></span>
-        <span class="select-none">{$t('files.name')}</span>
-        <span class="text-right select-none">{$t('files.size')}</span>
-        <span class="text-right select-none">{$t('files.modified')}</span>
+        <span aria-hidden="true"></span>
+        <button
+          type="button"
+          class="flex min-w-0 items-center gap-1 text-left uppercase transition-colors hover:text-md3-on-surface"
+          title={sortTitle('name')}
+          onclick={() => setSort('name')}
+        >
+          <span class="select-none">{$t('files.name')}</span>
+          <Icon name={sortIcon('name')} size="15px" />
+        </button>
+        <button
+          type="button"
+          class="flex items-center justify-end gap-1 text-right uppercase transition-colors hover:text-md3-on-surface"
+          title={sortTitle('size')}
+          onclick={() => setSort('size')}
+        >
+          <span class="select-none">{$t('files.size')}</span>
+          <Icon name={sortIcon('size')} size="15px" />
+        </button>
+        <button
+          type="button"
+          class="flex items-center justify-end gap-1 text-right uppercase transition-colors hover:text-md3-on-surface"
+          title={sortTitle('modified')}
+          onclick={() => setSort('modified')}
+        >
+          <span class="select-none">{$t('files.modified')}</span>
+          <Icon name={sortIcon('modified')} size="15px" />
+        </button>
       </div>
 
       {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
@@ -1366,9 +1426,11 @@
           oncontextmenu={(e) => showFolderContextMenu(e, folder)}
         >
           {#if selectMode}
-            <span class="self-center">
-              <input type="checkbox" checked={selectedFolderIds.has(folder.id)}
-                     class="rounded border-md3-outline text-md3-primary-emphasis" />
+            <span
+              class="self-center {selectedFolderIds.has(folder.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+              aria-hidden="true"
+            >
+              <Icon name={selectedFolderIds.has(folder.id) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
             </span>
           {:else}
             <span class="self-center text-md3-primary-emphasis">
@@ -1396,9 +1458,11 @@
           oncontextmenu={(e) => showDocumentContextMenu(e, doc)}
         >
           {#if selectMode}
-            <span class="self-center">
-              <input type="checkbox" checked={selectedDocumentIds.has(doc.id)}
-                     class="rounded border-md3-outline text-md3-primary-emphasis" />
+            <span
+              class="self-center {selectedDocumentIds.has(doc.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+              aria-hidden="true"
+            >
+              <Icon name={selectedDocumentIds.has(doc.id) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
             </span>
           {:else}
             <span class="self-center text-md3-on-surface-variant">
@@ -1453,14 +1517,20 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-4 text-sm text-md3-on-surface-variant">
-        <label class="flex items-center gap-2">
-          <input type="checkbox" bind:checked={searchDialog.searchDocuments} />
+        <div class="flex items-center gap-2">
+          <MdCheckbox
+            bind:checked={searchDialog.searchDocuments}
+            ariaLabel={$t('files.searchDocuments')}
+          />
           {$t('files.searchDocuments')}
-        </label>
-        <label class="flex items-center gap-2">
-          <input type="checkbox" bind:checked={searchDialog.searchDirectories} />
+        </div>
+        <div class="flex items-center gap-2">
+          <MdCheckbox
+            bind:checked={searchDialog.searchDirectories}
+            ariaLabel={$t('files.searchDirectories')}
+          />
           {$t('files.searchDirectories')}
-        </label>
+        </div>
         <label class="ml-auto flex items-center gap-2">
           {$t('files.searchLimit')}
           <input
@@ -1475,7 +1545,7 @@
 
       {#if searchDialog.loading}
         <div class="flex items-center gap-2 py-6 text-sm text-md3-on-surface-variant">
-          <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
           {$t('common.loadingEllipsis')}
         </div>
       {:else if searchDialog.results}

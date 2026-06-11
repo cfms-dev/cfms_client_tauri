@@ -30,6 +30,7 @@
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
@@ -1011,7 +1012,7 @@
 
 {#snippet LoadingRow()}
   <div class="flex items-center gap-2 px-4 py-8 text-sm text-md3-on-surface-variant justify-center">
-    <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+    <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
     {$t('common.loadingEllipsis')}
   </div>
 {/snippet}

@@ -9,6 +9,7 @@
   } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import MdSwitch from '$lib/components/MdSwitch.svelte';
 
   const defaultConfig: ConnectionSettings = {
     enable_proxy: false,
@@ -98,25 +99,23 @@
         {$t('settings.connection.basic')}
       </h2>
 
-      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.enableProxy')}
-        <input
-          class="accent-md3-primary"
-          type="checkbox"
+        <MdSwitch
           bind:checked={config.enable_proxy}
           disabled={loading || saving}
+          ariaLabel={$t('settings.connection.enableProxy')}
         />
-      </label>
+      </div>
 
-      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.followSystemProxy')}
-        <input
-          class="accent-md3-primary"
-          type="checkbox"
+        <MdSwitch
           bind:checked={config.follow_system_proxy}
           disabled={loading || saving || !config.enable_proxy}
+          ariaLabel={$t('settings.connection.followSystemProxy')}
         />
-      </label>
+      </div>
 
       {#if showCustomProxy}
         <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -132,15 +131,14 @@
         </label>
       {/if}
 
-      <label class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.forceIpv4')}
-        <input
-          class="accent-md3-primary"
-          type="checkbox"
+        <MdSwitch
           bind:checked={config.force_ipv4}
           disabled={loading || saving}
+          ariaLabel={$t('settings.connection.forceIpv4')}
         />
-      </label>
+      </div>
     </section>
 
     <section class="space-y-3">

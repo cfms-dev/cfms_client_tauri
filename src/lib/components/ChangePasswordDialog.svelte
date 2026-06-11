@@ -11,6 +11,7 @@
 
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
+  import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
   import { flyScale } from '$lib/motion/transitions';
   import { notificationStore } from '$lib/stores.svelte';
@@ -353,7 +354,7 @@
           disabled={busy || !oldPassword || !newPassword}
         >
           {#if busy}
-            <span class="animate-spin"><Icon name="refresh" size="16px" /></span>
+            <ProgressRing size={16} strokeWidth={2.4} label={$t('common.changing')} />
             {$t('common.changing')}
           {:else}
             <Icon name="done" size="16px" />
