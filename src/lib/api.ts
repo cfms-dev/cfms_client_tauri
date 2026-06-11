@@ -116,8 +116,8 @@ export interface AccessEntry {
 }
 
 export interface RevisionEntry {
-  id: number;
-  parent_id?: number | null;
+  id: string;
+  parent_id?: string | null;
   created_time?: number | null;
   is_current?: boolean;
 }
@@ -214,6 +214,14 @@ export interface DownloadProgress {
 export interface UploadProgress {
   current: number;
   total: number;
+}
+
+export interface UploadRevisionProgressEvent {
+  document_id: string;
+  task_id: string;
+  current_bytes: number;
+  total_bytes: number;
+  progress: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -626,7 +634,45 @@ export async function listRevisions(documentId: string): Promise<RevisionEntry[]
   const data = await invoke<{ revisions?: RevisionEntry[] }>("list_revisions", {
     documentId,
   });
-  return data.revisions ?? [];
+  return (data.revisions ?? []).map((revision) => ({
+    ...revision,
+    id: String(revision.id),
+    parent_id:
+      revision.parent_id === null || revision.parent_id === undefined
+        ? null
+        : String(revision.parent_id),
+  }));
+}
+
+export async function getRevision(
+  revisionId: string,
+  filename: string,
+  isCurrent = false,
+): Promise<{
+  task_id: string;
+  file_id: string;
+  filename: string;
+  file_path: string;
+}> {
+  return invoke("get_revision", {
+    revisionId: String(revisionId),
+    filename,
+    isCurrent,
+  });
+}
+
+export async function setCurrentRevision(
+  documentId: string,
+  revisionId: string,
+): Promise<boolean> {
+  return invoke("set_current_revision", { documentId, revisionId: String(revisionId) });
+}
+
+export async function uploadNewRevision(
+  documentId: string,
+  filePath: string,
+): Promise<{ task_id: string; document_id: string }> {
+  return invoke("upload_new_revision", { documentId, filePath });
 }
 
 // ---------------------------------------------------------------------------

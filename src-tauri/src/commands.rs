@@ -18,7 +18,7 @@ use cfms_crypto::{config as crypto_config, dek};
 use cfms_service::services::download_queue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use crate::AppHandleState;
 
@@ -30,6 +30,15 @@ pub struct ConnectionSettingsDto {
     pub force_ipv4: bool,
     pub client_cert_path: String,
     pub client_key_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadRevisionProgressEvent {
+    pub document_id: String,
+    pub task_id: String,
+    pub current_bytes: u64,
+    pub total_bytes: u64,
+    pub progress: f64,
 }
 
 impl Default for ConnectionSettingsDto {
@@ -603,6 +612,184 @@ pub async fn list_revisions(
         serde_json::json!({ "document_id": document_id }),
     )
     .await
+}
+
+/// Request a specific revision and enqueue it in the download queue.
+#[tauri::command]
+pub async fn get_revision(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    revision_id: String,
+    filename: String,
+    is_current: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+
+    let resp = send_action_request(
+        &conn,
+        "get_revision",
+        serde_json::json!({ "id": revision_id.clone() }),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    let task_data = resp
+        .data
+        .get("task_data")
+        .ok_or_else(|| "Server response missing task_data".to_string())?;
+    let task_id = task_data["task_id"]
+        .as_str()
+        .ok_or_else(|| "Server response missing task_id".to_string())?
+        .to_string();
+    let supports_resume = task_data["supports_resume"].as_bool().unwrap_or(false);
+
+    let local_filename = if is_current.unwrap_or(false) {
+        filename
+    } else {
+        format!("rev{revision_id}_{filename}")
+    };
+    let download_root = download_root(&app_handle)?;
+    std::fs::create_dir_all(&download_root)
+        .map_err(|e| format!("Failed to create download directory: {e}"))?;
+    let file_path = download_root.join(&local_filename);
+
+    let task = DownloadTaskDto {
+        task_id: task_id.clone(),
+        file_id: revision_id.clone(),
+        filename: local_filename.clone(),
+        file_path: file_path.to_string_lossy().into_owned(),
+        status: DownloadTaskStatus::Pending,
+        progress: 0.0,
+        current_bytes: 0,
+        total_bytes: 0,
+        message: None,
+        error: None,
+        created_at: unix_now(),
+        started_at: None,
+        completed_at: None,
+        priority: 0,
+        retry_count: 0,
+        max_retries: 3,
+        scheduled_time: None,
+        stage: 0,
+        bandwidth_limit: None,
+        pause_position: None,
+        supports_resume,
+    };
+
+    state
+        .tasks
+        .insert(&task)
+        .map_err(|e| format!("Failed to add download: {e}"))?;
+
+    Ok(serde_json::json!({
+        "task_id": task_id,
+        "file_id": revision_id,
+        "filename": local_filename,
+        "file_path": task.file_path,
+    }))
+}
+
+/// Set a specific revision as the document's current revision.
+#[tauri::command]
+pub async fn set_current_revision(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    revision_id: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "set_current_revision",
+        serde_json::json!({
+            "document_id": document_id,
+            "revision_id": revision_id,
+        }),
+    )
+    .await
+}
+
+/// Upload a local file as a new revision for an existing document.
+#[tauri::command]
+pub async fn upload_new_revision(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    file_path: String,
+) -> Result<serde_json::Value, String> {
+    let source = std::path::PathBuf::from(file_path);
+    if !source.is_file() {
+        return Err("Selected path is not a file".to_string());
+    }
+
+    let (conn, username, token) = get_connection_auth(&state).await?;
+    let resp = send_action_request(
+        &conn,
+        "upload_document",
+        serde_json::json!({ "document_id": document_id }),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    let task_data = resp
+        .data
+        .get("task_data")
+        .ok_or_else(|| "Server response missing task_data".to_string())?;
+    let task_id = task_data["task_id"]
+        .as_str()
+        .ok_or_else(|| "Server response missing task_id".to_string())?
+        .to_string();
+
+    let transfer_conn = create_transfer_connection(&state.inner).await?;
+    let emit_handle = app_handle.clone();
+    let progress_document_id = document_id.clone();
+    let progress_task_id = task_id.clone();
+    let progress = move |current: u64, total: u64| {
+        let progress = if total > 0 {
+            current as f64 / total as f64
+        } else {
+            1.0
+        };
+        let _ = emit_handle.emit(
+            "cfms:upload-revision-progress",
+            UploadRevisionProgressEvent {
+                document_id: progress_document_id.clone(),
+                task_id: progress_task_id.clone(),
+                current_bytes: current,
+                total_bytes: total,
+                progress,
+            },
+        );
+    };
+
+    let result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress).await;
+    transfer_conn.close().await;
+    result.map_err(|e| format!("Upload failed: {e}"))?;
+
+    let _ = app_handle.emit(
+        "cfms:upload-revision-progress",
+        UploadRevisionProgressEvent {
+            document_id: document_id.clone(),
+            task_id: task_id.clone(),
+            current_bytes: 1,
+            total_bytes: 1,
+            progress: 1.0,
+        },
+    );
+
+    Ok(serde_json::json!({
+        "task_id": task_id,
+        "document_id": document_id,
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -2467,6 +2654,56 @@ async fn get_connection_auth(
         .clone()
         .ok_or_else(|| "Not logged in".to_string())?;
     Ok((conn, username, token))
+}
+
+fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app_handle
+        .path()
+        .resolve("downloads", tauri::path::BaseDirectory::Download)
+        .unwrap_or_else(|_| {
+            app_handle
+                .path()
+                .resolve("downloads", tauri::path::BaseDirectory::AppData)
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        }))
+}
+
+async fn create_transfer_connection(
+    state: &cfms_service::state::AppState,
+) -> Result<cfms_transport::Connection, String> {
+    let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
+        let addr = state.server_address.read().await;
+        let ca = state.ca_dir.read().await;
+        let dse = state.disable_ssl_enforcement.read().await;
+        let proxy = state.proxy_addr.read().await;
+        let force_ipv4 = state.force_ipv4.read().await;
+        let cert = state.client_cert_path.read().await;
+        let key = state.client_key_path.read().await;
+        (
+            addr.clone(),
+            ca.clone(),
+            *dse,
+            proxy.clone(),
+            *force_ipv4,
+            cert.clone(),
+            key.clone(),
+        )
+    };
+
+    let url = url.ok_or_else(|| "No server address configured".to_string())?;
+    let ca_dir = ca_dir.ok_or_else(|| "No CA directory configured".to_string())?;
+
+    let tls_config = cfms_transport::tls::build_config_with_identity(
+        &ca_dir,
+        disable_ssl,
+        client_cert_path.as_deref(),
+        client_key_path.as_deref(),
+    )
+    .map_err(|e| format!("TLS config error: {e}"))?;
+
+    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4)
+        .await
+        .map_err(|e| format!("Transfer connection failed: {e}"))
 }
 
 async fn server_action_json(

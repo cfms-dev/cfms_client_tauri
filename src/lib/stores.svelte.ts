@@ -284,6 +284,63 @@ class EventLogImpl {
 export const eventLog = new EventLogImpl();
 
 // ---------------------------------------------------------------------------
+// Floating notifications / SnackBars
+// ---------------------------------------------------------------------------
+
+export type NotificationType = "info" | "success" | "warning" | "error";
+
+export interface NotificationEntry {
+  id: number;
+  type: NotificationType;
+  text: string;
+  createdAt: number;
+  timeoutMs: number | null;
+}
+
+class NotificationStoreImpl {
+  entries = $state<NotificationEntry[]>([]);
+  private nextId = 1;
+
+  push(type: NotificationType, text: string, timeoutMs = 4000) {
+    const entry: NotificationEntry = {
+      id: this.nextId++,
+      type,
+      text,
+      createdAt: Date.now(),
+      timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+    };
+    this.entries = [entry, ...this.entries].slice(0, 5);
+    return entry.id;
+  }
+
+  info(text: string, timeoutMs = 4000) {
+    return this.push("info", text, timeoutMs);
+  }
+
+  success(text: string, timeoutMs = 4000) {
+    return this.push("success", text, timeoutMs);
+  }
+
+  warning(text: string, timeoutMs = 5000) {
+    return this.push("warning", text, timeoutMs);
+  }
+
+  error(text: string, timeoutMs = 7000) {
+    return this.push("error", text, timeoutMs);
+  }
+
+  remove(id: number) {
+    this.entries = this.entries.filter((entry) => entry.id !== id);
+  }
+
+  clear() {
+    this.entries = [];
+  }
+}
+
+export const notificationStore = new NotificationStoreImpl();
+
+// ---------------------------------------------------------------------------
 // Disclaimer store
 // ---------------------------------------------------------------------------
 

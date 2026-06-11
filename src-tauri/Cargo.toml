@@ -24,6 +24,7 @@ cfms-service.workspace = true
 cfms-transfer.workspace = true
 tauri.workspace = true
 tauri-plugin-opener = "2"
+tauri-plugin-dialog.workspace = true
 tauri-plugin-notification.workspace = true
 async-trait.workspace = true
 serde.workspace = true

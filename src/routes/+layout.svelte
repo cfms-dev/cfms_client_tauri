@@ -27,6 +27,7 @@
   } from "$lib/stores.svelte";
   import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
+  import SnackBarHost from "$lib/components/SnackBarHost.svelte";
 
   let { children }: { children: Snippet } = $props();
 
@@ -172,4 +173,5 @@
   <div class="flex-1 min-h-0">
     {@render children()}
   </div>
+  <SnackBarHost />
 </div>

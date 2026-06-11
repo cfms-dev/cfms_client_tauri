@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { getSetting, setSetting } from '$lib/api';
+  import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   type UpdateChannel = 'stable' | 'beta';
@@ -24,8 +25,14 @@
 
   $effect(() => {
     if (!status) return;
-    const timeout = window.setTimeout(() => (status = null), 4000);
-    return () => window.clearTimeout(timeout);
+    notificationStore.success(status);
+    status = null;
+  });
+
+  $effect(() => {
+    if (!error) return;
+    notificationStore.error(error);
+    error = null;
   });
 
   onMount(async () => {
@@ -115,19 +122,6 @@
         {$t('about.checkingUpdates')}
       </div>
     {/if}
-    {#if status}
-      <p class="text-sm text-md3-success flex items-center gap-1.5">
-        <Icon name="checkCircle" size="16px" />
-        {status}
-      </p>
-    {/if}
-    {#if error}
-      <p class="text-sm text-md3-error flex items-center gap-1.5">
-        <Icon name="errorFilled" size="16px" />
-        {error}
-      </p>
-    {/if}
-
     <div class="flex flex-wrap gap-2">
       <button
         class="px-4 py-2 rounded-full font-medium text-sm

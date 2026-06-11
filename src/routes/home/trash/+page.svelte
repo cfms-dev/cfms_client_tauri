@@ -11,7 +11,7 @@
     type DeletedDirectoryEntry,
     type DeletedDocumentEntry,
   } from '$lib/api';
-  import { authStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   type TrashKind = 'directory' | 'document';
@@ -45,8 +45,14 @@
 
   $effect(() => {
     if (!status) return;
-    const timeout = window.setTimeout(() => (status = null), 4000);
-    return () => window.clearTimeout(timeout);
+    notificationStore.success(status);
+    status = null;
+  });
+
+  $effect(() => {
+    if (!error) return;
+    notificationStore.error(error);
+    error = null;
   });
 
   onMount(() => {
@@ -195,22 +201,6 @@
       Load
     </button>
   </form>
-
-  {#if status}
-    <div class="bg-md3-primary-container/40 border border-md3-primary/20
-                text-md3-on-primary-container text-sm rounded-xl p-3 flex items-center gap-2">
-      <Icon name="checkCircle" size="16px" />
-      {status}
-    </div>
-  {/if}
-
-  {#if error}
-    <div class="bg-md3-error-container/60 border border-md3-error/30
-                text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2">
-      <span class="mt-0.5"><Icon name="errorFilled" size="16px" /></span>
-      <span>{error}</span>
-    </div>
-  {/if}
 
   {#if !canRestore && !canPurge}
     <div class="bg-md3-surface-container/70 border border-md3-outline

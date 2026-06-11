@@ -4,6 +4,7 @@
   import { _ as t } from 'svelte-i18n';
   import { getLocale } from '$lib/api';
   import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/i18n';
+  import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   const languages: Array<{ value: AppLocale; labelKey: string }> = [
@@ -23,8 +24,14 @@
 
   $effect(() => {
     if (!status) return;
-    const timeout = window.setTimeout(() => (status = null), 4000);
-    return () => window.clearTimeout(timeout);
+    notificationStore.success(status);
+    status = null;
+  });
+
+  $effect(() => {
+    if (!error) return;
+    notificationStore.error(error);
+    error = null;
   });
 
   onMount(async () => {
@@ -101,19 +108,6 @@
     <p class="text-xs text-md3-on-surface-variant">
       {$t('settings.language.restart')}
     </p>
-
-    {#if status}
-      <p class="text-sm text-md3-success flex items-center gap-1.5">
-        <Icon name="checkCircle" size="16px" />
-        {status}
-      </p>
-    {/if}
-    {#if error}
-      <p class="text-sm text-md3-error flex items-center gap-1.5">
-        <Icon name="errorFilled" size="16px" />
-        {error}
-      </p>
-    {/if}
 
     <button
       class="px-4 py-2 rounded-full font-medium text-sm

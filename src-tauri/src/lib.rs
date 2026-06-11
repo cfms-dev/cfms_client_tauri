@@ -69,6 +69,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(background_service_plugin())
         .setup(|app| {
@@ -239,6 +240,9 @@ pub fn run() {
             commands::get_access_rules,
             commands::set_access_rules,
             commands::list_revisions,
+            commands::get_revision,
+            commands::set_current_revision,
+            commands::upload_new_revision,
             commands::list_deleted_items,
             commands::restore_document,
             commands::restore_directory,

@@ -7,6 +7,7 @@
     saveUserPreference,
     type UserPreference,
   } from '$lib/api';
+  import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   let preferences = $state<UserPreference | null>(null);
@@ -25,8 +26,14 @@
 
   $effect(() => {
     if (!status) return;
-    const timeout = window.setTimeout(() => (status = null), 5000);
-    return () => window.clearTimeout(timeout);
+    notificationStore.success(status, 5000);
+    status = null;
+  });
+
+  $effect(() => {
+    if (!error) return;
+    notificationStore.error(error);
+    error = null;
   });
 
   onMount(async () => {
@@ -107,19 +114,6 @@
         disabled={loading || saving || !useExternalStorage}
       />
     </label>
-
-    {#if status}
-      <p class="text-sm text-md3-success flex items-center gap-1.5">
-        <Icon name="checkCircle" size="16px" />
-        {status}
-      </p>
-    {/if}
-    {#if error}
-      <p class="text-sm text-md3-error flex items-center gap-1.5">
-        <Icon name="errorFilled" size="16px" />
-        {error}
-      </p>
-    {/if}
 
     <div class="flex flex-wrap gap-2">
       <button

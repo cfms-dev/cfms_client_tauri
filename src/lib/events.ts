@@ -5,7 +5,7 @@
 
 import { listen } from "@tauri-apps/api/event";
 import type { ServiceEvent } from "./api";
-import { authStore, downloadStore, eventLog, serverStateStore } from "./stores.svelte";
+import { authStore, downloadStore, eventLog, notificationStore, serverStateStore } from "./stores.svelte";
 
 let unlisten: (() => void) | null = null;
 
@@ -32,6 +32,7 @@ export async function initEventListeners(): Promise<void> {
         const { task_id, file_path } = event.data;
         downloadStore.markCompleted(task_id);
         eventLog.push("success", `Download complete: ${file_path}`);
+        notificationStore.success(`Download complete: ${file_path}`, 5000);
         break;
       }
 
@@ -39,6 +40,7 @@ export async function initEventListeners(): Promise<void> {
         const { task_id, error } = event.data;
         downloadStore.markFailed(task_id, error);
         eventLog.push("error", `Download failed: ${error}`);
+        notificationStore.error(`Download failed: ${error}`);
         break;
       }
 
@@ -67,6 +69,7 @@ export async function initEventListeners(): Promise<void> {
       case "TokenExpired": {
         authStore.clear();
         eventLog.push("error", "Authentication token expired");
+        notificationStore.error("Authentication token expired", 8000);
         break;
       }
 
@@ -75,6 +78,9 @@ export async function initEventListeners(): Promise<void> {
         if (invalid_count > 0) {
           eventLog.push(
             "warning",
+            `Favorites validation: ${invalid_count} items are no longer accessible`,
+          );
+          notificationStore.warning(
             `Favorites validation: ${invalid_count} items are no longer accessible`,
           );
         }

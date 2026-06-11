@@ -16,6 +16,7 @@
   import { connect, disconnect, getAuthStatus, getServerState } from "$lib/api";
   import {
     authStore,
+    notificationStore,
     serverStateStore,
   } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -23,7 +24,7 @@
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
   let busy = $state(false);
-  let error = $state<string | null>(null);
+  let serverAddressError = $state<string | null>(null);
   let protocolError = $state<{
     serverVersion: number;
     clientVersion: number;
@@ -43,12 +44,13 @@
   });
 
   function validateUrl(): boolean {
+    serverAddressError = null;
     if (!hostPort.trim()) {
-      error = $t('connect.serverAddressRequired');
+      serverAddressError = $t('connect.serverAddressRequired');
       return false;
     }
     if (!hostPort.includes(":") && !hostPort.includes(".")) {
-      error = $t('connect.serverAddressInvalid');
+      serverAddressError = $t('connect.serverAddressInvalid');
       return false;
     }
     return true;
@@ -81,7 +83,7 @@
   async function handleConnect() {
     if (!validateUrl()) return;
     busy = true;
-    error = null;
+    serverAddressError = null;
     protocolError = null;
     try {
       const serverUrl = `wss://${hostPort}`;
@@ -102,7 +104,7 @@
       if (parsed) {
         protocolError = parsed;
       } else {
-        error = msg;
+        notificationStore.error(msg);
       }
     } finally {
       busy = false;
@@ -147,7 +149,7 @@
           {$t('connect.serverAddress')}
         </label>
         <div
-          class="flex items-center rounded-xl border border-md3-outline
+          class="flex items-center rounded-xl border {serverAddressError ? 'border-md3-error' : 'border-md3-outline'}
                     bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
                     focus-within:border-transparent transition-colors overflow-hidden"
         >
@@ -170,6 +172,9 @@
             disabled={busy}
           />
         </div>
+        {#if serverAddressError}
+          <p class="mt-1 ml-1 text-xs text-md3-error">{serverAddressError}</p>
+        {/if}
       </div>
 
       <!-- TLS toggle -->
@@ -221,16 +226,6 @@
               {$t('connect.checkUpdates')}
             </button>
           {/if}
-        </div>
-      {/if}
-
-      <!-- Error — MD3 error container -->
-      {#if error}
-        <div
-          class="bg-md3-error-container/60 border border-md3-error/30
-                    text-md3-on-error-container text-sm rounded-xl p-3"
-        >
-          {error}
         </div>
       {/if}
 

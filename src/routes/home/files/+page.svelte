@@ -8,10 +8,13 @@
 
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
   import {
     listDirectory,
     getDocument,
+    getRevision,
     createDirectory,
     deleteDirectory,
     deleteDocument,
@@ -26,10 +29,13 @@
     renameDocument,
     revokeAccess,
     setAccessRules,
+    setCurrentRevision,
+    uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
     type AccessType,
     type RevisionEntry,
+    type UploadRevisionProgressEvent,
   } from '$lib/api';
   import type {
     ServerDirectoryEntry,
@@ -40,7 +46,7 @@
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
-  import { authStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -76,7 +82,15 @@
   let revisionsDialog = $state<{
     title: string;
     documentId: string;
+    filename: string;
     entries: RevisionEntry[];
+  } | null>(null);
+  let uploadProgress = $state<{
+    documentId: string;
+    taskId: string;
+    currentBytes: number;
+    totalBytes: number;
+    progress: number;
   } | null>(null);
 
   // Breadcrumb navigation history — each entry records the folder name and its
@@ -87,11 +101,20 @@
     navHistory.map((h) => ({ label: h.label, path: h.id })),
   );
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
+  const revisionRows = $derived(
+    revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
+  );
 
   $effect(() => {
     if (!status) return;
-    const timeout = window.setTimeout(() => (status = null), 4000);
-    return () => window.clearTimeout(timeout);
+    notificationStore.success(status);
+    status = null;
+  });
+
+  $effect(() => {
+    if (!error) return;
+    notificationStore.error(error);
+    error = null;
   });
 
   // --- Data loading ---
@@ -561,8 +584,37 @@
     });
   }
 
-  function handleUploadNewVersion(_doc: ServerDocumentEntry) {
-    status = $t('files.uploadNewVersionUnavailable');
+  async function handleUploadNewVersion(doc: ServerDocumentEntry) {
+    const selected = await open({
+      multiple: false,
+      directory: false,
+      title: $t('files.selectRevisionFile'),
+    });
+    if (!selected || Array.isArray(selected)) return;
+
+    await runFileAction(async () => {
+      uploadProgress = {
+        documentId: doc.id,
+        taskId: '',
+        currentBytes: 0,
+        totalBytes: 0,
+        progress: 0,
+      };
+      try {
+        notificationStore.info($t('files.uploadRevisionStarted'), 2500);
+        await uploadNewRevision(doc.id, selected);
+        status = $t('files.uploadRevisionSuccess');
+        await loadDirectory(currentFolderId);
+        if (revisionsDialog?.documentId === doc.id) {
+          revisionsDialog = {
+            ...revisionsDialog,
+            entries: await listRevisions(doc.id),
+          };
+        }
+      } finally {
+        uploadProgress = null;
+      }
+    });
   }
 
   async function handleViewRevisions(doc: ServerDocumentEntry) {
@@ -571,8 +623,39 @@
       revisionsDialog = {
         title: $t('files.revisionsFor', { values: { name: doc.title } }),
         documentId: doc.id,
+        filename: doc.title,
         entries,
       };
+    });
+  }
+
+  async function refreshRevisionsDialog() {
+    if (!revisionsDialog) return;
+    revisionsDialog = {
+      ...revisionsDialog,
+      entries: await listRevisions(revisionsDialog.documentId),
+    };
+  }
+
+  async function handleDownloadRevision(revision: RevisionEntry) {
+    if (!revisionsDialog) return;
+    await runFileAction(async () => {
+      await getRevision(
+        revision.id,
+        revisionsDialog!.filename,
+        revision.is_current ?? false,
+      );
+      status = $t('files.revisionDownloaded');
+    });
+  }
+
+  async function handleSetCurrentRevision(revision: RevisionEntry) {
+    if (!revisionsDialog || revision.is_current) return;
+    await runFileAction(async () => {
+      await setCurrentRevision(revisionsDialog!.documentId, revision.id);
+      await refreshRevisionsDialog();
+      await loadDirectory(currentFolderId);
+      status = $t('files.setCurrentRevisionSuccess');
     });
   }
 
@@ -655,10 +738,121 @@
     return err instanceof Error ? err.message : String(err);
   }
 
+  interface RevisionGraphRow {
+    revision: RevisionEntry;
+    lane: number;
+    laneCount: number;
+    before: Array<string | null>;
+    after: Array<string | null>;
+    parentLane: number | null;
+    hasChildren: boolean;
+    hasBranch: boolean;
+    hasMerge: boolean;
+  }
+
+  function buildRevisionRows(entries: RevisionEntry[]): RevisionGraphRow[] {
+    const sorted = [...entries].sort((a, b) => {
+      const at = a.created_time ?? 0;
+      const bt = b.created_time ?? 0;
+      if (bt !== at) return bt - at;
+      return String(b.id).localeCompare(String(a.id));
+    });
+    const childCount = new Map<string, number>();
+    for (const entry of sorted) {
+      if (entry.parent_id !== null && entry.parent_id !== undefined) {
+        const parentKey = String(entry.parent_id);
+        childCount.set(parentKey, (childCount.get(parentKey) ?? 0) + 1);
+      }
+    }
+
+    let lanes: Array<string | null> = [];
+    const rows: RevisionGraphRow[] = [];
+
+    for (const revision of sorted) {
+      const revisionId = String(revision.id);
+      let lane = lanes.findIndex((id) => id === revisionId);
+      if (lane === -1) {
+        lane = lanes.length;
+        lanes.push(revisionId);
+      }
+
+      const before = [...lanes];
+      let after = [...lanes];
+      let parentLane: number | null = null;
+      const parentId = revision.parent_id === null || revision.parent_id === undefined
+        ? null
+        : String(revision.parent_id);
+
+      if (parentId !== null) {
+        const existingParentLane = after.findIndex((id, index) => index !== lane && id === parentId);
+        if (existingParentLane >= 0) {
+          after.splice(lane, 1);
+          parentLane = existingParentLane > lane ? existingParentLane - 1 : existingParentLane;
+        } else {
+          after[lane] = parentId;
+          parentLane = lane;
+        }
+      } else {
+        after.splice(lane, 1);
+        parentLane = null;
+      }
+
+      const laneCount = Math.max(before.length, after.length, lane + 1, 1);
+      const children = childCount.get(revisionId) ?? 0;
+      rows.push({
+        revision,
+        lane,
+        laneCount,
+        before,
+        after,
+        parentLane,
+        hasChildren: children > 0,
+        hasBranch: children > 1,
+        hasMerge: parentLane !== null && parentLane !== lane,
+      });
+      lanes = after;
+    }
+
+    return rows;
+  }
+
+  function graphWidth(row: RevisionGraphRow): number {
+    return row.laneCount * 24 + 16;
+  }
+
+  function laneX(lane: number): number {
+    return lane * 24 + 12;
+  }
+
+  function graphLineColor(id: string | null | undefined): string {
+    if (id === null || id === undefined) return 'var(--color-md3-outline)';
+    const colors = ['#4ea1ff', '#c084fc', '#34d399', '#f59e0b', '#fb7185'];
+    let hash = 0;
+    for (let i = 0; i < id.length; i += 1) {
+      hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    }
+    return colors[hash % colors.length];
+  }
+
   // --- Init ---
 
   onMount(() => {
+    let unlisten: UnlistenFn | null = null;
+    listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
+      uploadProgress = {
+        documentId: event.payload.document_id,
+        taskId: event.payload.task_id,
+        currentBytes: event.payload.current_bytes,
+        totalBytes: event.payload.total_bytes,
+        progress: event.payload.progress,
+      };
+    }).then((fn) => {
+      unlisten = fn;
+    });
     loadDirectory(null);
+    return () => {
+      if (unlisten) unlisten();
+    };
   });
 
   // --- Filtered lists ---
@@ -800,23 +994,6 @@
 
   <!-- Breadcrumb -->
   <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
-
-  <!-- Error -->
-  {#if status}
-    <div class="bg-md3-primary-container/40 border border-md3-primary/20
-                text-md3-on-primary-container text-sm rounded-xl p-3 flex items-center gap-2">
-      <Icon name="checkCircle" size="16px" />
-      {status}
-    </div>
-  {/if}
-
-  {#if error}
-    <div class="bg-md3-error-container/60 border border-md3-error/30
-                text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2">
-      <span class="mt-0.5"><Icon name="errorFilled" size="16px" /></span>
-      <span>{error}</span>
-    </div>
-  {/if}
 
   <!-- Loading -->
   {#if loading}
@@ -1069,22 +1246,143 @@
           <Icon name="close" size="20px" />
         </button>
       </div>
-      <div class="p-5 space-y-2 max-h-[70vh] overflow-auto">
+      <div class="p-5 max-h-[72vh] overflow-auto">
+        {#if uploadProgress && uploadProgress.documentId === revisionsDialog.documentId}
+          <div class="mb-4 rounded-lg border border-md3-primary/25 bg-md3-primary-container/30 p-3">
+            <div class="mb-2 flex items-center justify-between gap-3 text-xs text-md3-on-primary-container">
+              <span class="font-medium">{$t('files.uploadRevisionStarted')}</span>
+              <span>{Math.round(uploadProgress.progress * 100)}%</span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full bg-md3-surface-container-high">
+              <span
+                class="block h-full rounded-full bg-md3-primary transition-[width] duration-150"
+                style={`width: ${Math.max(0, Math.min(1, uploadProgress.progress)) * 100}%`}
+              ></span>
+            </div>
+          </div>
+        {/if}
         {#if revisionsDialog.entries.length === 0}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
             {$t('files.noRevisions')}
           </p>
         {:else}
-          {#each revisionsDialog.entries as revision (revision.id)}
-            <div class="border border-md3-outline rounded-xl p-3">
-              <p class="text-sm font-medium text-md3-on-surface">
-                {$t('files.revision')} #{revision.id}{revision.is_current ? ` (${$t('files.currentRevision')})` : ''}
-              </p>
-              <p class="text-xs text-md3-on-surface-variant">
-                {$t('files.parentRevision')}: {revision.parent_id ?? '—'} · {$t('files.created')}: {formatDate(revision.created_time ?? null)}
-              </p>
-            </div>
-          {/each}
+          <div class="mb-3 flex items-center gap-2 text-xs font-medium uppercase text-md3-on-surface-variant">
+            <Icon name="history" size="16px" />
+            {$t('files.revisionGraph')}
+          </div>
+          <div class="space-y-0">
+            {#each revisionRows as row (row.revision.id)}
+              <div class="relative grid grid-cols-[auto_1fr_auto] items-stretch gap-3 border-b border-md3-outline/45 last:border-b-0">
+                <svg
+                  class="h-full min-h-16 shrink-0 self-stretch overflow-visible"
+                  style={`width: ${graphWidth(row)}px`}
+                  viewBox={`0 0 ${graphWidth(row)} 64`}
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  {#each row.before as laneId, index}
+                    {#if laneId !== null && (index !== row.lane || row.hasChildren)}
+                      <line
+                        x1={laneX(index)}
+                        y1="0"
+                        x2={laneX(index)}
+                        y2="30"
+                        stroke={graphLineColor(laneId)}
+                        stroke-width="2.4"
+                        stroke-linecap="round"
+                        vector-effect="non-scaling-stroke"
+                      />
+                    {/if}
+                  {/each}
+                  {#if row.parentLane !== null}
+                    <path
+                      d={row.parentLane === row.lane
+                        ? `M ${laneX(row.lane)} 32 L ${laneX(row.lane)} 64`
+                        : `M ${laneX(row.lane)} 32 C ${laneX(row.lane)} 48, ${laneX(row.parentLane)} 48, ${laneX(row.parentLane)} 64`}
+                      fill="none"
+                      stroke={graphLineColor(row.revision.parent_id)}
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/if}
+                  {#each row.after as laneId, index}
+                    {#if laneId !== null && index !== row.parentLane}
+                      <line
+                        x1={laneX(index)}
+                        y1="32"
+                        x2={laneX(index)}
+                        y2="64"
+                        stroke={graphLineColor(laneId)}
+                        stroke-width="2.4"
+                        stroke-linecap="round"
+                        vector-effect="non-scaling-stroke"
+                      />
+                    {/if}
+                  {/each}
+                </svg>
+                <span
+                  class={`pointer-events-none absolute rounded-full border-[3px] border-md3-surface-container ${row.revision.is_current ? 'h-3 w-3' : 'h-2.5 w-2.5'}`}
+                  style={`left: ${laneX(row.lane)}px; top: 50%; background: ${graphLineColor(row.revision.id)}; transform: translate(-50%, -50%);`}
+                  aria-hidden="true"
+                ></span>
+                {#if row.hasBranch}
+                  <span
+                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-[#c084fc]"
+                    style={`left: ${laneX(row.lane) + 8}px; top: calc(50% - 8px); transform: translate(-50%, -50%);`}
+                    aria-hidden="true"
+                  ></span>
+                {/if}
+                {#if row.hasMerge}
+                  <span
+                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-[#34d399]"
+                    style={`left: ${laneX(row.lane) + 8}px; top: calc(50% + 8px); transform: translate(-50%, -50%);`}
+                    aria-hidden="true"
+                  ></span>
+                {/if}
+
+                <div class="min-w-0 py-3">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-sm font-semibold text-md3-on-surface">
+                      {$t('files.revision')} #{row.revision.id}
+                    </p>
+                    {#if row.revision.is_current}
+                      <span class="rounded-full bg-md3-primary-container px-2 py-0.5 text-[11px] font-medium text-md3-on-primary-container">
+                        {$t('files.currentRevision')}
+                      </span>
+                    {/if}
+                  </div>
+                  <p class="mt-1 text-xs text-md3-on-surface-variant">
+                    {#if row.revision.parent_id === null || row.revision.parent_id === undefined}
+                      {$t('files.rootRevision')}
+                    {:else}
+                      {$t('files.parentRevision')}: #{row.revision.parent_id}
+                    {/if}
+                    · {$t('files.created')}: {formatDate(row.revision.created_time ?? null)}
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-1 py-3">
+                  <button
+                    class="rounded-full p-2 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high hover:text-md3-on-surface"
+                    title={$t('common.download')}
+                    onclick={() => handleDownloadRevision(row.revision)}
+                  >
+                    <Icon name="download" size="18px" />
+                  </button>
+                  {#if !row.revision.is_current}
+                    <button
+                      class="rounded-full p-2 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container hover:text-md3-on-primary-container"
+                      title={$t('files.setCurrentRevision')}
+                      onclick={() => handleSetCurrentRevision(row.revision)}
+                    >
+                      <Icon name="verified" size="18px" />
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
         {/if}
       </div>
     </div>

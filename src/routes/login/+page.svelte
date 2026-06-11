@@ -15,7 +15,7 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
-  import { authStore, serverStateStore } from "$lib/stores.svelte";
+  import { authStore, notificationStore, serverStateStore } from "$lib/stores.svelte";
   import {
     login,
     changePassword,
@@ -40,7 +40,6 @@
   let password = $state("");
   let passwordVisible = $state(false);
   let busy = $state(false);
-  let error = $state<string | null>(null);
   let successMessage = $state<string | null>(null);
   let passwordChangeRequired = $state(false);
   let showChangePassword = $state(false);
@@ -193,7 +192,6 @@
     if (!validate()) return;
 
     busy = true;
-    error = null;
     successMessage = null;
     passwordChangeRequired = false;
 
@@ -237,9 +235,8 @@
         // in-app, mirroring the reference's PasswdUserDialog flow.
         passwordChangeRequired = true;
         showChangePassword = true;
-        error = null;
       } else {
-        error = formatError(e);
+        notificationStore.error(formatError(e));
       }
     } finally {
       busy = false;
@@ -258,10 +255,9 @@
     // Success: close the dialog and let the user sign in with the new password.
     showChangePassword = false;
     passwordChangeRequired = false;
-    error = null;
     password = newPassword; // pre-fill so they can sign in straight away
-    successMessage =
-      $t('login.passwordChangedSignIn');
+    successMessage = $t('login.passwordChangedSignIn');
+    notificationStore.success(successMessage);
   }
 
   function handleChangePasswordCancel() {
@@ -320,7 +316,6 @@
 
   async function handleDisconnect() {
     busy = true;
-    error = null;
     try {
       await info("Disconnecting from server...");
       await disconnect();
@@ -329,7 +324,7 @@
       serverStateStore.clear();
       goto("/connect");
     } catch (e) {
-      error = formatError(e);
+      notificationStore.error(formatError(e));
     } finally {
       busy = false;
     }
@@ -533,19 +528,6 @@
               ><Icon name="checkCircle" size="16px" /></span
             >
             <span>{successMessage}</span>
-          </div>
-        {/if}
-
-        <!-- Error — MD3 error container -->
-        {#if error && !passwordChangeRequired}
-          <div
-            class="bg-md3-error-container/60 border border-md3-error/30
-                      text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2"
-          >
-            <span class="shrink-0 mt-0.5"
-              ><Icon name="errorFilled" size="16px" /></span
-            >
-            <span>{error}</span>
           </div>
         {/if}
 
