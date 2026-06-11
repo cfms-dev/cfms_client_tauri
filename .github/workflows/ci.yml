@@ -64,13 +64,16 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
+      
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: SvelteKit sync + type-check
-        run: npm run check
+        run: pnpm svelte-check --workspace
 
       - name: Production build
-        run: npm run build
+        run: pnpm build

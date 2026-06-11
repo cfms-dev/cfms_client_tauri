@@ -30,10 +30,14 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: npm
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: latest
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - name: install frontend dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
