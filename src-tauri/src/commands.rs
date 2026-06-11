@@ -22,7 +22,7 @@ use tauri::{Emitter, Manager};
 
 use crate::{AppHandleState, UploadInterruption};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConnectionSettingsDto {
     pub enable_proxy: bool,
     pub follow_system_proxy: bool,
@@ -43,16 +43,12 @@ pub struct UploadRevisionProgressEvent {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum UploadConflictStrategy {
+    #[default]
     Fail,
     Skip,
     Overwrite,
-}
-
-impl Default for UploadConflictStrategy {
-    fn default() -> Self {
-        Self::Fail
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,19 +71,6 @@ struct UploadFileResult {
     file_name: String,
     skipped: bool,
     overwritten: bool,
-}
-
-impl Default for ConnectionSettingsDto {
-    fn default() -> Self {
-        Self {
-            enable_proxy: false,
-            follow_system_proxy: false,
-            custom_proxy: String::new(),
-            force_ipv4: false,
-            client_cert_path: String::new(),
-            client_key_path: String::new(),
-        }
-    }
 }
 
 impl ConnectionSettingsDto {
