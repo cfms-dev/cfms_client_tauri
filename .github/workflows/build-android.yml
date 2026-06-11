@@ -68,7 +68,7 @@ jobs:
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
       - name: Build Tauri Android
-        run: pnpm tauri android build --apk --aab
+        run: pnpm tauri android build --apk --aab --target aarch64 --target x86_64
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
