@@ -1322,7 +1322,7 @@
                   {/each}
                 </svg>
                 <span
-                  class={`pointer-events-none absolute rounded-full border-[3px] border-md3-surface-container ${row.revision.is_current ? 'h-3 w-3' : 'h-2.5 w-2.5'}`}
+                  class="pointer-events-none absolute h-3 w-3 rounded-full border-[3px] border-md3-surface-container"
                   style={`left: ${laneX(row.lane)}px; top: 50%; background: ${graphLineColor(row.revision.id)}; transform: translate(-50%, -50%);`}
                   aria-hidden="true"
                 ></span>
