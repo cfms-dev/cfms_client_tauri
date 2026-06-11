@@ -30,11 +30,15 @@
     revokeAccess,
     setAccessRules,
     setCurrentRevision,
+    searchFiles,
+    uploadDirectory,
+    uploadDocumentFile,
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
     type AccessType,
     type RevisionEntry,
+    type SearchFilesResponse,
     type UploadRevisionProgressEvent,
   } from '$lib/api';
   import type {
@@ -45,8 +49,10 @@
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ModalFrame from '$lib/components/ModalFrame.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
-  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { dialogStore } from '$lib/dialogs.svelte';
+  import { authStore, notificationStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -56,7 +62,8 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
-  let searchPattern = $state('');
+  let searchQuery = $state('');
+  let uploadSchedule = Promise.resolve();
 
   // Selection mode
   let selectMode = $state(false);
@@ -92,6 +99,23 @@
     totalBytes: number;
     progress: number;
   } | null>(null);
+  let searchDialog = $state<{
+    open: boolean;
+    query: string;
+    searchDocuments: boolean;
+    searchDirectories: boolean;
+    limit: number;
+    loading: boolean;
+    results: SearchFilesResponse | null;
+  }>({
+    open: false,
+    query: '',
+    searchDocuments: true,
+    searchDirectories: true,
+    limit: 100,
+    loading: false,
+    results: null,
+  });
 
   // Breadcrumb navigation history — each entry records the folder name and its
   // server-side ID so we can jump back to any ancestor.
@@ -104,6 +128,7 @@
   const revisionRows = $derived(
     revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
   );
+  const uploadActiveCount = $derived(uploadStore.activeTasks.length);
 
   $effect(() => {
     if (!status) return;
@@ -392,7 +417,14 @@
     const name = kind === 'folder'
       ? (item as ServerDirectoryEntry).name
       : (item as ServerDocumentEntry).title;
-    if (!window.confirm($t('files.deleteConfirm', { values: { name } }))) return;
+    const confirmed = await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: $t('files.deleteConfirm', { values: { name } }),
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
+    if (!confirmed) return;
 
     try {
       if (kind === 'folder') {
@@ -408,7 +440,13 @@
   }
 
   async function handleRenameDocument(doc: ServerDocumentEntry) {
-    const next = window.prompt($t('files.renamePrompt'), doc.title);
+    const next = await dialogStore.prompt({
+      title: $t('files.rename'),
+      message: $t('files.renamePrompt'),
+      defaultValue: doc.title,
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (next === null || !next.trim() || next.trim() === doc.title) return;
     await runFileAction(async () => {
       await renameDocument(doc.id, next.trim());
@@ -418,7 +456,13 @@
   }
 
   async function handleRenameFolder(folder: ServerDirectoryEntry) {
-    const next = window.prompt($t('files.renamePrompt'), folder.name);
+    const next = await dialogStore.prompt({
+      title: $t('files.rename'),
+      message: $t('files.renamePrompt'),
+      defaultValue: folder.name,
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (next === null || !next.trim() || next.trim() === folder.name) return;
     await runFileAction(async () => {
       await renameDirectory(folder.id, next.trim());
@@ -428,7 +472,7 @@
   }
 
   async function handleMoveDocument(doc: ServerDocumentEntry) {
-    const target = promptTargetFolderId();
+    const target = await promptTargetFolderId();
     if (target === undefined) return;
     await runFileAction(async () => {
       await moveDocument(doc.id, target);
@@ -438,7 +482,7 @@
   }
 
   async function handleMoveFolder(folder: ServerDirectoryEntry) {
-    const target = promptTargetFolderId();
+    const target = await promptTargetFolderId();
     if (target === undefined) return;
     if (target === folder.id) {
       error = $t('files.moveSelfError');
@@ -451,8 +495,14 @@
     });
   }
 
-  function promptTargetFolderId(): string | null | undefined {
-    const target = window.prompt($t('files.movePrompt'), currentFolderId ?? '');
+  async function promptTargetFolderId(): Promise<string | null | undefined> {
+    const target = await dialogStore.prompt({
+      title: $t('files.move'),
+      message: $t('files.movePrompt'),
+      defaultValue: currentFolderId ?? '',
+      confirmLabel: $t('files.move'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (target === null) return undefined;
     const trimmed = target.trim();
     return trimmed === '' || trimmed === '/' ? null : trimmed;
@@ -525,15 +575,30 @@
     targetIdentifier: string,
     targetName: string,
   ) {
-    const entityTypeRaw = window.prompt($t('files.authorizeEntityTypePrompt'), 'user');
+    const entityTypeRaw = await dialogStore.prompt({
+      title: $t('files.authorize'),
+      message: $t('files.authorizeEntityTypePrompt'),
+      defaultValue: 'user',
+      placeholder: 'user / group',
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (entityTypeRaw === null) return;
     const entityType = entityTypeRaw.trim().toLowerCase() === 'group' ? 'group' : 'user';
-    const entityIdentifier = window.prompt($t('files.authorizeEntityPrompt'))?.trim();
+    const entityIdentifier = (await dialogStore.prompt({
+      title: $t('files.authorize'),
+      message: $t('files.authorizeEntityPrompt'),
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    }))?.trim();
     if (!entityIdentifier) return;
-    const accessTypesRaw = window.prompt(
-      $t('files.authorizeAccessPrompt'),
-      'read',
-    );
+    const accessTypesRaw = await dialogStore.prompt({
+      title: $t('files.authorize'),
+      message: $t('files.authorizeAccessPrompt'),
+      defaultValue: 'read',
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (accessTypesRaw === null) return;
     const accessTypes = splitAccessTypes(accessTypesRaw);
     if (!accessTypes.length) {
@@ -543,7 +608,13 @@
 
     const now = Math.floor(Date.now() / 1000);
     const defaultEnd = new Date((now + 24 * 60 * 60) * 1000).toLocaleString();
-    const endInput = window.prompt($t('files.authorizeEndPrompt'), defaultEnd);
+    const endInput = await dialogStore.prompt({
+      title: $t('files.authorize'),
+      message: $t('files.authorizeEndPrompt'),
+      defaultValue: defaultEnd,
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (endInput === null) return;
     const endTime = Math.floor(new Date(endInput).getTime() / 1000);
     if (!Number.isFinite(endTime) || endTime <= now) {
@@ -572,13 +643,22 @@
   ) {
     await runFileAction(async () => {
       const current = await getAccessRules(objectType, objectId);
-      const next = window.prompt(
-        $t('files.accessRulesPrompt', { values: { name: objectName } }),
-        JSON.stringify(current.rules ?? {}, null, 2),
-      );
+      const next = await dialogStore.prompt({
+        title: $t('files.setPermissions'),
+        message: $t('files.accessRulesPrompt', { values: { name: objectName } }),
+        defaultValue: JSON.stringify(current.rules ?? {}, null, 2),
+        confirmLabel: $t('common.save'),
+        cancelLabel: $t('common.cancel'),
+        multiline: true,
+      });
       if (next === null) return;
       const parsed = JSON.parse(next);
-      const inheritParent = window.confirm($t('files.inheritParentRulesPrompt'));
+      const inheritParent = await dialogStore.confirm({
+        title: $t('files.setPermissions'),
+        message: $t('files.inheritParentRulesPrompt'),
+        confirmLabel: $t('common.enabled'),
+        cancelLabel: $t('common.disabled'),
+      });
       await setAccessRules(objectType, objectId, parsed, inheritParent);
       status = $t('files.accessRulesSaved');
     });
@@ -679,7 +759,12 @@
   // --- Toolbar actions ---
 
   async function handleCreateFolder() {
-    const name = window.prompt($t('files.newFolderPrompt'));
+    const name = await dialogStore.prompt({
+      title: $t('files.newFolder'),
+      message: $t('files.newFolderPrompt'),
+      confirmLabel: $t('files.createFolder'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (!name || !name.trim()) return;
     try {
       await createDirectory(currentFolderId, name.trim(), true);
@@ -691,9 +776,13 @@
 
   async function handleDeleteSelected() {
     if (totalSelected === 0) return;
-    const confirmed = window.confirm(
-      $t('files.deleteSelectedConfirm', { values: { count: totalSelected } }),
-    );
+    const confirmed = await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: $t('files.deleteSelectedConfirm', { values: { count: totalSelected } }),
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
     if (!confirmed) return;
     try {
       for (const id of selectedFolderIds) {
@@ -707,6 +796,114 @@
     } catch (e) {
       error = String(e);
     }
+  }
+
+  async function handleUploadFiles() {
+    const selected = await open({
+      multiple: true,
+      directory: false,
+      title: $t('files.selectFilesToUpload'),
+    });
+    if (!selected) return;
+    const files = Array.isArray(selected) ? selected : [selected];
+    if (files.length === 0) return;
+
+    const targetFolderId = currentFolderId;
+    notificationStore.info($t('files.uploadQueued', { values: { count: files.length } }));
+    for (const filePath of files) {
+      scheduleUpload(filePath, (uploadId) => uploadDocumentFile(targetFolderId, filePath, uploadId));
+    }
+  }
+
+  async function handleUploadFolder() {
+    const selected = await open({
+      multiple: false,
+      directory: true,
+      title: $t('files.selectFolderToUpload'),
+    });
+    if (!selected || Array.isArray(selected)) return;
+
+    const targetFolderId = currentFolderId;
+    scheduleUpload(selected, (uploadId) => uploadDirectory(targetFolderId, selected, uploadId));
+  }
+
+  function scheduleUpload(sourcePath: string, action: (uploadId: string) => Promise<unknown>) {
+    const uploadId = createUploadId();
+    uploadStore.addQueued(uploadId, basename(sourcePath), sourcePath);
+    uploadSchedule = uploadSchedule
+      .then(async () => {
+        try {
+          await action(uploadId);
+          await loadDirectory(currentFolderId);
+        } catch (e) {
+          uploadStore.markFailed(uploadId, formatError(e));
+          error = formatError(e);
+        }
+      })
+      .catch((e) => {
+        uploadStore.markFailed(uploadId, formatError(e));
+      });
+  }
+
+  function createUploadId() {
+    return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function basename(path: string) {
+    return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+  }
+
+  function openSearchDialog() {
+    searchDialog = {
+      ...searchDialog,
+      open: true,
+      query: searchQuery,
+      results: null,
+    };
+  }
+
+  async function runServerSearch() {
+    const query = searchDialog.query.trim();
+    if (!query) {
+      error = $t('files.searchQueryRequired');
+      return;
+    }
+    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) {
+      error = $t('files.searchTypeRequired');
+      return;
+    }
+
+    searchDialog = { ...searchDialog, loading: true };
+    try {
+      const results = await searchFiles(query, {
+        limit: searchDialog.limit,
+        searchDocuments: searchDialog.searchDocuments,
+        searchDirectories: searchDialog.searchDirectories,
+      });
+      searchDialog = { ...searchDialog, results, loading: false };
+    } catch (e) {
+      searchDialog = { ...searchDialog, loading: false };
+      error = formatError(e);
+    }
+  }
+
+  function closeSearchDialog() {
+    searchDialog = { ...searchDialog, open: false };
+  }
+
+  function navigateToSearchDirectory(directory: { id: string; name: string }) {
+    navHistory = [{ label: directory.name, id: directory.id }];
+    closeSearchDialog();
+    loadDirectory(directory.id);
+  }
+
+  function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {
+    navHistory = [];
+    closeSearchDialog();
+    loadDirectory(document.parent_id ?? null);
+    status = $t('files.searchOpenedParent', { values: { name: document.name ?? document.title ?? '' } });
   }
 
   function handleNavigateTrash() {
@@ -855,23 +1052,10 @@
     };
   });
 
-  // --- Filtered lists ---
+  // --- Display lists ---
 
-  const filteredFolders = $derived(
-    searchPattern
-      ? folders.filter((f) =>
-          f.name.toLowerCase().includes(searchPattern.toLowerCase()),
-        )
-      : folders,
-  );
-
-  const filteredDocuments = $derived(
-    searchPattern
-      ? documents.filter((d) =>
-          d.title.toLowerCase().includes(searchPattern.toLowerCase()),
-        )
-      : documents,
-  );
+  const filteredFolders = $derived(folders);
+  const filteredDocuments = $derived(documents);
 </script>
 
 <div class="p-6 space-y-4">
@@ -892,6 +1076,33 @@
     >
       <Icon name="createNewFolder" size="16px" />
       {$t('files.newFolder')}
+    </button>
+
+    <button
+      class="px-3 py-1.5 text-xs rounded-full font-medium
+             bg-md3-surface-container-high text-md3-on-surface-variant
+             hover:brightness-110 transition-all flex items-center gap-1.5"
+      style="font-family: var(--font-md3-sans);"
+      title={$t('files.uploadFiles')}
+      onclick={handleUploadFiles}
+    >
+      <Icon name="uploadFile" size="16px" />
+      {$t('files.uploadFiles')}
+    </button>
+
+    <button
+      class="px-3 py-1.5 text-xs rounded-full font-medium
+             bg-md3-surface-container-high text-md3-on-surface-variant
+             hover:brightness-110 transition-all flex items-center gap-1.5"
+      style="font-family: var(--font-md3-sans);"
+      title={$t('files.uploadFolder')}
+      onclick={handleUploadFolder}
+    >
+      <Icon name="folderUpload" size="16px" />
+      {$t('files.uploadFolder')}
+      {#if uploadActiveCount > 0}
+        <span class="rounded-full bg-md3-primary px-1.5 text-[10px] text-md3-on-primary">{uploadActiveCount}</span>
+      {/if}
     </button>
 
     <!-- Selection mode toggle -->
@@ -927,7 +1138,7 @@
     <!-- Search -->
     <form
       class="flex gap-2"
-      onsubmit={(e) => { e.preventDefault(); }}
+      onsubmit={(e) => { e.preventDefault(); openSearchDialog(); }}
     >
       <input
         type="text"
@@ -937,7 +1148,7 @@
                focus:ring-2 focus:ring-md3-primary focus:border-transparent
                transition-colors"
         placeholder={$t('files.search')}
-        bind:value={searchPattern}
+        bind:value={searchQuery}
       />
       <button
         type="submit"
@@ -947,7 +1158,7 @@
         style="font-family: var(--font-md3-sans);"
       >
         <Icon name="search" size="16px" />
-        {$t('files.filter')}
+        {$t('files.serverSearch')}
       </button>
     </form>
 
@@ -1122,28 +1333,92 @@
   onClose={hideContextMenu}
 />
 
-{#if detailTitle}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-    onclick={() => (detailTitle = null)}
+{#if searchDialog.open}
+  <ModalFrame
+    title={$t('files.searchTitle')}
+    maxWidth="max-w-3xl"
+    closeLabel={$t('common.close')}
+    onClose={closeSearchDialog}
   >
-    <div
-      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-lg shadow-2xl"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') detailTitle = null;
-      }}
-    >
-      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">{detailTitle}</h3>
-        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (detailTitle = null)}>
-          <Icon name="close" size="20px" />
+    <form class="space-y-4 p-5" onsubmit={(e) => { e.preventDefault(); runServerSearch(); }}>
+      <div class="grid gap-3 md:grid-cols-[1fr_auto]">
+        <input
+          class="rounded-lg border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
+          bind:value={searchDialog.query}
+          placeholder={$t('files.searchPlaceholder')}
+        />
+        <button
+          type="submit"
+          class="rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110 disabled:opacity-50"
+          disabled={searchDialog.loading}
+        >
+          {$t('files.serverSearch')}
         </button>
       </div>
+
+      <div class="flex flex-wrap items-center gap-4 text-sm text-md3-on-surface-variant">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" bind:checked={searchDialog.searchDocuments} />
+          {$t('files.searchDocuments')}
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" bind:checked={searchDialog.searchDirectories} />
+          {$t('files.searchDirectories')}
+        </label>
+        <label class="ml-auto flex items-center gap-2">
+          {$t('files.searchLimit')}
+          <input
+            type="number"
+            min="1"
+            max="1000"
+            class="w-24 rounded-lg border border-md3-outline bg-md3-field px-2 py-1 text-sm text-md3-on-surface"
+            bind:value={searchDialog.limit}
+          />
+        </label>
+      </div>
+
+      {#if searchDialog.loading}
+        <div class="flex items-center gap-2 py-6 text-sm text-md3-on-surface-variant">
+          <span class="animate-spin"><Icon name="refresh" size="18px" /></span>
+          {$t('common.loadingEllipsis')}
+        </div>
+      {:else if searchDialog.results}
+        <div class="max-h-[52vh] overflow-auto rounded-lg border border-md3-outline">
+          <div class="border-b border-md3-outline bg-md3-surface-container-high/50 px-3 py-2 text-xs font-medium uppercase text-md3-on-surface-variant">
+            {searchDialog.results.total_count === 0
+              ? $t('files.searchNoResults', { values: { query: searchDialog.query } })
+              : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.query } })}
+          </div>
+          {#each searchDialog.results.directories as directory (directory.id)}
+            <button
+              type="button"
+              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-primary-container/20"
+              onclick={() => navigateToSearchDirectory(directory)}
+            >
+              <span class="text-md3-primary"><Icon name="folder" size="20px" /></span>
+              <span class="min-w-0 truncate text-sm font-medium text-md3-primary">{directory.name}</span>
+              <span class="text-xs text-md3-on-surface-variant">{formatDate(directory.created_time)}</span>
+            </button>
+          {/each}
+          {#each searchDialog.results.documents as document (document.id)}
+            <button
+              type="button"
+              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-surface-container-high/40 last:border-b-0"
+              onclick={() => navigateToSearchDocument(document)}
+            >
+              <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
+              <span class="min-w-0 truncate text-sm text-md3-on-surface">{document.name ?? document.title}</span>
+              <span class="text-xs text-md3-on-surface-variant">{formatBytes(document.size ?? 0)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </form>
+  </ModalFrame>
+{/if}
+
+{#if detailTitle}
+  <ModalFrame title={detailTitle} maxWidth="max-w-lg" closeLabel={$t('common.close')} onClose={() => (detailTitle = null)}>
       <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
         {#each detailRows as row}
           <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
@@ -1152,32 +1427,11 @@
           </div>
         {/each}
       </div>
-    </div>
-  </div>
+  </ModalFrame>
 {/if}
 
 {#if accessEntriesDialog}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-    onclick={() => (accessEntriesDialog = null)}
-  >
-    <div
-      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-5xl shadow-2xl"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') accessEntriesDialog = null;
-      }}
-    >
-      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">{accessEntriesDialog.title}</h3>
-        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (accessEntriesDialog = null)}>
-          <Icon name="close" size="20px" />
-        </button>
-      </div>
+  <ModalFrame title={accessEntriesDialog.title} maxWidth="max-w-5xl" closeLabel={$t('common.close')} onClose={() => (accessEntriesDialog = null)}>
       <div class="p-5 overflow-auto max-h-[70vh]">
         {#if accessEntriesDialog.entries.length === 0}
           <p class="text-sm text-md3-on-surface-variant text-center py-8">
@@ -1220,32 +1474,11 @@
           </table>
         {/if}
       </div>
-    </div>
-  </div>
+  </ModalFrame>
 {/if}
 
 {#if revisionsDialog}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-    onclick={() => (revisionsDialog = null)}
-  >
-    <div
-      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-2xl shadow-2xl"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') revisionsDialog = null;
-      }}
-    >
-      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">{revisionsDialog.title}</h3>
-        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (revisionsDialog = null)}>
-          <Icon name="close" size="20px" />
-        </button>
-      </div>
+  <ModalFrame title={revisionsDialog.title} maxWidth="max-w-2xl" closeLabel={$t('common.close')} onClose={() => (revisionsDialog = null)}>
       <div class="p-5 max-h-[72vh] overflow-auto">
         {#if uploadProgress && uploadProgress.documentId === revisionsDialog.documentId}
           <div class="mb-4 rounded-lg border border-md3-primary/25 bg-md3-primary-container/30 p-3">
@@ -1385,6 +1618,5 @@
           </div>
         {/if}
       </div>
-    </div>
-  </div>
+  </ModalFrame>
 {/if}

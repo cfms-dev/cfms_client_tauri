@@ -4,10 +4,11 @@
 // updates to the reactive stores.  Called once from `+layout.svelte`.
 
 import { listen } from "@tauri-apps/api/event";
-import type { ServiceEvent } from "./api";
-import { authStore, downloadStore, eventLog, notificationStore, serverStateStore } from "./stores.svelte";
+import type { ServiceEvent, UploadProgressEvent } from "./api";
+import { authStore, downloadStore, eventLog, notificationStore, serverStateStore, uploadStore } from "./stores.svelte";
 
 let unlisten: (() => void) | null = null;
+let unlistenUpload: (() => void) | null = null;
 
 /** Start listening for backend `cfms:event` events. */
 export async function initEventListeners(): Promise<void> {
@@ -88,6 +89,28 @@ export async function initEventListeners(): Promise<void> {
       }
     }
   });
+
+  unlistenUpload = await listen<UploadProgressEvent>("cfms:upload-progress", (payload) => {
+    const event = payload.payload;
+    uploadStore.applyProgress(event);
+    if (event.status === "completed") {
+      eventLog.push("success", `Upload complete: ${event.file_name}`);
+      notificationStore.success("1 upload completed", 3000, {
+        groupKey: "upload-completed",
+        groupTitle: "Uploads completed",
+        itemText: event.file_name,
+        summaryText: (count) => `${count} upload${count === 1 ? "" : "s"} completed`,
+      });
+    } else if (event.status === "failed") {
+      eventLog.push("error", `Upload failed: ${event.message ?? event.file_name}`);
+      notificationStore.error(`Upload failed: ${event.message ?? event.file_name}`, 3000, {
+        groupKey: "upload-failed",
+        groupTitle: "Uploads failed",
+        itemText: `${event.file_name}: ${event.message ?? "Unknown error"}`,
+        summaryText: (count) => `${count} upload${count === 1 ? "" : "s"} failed`,
+      });
+    }
+  });
 }
 
 /** Stop listening for backend events. */
@@ -95,5 +118,9 @@ export function stopEventListeners(): void {
   if (unlisten) {
     unlisten();
     unlisten = null;
+  }
+  if (unlistenUpload) {
+    unlistenUpload();
+    unlistenUpload = null;
   }
 }

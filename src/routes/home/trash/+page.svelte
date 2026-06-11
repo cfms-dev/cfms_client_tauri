@@ -11,6 +11,7 @@
     type DeletedDirectoryEntry,
     type DeletedDocumentEntry,
   } from '$lib/api';
+  import { dialogStore } from '$lib/dialogs.svelte';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -79,7 +80,13 @@
   }
 
   async function handleRestore(kind: TrashKind, id: string, name: string) {
-    const nextName = window.prompt('Restore with name (leave blank to keep original):', name);
+    const nextName = await dialogStore.prompt({
+      title: 'Restore',
+      message: 'Restore with name (leave blank to keep original):',
+      defaultValue: name,
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+    });
     if (nextName === null) return;
 
     busyItemId = id;
@@ -101,9 +108,13 @@
   }
 
   async function handlePurge(kind: TrashKind, id: string, name: string) {
-    const confirmed = window.confirm(
-      `Permanently delete "${name}"? This action cannot be undone.`,
-    );
+    const confirmed = await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: `Permanently delete "${name}"? This action cannot be undone.`,
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
     if (!confirmed) return;
 
     busyItemId = id;

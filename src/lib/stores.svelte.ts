@@ -7,6 +7,8 @@ import { getSetting, setSetting } from "./api";
 import type {
   DownloadTaskDto,
   DownloadTaskStatus,
+  UploadProgressEvent,
+  UploadTaskDto,
   ServiceStatusInfo,
   AuthStatus,
   ServerState,
@@ -253,6 +255,92 @@ class DownloadStoreImpl {
 export const downloadStore = new DownloadStoreImpl();
 
 // ---------------------------------------------------------------------------
+// Upload store
+// ---------------------------------------------------------------------------
+
+class UploadStoreImpl {
+  tasks = $state<Map<string, UploadTaskDto>>(new Map());
+
+  addQueued(uploadId: string, fileName: string, sourcePath: string) {
+    const now = Math.floor(Date.now() / 1000);
+    this.tasks.set(uploadId, {
+      upload_id: uploadId,
+      task_id: null,
+      file_name: fileName,
+      source_path: sourcePath,
+      status: "pending",
+      progress: 0,
+      current_bytes: 0,
+      total_bytes: 0,
+      message: null,
+      error: null,
+      created_at: now,
+      completed_at: null,
+    });
+    this.tasks = new Map(this.tasks);
+  }
+
+  applyProgress(event: UploadProgressEvent) {
+    const oldTask = this.tasks.get(event.upload_id);
+    const next: UploadTaskDto = {
+      upload_id: event.upload_id,
+      task_id: event.task_id,
+      file_name: event.file_name,
+      source_path: oldTask?.source_path ?? "",
+      status: event.status,
+      progress: event.progress,
+      current_bytes: event.current_bytes,
+      total_bytes: event.total_bytes,
+      message: event.message,
+      error: event.status === "failed" ? event.message : null,
+      created_at: oldTask?.created_at ?? Math.floor(Date.now() / 1000),
+      completed_at:
+        event.status === "completed" || event.status === "failed" || event.status === "skipped"
+          ? Math.floor(Date.now() / 1000)
+          : null,
+    };
+    this.tasks.set(event.upload_id, next);
+    this.tasks = new Map(this.tasks);
+  }
+
+  markFailed(uploadId: string, error: string) {
+    const task = this.tasks.get(uploadId);
+    if (!task) return;
+    this.tasks.set(uploadId, {
+      ...task,
+      status: "failed",
+      error,
+      message: error,
+      completed_at: Math.floor(Date.now() / 1000),
+    });
+    this.tasks = new Map(this.tasks);
+  }
+
+  remove(uploadId: string) {
+    this.tasks.delete(uploadId);
+    this.tasks = new Map(this.tasks);
+  }
+
+  clearFinished() {
+    this.tasks = new Map(
+      [...this.tasks].filter(([, task]) =>
+        task.status !== "completed" && task.status !== "failed" && task.status !== "skipped"
+      ),
+    );
+  }
+
+  get allTasks(): UploadTaskDto[] {
+    return [...this.tasks.values()].sort((a, b) => b.created_at - a.created_at);
+  }
+
+  get activeTasks(): UploadTaskDto[] {
+    return this.allTasks.filter((task) => task.status === "pending" || task.status === "uploading");
+  }
+}
+
+export const uploadStore = new UploadStoreImpl();
+
+// ---------------------------------------------------------------------------
 // Service status store
 // ---------------------------------------------------------------------------
 
@@ -295,38 +383,77 @@ export interface NotificationEntry {
   text: string;
   createdAt: number;
   timeoutMs: number | null;
+  groupKey?: string;
+  groupTitle?: string;
+  items: Array<{ text: string; createdAt: number }>;
+}
+
+export interface NotificationOptions {
+  groupKey?: string;
+  groupTitle?: string;
+  itemText?: string;
+  summaryText?: (count: number, latestText: string) => string;
 }
 
 class NotificationStoreImpl {
   entries = $state<NotificationEntry[]>([]);
   private nextId = 1;
 
-  push(type: NotificationType, text: string, timeoutMs = 4000) {
+  push(
+    type: NotificationType,
+    text: string,
+    timeoutMs = 3000,
+    options: NotificationOptions = {},
+  ) {
+    if (options.groupKey) {
+      const existing = this.entries.find(
+        (entry) => entry.groupKey === options.groupKey && entry.type === type,
+      );
+      if (existing) {
+        const now = Date.now();
+        const itemText = options.itemText ?? text;
+        const items = [...existing.items, { text: itemText, createdAt: now }].slice(-20);
+        const next: NotificationEntry = {
+          ...existing,
+          text: options.summaryText?.(items.length, itemText) ?? text,
+          groupTitle: options.groupTitle ?? existing.groupTitle,
+          items,
+          createdAt: now,
+          timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+        };
+        this.entries = [next, ...this.entries.filter((entry) => entry.id !== existing.id)];
+        return existing.id;
+      }
+    }
+
     const entry: NotificationEntry = {
       id: this.nextId++,
       type,
       text,
       createdAt: Date.now(),
       timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+      groupKey: options.groupKey,
+      groupTitle: options.groupTitle,
+      items: [{ text: options.itemText ?? text, createdAt: Date.now() }],
     };
     this.entries = [entry, ...this.entries].slice(0, 5);
     return entry.id;
   }
 
-  info(text: string, timeoutMs = 4000) {
-    return this.push("info", text, timeoutMs);
+  info(text: string, timeoutMs = 3000, options?: NotificationOptions) {
+    return this.push("info", text, timeoutMs, options);
   }
 
-  success(text: string, timeoutMs = 4000) {
-    return this.push("success", text, timeoutMs);
+  success(text: string, timeoutMs = 3000, options?: NotificationOptions) {
+    return this.push("success", text, timeoutMs, options);
   }
 
-  warning(text: string, timeoutMs = 5000) {
-    return this.push("warning", text, timeoutMs);
+  warning(text: string, timeoutMs = 3000, options?: NotificationOptions) {
+    return this.push("warning", text, timeoutMs, options);
   }
 
-  error(text: string, timeoutMs = 7000) {
-    return this.push("error", text, timeoutMs);
+  error(text: string, timeoutMs = 3000, options?: NotificationOptions) {
+    return this.push("error", text, timeoutMs, options);
   }
 
   remove(id: number) {

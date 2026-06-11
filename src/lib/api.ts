@@ -23,6 +23,13 @@ export type DownloadTaskStatus =
   | "cancelled"
   | "scheduled";
 
+export type UploadTaskStatus =
+  | "pending"
+  | "uploading"
+  | "completed"
+  | "failed"
+  | "skipped";
+
 export type DownloadPhase =
   | "downloading"
   | "decrypting"
@@ -129,6 +136,25 @@ export interface ListDirectoryResponse {
   parent_id: string | null;
 }
 
+export interface SearchDirectoryEntry extends ServerDirectoryEntry {
+  parent_id?: string | null;
+}
+
+export interface SearchDocumentEntry {
+  id: string;
+  name?: string;
+  title?: string;
+  parent_id?: string | null;
+  size?: number;
+  last_modified?: number | null;
+}
+
+export interface SearchFilesResponse {
+  documents: SearchDocumentEntry[];
+  directories: SearchDirectoryEntry[];
+  total_count: number;
+}
+
 export interface DeletedDirectoryEntry {
   id: string;
   name: string;
@@ -222,6 +248,34 @@ export interface UploadRevisionProgressEvent {
   current_bytes: number;
   total_bytes: number;
   progress: number;
+}
+
+export type UploadConflictStrategy = "fail" | "skip" | "overwrite";
+
+export interface UploadProgressEvent {
+  upload_id: string;
+  task_id: string | null;
+  file_name: string;
+  current_bytes: number;
+  total_bytes: number;
+  progress: number;
+  status: UploadTaskStatus;
+  message: string | null;
+}
+
+export interface UploadTaskDto {
+  upload_id: string;
+  task_id: string | null;
+  file_name: string;
+  source_path: string;
+  status: UploadTaskStatus;
+  progress: number;
+  current_bytes: number;
+  total_bytes: number;
+  message: string | null;
+  error: string | null;
+  created_at: number;
+  completed_at: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -673,6 +727,73 @@ export async function uploadNewRevision(
   filePath: string,
 ): Promise<{ task_id: string; document_id: string }> {
   return invoke("upload_new_revision", { documentId, filePath });
+}
+
+export async function uploadDocumentFile(
+  parentId: string | null,
+  filePath: string,
+  uploadId: string,
+  conflictStrategy: UploadConflictStrategy = "overwrite",
+): Promise<{
+  upload_id: string;
+  task_id: string | null;
+  document_id: string | null;
+  file_name: string;
+  skipped: boolean;
+  overwritten: boolean;
+}> {
+  return invoke("upload_document_file", {
+    parentId,
+    filePath,
+    uploadId,
+    conflictStrategy,
+  });
+}
+
+export async function uploadDirectory(
+  parentId: string | null,
+  directoryPath: string,
+  uploadId: string,
+  conflictStrategy: UploadConflictStrategy = "overwrite",
+): Promise<{
+  upload_id: string;
+  directory_id: string;
+  total_files: number;
+  uploaded_files: number;
+}> {
+  return invoke("upload_directory", {
+    parentId,
+    directoryPath,
+    uploadId,
+    conflictStrategy,
+  });
+}
+
+export async function searchFiles(
+  query: string,
+  options: {
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+    searchDocuments?: boolean;
+    searchDirectories?: boolean;
+  } = {},
+): Promise<SearchFilesResponse> {
+  const data = await invoke<Partial<SearchFilesResponse>>("search_files", {
+    query,
+    limit: options.limit ?? 100,
+    sortBy: options.sortBy ?? "name",
+    sortOrder: options.sortOrder ?? "asc",
+    searchDocuments: options.searchDocuments ?? true,
+    searchDirectories: options.searchDirectories ?? true,
+  });
+  return {
+    documents: data.documents ?? [],
+    directories: data.directories ?? [],
+    total_count:
+      data.total_count
+      ?? ((data.documents?.length ?? 0) + (data.directories?.length ?? 0)),
+  };
 }
 
 // ---------------------------------------------------------------------------

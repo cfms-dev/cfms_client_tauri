@@ -41,6 +41,42 @@ pub struct UploadRevisionProgressEvent {
     pub progress: f64,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UploadConflictStrategy {
+    Fail,
+    Skip,
+    Overwrite,
+}
+
+impl Default for UploadConflictStrategy {
+    fn default() -> Self {
+        Self::Fail
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadProgressEvent {
+    pub upload_id: String,
+    pub task_id: Option<String>,
+    pub file_name: String,
+    pub current_bytes: u64,
+    pub total_bytes: u64,
+    pub progress: f64,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct UploadFileResult {
+    upload_id: String,
+    task_id: Option<String>,
+    document_id: Option<String>,
+    file_name: String,
+    skipped: bool,
+    overwritten: bool,
+}
+
 impl Default for ConnectionSettingsDto {
     fn default() -> Self {
         Self {
@@ -790,6 +826,150 @@ pub async fn upload_new_revision(
         "task_id": task_id,
         "document_id": document_id,
     }))
+}
+
+/// Upload a local file as a new document in a server-side directory.
+#[tauri::command]
+pub async fn upload_document_file(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    parent_id: Option<String>,
+    file_path: String,
+    upload_id: String,
+    conflict_strategy: Option<UploadConflictStrategy>,
+) -> Result<serde_json::Value, String> {
+    let source = std::path::PathBuf::from(file_path);
+    let result = upload_local_file(
+        &app_handle,
+        &state,
+        parent_id,
+        source,
+        upload_id,
+        conflict_strategy.unwrap_or_default(),
+    )
+    .await?;
+
+    Ok(serde_json::json!({
+        "upload_id": result.upload_id,
+        "task_id": result.task_id,
+        "document_id": result.document_id,
+        "file_name": result.file_name,
+        "skipped": result.skipped,
+        "overwritten": result.overwritten,
+    }))
+}
+
+/// Upload a local directory recursively, preserving its directory structure.
+#[tauri::command]
+pub async fn upload_directory(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    parent_id: Option<String>,
+    directory_path: String,
+    upload_id: String,
+    conflict_strategy: Option<UploadConflictStrategy>,
+) -> Result<serde_json::Value, String> {
+    let root = std::path::PathBuf::from(directory_path);
+    if !root.is_dir() {
+        return Err("Selected path is not a directory".to_string());
+    }
+
+    let root_name = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Selected directory has no valid name".to_string())?
+        .to_string();
+
+    let root_id = create_server_directory(&state, parent_id, root_name, true).await?;
+    let entries = collect_directory_entries(&root)?;
+    let total_files = entries.iter().filter(|entry| entry.is_file()).count();
+    let mut uploaded_files = 0usize;
+    let mut dir_ids = std::collections::HashMap::<std::path::PathBuf, String>::new();
+    dir_ids.insert(std::path::PathBuf::new(), root_id.clone());
+    let conflict_strategy = conflict_strategy.unwrap_or_default();
+
+    for entry in entries {
+        let relative = entry
+            .strip_prefix(&root)
+            .map_err(|e| format!("Failed to resolve upload path: {e}"))?
+            .to_path_buf();
+
+        if entry.is_dir() {
+            let parent_rel = relative
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(""));
+            let parent_server_id = dir_ids
+                .get(parent_rel)
+                .cloned()
+                .ok_or_else(|| "Missing parent directory while uploading".to_string())?;
+            let name = entry
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| "Directory has no valid name".to_string())?
+                .to_string();
+            let id = create_server_directory(&state, Some(parent_server_id), name, true).await?;
+            dir_ids.insert(relative, id);
+            continue;
+        }
+
+        if entry.is_file() {
+            let parent_rel = relative
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(""));
+            let parent_server_id = dir_ids
+                .get(parent_rel)
+                .cloned()
+                .ok_or_else(|| "Missing parent directory while uploading".to_string())?;
+            upload_local_file(
+                &app_handle,
+                &state,
+                Some(parent_server_id),
+                entry,
+                upload_id.clone(),
+                conflict_strategy,
+            )
+            .await?;
+            uploaded_files += 1;
+        }
+    }
+
+    Ok(serde_json::json!({
+        "upload_id": upload_id,
+        "directory_id": root_id,
+        "total_files": total_files,
+        "uploaded_files": uploaded_files,
+    }))
+}
+
+/// Search documents and directories on the server.
+#[tauri::command]
+pub async fn search_files(
+    state: tauri::State<'_, AppHandleState>,
+    query: String,
+    limit: Option<u32>,
+    sort_by: Option<String>,
+    sort_order: Option<String>,
+    search_documents: Option<bool>,
+    search_directories: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Err("Search query cannot be empty".to_string());
+    }
+
+    server_action_json(
+        &state,
+        "search",
+        serde_json::json!({
+            "query": trimmed,
+            "limit": limit.unwrap_or(100).clamp(1, 1000),
+            "sort_by": sort_by.unwrap_or_else(|| "name".to_string()),
+            "sort_order": sort_order.unwrap_or_else(|| "asc".to_string()),
+            "search_documents": search_documents.unwrap_or(true),
+            "search_directories": search_directories.unwrap_or(true),
+        }),
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -2704,6 +2884,289 @@ async fn create_transfer_connection(
     cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4)
         .await
         .map_err(|e| format!("Transfer connection failed: {e}"))
+}
+
+async fn create_server_directory(
+    state: &AppHandleState,
+    parent_id: Option<String>,
+    name: String,
+    exists_ok: bool,
+) -> Result<String, String> {
+    let (conn, username, token) = get_connection_auth(state).await?;
+    let resp = send_action_request(
+        &conn,
+        "create_directory",
+        serde_json::json!({
+            "parent_id": non_empty_optional(parent_id),
+            "name": name,
+            "exists_ok": exists_ok,
+        }),
+        &username,
+        &token,
+    )
+    .await?;
+
+    if resp.code == 409
+        && exists_ok
+        && resp.data.get("type").and_then(|v| v.as_str()) == Some("directory")
+        && let Some(id) = resp.data.get("id").and_then(|v| v.as_str())
+    {
+        return Ok(id.to_string());
+    }
+
+    if resp.code != 200 {
+        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+    }
+
+    resp.data
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| "Server response missing directory id".to_string())
+}
+
+async fn upload_local_file(
+    app_handle: &tauri::AppHandle,
+    state: &AppHandleState,
+    parent_id: Option<String>,
+    source: std::path::PathBuf,
+    upload_id: String,
+    conflict_strategy: UploadConflictStrategy,
+) -> Result<UploadFileResult, String> {
+    if !source.is_file() {
+        return Err("Selected path is not a file".to_string());
+    }
+
+    let file_name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Selected file has no valid name".to_string())?
+        .to_string();
+
+    emit_upload_progress(
+        app_handle,
+        &upload_id,
+        None,
+        &file_name,
+        0,
+        std::fs::metadata(&source).map(|m| m.len()).unwrap_or(0),
+        "uploading",
+        Some("Preparing upload".to_string()),
+    );
+
+    let (conn, username, token) = get_connection_auth(state).await?;
+    let create_resp = send_action_request(
+        &conn,
+        "create_document",
+        serde_json::json!({
+            "title": file_name,
+            "folder_id": non_empty_optional(parent_id.clone()),
+            "access_rules": {},
+        }),
+        &username,
+        &token,
+    )
+    .await?;
+
+    let mut overwritten = false;
+    let (task_id, document_id, skipped) = if create_resp.code == 409 {
+        let conflict_type = create_resp
+            .data
+            .get("type")
+            .and_then(|value| value.as_str());
+        let conflict_id = create_resp
+            .data
+            .get("id")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned);
+
+        match (conflict_strategy, conflict_type, conflict_id) {
+            (UploadConflictStrategy::Skip, _, _) => {
+                emit_upload_progress(
+                    app_handle,
+                    &upload_id,
+                    None,
+                    &file_name,
+                    0,
+                    0,
+                    "skipped",
+                    Some("Skipped existing document".to_string()),
+                );
+                return Ok(UploadFileResult {
+                    upload_id,
+                    task_id: None,
+                    document_id: None,
+                    file_name,
+                    skipped: true,
+                    overwritten: false,
+                });
+            }
+            (UploadConflictStrategy::Overwrite, Some("document"), Some(document_id)) => {
+                let upload_resp = send_action_request(
+                    &conn,
+                    "upload_document",
+                    serde_json::json!({ "document_id": document_id }),
+                    &username,
+                    &token,
+                )
+                .await?;
+
+                if upload_resp.code != 200 {
+                    return Err(format!(
+                        "Server returned {}: {}",
+                        upload_resp.code, upload_resp.message
+                    ));
+                }
+
+                overwritten = true;
+                let task_id = extract_task_id(&upload_resp.data)?;
+                (task_id, Some(document_id), false)
+            }
+            _ => {
+                return Err(format!(
+                    "Server returned {}: {}",
+                    create_resp.code, create_resp.message
+                ));
+            }
+        }
+    } else if create_resp.code != 200 {
+        return Err(format!(
+            "Server returned {}: {}",
+            create_resp.code, create_resp.message
+        ));
+    } else {
+        let task_id = extract_task_id(&create_resp.data)?;
+        let document_id = create_resp
+            .data
+            .get("id")
+            .or_else(|| create_resp.data.get("document_id"))
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned);
+        (task_id, document_id, false)
+    };
+
+    let transfer_conn = create_transfer_connection(&state.inner).await?;
+    let emit_handle = app_handle.clone();
+    let progress_upload_id = upload_id.clone();
+    let progress_task_id = task_id.clone();
+    let progress_file_name = file_name.clone();
+    let progress = move |current: u64, total: u64| {
+        emit_upload_progress(
+            &emit_handle,
+            &progress_upload_id,
+            Some(&progress_task_id),
+            &progress_file_name,
+            current,
+            total,
+            "uploading",
+            None,
+        );
+    };
+
+    let result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress).await;
+    transfer_conn.close().await;
+
+    if let Err(err) = result {
+        let message = format!("Upload failed: {err}");
+        emit_upload_progress(
+            app_handle,
+            &upload_id,
+            Some(&task_id),
+            &file_name,
+            0,
+            0,
+            "failed",
+            Some(message.clone()),
+        );
+        return Err(message);
+    }
+
+    emit_upload_progress(
+        app_handle,
+        &upload_id,
+        Some(&task_id),
+        &file_name,
+        1,
+        1,
+        "completed",
+        Some("Upload completed".to_string()),
+    );
+
+    Ok(UploadFileResult {
+        upload_id,
+        task_id: Some(task_id),
+        document_id,
+        file_name,
+        skipped,
+        overwritten,
+    })
+}
+
+fn emit_upload_progress(
+    app_handle: &tauri::AppHandle,
+    upload_id: &str,
+    task_id: Option<&str>,
+    file_name: &str,
+    current_bytes: u64,
+    total_bytes: u64,
+    status: &str,
+    message: Option<String>,
+) {
+    let progress = if total_bytes > 0 {
+        current_bytes as f64 / total_bytes as f64
+    } else if status == "completed" {
+        1.0
+    } else {
+        0.0
+    };
+
+    let _ = app_handle.emit(
+        "cfms:upload-progress",
+        UploadProgressEvent {
+            upload_id: upload_id.to_string(),
+            task_id: task_id.map(ToOwned::to_owned),
+            file_name: file_name.to_string(),
+            current_bytes,
+            total_bytes,
+            progress,
+            status: status.to_string(),
+            message,
+        },
+    );
+}
+
+fn extract_task_id(data: &serde_json::Value) -> Result<String, String> {
+    data.get("task_data")
+        .and_then(|value| value.get("task_id"))
+        .or_else(|| data.get("task_id"))
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| "Server response missing task_id".to_string())
+}
+
+fn collect_directory_entries(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut entries = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(path) = stack.pop() {
+        let children = std::fs::read_dir(&path)
+            .map_err(|e| format!("Failed to read directory {}: {e}", path.display()))?;
+        for child in children {
+            let child = child.map_err(|e| format!("Failed to read directory entry: {e}"))?;
+            let child_path = child.path();
+            if child_path.is_dir() {
+                stack.push(child_path.clone());
+            }
+            entries.push(child_path);
+        }
+    }
+
+    entries.sort_by(|a, b| {
+        let a_depth = a.components().count();
+        let b_depth = b.components().count();
+        a_depth.cmp(&b_depth).then_with(|| a.cmp(b))
+    });
+    Ok(entries)
 }
 
 async fn server_action_json(

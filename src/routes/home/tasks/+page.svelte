@@ -10,7 +10,8 @@
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskStatus } from '$lib/api';
-  import { downloadStore } from '$lib/stores.svelte';
+  import type { UploadTaskDto } from '$lib/api';
+  import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -31,6 +32,7 @@
 
   const filtered = $derived(downloadStore.getTasksByStatus(filter));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
+  const uploadTasks = $derived(uploadStore.allTasks);
 
   onMount(async () => {
     try {
@@ -116,6 +118,14 @@
   function handleRemove(taskId: string) {
     downloadStore.remove(taskId);
     refresh();
+  }
+
+  function uploadStatusLabel(task: UploadTaskDto) {
+    if (task.status === 'pending') return $t('tasks.uploadQueued');
+    if (task.status === 'completed') return $t('tasks.uploadCompleted');
+    if (task.status === 'failed') return task.error ?? $t('tasks.failed');
+    if (task.status === 'skipped') return $t('tasks.cancelled');
+    return task.message ?? $t('tasks.downloading');
   }
 </script>
 
@@ -211,7 +221,49 @@
     </div>
   </div>
 
+  {#if uploadTasks.length > 0}
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold uppercase text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+          {$t('tasks.uploads')}
+        </h2>
+        <button
+          class="px-3 py-1.5 text-xs rounded-full font-medium
+                 bg-md3-surface-container-high text-md3-on-surface-variant
+                 hover:brightness-110 transition-all"
+          onclick={() => uploadStore.clearFinished()}
+        >
+          {$t('tasks.clearCompleted')}
+        </button>
+      </div>
+      <div class="grid gap-3">
+        {#each uploadTasks as task (task.upload_id)}
+          <article class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-4 shadow-sm">
+            <div class="mb-2 flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-md3-on-surface">{task.file_name}</p>
+                <p class="mt-0.5 truncate text-xs text-md3-on-surface-variant">{uploadStatusLabel(task)}</p>
+              </div>
+              <span class="shrink-0 rounded-full bg-md3-surface-container-high px-2 py-0.5 text-xs text-md3-on-surface-variant">
+                {Math.round(task.progress * 100)}%
+              </span>
+            </div>
+            <div class="h-1.5 overflow-hidden rounded-full bg-md3-surface-container-high">
+              <span
+                class="block h-full rounded-full bg-md3-primary transition-[width] duration-200"
+                style={`width: ${Math.max(0, Math.min(1, task.progress)) * 100}%`}
+              ></span>
+            </div>
+          </article>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   <!-- Filter chips -->
+  <h2 class="text-sm font-semibold uppercase text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+    {$t('tasks.downloads')}
+  </h2>
   <div class="flex gap-1.5 flex-wrap">
     {#each filters as f}
       <button

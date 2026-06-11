@@ -26,6 +26,7 @@
     type UserBlock,
     type UserBlockTarget,
   } from '$lib/api';
+  import { dialogStore } from '$lib/dialogs.svelte';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -294,10 +295,10 @@
   }
 
   async function handleCreateUser() {
-    const username = window.prompt('Username:')?.trim();
+    const username = (await dialogStore.prompt('Username:'))?.trim();
     if (!username) return;
-    const nickname = window.prompt('Nickname:', username)?.trim() ?? '';
-    const password = window.prompt('Initial password:') ?? '';
+    const nickname = (await dialogStore.prompt('Nickname:', username))?.trim() ?? '';
+    const password = await dialogStore.prompt({ message: 'Initial password:', inputType: 'password' }) ?? '';
     if (!password) return;
 
     await runBusy('create-user', async () => {
@@ -308,7 +309,7 @@
   }
 
   async function handleRenameUser(user: ManagedUser) {
-    const nickname = window.prompt('New nickname:', user.nickname ?? user.username);
+    const nickname = await dialogStore.prompt('New nickname:', user.nickname ?? user.username);
     if (nickname === null) return;
 
     await runBusy(`rename-user:${user.username}`, async () => {
@@ -321,7 +322,7 @@
   async function handleEditUserGroups(user: ManagedUser) {
     const allGroups = groups.length ? groups : await listGroups();
     if (!groups.length) groups = allGroups;
-    const next = window.prompt(
+    const next = await dialogStore.prompt(
       `Groups for ${user.username} (comma separated):`,
       (user.groups ?? []).join(', '),
     );
@@ -336,10 +337,13 @@
   }
 
   async function handleResetPassword(user: ManagedUser) {
-    const newPassword = window.prompt(`New password for ${user.username}:`) ?? '';
+    const newPassword = await dialogStore.prompt({
+      message: `New password for ${user.username}:`,
+      inputType: 'password',
+    }) ?? '';
     if (!newPassword) return;
-    const bypass = window.confirm('Bypass password requirements?');
-    const forceUpdate = window.confirm('Force user to update password after next login?');
+    const bypass = await dialogStore.confirm('Bypass password requirements?');
+    const forceUpdate = await dialogStore.confirm('Force user to update password after next login?');
 
     await runBusy(`passwd-user:${user.username}`, async () => {
       await resetUserPassword(user.username, newPassword, bypass, forceUpdate);
@@ -364,7 +368,13 @@
   }
 
   async function handleDeleteUser(user: ManagedUser) {
-    if (!window.confirm(`Delete user ${user.username}?`)) return;
+    if (!(await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: `Delete user ${user.username}?`,
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    }))) return;
     await runBusy(`delete-user:${user.username}`, async () => {
       await deleteUser(user.username);
       status = `User ${user.username} deleted.`;
@@ -373,7 +383,7 @@
   }
 
   async function handleBlockUser(user: ManagedUser) {
-    const typesRaw = window.prompt('Block types (comma separated):', 'read, write, move');
+    const typesRaw = await dialogStore.prompt('Block types (comma separated):', 'read, write, move');
     if (typesRaw === null) return;
     const blockTypes = splitList(typesRaw);
     if (blockTypes.length === 0) {
@@ -381,7 +391,7 @@
       return;
     }
 
-    const targetTypeRaw = (window.prompt('Target type: all, directory, or document', 'all') ?? 'all')
+    const targetTypeRaw = (await dialogStore.prompt('Target type: all, directory, or document', 'all') ?? 'all')
       .trim()
       .toLowerCase();
     const targetType = ['directory', 'document'].includes(targetTypeRaw)
@@ -389,12 +399,12 @@
       : 'all';
     const target: UserBlockTarget = { type: targetType };
     if (targetType !== 'all') {
-      const targetId = window.prompt(`${targetType} ID:`)?.trim();
+      const targetId = (await dialogStore.prompt(`${targetType} ID:`))?.trim();
       if (!targetId) return;
       target.id = targetId;
     }
 
-    const expiry = window.prompt('Expiry time as local date/time, or blank for permanent:', '');
+    const expiry = await dialogStore.prompt('Expiry time as local date/time, or blank for permanent:', '');
     const notAfter = expiry?.trim() ? new Date(expiry.trim()).getTime() / 1000 : null;
     if (expiry?.trim() && Number.isNaN(notAfter)) {
       error = 'Invalid expiry time.';
@@ -427,9 +437,9 @@
   }
 
   async function handleCreateGroup() {
-    const groupName = window.prompt('User group name:')?.trim();
+    const groupName = (await dialogStore.prompt('User group name:'))?.trim();
     if (!groupName) return;
-    const displayName = window.prompt('Display name:', groupName)?.trim() ?? groupName;
+    const displayName = (await dialogStore.prompt('Display name:', groupName))?.trim() ?? groupName;
 
     await runBusy('create-group', async () => {
       await createGroup(groupName, displayName);
@@ -439,7 +449,7 @@
   }
 
   async function handleRenameGroup(group: ManagedGroup) {
-    const displayName = window.prompt('New display name:', group.display_name ?? group.name);
+    const displayName = await dialogStore.prompt('New display name:', group.display_name ?? group.name);
     if (displayName === null || !displayName.trim()) return;
 
     await runBusy(`rename-group:${group.name}`, async () => {
@@ -451,7 +461,7 @@
 
   async function handleEditGroupPermissions(group: ManagedGroup) {
     const info = await getGroupInfo(group.name);
-    const next = window.prompt(
+    const next = await dialogStore.prompt(
       `Permissions for ${group.name} (comma separated):`,
       formatList(info.permissions),
     );
@@ -465,7 +475,13 @@
   }
 
   async function handleDeleteGroup(group: ManagedGroup) {
-    if (!window.confirm(`Delete group ${group.name}?`)) return;
+    if (!(await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: `Delete group ${group.name}?`,
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    }))) return;
     await runBusy(`delete-group:${group.name}`, async () => {
       await deleteGroup(group.name);
       status = `Group ${group.name} deleted.`;
