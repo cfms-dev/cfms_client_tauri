@@ -371,6 +371,240 @@ pub async fn delete_document(
     Ok(true)
 }
 
+/// Rename a directory on the CFMS server.
+#[tauri::command]
+pub async fn rename_directory(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+    new_name: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "rename_directory",
+        serde_json::json!({ "folder_id": folder_id, "new_name": new_name }),
+    )
+    .await
+}
+
+/// Rename a document on the CFMS server.
+#[tauri::command]
+pub async fn rename_document(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    new_title: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "rename_document",
+        serde_json::json!({ "document_id": document_id, "new_title": new_title }),
+    )
+    .await
+}
+
+/// Move a directory into another directory, or root when target is `None`.
+#[tauri::command]
+pub async fn move_directory(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: String,
+    target_folder_id: Option<String>,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "move_directory",
+        serde_json::json!({
+            "folder_id": folder_id,
+            "target_folder_id": non_empty_optional(target_folder_id),
+        }),
+    )
+    .await
+}
+
+/// Move a document into another directory, or root when target is `None`.
+#[tauri::command]
+pub async fn move_document(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    target_folder_id: Option<String>,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "move_document",
+        serde_json::json!({
+            "document_id": document_id,
+            "target_folder_id": non_empty_optional(target_folder_id),
+        }),
+    )
+    .await
+}
+
+/// Fetch server-side document properties.
+#[tauri::command]
+pub async fn get_document_info(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "get_document_info",
+        serde_json::json!({ "document_id": document_id }),
+    )
+    .await
+}
+
+/// Fetch server-side directory properties.
+#[tauri::command]
+pub async fn get_directory_info(
+    state: tauri::State<'_, AppHandleState>,
+    directory_id: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "get_directory_info",
+        serde_json::json!({ "directory_id": directory_id }),
+    )
+    .await
+}
+
+/// View temporary access entries for a document or directory.
+#[tauri::command]
+pub async fn view_access_entries(
+    state: tauri::State<'_, AppHandleState>,
+    object_type: String,
+    object_identifier: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "view_access_entries",
+        serde_json::json!({
+            "object_type": object_type,
+            "object_identifier": object_identifier,
+        }),
+    )
+    .await
+}
+
+/// Revoke a temporary access entry.
+#[tauri::command]
+pub async fn revoke_access(
+    state: tauri::State<'_, AppHandleState>,
+    entry_id: i64,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "revoke_access",
+        serde_json::json!({ "entry_id": entry_id }),
+    )
+    .await
+}
+
+/// Grant temporary access to a document or directory.
+#[tauri::command]
+pub async fn grant_access(
+    state: tauri::State<'_, AppHandleState>,
+    entity_identifier: String,
+    entity_type: String,
+    target_type: String,
+    target_identifier: String,
+    access_types: Vec<String>,
+    start_time: f64,
+    end_time: f64,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "grant_access",
+        serde_json::json!({
+            "entity_identifier": entity_identifier,
+            "entity_type": entity_type,
+            "target_type": target_type,
+            "target_identifier": target_identifier,
+            "access_types": access_types,
+            "start_time": start_time,
+            "end_time": end_time,
+        }),
+    )
+    .await
+}
+
+/// Fetch document or directory access rules.
+#[tauri::command]
+pub async fn get_access_rules(
+    state: tauri::State<'_, AppHandleState>,
+    object_type: String,
+    object_id: String,
+) -> Result<serde_json::Value, String> {
+    match object_type.as_str() {
+        "document" => {
+            server_action_json(
+                &state,
+                "get_document_access_rules",
+                serde_json::json!({ "document_id": object_id }),
+            )
+            .await
+        }
+        "directory" => {
+            server_action_json(
+                &state,
+                "get_directory_access_rules",
+                serde_json::json!({ "directory_id": object_id }),
+            )
+            .await
+        }
+        other => Err(format!("Invalid object type: {other}")),
+    }
+}
+
+/// Set document or directory access rules.
+#[tauri::command]
+pub async fn set_access_rules(
+    state: tauri::State<'_, AppHandleState>,
+    object_type: String,
+    object_id: String,
+    access_rules: serde_json::Value,
+    inherit_parent: bool,
+) -> Result<bool, String> {
+    match object_type.as_str() {
+        "document" => {
+            server_action_bool(
+                &state,
+                "set_document_rules",
+                serde_json::json!({
+                    "document_id": object_id,
+                    "access_rules": access_rules,
+                    "inherit_parent": inherit_parent,
+                }),
+            )
+            .await
+        }
+        "directory" => {
+            server_action_bool(
+                &state,
+                "set_directory_rules",
+                serde_json::json!({
+                    "directory_id": object_id,
+                    "access_rules": access_rules,
+                    "inherit_parent": inherit_parent,
+                }),
+            )
+            .await
+        }
+        other => Err(format!("Invalid object type: {other}")),
+    }
+}
+
+/// List all revisions for a document.
+#[tauri::command]
+pub async fn list_revisions(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "list_revisions",
+        serde_json::json!({ "document_id": document_id }),
+    )
+    .await
+}
+
 // ---------------------------------------------------------------------------
 // Trash / recycle-bin operations
 // ---------------------------------------------------------------------------

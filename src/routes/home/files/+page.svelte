@@ -15,10 +15,32 @@
     createDirectory,
     deleteDirectory,
     deleteDocument,
+    getAccessRules,
+    getDirectoryInfo,
+    getDocumentInfo,
+    grantAccess,
+    listRevisions,
+    moveDirectory,
+    moveDocument,
+    renameDirectory,
+    renameDocument,
+    revokeAccess,
+    setAccessRules,
+    viewAccessEntries,
+    type AccessEntry,
+    type AccessType,
+    type RevisionEntry,
   } from '$lib/api';
-  import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
+  import type {
+    ServerDirectoryEntry,
+    ServerDocumentEntry,
+    ServerObjectType,
+  } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import type { ContextMenuItem } from '$lib/components/context-menu';
+  import { authStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -27,6 +49,7 @@
   let parentId = $state<string | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let status = $state<string | null>(null);
   let searchPattern = $state('');
 
   // Selection mode
@@ -36,12 +59,25 @@
 
   // Context menu state
   let contextMenu = $state<{
-    visible: boolean;
+    open: boolean;
     x: number;
     y: number;
     kind: 'folder' | 'document' | null;
     item: ServerDirectoryEntry | ServerDocumentEntry | null;
-  }>({ visible: false, x: 0, y: 0, kind: null, item: null });
+  }>({ open: false, x: 0, y: 0, kind: null, item: null });
+  let detailTitle = $state<string | null>(null);
+  let detailRows = $state<Array<{ label: string; value: string }>>([]);
+  let accessEntriesDialog = $state<{
+    title: string;
+    objectType: ServerObjectType;
+    objectId: string;
+    entries: AccessEntry[];
+  } | null>(null);
+  let revisionsDialog = $state<{
+    title: string;
+    documentId: string;
+    entries: RevisionEntry[];
+  } | null>(null);
 
   // Breadcrumb navigation history — each entry records the folder name and its
   // server-side ID so we can jump back to any ancestor.
@@ -50,6 +86,13 @@
   const breadcrumbSegments = $derived(
     navHistory.map((h) => ({ label: h.label, path: h.id })),
   );
+  const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
+
+  $effect(() => {
+    if (!status) return;
+    const timeout = window.setTimeout(() => (status = null), 4000);
+    return () => window.clearTimeout(timeout);
+  });
 
   // --- Data loading ---
 
@@ -162,41 +205,392 @@
   // --- Context menu ---
 
   function hideContextMenu() {
-    contextMenu = { visible: false, x: 0, y: 0, kind: null, item: null };
+    contextMenu = { open: false, x: 0, y: 0, kind: null, item: null };
   }
 
   function showFolderContextMenu(e: MouseEvent, folder: ServerDirectoryEntry) {
     e.preventDefault();
-    contextMenu = { visible: true, x: e.clientX, y: e.clientY, kind: 'folder', item: folder };
+    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'folder', item: folder };
   }
 
   function showDocumentContextMenu(e: MouseEvent, doc: ServerDocumentEntry) {
     e.preventDefault();
-    contextMenu = { visible: true, x: e.clientX, y: e.clientY, kind: 'document', item: doc };
+    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'document', item: doc };
   }
 
-  async function contextDownload() {
-    if (contextMenu.kind === 'document' && contextMenu.item) {
-      await handleDownload(contextMenu.item as ServerDocumentEntry);
+  function getContextMenuItems(): ContextMenuItem[] {
+    if (!contextMenu.kind || !contextMenu.item) return [];
+
+    if (contextMenu.kind === 'document') {
+      const doc = contextMenu.item as ServerDocumentEntry;
+      return [
+        {
+          id: 'download-document',
+          label: $t('common.download'),
+          icon: 'download',
+          onSelect: () => handleDownload(doc),
+        },
+        { type: 'divider' },
+        {
+          id: 'rename-document',
+          label: $t('files.rename'),
+          icon: 'edit',
+          requiredPermissions: ['rename_document'],
+          onSelect: () => handleRenameDocument(doc),
+        },
+        {
+          id: 'move-document',
+          label: $t('files.move'),
+          icon: 'driveFileMove',
+          requiredPermissions: ['move'],
+          onSelect: () => handleMoveDocument(doc),
+        },
+        {
+          id: 'delete-document',
+          label: $t('common.delete'),
+          icon: 'delete',
+          requiredPermissions: ['delete_document'],
+          onSelect: () => handleDeleteSingle('document', doc),
+          danger: true,
+        },
+        { type: 'divider' },
+        {
+          id: 'authorize-document',
+          label: $t('files.authorize'),
+          icon: 'lockPerson',
+          requiredPermissions: ['manage_access'],
+          onSelect: () => handleAuthorize('document', doc.id, doc.title),
+        },
+        {
+          id: 'view-document-access',
+          label: $t('files.viewAccessEntries'),
+          icon: 'listAlt',
+          requiredPermissions: ['view_access_entries'],
+          onSelect: () => handleViewAccessEntries('document', doc.id, doc.title),
+        },
+        {
+          id: 'document-rules',
+          label: $t('files.setPermissions'),
+          icon: 'settings',
+          requiredPermissions: ['set_access_rules'],
+          onSelect: () => handleSetAccessRules('document', doc.id, doc.title),
+        },
+        { type: 'divider' },
+        {
+          id: 'upload-document-revision',
+          label: $t('files.uploadNewVersion'),
+          icon: 'uploadFile',
+          onSelect: () => handleUploadNewVersion(doc),
+        },
+        {
+          id: 'view-document-revisions',
+          label: $t('files.viewRevisions'),
+          icon: 'history',
+          requiredPermissions: ['list_revisions'],
+          onSelect: () => handleViewRevisions(doc),
+        },
+        { type: 'divider' },
+        {
+          id: 'document-properties',
+          label: $t('files.properties'),
+          icon: 'info',
+          onSelect: () => handleDocumentProperties(doc),
+        },
+      ];
     }
-    hideContextMenu();
+
+    const folder = contextMenu.item as ServerDirectoryEntry;
+    return [
+      {
+        id: 'open-folder',
+        label: $t('common.open'),
+        icon: 'folderOpen',
+        onSelect: () => handleNavigate(folder.id, folder.name),
+      },
+      { type: 'divider' },
+      {
+        id: 'rename-folder',
+        label: $t('files.rename'),
+        icon: 'edit',
+        requiredPermissions: ['rename_directory'],
+        onSelect: () => handleRenameFolder(folder),
+      },
+      {
+        id: 'move-folder',
+        label: $t('files.move'),
+        icon: 'driveFileMove',
+        requiredPermissions: ['move'],
+        onSelect: () => handleMoveFolder(folder),
+      },
+      {
+        id: 'delete-folder',
+        label: $t('common.delete'),
+        icon: 'delete',
+        requiredPermissions: ['delete_directory'],
+        onSelect: () => handleDeleteSingle('folder', folder),
+        danger: true,
+      },
+      { type: 'divider' },
+      {
+        id: 'authorize-folder',
+        label: $t('files.authorize'),
+        icon: 'lockPerson',
+        requiredPermissions: ['manage_access'],
+        onSelect: () => handleAuthorize('directory', folder.id, folder.name),
+      },
+      {
+        id: 'view-folder-access',
+        label: $t('files.viewAccessEntries'),
+        icon: 'listAlt',
+        requiredPermissions: ['view_access_entries'],
+        onSelect: () => handleViewAccessEntries('directory', folder.id, folder.name),
+      },
+      {
+        id: 'folder-rules',
+        label: $t('files.setPermissions'),
+        icon: 'settings',
+        requiredPermissions: ['set_access_rules'],
+        onSelect: () => handleSetAccessRules('directory', folder.id, folder.name),
+      },
+      { type: 'divider' },
+      {
+        id: 'folder-properties',
+        label: $t('files.properties'),
+        icon: 'info',
+        onSelect: () => handleFolderProperties(folder),
+      },
+    ];
   }
 
-  async function contextDelete() {
+  async function handleDeleteSingle(
+    kind: 'folder' | 'document',
+    item: ServerDirectoryEntry | ServerDocumentEntry,
+  ) {
+    const name = kind === 'folder'
+      ? (item as ServerDirectoryEntry).name
+      : (item as ServerDocumentEntry).title;
+    if (!window.confirm($t('files.deleteConfirm', { values: { name } }))) return;
+
     try {
-      if (contextMenu.kind === 'folder' && contextMenu.item) {
-        const folder = contextMenu.item as ServerDirectoryEntry;
-        await deleteDirectory(folder.id);
-      } else if (contextMenu.kind === 'document' && contextMenu.item) {
-        const doc = contextMenu.item as ServerDocumentEntry;
-        await deleteDocument(doc.id);
+      if (kind === 'folder') {
+        await deleteDirectory((item as ServerDirectoryEntry).id);
+      } else {
+        await deleteDocument((item as ServerDocumentEntry).id);
       }
-      // Reload current directory after delete.
+      status = $t('files.deleted');
       await loadDirectory(currentFolderId);
     } catch (e) {
       error = String(e);
     }
-    hideContextMenu();
+  }
+
+  async function handleRenameDocument(doc: ServerDocumentEntry) {
+    const next = window.prompt($t('files.renamePrompt'), doc.title);
+    if (next === null || !next.trim() || next.trim() === doc.title) return;
+    await runFileAction(async () => {
+      await renameDocument(doc.id, next.trim());
+      status = $t('files.renamed');
+      await loadDirectory(currentFolderId);
+    });
+  }
+
+  async function handleRenameFolder(folder: ServerDirectoryEntry) {
+    const next = window.prompt($t('files.renamePrompt'), folder.name);
+    if (next === null || !next.trim() || next.trim() === folder.name) return;
+    await runFileAction(async () => {
+      await renameDirectory(folder.id, next.trim());
+      status = $t('files.renamed');
+      await loadDirectory(currentFolderId);
+    });
+  }
+
+  async function handleMoveDocument(doc: ServerDocumentEntry) {
+    const target = promptTargetFolderId();
+    if (target === undefined) return;
+    await runFileAction(async () => {
+      await moveDocument(doc.id, target);
+      status = $t('files.moved');
+      await loadDirectory(currentFolderId);
+    });
+  }
+
+  async function handleMoveFolder(folder: ServerDirectoryEntry) {
+    const target = promptTargetFolderId();
+    if (target === undefined) return;
+    if (target === folder.id) {
+      error = $t('files.moveSelfError');
+      return;
+    }
+    await runFileAction(async () => {
+      await moveDirectory(folder.id, target);
+      status = $t('files.moved');
+      await loadDirectory(currentFolderId);
+    });
+  }
+
+  function promptTargetFolderId(): string | null | undefined {
+    const target = window.prompt($t('files.movePrompt'), currentFolderId ?? '');
+    if (target === null) return undefined;
+    const trimmed = target.trim();
+    return trimmed === '' || trimmed === '/' ? null : trimmed;
+  }
+
+  async function handleDocumentProperties(doc: ServerDocumentEntry) {
+    await runFileAction(async () => {
+      const info = await getDocumentInfo(doc.id);
+      detailTitle = $t('files.documentDetails');
+      detailRows = [
+        { label: $t('files.documentId'), value: info.document_id ?? doc.id },
+        { label: $t('files.documentTitle'), value: info.title ?? doc.title },
+        { label: $t('files.size'), value: formatBytes(info.size ?? doc.size) },
+        { label: $t('files.created'), value: formatDate(info.created_time ?? null) },
+        { label: $t('files.modified'), value: formatDate(info.last_modified ?? doc.last_modified) },
+        { label: $t('files.parentId'), value: info.parent_id ?? '-' },
+        { label: $t('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
+      ];
+    });
+  }
+
+  async function handleFolderProperties(folder: ServerDirectoryEntry) {
+    await runFileAction(async () => {
+      const info = await getDirectoryInfo(folder.id);
+      detailTitle = $t('files.directoryDetails');
+      detailRows = [
+        { label: $t('files.directoryId'), value: info.directory_id ?? folder.id },
+        { label: $t('files.directoryName'), value: info.name ?? folder.name },
+        { label: $t('files.childCount'), value: String(info.count_of_child ?? '-') },
+        { label: $t('files.created'), value: formatDate(info.created_time ?? folder.created_time) },
+        { label: $t('files.parentId'), value: info.parent_id ?? '-' },
+        { label: $t('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
+      ];
+    });
+  }
+
+  async function handleViewAccessEntries(
+    objectType: ServerObjectType,
+    objectId: string,
+    objectName: string,
+  ) {
+    await runFileAction(async () => {
+      const entries = await viewAccessEntries(objectType, objectId);
+      accessEntriesDialog = {
+        title: $t('files.accessEntriesFor', { values: { name: objectName } }),
+        objectType,
+        objectId,
+        entries,
+      };
+    });
+  }
+
+  async function handleRevokeAccess(entryId: number) {
+    if (!accessEntriesDialog) return;
+    await runFileAction(async () => {
+      await revokeAccess(entryId);
+      accessEntriesDialog = {
+        ...accessEntriesDialog!,
+        entries: await viewAccessEntries(
+          accessEntriesDialog!.objectType,
+          accessEntriesDialog!.objectId,
+        ),
+      };
+      status = $t('files.accessRevoked');
+    });
+  }
+
+  async function handleAuthorize(
+    targetType: ServerObjectType,
+    targetIdentifier: string,
+    targetName: string,
+  ) {
+    const entityTypeRaw = window.prompt($t('files.authorizeEntityTypePrompt'), 'user');
+    if (entityTypeRaw === null) return;
+    const entityType = entityTypeRaw.trim().toLowerCase() === 'group' ? 'group' : 'user';
+    const entityIdentifier = window.prompt($t('files.authorizeEntityPrompt'))?.trim();
+    if (!entityIdentifier) return;
+    const accessTypesRaw = window.prompt(
+      $t('files.authorizeAccessPrompt'),
+      'read',
+    );
+    if (accessTypesRaw === null) return;
+    const accessTypes = splitAccessTypes(accessTypesRaw);
+    if (!accessTypes.length) {
+      error = $t('files.authorizeAccessError');
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const defaultEnd = new Date((now + 24 * 60 * 60) * 1000).toLocaleString();
+    const endInput = window.prompt($t('files.authorizeEndPrompt'), defaultEnd);
+    if (endInput === null) return;
+    const endTime = Math.floor(new Date(endInput).getTime() / 1000);
+    if (!Number.isFinite(endTime) || endTime <= now) {
+      error = $t('files.authorizeEndError');
+      return;
+    }
+
+    await runFileAction(async () => {
+      await grantAccess(
+        entityIdentifier,
+        entityType,
+        targetType,
+        targetIdentifier,
+        accessTypes,
+        now,
+        endTime,
+      );
+      status = $t('files.accessGranted', { values: { name: targetName } });
+    });
+  }
+
+  async function handleSetAccessRules(
+    objectType: ServerObjectType,
+    objectId: string,
+    objectName: string,
+  ) {
+    await runFileAction(async () => {
+      const current = await getAccessRules(objectType, objectId);
+      const next = window.prompt(
+        $t('files.accessRulesPrompt', { values: { name: objectName } }),
+        JSON.stringify(current.rules ?? {}, null, 2),
+      );
+      if (next === null) return;
+      const parsed = JSON.parse(next);
+      const inheritParent = window.confirm($t('files.inheritParentRulesPrompt'));
+      await setAccessRules(objectType, objectId, parsed, inheritParent);
+      status = $t('files.accessRulesSaved');
+    });
+  }
+
+  function handleUploadNewVersion(_doc: ServerDocumentEntry) {
+    status = $t('files.uploadNewVersionUnavailable');
+  }
+
+  async function handleViewRevisions(doc: ServerDocumentEntry) {
+    await runFileAction(async () => {
+      const entries = await listRevisions(doc.id);
+      revisionsDialog = {
+        title: $t('files.revisionsFor', { values: { name: doc.title } }),
+        documentId: doc.id,
+        entries,
+      };
+    });
+  }
+
+  async function runFileAction(action: () => Promise<void>) {
+    error = null;
+    try {
+      await action();
+    } catch (err) {
+      error = formatError(err);
+    }
+  }
+
+  function splitAccessTypes(value: string): AccessType[] {
+    const allowed = new Set<AccessType>(['read', 'write', 'move', 'manage']);
+    return value
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter((item): item is AccessType => allowed.has(item as AccessType));
   }
 
   // --- Toolbar actions ---
@@ -236,13 +630,6 @@
     goto('/home/trash');
   }
 
-  // Dismiss context menu on any click outside.
-  function handleGlobalClick(_e: MouseEvent) {
-    if (contextMenu.visible) {
-      hideContextMenu();
-    }
-  }
-
   // --- Formatting helpers ---
 
   function formatBytes(bytes: number): string {
@@ -256,6 +643,16 @@
   function formatDate(ts: number | null): string {
     if (!ts) return '—';
     return new Date(ts * 1000).toLocaleString();
+  }
+
+  function formatUnknown(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '—';
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value, null, 2);
+  }
+
+  function formatError(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
   }
 
   // --- Init ---
@@ -405,10 +802,19 @@
   <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
 
   <!-- Error -->
+  {#if status}
+    <div class="bg-md3-primary-container/40 border border-md3-primary/20
+                text-md3-on-primary-container text-sm rounded-xl p-3 flex items-center gap-2">
+      <Icon name="checkCircle" size="16px" />
+      {status}
+    </div>
+  {/if}
+
   {#if error}
     <div class="bg-md3-error-container/60 border border-md3-error/30
-                text-md3-on-error-container text-sm rounded-xl p-3">
-      {error}
+                text-md3-on-error-container text-sm rounded-xl p-3 flex items-start gap-2">
+      <span class="mt-0.5"><Icon name="errorFilled" size="16px" /></span>
+      <span>{error}</span>
     </div>
   {/if}
 
@@ -530,43 +936,157 @@
   {/if}
 </div>
 
-<!-- Context menu (portal-like, positioned at viewport coordinates) -->
-{#if contextMenu.visible}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="fixed inset-0 z-40" role="presentation" onclick={hideContextMenu} oncontextmenu={(e) => { e.preventDefault(); hideContextMenu(); }}></div>
+<ContextMenu
+  open={contextMenu.open}
+  x={contextMenu.x}
+  y={contextMenu.y}
+  items={contextMenuItems}
+  userPermissions={authStore.permissions}
+  onClose={hideContextMenu}
+/>
+
+{#if detailTitle}
   <div
-    class="fixed z-50 bg-md3-surface-container/95 backdrop-blur-sm
-           rounded-xl border border-md3-outline shadow-lg
-           py-1 min-w-[140px]"
-    style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
-    role="menu"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    role="presentation"
+    onclick={() => (detailTitle = null)}
   >
-    {#if contextMenu.kind === 'document'}
-      <button
-        class="w-full text-left px-3 py-2 text-sm text-md3-on-surface
-               hover:bg-md3-primary-container/30 transition-colors
-               flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        role="menuitem"
-        onclick={contextDownload}
-      >
-        <Icon name="download" size="16px" />
-        {$t('common.download')}
-      </button>
-    {/if}
-    <button
-      class="w-full text-left px-3 py-2 text-sm text-md3-error
-             hover:bg-md3-error-container/30 transition-colors
-             flex items-center gap-2"
-      style="font-family: var(--font-md3-sans);"
-      role="menuitem"
-      onclick={contextDelete}
+    <div
+      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-lg shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') detailTitle = null;
+      }}
     >
-      <Icon name="delete" size="16px" />
-      {$t('common.delete')}
-    </button>
+      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
+        <h3 class="text-base font-semibold text-md3-on-surface">{detailTitle}</h3>
+        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (detailTitle = null)}>
+          <Icon name="close" size="20px" />
+        </button>
+      </div>
+      <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
+        {#each detailRows as row}
+          <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
+            <span class="text-md3-on-surface-variant">{row.label}</span>
+            <span class="text-md3-on-surface whitespace-pre-wrap break-words">{row.value || '—'}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
   </div>
 {/if}
 
-<!-- Dismiss context menu on any click outside -->
-<svelte:window onclick={handleGlobalClick} />
+{#if accessEntriesDialog}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    role="presentation"
+    onclick={() => (accessEntriesDialog = null)}
+  >
+    <div
+      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-5xl shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') accessEntriesDialog = null;
+      }}
+    >
+      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
+        <h3 class="text-base font-semibold text-md3-on-surface">{accessEntriesDialog.title}</h3>
+        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (accessEntriesDialog = null)}>
+          <Icon name="close" size="20px" />
+        </button>
+      </div>
+      <div class="p-5 overflow-auto max-h-[70vh]">
+        {#if accessEntriesDialog.entries.length === 0}
+          <p class="text-sm text-md3-on-surface-variant text-center py-8">
+            {$t('files.noAccessEntries')}
+          </p>
+        {:else}
+          <table class="min-w-[860px] w-full text-left text-sm">
+            <thead class="text-xs uppercase text-md3-on-surface-variant">
+              <tr>
+                <th class="px-3 py-2">{$t('files.id')}</th>
+                <th class="px-3 py-2">{$t('files.entity')}</th>
+                <th class="px-3 py-2">{$t('files.target')}</th>
+                <th class="px-3 py-2">{$t('files.accessType')}</th>
+                <th class="px-3 py-2">{$t('files.startTime')}</th>
+                <th class="px-3 py-2">{$t('files.endTime')}</th>
+                <th class="px-3 py-2 text-right">{$t('files.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each accessEntriesDialog.entries as entry (entry.id)}
+                <tr class="border-t border-md3-outline/50">
+                  <td class="px-3 py-2 text-xs text-md3-on-surface-variant">{entry.id}</td>
+                  <td class="px-3 py-2">{entry.entity_type}: {entry.entity_identifier}</td>
+                  <td class="px-3 py-2">{entry.target_type}: {entry.target_identifier}</td>
+                  <td class="px-3 py-2">{entry.access_type}</td>
+                  <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.start_time)}</td>
+                  <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.end_time)}</td>
+                  <td class="px-3 py-2 text-right">
+                    <button
+                      class="px-2.5 py-1 text-xs rounded-full bg-md3-error-container
+                             text-md3-on-error-container hover:brightness-110"
+                      onclick={() => handleRevokeAccess(entry.id)}
+                    >
+                      {$t('files.revoke')}
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if revisionsDialog}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    role="presentation"
+    onclick={() => (revisionsDialog = null)}
+  >
+    <div
+      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-2xl shadow-2xl"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') revisionsDialog = null;
+      }}
+    >
+      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
+        <h3 class="text-base font-semibold text-md3-on-surface">{revisionsDialog.title}</h3>
+        <button class="p-1 rounded-full hover:bg-md3-surface-container-high" onclick={() => (revisionsDialog = null)}>
+          <Icon name="close" size="20px" />
+        </button>
+      </div>
+      <div class="p-5 space-y-2 max-h-[70vh] overflow-auto">
+        {#if revisionsDialog.entries.length === 0}
+          <p class="text-sm text-md3-on-surface-variant text-center py-8">
+            {$t('files.noRevisions')}
+          </p>
+        {:else}
+          {#each revisionsDialog.entries as revision (revision.id)}
+            <div class="border border-md3-outline rounded-xl p-3">
+              <p class="text-sm font-medium text-md3-on-surface">
+                {$t('files.revision')} #{revision.id}{revision.is_current ? ` (${$t('files.currentRevision')})` : ''}
+              </p>
+              <p class="text-xs text-md3-on-surface-variant">
+                {$t('files.parentRevision')}: {revision.parent_id ?? '—'} · {$t('files.created')}: {formatDate(revision.created_time ?? null)}
+              </p>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}

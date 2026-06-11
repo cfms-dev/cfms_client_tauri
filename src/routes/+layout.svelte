@@ -144,7 +144,13 @@
     }, 30_000);
     return () => clearInterval(interval);
   });
+
+  function preventDefaultContextMenu(event: MouseEvent) {
+    event.preventDefault();
+  }
 </script>
+
+<svelte:window oncontextmenu={preventDefaultContextMenu} />
 
 <!--
   Root layout wrapper — the gradient background is set on <body> via app.css.

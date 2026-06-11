@@ -79,6 +79,49 @@ export interface ServerDocumentEntry {
   last_modified: number | null;
 }
 
+export interface ServerDocumentInfo {
+  document_id?: string;
+  title?: string;
+  size?: number;
+  created_time?: number | null;
+  last_modified?: number | null;
+  parent_id?: string | null;
+  access_rules?: unknown;
+  info_code?: number | null;
+}
+
+export interface ServerDirectoryInfo {
+  directory_id?: string;
+  name?: string;
+  count_of_child?: number;
+  created_time?: number | null;
+  parent_id?: string | null;
+  access_rules?: unknown;
+  info_code?: number | null;
+}
+
+export type ServerObjectType = "document" | "directory";
+export type AccessEntityType = "user" | "group";
+export type AccessType = "read" | "write" | "move" | "manage";
+
+export interface AccessEntry {
+  id: number;
+  entity_type: AccessEntityType | string;
+  entity_identifier: string;
+  target_type: ServerObjectType | string;
+  target_identifier: string;
+  access_type: AccessType | string;
+  start_time: number | null;
+  end_time: number | null;
+}
+
+export interface RevisionEntry {
+  id: number;
+  parent_id?: number | null;
+  created_time?: number | null;
+  is_current?: boolean;
+}
+
 /** Response data for the list_directory server action. */
 export interface ListDirectoryResponse {
   folders: ServerDirectoryEntry[];
@@ -460,7 +503,11 @@ export async function createDirectory(
   name: string,
   existsOk?: boolean,
 ): Promise<string> {
-  return invoke("create_directory", { parentId, name, existsOk: existsOk ?? false });
+  return invoke("create_directory", {
+    parentId,
+    name,
+    existsOk: existsOk ?? false,
+  });
 }
 
 /** Delete a directory on the CFMS server. */
@@ -471,6 +518,115 @@ export async function deleteDirectory(folderId: string): Promise<boolean> {
 /** Delete a document on the CFMS server. */
 export async function deleteDocument(documentId: string): Promise<boolean> {
   return invoke("delete_document", { documentId });
+}
+
+export async function renameDirectory(
+  folderId: string,
+  newName: string,
+): Promise<boolean> {
+  return invoke("rename_directory", { folderId, newName });
+}
+
+export async function renameDocument(
+  documentId: string,
+  newTitle: string,
+): Promise<boolean> {
+  return invoke("rename_document", { documentId, newTitle });
+}
+
+export async function moveDirectory(
+  folderId: string,
+  targetFolderId?: string | null,
+): Promise<boolean> {
+  return invoke("move_directory", {
+    folderId,
+    targetFolderId: targetFolderId ?? null,
+  });
+}
+
+export async function moveDocument(
+  documentId: string,
+  targetFolderId?: string | null,
+): Promise<boolean> {
+  return invoke("move_document", {
+    documentId,
+    targetFolderId: targetFolderId ?? null,
+  });
+}
+
+export async function getDirectoryInfo(
+  directoryId: string,
+): Promise<ServerDirectoryInfo> {
+  return invoke("get_directory_info", { directoryId });
+}
+
+export async function getDocumentInfo(
+  documentId: string,
+): Promise<ServerDocumentInfo> {
+  return invoke("get_document_info", { documentId });
+}
+
+export async function viewAccessEntries(
+  objectType: ServerObjectType,
+  objectIdentifier: string,
+): Promise<AccessEntry[]> {
+  const data = await invoke<{ result?: AccessEntry[] }>("view_access_entries", {
+    objectType,
+    objectIdentifier,
+  });
+  return data.result ?? [];
+}
+
+export async function revokeAccess(entryId: number): Promise<boolean> {
+  return invoke("revoke_access", { entryId });
+}
+
+export async function grantAccess(
+  entityIdentifier: string,
+  entityType: AccessEntityType,
+  targetType: ServerObjectType,
+  targetIdentifier: string,
+  accessTypes: AccessType[],
+  startTime: number,
+  endTime: number,
+): Promise<boolean> {
+  return invoke("grant_access", {
+    entityIdentifier,
+    entityType,
+    targetType,
+    targetIdentifier,
+    accessTypes,
+    startTime,
+    endTime,
+  });
+}
+
+export async function getAccessRules(
+  objectType: ServerObjectType,
+  objectId: string,
+): Promise<{ rules: unknown; inherit: boolean }> {
+  return invoke("get_access_rules", { objectType, objectId });
+}
+
+export async function setAccessRules(
+  objectType: ServerObjectType,
+  objectId: string,
+  accessRules: unknown,
+  inheritParent: boolean,
+): Promise<boolean> {
+  return invoke("set_access_rules", {
+    objectType,
+    objectId,
+    accessRules,
+    inheritParent,
+  });
+}
+
+export async function listRevisions(documentId: string): Promise<RevisionEntry[]> {
+  const data = await invoke<{ revisions?: RevisionEntry[] }>("list_revisions", {
+    documentId,
+  });
+  return data.revisions ?? [];
 }
 
 // ---------------------------------------------------------------------------

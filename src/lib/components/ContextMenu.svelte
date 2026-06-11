@@ -3,8 +3,11 @@
   import Icon from '$lib/components/Icon.svelte';
   import type {
     ContextMenuActionItem,
-    ContextMenuDividerItem,
     ContextMenuItem,
+  } from '$lib/components/context-menu';
+  import {
+    filterContextMenuItems,
+    isContextMenuDivider,
   } from '$lib/components/context-menu';
 
   interface Props {
@@ -13,36 +16,16 @@
     y: number;
     items: ContextMenuItem[];
     onClose: () => void;
+    userPermissions?: readonly string[];
   }
 
-  let { open, x, y, items, onClose }: Props = $props();
+  let { open, x, y, items, onClose, userPermissions = [] }: Props = $props();
 
   let menuEl = $state<HTMLDivElement | null>(null);
   let menuX = $state(0);
   let menuY = $state(0);
 
-  const visibleItems = $derived.by(() => {
-    const filtered: ContextMenuItem[] = [];
-
-    for (const item of items) {
-      if (item.hidden) continue;
-
-      if (isDivider(item)) {
-        if (filtered.length > 0 && !isDivider(filtered[filtered.length - 1])) {
-          filtered.push(item);
-        }
-        continue;
-      }
-
-      filtered.push(item);
-    }
-
-    if (filtered.length > 0 && isDivider(filtered[filtered.length - 1])) {
-      filtered.pop();
-    }
-
-    return filtered;
-  });
+  const visibleItems = $derived(filterContextMenuItems(items, userPermissions));
 
   $effect(() => {
     if (!open) return;
@@ -63,10 +46,6 @@
       menuEl.focus();
     });
   });
-
-  function isDivider(item: ContextMenuItem): item is ContextMenuDividerItem {
-    return 'type' in item && item.type === 'divider';
-  }
 
   async function handleItemSelect(item: ContextMenuActionItem) {
     if (item.disabled) return;
@@ -103,8 +82,8 @@
     tabindex="-1"
     oncontextmenu={(event) => event.preventDefault()}
   >
-    {#each visibleItems as item, index (`${isDivider(item) ? 'divider' : item.id}:${index}`)}
-      {#if isDivider(item)}
+    {#each visibleItems as item, index (`${isContextMenuDivider(item) ? 'divider' : item.id}:${index}`)}
+      {#if isContextMenuDivider(item)}
         <div class="my-1 border-t border-md3-outline/60" role="separator"></div>
       {:else}
         <button
