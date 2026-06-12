@@ -14,6 +14,7 @@ use cfms_transport::Connection;
 use serde::Deserialize;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use tempfile::TempDir;
 
 use crate::chunks::ChunkStore;
 use crate::decrypt::decrypt_chunk;
@@ -129,6 +130,7 @@ pub async fn receive(
 
     // --- Handle empty files ---
     if file_size == 0 || total_chunks == 0 {
+        ensure_destination_parent(dest)?;
         tokio::fs::write(dest, [])
             .await
             .map_err(cfms_core::Error::Io)?;
@@ -143,7 +145,7 @@ pub async fn receive(
     }
 
     // --- Step 3: receive chunks into SQLite ---
-    let temp_dir = tempfile::tempdir()?;
+    let temp_dir = create_download_temp_dir(dest)?;
     let db_path = temp_dir.path().join("chunks.db");
     let store = ChunkStore::open(&db_path)?;
 
@@ -323,4 +325,23 @@ pub async fn receive(
     })?;
 
     Ok(file_size)
+}
+
+fn create_download_temp_dir(dest: &Path) -> Result<TempDir> {
+    let Some(parent) = dest.parent() else {
+        return tempfile::tempdir().map_err(cfms_core::Error::Io);
+    };
+
+    ensure_destination_parent(dest)?;
+    tempfile::Builder::new()
+        .prefix(".cfms-download-")
+        .tempdir_in(parent)
+        .map_err(cfms_core::Error::Io)
+}
+
+fn ensure_destination_parent(dest: &Path) -> Result<()> {
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    Ok(())
 }
