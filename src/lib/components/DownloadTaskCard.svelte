@@ -7,8 +7,7 @@
   // Reference: TaskTile in reference/src/include/ui/controls/components/explorer/tile.py
 
   import type { DownloadTaskDto, DownloadTaskStatus } from "../api";
-  import { pauseDownload, resumeDownload, cancelDownload, deleteDownload } from "../api";
-  import { openPath } from "@tauri-apps/plugin-opener";
+  import { pauseDownload, resumeDownload, cancelDownload, deleteDownload, openDownloadedFile } from "../api";
   import { _ as t } from 'svelte-i18n';
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
@@ -54,7 +53,7 @@
 
   async function handleOpen() {
     try {
-      await openPath(task.file_path);
+      await openDownloadedFile(task.file_path);
     } catch (e) {
       console.error('Failed to open file:', e);
     }

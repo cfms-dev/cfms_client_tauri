@@ -559,6 +559,11 @@ export async function deleteDownload(taskId: string): Promise<boolean> {
   return invoke("delete_download", { taskId });
 }
 
+/** Open a completed download with the platform's default application. */
+export async function openDownloadedFile(path: string): Promise<void> {
+  return invoke("open_downloaded_file", { path });
+}
+
 /** Create a new directory on the CFMS server.
  *
  * Mirrors `create_directory` from the Python reference.

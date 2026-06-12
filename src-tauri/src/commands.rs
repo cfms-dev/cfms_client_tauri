@@ -26,7 +26,7 @@ use tauri::{Emitter, Manager, ipc::Channel};
 use tauri_plugin_updater::UpdaterExt;
 
 #[cfg(target_os = "android")]
-use crate::AndroidApkInstaller;
+use crate::{AndroidApkInstaller, AndroidFileOpener};
 use crate::{AppHandleState, UploadInterruption};
 
 const UPDATE_RELEASES_API: &str =
@@ -405,6 +405,43 @@ pub async fn install_app_update<R: tauri::Runtime>(
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
     install_android_app_update(app, state, on_event).await
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn open_downloaded_file<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+) -> Result<(), String> {
+    ensure_regular_file_exists(&path)?;
+
+    let opener = app.state::<AndroidFileOpener<R>>();
+    opener
+        .handle
+        .run_mobile_plugin::<()>("openFile", serde_json::json!({ "path": path }))
+        .map_err(|e| format!("Failed to open downloaded file: {e}"))
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn open_downloaded_file<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+) -> Result<(), String> {
+    ensure_regular_file_exists(&path)?;
+
+    tauri_plugin_opener::OpenerExt::opener(&app)
+        .open_path(path, None::<&str>)
+        .map_err(|e| format!("Failed to open downloaded file: {e}"))
+}
+
+fn ensure_regular_file_exists(path: &str) -> Result<(), String> {
+    let metadata =
+        std::fs::metadata(path).map_err(|e| format!("Downloaded file was not found: {e}"))?;
+    if !metadata.is_file() {
+        return Err("Downloaded path is not a file.".to_string());
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "android"))]

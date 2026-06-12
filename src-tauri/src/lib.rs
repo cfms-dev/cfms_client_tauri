@@ -131,6 +131,11 @@ pub struct AndroidApkInstaller<R: Runtime> {
     pub handle: tauri::plugin::PluginHandle<R>,
 }
 
+#[cfg(target_os = "android")]
+pub struct AndroidFileOpener<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -156,6 +161,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(updater_plugin())
         .plugin(apk_installer_plugin())
+        .plugin(file_opener_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -330,6 +336,7 @@ pub fn run() {
             commands::cancel_2fa_setup,
             commands::disable_2fa,
             commands::delete_download,
+            commands::open_downloaded_file,
             commands::create_directory,
             commands::delete_directory,
             commands::delete_document,
@@ -434,4 +441,22 @@ fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
 #[cfg(not(target_os = "android"))]
 fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("apk-installer-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("file-opener")
+        .setup(|app, api| {
+            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "FileOpenerPlugin")?;
+            app.manage(AndroidFileOpener { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("file-opener-noop").build()
 }
