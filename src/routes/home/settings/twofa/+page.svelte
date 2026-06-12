@@ -14,6 +14,7 @@
   } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   let authReady = $state(false);
   let twofa = $state<TwoFactorStatus | null>(null);
@@ -164,20 +165,9 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/settings')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar title={$t('settings.twofa.title')} backLabel={$t('common.back')} onBack={() => goto('/home/settings')} maxWidth="max-w-lg" />
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.twofa.title')}
-  </h1>
+<div class="p-6 space-y-4 max-w-lg mx-auto">
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">

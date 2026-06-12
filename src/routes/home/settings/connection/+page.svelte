@@ -8,8 +8,10 @@
     type ConnectionSettings,
   } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
+  import MdTextField from '$lib/components/MdTextField.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   const defaultConfig: ConnectionSettings = {
     enable_proxy: false,
@@ -77,20 +79,13 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/settings')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar title={$t('settings.connection.title')} backLabel={$t('common.back')} onBack={() => goto('/home/settings')} maxWidth="max-w-lg">
+  {#snippet actions()}
+    <IconButton icon="done" label={$t('settings.connection.save')} onclick={saveConnection} disabled={loading || saving} />
+  {/snippet}
+</TopAppBar>
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.connection.title')}
-  </h1>
+<div class="p-6 space-y-4 max-w-lg mx-auto">
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-5">
@@ -118,17 +113,15 @@
       </div>
 
       {#if showCustomProxy}
-        <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          {$t('settings.connection.customProxy')}
-          <input
-            class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                   px-3 py-2 text-md3-on-surface"
-            type="text"
-            bind:value={config.custom_proxy}
-            placeholder={$t('settings.connection.customProxyHint')}
-            disabled={loading || saving}
-          />
-        </label>
+        <MdTextField
+          id="customProxy"
+          label={$t('settings.connection.customProxy')}
+          bind:value={config.custom_proxy}
+          placeholder={$t('settings.connection.customProxyHint')}
+          disabled={loading || saving}
+          autocomplete="off"
+          spellcheck="false"
+        />
       {/if}
 
       <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -151,41 +144,26 @@
         </p>
       </div>
 
-      <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('settings.connection.certPath')}
-        <input
-          class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                 px-3 py-2 text-md3-on-surface"
-          type="text"
-          bind:value={config.client_cert_path}
-          disabled={loading || saving}
-        />
-      </label>
+      <MdTextField
+        id="clientCertPath"
+        label={$t('settings.connection.certPath')}
+        bind:value={config.client_cert_path}
+        disabled={loading || saving}
+        autocomplete="off"
+        spellcheck="false"
+      />
 
-      <label class="block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('settings.connection.keyPath')}
-        <input
-          class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                 px-3 py-2 text-md3-on-surface"
-          type="text"
-          bind:value={config.client_key_path}
-          disabled={loading || saving}
-        />
-      </label>
+      <MdTextField
+        id="clientKeyPath"
+        label={$t('settings.connection.keyPath')}
+        bind:value={config.client_key_path}
+        disabled={loading || saving}
+        autocomplete="off"
+        spellcheck="false"
+      />
     </section>
 
     <div class="flex flex-wrap gap-2">
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-primary-container text-md3-on-primary-container
-               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        onclick={saveConnection}
-        disabled={loading || saving}
-      >
-        <Icon name="done" size="18px" />
-        {saving ? $t('common.saving') : $t('settings.connection.save')}
-      </button>
       <button
         class="px-4 py-2 rounded-full font-medium text-sm
                bg-md3-surface-container-high text-md3-on-surface

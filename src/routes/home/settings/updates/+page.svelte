@@ -6,6 +6,8 @@
   import type { UpdateChannel } from '$lib/updater';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   const channels: UpdateChannel[] = ['stable', 'beta', 'alpha'];
 
@@ -56,16 +58,19 @@
   }
 </script>
 
-<div class="channel-page">
-  <button class="back-button" onclick={() => goto('/home/settings')}>
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar
+  title={$t('settings.updates.title')}
+  subtitle={$t('settings.updates.description')}
+  backLabel={$t('common.back')}
+  onBack={() => goto('/home/settings')}
+  maxWidth="max-w-3xl"
+>
+  {#snippet actions()}
+    <IconButton icon="done" label={$t('settings.updates.save')} onclick={saveChannel} disabled={loading || saving} />
+  {/snippet}
+</TopAppBar>
 
-  <header class="page-header">
-    <h1>{$t('settings.updates.title')}</h1>
-    <p>{$t('settings.updates.description')}</p>
-  </header>
+<div class="channel-page">
 
   <section class="channel-section">
     <div class="section-heading">
@@ -95,10 +100,6 @@
     </div>
 
     <div class="actions">
-      <button class="primary-action" onclick={saveChannel} disabled={loading || saving}>
-        <Icon name="done" size="18px" />
-        {saving ? $t('common.saving') : $t('settings.updates.save')}
-      </button>
       <button class="text-action" onclick={() => goto('/home/about')}>
         <Icon name="update" size="18px" />
         {$t('settings.updates.checkInAbout')}
@@ -116,36 +117,12 @@
     gap: 1.5rem;
   }
 
-  .back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: fit-content;
-    color: var(--color-md3-on-surface-variant);
-    font: 0.875rem var(--font-md3-sans);
-    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .back-button:hover {
-    color: var(--color-md3-on-surface);
-  }
-
-  .page-header {
-    display: grid;
-    gap: 0.35rem;
-  }
-
-  h1,
   h2 {
     margin: 0;
     color: var(--color-md3-on-surface);
     font-family: var(--font-md3-sans);
     font-weight: 800;
     letter-spacing: 0;
-  }
-
-  h1 {
-    font-size: clamp(1.55rem, 4vw, 2.15rem);
   }
 
   h2 {
@@ -230,7 +207,6 @@
     padding-top: 0.25rem;
   }
 
-  .primary-action,
   .text-action {
     display: inline-flex;
     align-items: center;
@@ -246,11 +222,6 @@
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
       color var(--motion-duration-short4) var(--motion-easing-standard),
       opacity var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .primary-action {
-    background: var(--color-md3-primary-container);
-    color: var(--color-md3-on-primary-container);
   }
 
   .text-action {

@@ -9,6 +9,7 @@
   import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
   import type { IconName } from '$lib/icons';
 
   interface SettingsEntry {
@@ -41,22 +42,9 @@
   }
 </script>
 
+<TopAppBar title={$t('settings.title')} backLabel={$t('common.back')} onBack={goBack} maxWidth="max-w-lg" />
+
 <div class="p-6 space-y-4 max-w-lg mx-auto">
-  <!-- Back button -->
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={goBack}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.title')}
-  </h1>
-
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline overflow-hidden">
     {#each visibleEntries as entry, i}

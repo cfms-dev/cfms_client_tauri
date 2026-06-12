@@ -8,8 +8,9 @@
     type UserPreference,
   } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
@@ -70,20 +71,13 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/settings')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar title={$t('settings.storage.title')} backLabel={$t('common.back')} onBack={() => goto('/home/settings')} maxWidth="max-w-lg">
+  {#snippet actions()}
+    <IconButton icon="done" label={$t('settings.storage.save')} onclick={saveStoragePreference} disabled={loading || saving || !preferences} />
+  {/snippet}
+</TopAppBar>
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.storage.title')}
-  </h1>
+<div class="p-6 space-y-4 max-w-lg mx-auto">
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
@@ -115,18 +109,5 @@
       />
     </label>
 
-    <div class="flex flex-wrap gap-2">
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-primary-container text-md3-on-primary-container
-               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        onclick={saveStoragePreference}
-        disabled={loading || saving || !preferences}
-      >
-        <Icon name="done" size="18px" />
-        {saving ? $t('common.saving') : $t('settings.storage.save')}
-      </button>
-    </div>
   </div>
 </div>

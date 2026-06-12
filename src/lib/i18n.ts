@@ -58,6 +58,7 @@ const en = {
     mainNavigation: 'Main navigation',
   },
   connect: {
+    title: 'Connect to Server',
     tagline: 'Connect to a CFMS server to get started',
     serverAddress: 'Server Address',
     serverAddressRequired: 'Server address is required.',
@@ -713,6 +714,7 @@ const zh_CN = {
     mainNavigation: '主导航',
   },
   connect: {
+    title: '连接到服务器',
     tagline: '连接到 CFMS 服务器以开始使用',
     serverAddress: '服务器地址',
     serverAddressRequired: '请输入服务器地址。',

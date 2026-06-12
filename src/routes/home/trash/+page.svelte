@@ -14,7 +14,9 @@
   import { dialogStore } from '$lib/dialogs.svelte';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   type TrashKind = 'directory' | 'document';
 
@@ -150,37 +152,18 @@
   }
 </script>
 
+<TopAppBar
+  title={$t('trash.title')}
+  subtitle={$t('trash.description')}
+  backLabel={$t('common.back')}
+  onBack={() => goto('/home/more')}
+>
+  {#snippet actions()}
+    <IconButton icon="refresh" label={$t('common.refresh')} onclick={() => loadItems(currentFolderId)} disabled={loading} />
+  {/snippet}
+</TopAppBar>
+
 <div class="p-6 space-y-4">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/more')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('trash.title')}
-      </h1>
-      <p class="text-sm text-md3-on-surface-variant mt-1">
-        {$t('trash.description')}
-      </p>
-    </div>
-
-    <button
-      class="p-2 rounded-full text-md3-on-surface-variant
-             hover:bg-md3-surface-container-high transition-colors disabled:opacity-50"
-      title={$t('common.refresh')}
-      onclick={() => loadItems(currentFolderId)}
-      disabled={loading}
-    >
-      <Icon name="refresh" size="20px" />
-    </button>
-  </div>
 
   <form
     class="flex flex-wrap items-end gap-2 bg-md3-surface-container/70 backdrop-blur-sm

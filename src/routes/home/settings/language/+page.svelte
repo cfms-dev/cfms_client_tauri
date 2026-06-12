@@ -6,6 +6,8 @@
   import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/i18n';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   const languages: Array<{ value: AppLocale; labelKey: string }> = [
     { value: 'zh_CN', labelKey: 'settings.language.chinese' },
@@ -58,20 +60,13 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/settings')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar title={$t('settings.language.title')} backLabel={$t('common.back')} onBack={() => goto('/home/settings')} maxWidth="max-w-lg">
+  {#snippet actions()}
+    <IconButton icon="done" label={$t('settings.language.save')} onclick={saveLanguage} disabled={loading || saving} />
+  {/snippet}
+</TopAppBar>
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.language.title')}
-  </h1>
+<div class="p-6 space-y-4 max-w-lg mx-auto">
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
@@ -110,17 +105,5 @@
       {$t('settings.language.restart')}
     </p>
 
-    <button
-      class="px-4 py-2 rounded-full font-medium text-sm
-             bg-md3-primary-container text-md3-on-primary-container
-             hover:brightness-110 disabled:opacity-50 transition-all
-             flex items-center gap-2"
-      style="font-family: var(--font-md3-sans);"
-      onclick={saveLanguage}
-      disabled={loading || saving}
-    >
-      <Icon name="done" size="18px" />
-      {saving ? $t('common.saving') : $t('settings.language.save')}
-    </button>
   </div>
 </div>

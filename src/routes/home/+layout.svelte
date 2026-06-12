@@ -12,7 +12,7 @@
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
   import { _ as t } from 'svelte-i18n';
-  import { authStore, serverStateStore, downloadStore, uploadStore, chromeStore } from '$lib/stores.svelte';
+  import { downloadStore, uploadStore, chromeStore } from '$lib/stores.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
@@ -47,28 +47,6 @@
 </script>
 
 <div class="relative flex h-full min-h-0 flex-col">
-  <!-- Top bar -->
-  <header class="flex min-h-12 items-center px-4 bg-md3-surface/80 backdrop-blur-sm
-                  border-b border-md3-outline shrink-0 z-10">
-    <span class="text-sm font-semibold text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);">
-      CFMS
-    </span>
-
-    <div class="ml-auto flex items-center gap-3">
-      {#if authStore.isLoggedIn}
-        <span class="text-xs text-md3-on-surface-variant">
-          {authStore.nickname ?? authStore.username}
-        </span>
-        {#if serverStateStore.connected}
-          <span class="w-2 h-2 bg-md3-success rounded-full" title={$t('common.connected')}></span>
-        {:else}
-          <span class="w-2 h-2 bg-md3-error rounded-full" title={$t('common.disconnected')}></span>
-        {/if}
-      {/if}
-    </div>
-  </header>
-
   <!--
     Scroll container.  `min-h-0` lets this flex child shrink so it actually
     scrolls instead of growing the layout.  The keyed wrapper plays a smooth

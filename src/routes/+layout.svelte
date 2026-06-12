@@ -29,6 +29,7 @@
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
+  import DebugLatencyOverlay from "$lib/components/DebugLatencyOverlay.svelte";
 
   let { children }: { children: Snippet } = $props();
 
@@ -182,4 +183,5 @@
   </div>
   <DialogHost />
   <SnackBarHost />
+  <DebugLatencyOverlay />
 </div>

@@ -6,7 +6,22 @@
 //
 // TypeScript types mirror the Rust structs in `cfms_core::types`.
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { recordRequestTiming } from "$lib/debug-latency.svelte";
+
+type InvokeArgs = Record<string, unknown> | undefined;
+
+async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await tauriInvoke<T>(command, args);
+    recordRequestTiming(command, startedAt, true);
+    return result;
+  } catch (err) {
+    recordRequestTiming(command, startedAt, false);
+    throw err;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Enums (matching Rust repr)

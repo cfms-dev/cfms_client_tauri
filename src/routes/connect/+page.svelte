@@ -21,6 +21,8 @@
     serverStateStore,
   } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import IconButton from "$lib/components/IconButton.svelte";
+  import MdTextField from "$lib/components/MdTextField.svelte";
   import MdSwitch from "$lib/components/MdSwitch.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
 
@@ -126,100 +128,53 @@
   }
 </script>
 
-<div class="relative flex min-h-full items-center justify-center p-6">
-  <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
-    <button
-      type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-      title={$t('settings.title')}
-      aria-label={$t('settings.title')}
-      onclick={goToSettings}
+<div class="relative grid min-h-full grid-rows-[auto_1fr] overflow-hidden">
+  <header class="relative z-20 flex min-h-20 items-center justify-center px-4 pt-3">
+    <h1
+      class="text-center text-2xl font-semibold text-md3-on-surface sm:text-3xl"
+      style="font-family: var(--font-md3-serif);"
     >
-      <Icon name="settings" size="18px" />
-    </button>
-    <button
-      type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-      title={$t('more.about')}
-      aria-label={$t('more.about')}
-      onclick={goToAbout}
-    >
-      <Icon name="info" size="18px" />
-    </button>
-  </div>
+      {$t('connect.title')}
+    </h1>
+    <div class="absolute right-4 top-4 flex items-center gap-1">
+      <IconButton icon="settings" label={$t('settings.title')} onclick={goToSettings} />
+      <IconButton icon="info" label={$t('more.about')} onclick={goToAbout} />
+    </div>
+  </header>
 
-  <div class="w-full animate-fade-scale-in" style="max-width: 420px;">
-      <!-- App title -->
-      <h1
-        class="mb-2 text-center text-2xl font-bold text-md3-on-surface"
-        style="font-family: var(--font-md3-serif);"
-      >
-        CFMS Client
-      </h1>
-      <p class="mb-8 text-center text-xs text-md3-on-surface-variant">
-        {$t('connect.tagline')}
-      </p>
-
-      <!-- Connect form — MD3 card -->
+  <div class="flex min-h-0 items-center justify-center px-6 pb-10 pt-4">
+  <div class="w-full animate-fade-scale-in" style="max-width: 570px;">
       <form
-        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-             border border-md3-outline p-6 space-y-4"
+        class="connect-card space-y-6"
         onsubmit={(e) => {
           e.preventDefault();
           handleConnect();
         }}
       >
-      <!-- Server URL — MD3 outlined text field -->
-      <div>
-        <label
-          for="serverUrl"
-          class="block text-sm font-medium mb-1.5 text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('connect.serverAddress')}
-        </label>
-        <div
-          class="flex items-center rounded-xl border {serverAddressError ? 'border-md3-error' : 'border-md3-outline'}
-                    bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
-                    focus-within:border-transparent transition-colors overflow-hidden"
-        >
-          <span
-            class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
-                       select-none font-mono shrink-0"
-            style="font-family: var(--font-md3-sans);"
-          >
-            wss://
-          </span>
-          <input
-            id="serverUrl"
-            type="text"
-            class="flex-1 pl-1 pr-3.5 py-2.5 bg-transparent
-                   text-md3-on-surface text-sm
-                   placeholder:text-md3-on-surface-variant
-                   focus:outline-none transition-colors"
-            placeholder="localhost:5104"
-            bind:value={hostPort}
-            disabled={busy}
-          />
-        </div>
-        {#if serverAddressError}
-          <p class="mt-1 ml-1 text-xs text-md3-error">{serverAddressError}</p>
-        {/if}
-      </div>
+      <MdTextField
+        id="serverUrl"
+        label={$t('connect.serverAddress')}
+        leadingText="wss://"
+        placeholder="localhost:5104"
+        bind:value={hostPort}
+        disabled={busy}
+        error={serverAddressError}
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+      />
 
-      <!-- TLS toggle -->
-      <div class="flex items-center gap-2.5 text-sm">
+      <div class="flex items-center gap-3 text-base" style="font-family: var(--font-md3-serif);">
         <MdSwitch
           bind:checked={disableSsl}
           disabled={busy}
           ariaLabel={$t('connect.disableSsl')}
         />
-        <span class="text-md3-on-surface-variant"
+        <span class="text-md3-on-surface"
           >{$t('connect.disableSsl')}</span
         >
       </div>
 
-      <!-- Protocol version mismatch -->
       {#if protocolError}
         <div
           class="bg-md3-tertiary-container/60 border border-md3-tertiary/30
@@ -257,28 +212,58 @@
         </div>
       {/if}
 
-      <!-- Connect button — MD3 filled primary -->
       <button
         type="submit"
-        class="w-full py-2.5 px-4 rounded-full font-medium
-               bg-md3-primary text-md3-on-primary
-               hover:brightness-110
-               disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-        style="font-family: var(--font-md3-sans);"
+        class="mx-auto flex min-w-28 items-center justify-center gap-2 rounded-full
+               bg-md3-primary px-8 py-2.5 font-medium text-md3-on-primary
+               transition-all hover:brightness-110 active:scale-95
+               disabled:opacity-50"
+        style="font-family: var(--font-md3-serif);"
         disabled={busy}
       >
         {#if busy}
           <ProgressRing size={18} strokeWidth={2.5} label={$t('common.connecting')} />
           {$t('common.connecting')}
         {:else}
-          <Icon name="connect" size="20px" />
           {$t('connect.connect')}
         {/if}
       </button>
       </form>
 
-      <p class="mt-4 text-center text-xs text-md3-on-surface-variant">
+      <p class="mt-5 text-center text-sm text-md3-on-surface-variant" style="font-family: var(--font-md3-serif);">
         {$t('about.version')} {appVersion || '...'}
       </p>
   </div>
+  </div>
 </div>
+
+<style>
+  .connect-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-md3-outline) 78%, var(--color-md3-primary) 22%);
+    border-radius: 8px;
+    background:
+      linear-gradient(145deg, rgba(31, 41, 55, 0.92), rgba(30, 41, 59, 0.86));
+    box-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    padding: 1.85rem;
+    backdrop-filter: blur(20px);
+  }
+
+  .connect-card::before {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    content: '';
+    background:
+      linear-gradient(115deg, rgba(79, 70, 229, 0.16), transparent 42%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 32%);
+    opacity: 0.9;
+  }
+
+  .connect-card > :global(*) {
+    position: relative;
+  }
+</style>

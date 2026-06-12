@@ -30,7 +30,9 @@
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
@@ -601,34 +603,20 @@
   }
 </script>
 
-<div class="space-y-4 p-4 sm:p-6">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/more')}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      {$t('manage.title')}
-    </h1>
-
+<TopAppBar title={$t('manage.title')} backLabel={$t('common.back')} onBack={() => goto('/home/more')}>
+  {#snippet actions()}
     {#if isAdmin}
-      <button
-        class="p-2 rounded-full text-md3-on-surface-variant
-               hover:bg-md3-surface-container-high transition-colors disabled:opacity-50"
-        title={$t('common.refresh')}
+      <IconButton
+        icon="refresh"
+        label={$t('common.refresh')}
         onclick={loadActiveTab}
         disabled={loadingUsers || loadingGroups || loadingLogs || busyKey !== null}
-      >
-        <Icon name="refresh" size="20px" />
-      </button>
+      />
     {/if}
-  </div>
+  {/snippet}
+</TopAppBar>
+
+<div class="space-y-4 p-4 sm:p-6">
 
   {#if !isAdmin}
     <div class="bg-md3-error-container/60 border border-md3-error/30

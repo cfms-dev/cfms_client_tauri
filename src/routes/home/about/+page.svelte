@@ -6,7 +6,7 @@
   import { loadAppVersion } from '$lib/app-info';
   import { authStore } from '$lib/stores.svelte';
   import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import TopAppBar from '$lib/components/TopAppBar.svelte';
 
   let protoVer = $state(0);
   let appVersion = $state('');
@@ -25,16 +25,15 @@
   }
 </script>
 
-<div class="about-page">
-  <button class="back-button" onclick={goBack}>
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
+<TopAppBar
+  title={$t('about.title')}
+  subtitle={$t('about.productName')}
+  backLabel={$t('common.back')}
+  onBack={goBack}
+  maxWidth="max-w-3xl"
+/>
 
-  <header class="page-header">
-    <h1>{$t('about.title')}</h1>
-    <p>{$t('about.productName')}</p>
-  </header>
+<div class="about-page">
 
   <section class="product-meta" aria-label={$t('about.productName')}>
     <dl>
@@ -67,40 +66,6 @@
     padding: 2rem 0 3rem;
     display: grid;
     gap: 1.5rem;
-  }
-
-  .back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: fit-content;
-    color: var(--color-md3-on-surface-variant);
-    font: 0.875rem var(--font-md3-sans);
-    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .back-button:hover {
-    color: var(--color-md3-on-surface);
-  }
-
-  .page-header {
-    display: grid;
-    gap: 0.35rem;
-  }
-
-  h1 {
-    margin: 0;
-    color: var(--color-md3-on-surface);
-    font-family: var(--font-md3-sans);
-    font-size: clamp(1.6rem, 4vw, 2.25rem);
-    font-weight: 800;
-    letter-spacing: 0;
-  }
-
-  .page-header p {
-    margin: 0;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 0.95rem;
   }
 
   .product-meta {
