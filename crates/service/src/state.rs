@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{Mutex, RwLock, broadcast};
 use zeroize::Zeroizing;
 
 use cfms_core::ServiceEvent;
@@ -67,6 +67,8 @@ pub struct AppState {
     pub client_cert_path: RwLock<Option<PathBuf>>,
     /// Optional client private key path for mutual TLS.
     pub client_key_path: RwLock<Option<PathBuf>>,
+    /// Serialises reconnect attempts from background services and IPC commands.
+    pub reconnect_lock: Mutex<()>,
 
     // --- Application ---
     /// Whether the server has activated lockdown mode.
@@ -116,6 +118,7 @@ impl AppState {
             proxy_addr: RwLock::new(None),
             client_cert_path: RwLock::new(None),
             client_key_path: RwLock::new(None),
+            reconnect_lock: Mutex::new(()),
             app_lockdown: AtomicBool::new(false),
             pending_2fa: AtomicBool::new(false),
             event_tx,
@@ -138,7 +141,11 @@ impl AppState {
             .unwrap_or(false);
         AppStateSnapshot {
             authenticated: self.token.try_read().map(|t| t.is_some()).unwrap_or(false),
-            connected: self.conn.try_read().map(|c| c.is_some()).unwrap_or(false),
+            connected: self
+                .conn
+                .try_read()
+                .map(|c| c.as_ref().is_some_and(|conn| !conn.is_closed()))
+                .unwrap_or(false),
             lockdown: self.app_lockdown.load(std::sync::atomic::Ordering::Relaxed),
             token_near_expiry,
         }

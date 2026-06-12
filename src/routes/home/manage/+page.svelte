@@ -91,6 +91,7 @@
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
   let blocksDialog = $state<{ username: string; blocks: UserBlock[] } | null>(null);
   let activeDialog = $state<ManageDialogState>(null);
+  let expandedActionRow = $state<string | null>(null);
   let contextMenu = $state<{
     open: boolean;
     x: number;
@@ -150,9 +151,14 @@
 
   function loadActiveTab() {
     hideContextMenu();
+    expandedActionRow = null;
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
     else loadAuditLogPage(auditOffset);
+  }
+
+  function toggleActionRow(key: string) {
+    expandedActionRow = expandedActionRow === key ? null : key;
   }
 
   function hideContextMenu() {
@@ -595,7 +601,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4">
+<div class="space-y-4 p-4 sm:p-6">
   <button
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
@@ -679,6 +685,7 @@
           </p>
         {:else}
           {#each users as user (user.username)}
+            {@const actionKey = `user:${user.username}`}
             <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
                         border-b border-md3-outline/50 last:border-b-0 items-center
                         hover:bg-md3-primary-container/10 transition-colors"
@@ -699,7 +706,15 @@
                   })}
                 </p>
               </div>
-              <div class="flex flex-wrap justify-end gap-1">
+              <button
+                class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis sm:hidden"
+                title={$t('tasks.moreActions')}
+                aria-label={$t('tasks.moreActions')}
+                onclick={() => toggleActionRow(actionKey)}
+              >
+                <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
+              </button>
+              <div class="hidden flex-wrap justify-end gap-1 sm:flex">
                 {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
                 {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                 {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
@@ -708,6 +723,19 @@
                 {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
                 {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
               </div>
+              {#if expandedActionRow === actionKey}
+                <div class="col-span-3 -mx-1 mt-1 rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 sm:hidden animate-fade-scale-in">
+                  <div class="flex flex-wrap justify-end gap-1">
+                    {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
+                    {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
+                    {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                    {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                    {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
+                    {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
+                    {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
+                  </div>
+                </div>
+              {/if}
             </div>
           {/each}
         {/if}
@@ -741,6 +769,7 @@
           </p>
         {:else}
           {#each groups as group (group.name)}
+            {@const actionKey = `group:${group.name}`}
             <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
                         border-b border-md3-outline/50 last:border-b-0 items-center
                         hover:bg-md3-primary-container/10 transition-colors"
@@ -761,11 +790,28 @@
                   })}
                 </p>
               </div>
-              <div class="flex flex-wrap justify-end gap-1">
+              <button
+                class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis sm:hidden"
+                title={$t('tasks.moreActions')}
+                aria-label={$t('tasks.moreActions')}
+                onclick={() => toggleActionRow(actionKey)}
+              >
+                <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
+              </button>
+              <div class="hidden flex-wrap justify-end gap-1 sm:flex">
                 {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
                 {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
                 {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
               </div>
+              {#if expandedActionRow === actionKey}
+                <div class="col-span-3 -mx-1 mt-1 rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 sm:hidden animate-fade-scale-in">
+                  <div class="flex flex-wrap justify-end gap-1">
+                    {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
+                    {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
+                    {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
+                  </div>
+                </div>
+              {/if}
             </div>
           {/each}
         {/if}

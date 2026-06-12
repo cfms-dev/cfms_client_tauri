@@ -7,6 +7,7 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -110,6 +111,9 @@ pub struct Connection {
 
     /// Next client-initiated stream ID (odd numbers only).
     next_stream_id: Arc<tokio::sync::Mutex<u32>>,
+
+    /// Set once the receive loop exits or a send/close operation fails.
+    closed: Arc<AtomicBool>,
 }
 
 impl Connection {
@@ -167,16 +171,21 @@ impl Connection {
             new_streams: Arc::new(tokio::sync::Mutex::new(new_streams_rx)),
             new_streams_tx,
             next_stream_id: Arc::new(tokio::sync::Mutex::new(1)), // first odd ID
+            closed: Arc::new(AtomicBool::new(false)),
         };
 
         // Spawn the receive dispatch loop.
         let streams = Arc::clone(&conn.streams);
         let new_streams_tx = conn.new_streams_tx.clone();
         let ws_tx_for_close = Arc::clone(&conn.ws_tx);
+        let closed = Arc::clone(&conn.closed);
         tokio::spawn(async move {
-            if let Err(e) = Self::recv_loop(ws_rx, streams, new_streams_tx).await {
+            if let Err(e) =
+                Self::recv_loop(ws_rx, streams, new_streams_tx, Arc::clone(&closed)).await
+            {
                 error!("Receive loop exited with error: {e}");
             }
+            closed.store(true, Ordering::SeqCst);
             // On loop exit, close the WebSocket sender.
             let mut tx = ws_tx_for_close.lock().await;
             let _ = tx.close().await;
@@ -209,8 +218,14 @@ impl Connection {
         rx.recv().await
     }
 
+    /// Return whether the WebSocket has closed or the dispatch loop has ended.
+    pub fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::SeqCst)
+    }
+
     /// Close the connection and all associated streams.
     pub async fn close(self) {
+        self.closed.store(true, Ordering::SeqCst);
         let mut tx = self.ws_tx.lock().await;
         let _ = tx.close().await;
         info!("Connection closed");
@@ -226,9 +241,10 @@ impl Connection {
         let wire_data = frame::encode(&header, payload);
 
         let mut tx = self.ws_tx.lock().await;
-        tx.send(Message::Binary(wire_data))
-            .await
-            .map_err(|e| cfms_core::Error::Connection(format!("send failed: {e}")))?;
+        if let Err(e) = tx.send(Message::Binary(wire_data)).await {
+            self.closed.store(true, Ordering::SeqCst);
+            return Err(cfms_core::Error::Connection(format!("send failed: {e}")));
+        }
 
         // If this is a conclusion frame, remove the stream from the map.
         if kind == FrameKind::Conclusion {
@@ -244,6 +260,7 @@ impl Connection {
         mut ws_rx: futures_util::stream::SplitStream<WsStream>,
         streams: Arc<DashMap<u32, mpsc::Sender<Vec<u8>>>>,
         new_streams_tx: mpsc::Sender<Stream>,
+        closed: Arc<AtomicBool>,
     ) -> Result<()> {
         const PING_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -312,6 +329,7 @@ impl Connection {
 
         // Drain the stream map — notify all remaining streams.
         streams.clear();
+        closed.store(true, Ordering::SeqCst);
         info!("Receive loop exited");
 
         Ok(())

@@ -193,6 +193,14 @@ pub fn run() {
                 }
             });
 
+            let s_reconnect = Arc::clone(&state);
+            service_manager.register("connection_reconnect", move |rx| {
+                let s = Arc::clone(&s_reconnect);
+                async move {
+                    cfms_service::services::connection::run(s, rx).await;
+                }
+            });
+
             let s4 = Arc::clone(&state);
             let t4 = tasks.clone();
             let a4 = active_downloads.clone();

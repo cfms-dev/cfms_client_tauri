@@ -156,7 +156,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4">
+<div class="min-w-0 space-y-4 p-4 sm:p-6">
   <!-- Header row -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">

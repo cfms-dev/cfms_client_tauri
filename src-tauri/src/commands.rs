@@ -209,6 +209,10 @@ pub async fn get_service_status(
             running: true,
         },
         ServiceStatusInfo {
+            name: "connection_reconnect".into(),
+            running: true,
+        },
+        ServiceStatusInfo {
             name: "download_queue".into(),
             running: true,
         },
@@ -2820,13 +2824,13 @@ pub async fn reload_tasks_for_user(
 async fn get_connection_auth(
     state: &AppHandleState,
 ) -> Result<(cfms_transport::Connection, String, String), String> {
-    let conn = state
-        .inner
-        .conn
-        .read()
-        .await
-        .clone()
-        .ok_or_else(|| "Not connected to a server".to_string())?;
+    let conn = cfms_service::services::connection::ensure_connected(
+        &state.inner,
+        cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS,
+        false,
+    )
+    .await
+    .map_err(|e| format!("Not connected to a server: {e}"))?;
     let username = state
         .inner
         .username
@@ -3283,14 +3287,34 @@ async fn server_action_json(
     action: &str,
     data: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let (conn, username, token) = get_connection_auth(state).await?;
-    let resp = send_action_request(&conn, action, data, &username, &token).await?;
+    let mut last_error = None;
+    for attempt in 1..=cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS {
+        let (conn, username, token) = get_connection_auth(state).await?;
+        match send_action_request(&conn, action, data.clone(), &username, &token).await {
+            Ok(resp) => {
+                if resp.code != 200 {
+                    return Err(format!("Server returned {}: {}", resp.code, resp.message));
+                }
 
-    if resp.code != 200 {
-        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+                return Ok(resp.data);
+            }
+            Err(error) if is_transient_connection_error(&error) => {
+                tracing::warn!(
+                    "Request {action} failed on attempt {attempt}; reconnecting: {error}",
+                );
+                last_error = Some(error);
+                cfms_service::services::connection::ensure_connected(
+                    &state.inner,
+                    cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS,
+                    true,
+                )
+                .await?;
+            }
+            Err(error) => return Err(error),
+        }
     }
 
-    Ok(resp.data)
+    Err(last_error.unwrap_or_else(|| format!("{action} failed after reconnect attempts")))
 }
 
 async fn server_action_bool(
@@ -3349,7 +3373,12 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
 
 /// Build a JSON server-state payload (connection fields only — no auth data).
 async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json::Value {
-    let connected = inner.conn.read().await.is_some();
+    let connected = inner
+        .conn
+        .read()
+        .await
+        .as_ref()
+        .is_some_and(|conn| !conn.is_closed());
     let server_address = inner.server_address.read().await.clone();
     let server_name = inner.server_name.read().await.clone();
     let protocol_version = inner.server_protocol_version.read().await;
@@ -3419,6 +3448,19 @@ async fn send_action_request(
 
     serde_json::from_slice::<cfms_core::Response>(&response_bytes)
         .map_err(|e| format!("Invalid {action} response: {e}"))
+}
+
+fn is_transient_connection_error(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("connection closed")
+        || lower.contains("connection failed")
+        || lower.contains("failed to create stream")
+        || lower.contains("failed to send")
+        || lower.contains("send failed")
+        || lower.contains("websocket")
+        || lower.contains("tcp connect")
+        || lower.contains("stream closed")
+        || lower.contains("no response")
 }
 
 /// Set up the Data Encryption Key after a successful login.

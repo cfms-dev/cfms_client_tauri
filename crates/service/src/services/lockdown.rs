@@ -32,9 +32,15 @@ pub async fn run(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) {
         };
 
         match conn {
-            Some(conn) => {
+            Some(conn) if !conn.is_closed() => {
                 // Enter the accept loop for this connection.
                 accept_loop(&state, &conn, &mut shutdown_rx).await;
+            }
+            Some(_) => {
+                tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {},
+                    _ = shutdown_rx.changed() => { break; }
+                }
             }
             None => {
                 // No connection yet — wait and retry.
@@ -56,7 +62,7 @@ async fn accept_loop(
     shutdown_rx: &mut watch::Receiver<bool>,
 ) {
     loop {
-        if *shutdown_rx.borrow() {
+        if *shutdown_rx.borrow() || conn.is_closed() {
             break;
         }
 
@@ -72,6 +78,13 @@ async fn accept_loop(
             // against a shutdown check.
             tokio::select! {
                 stream = conn.accept_stream() => stream,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
+                    if conn.is_closed() {
+                        tracing::info!("Connection closed — exiting accept loop");
+                        return;
+                    }
+                    continue;
+                },
                 _ = shutdown_rx.changed() => { break; }
             }
         };

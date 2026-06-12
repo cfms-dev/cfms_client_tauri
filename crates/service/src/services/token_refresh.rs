@@ -86,8 +86,12 @@ async fn tick(state: &AppState) {
 
 /// Attempt to refresh the token via the server connection.
 async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), String> {
-    let conn = state.conn.read().await;
-    let conn = conn.as_ref().ok_or("no connection")?;
+    let conn = super::connection::ensure_connected(
+        state,
+        super::connection::DEFAULT_RECONNECT_ATTEMPTS,
+        false,
+    )
+    .await?;
 
     let mut stream = conn
         .create_stream()
@@ -104,7 +108,7 @@ async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), Str
     });
 
     stream
-        .send(conn, serde_json::to_vec(&request).unwrap())
+        .send(&conn, serde_json::to_vec(&request).unwrap())
         .await
         .map_err(|e| format!("send: {e}"))?;
 

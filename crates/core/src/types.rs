@@ -208,6 +208,10 @@ pub enum ServiceEvent {
     DownloadCancelled { task_id: String },
     /// Server lockdown status changed.
     Lockdown { status: bool },
+    /// The primary connection was restored after an unexpected disconnect.
+    ConnectionRestored,
+    /// The primary connection could not be restored automatically.
+    ConnectionLost { error: String },
     /// The authentication token has expired.
     TokenExpired,
     /// A favorites validation cycle completed.

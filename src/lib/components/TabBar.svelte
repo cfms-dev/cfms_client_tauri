@@ -87,7 +87,7 @@
 <div
   class="fixed inset-x-0 z-40 flex justify-center px-4
          pointer-events-none motion-navbar-in"
-  style={`bottom: calc(1.25rem + ${lift}px); transition: bottom 520ms var(--motion-easing-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1));`}
+  style={`bottom: calc(1.25rem + var(--safe-area-bottom, 0px) + ${lift}px); transition: bottom 520ms var(--motion-easing-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1));`}
 >
   <nav
     class="pointer-events-auto relative flex items-stretch gap-1 p-1.5

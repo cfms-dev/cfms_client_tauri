@@ -291,6 +291,8 @@ export type ServiceEvent =
   | { event: "DownloadCancelled"; data: { task_id: string } }
   | { event: "ActiveCountChanged"; data: { count: number } }
   | { event: "Lockdown"; data: { status: boolean } }
+  | { event: "ConnectionRestored" }
+  | { event: "ConnectionLost"; data: { error: string } }
   | { event: "TokenExpired" }
   | { event: "FavoritesValidationComplete"; data: { invalid_count: number } };
 

@@ -63,13 +63,13 @@
   }
 </script>
 
-<article class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-4 shadow-sm transition-shadow hover:shadow-lg hover:shadow-md3-primary/5">
-  <div class="mb-2 flex items-start gap-3">
+<article class="w-full min-w-0 rounded-xl border border-md3-outline bg-md3-surface-container/70 p-4 shadow-sm transition-shadow hover:shadow-lg hover:shadow-md3-primary/5">
+  <div class="mb-2 flex min-w-0 flex-wrap items-start gap-3 sm:flex-nowrap">
     <span class="mt-0.5 shrink-0 {statusColor(task.status)}">
       <Icon name={statusIcon(task.status)} size="24px" />
     </span>
 
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 flex-1 basis-[14rem]">
       <p class="truncate text-sm font-semibold text-md3-on-surface" title={task.file_name}>{task.file_name}</p>
       <p class="mt-0.5 truncate text-xs text-md3-on-surface-variant" title={task.source_path}>
         {task.message ?? task.source_path}
@@ -97,7 +97,7 @@
     completedText={$t('tasks.uploadCompleted')}
   />
 
-  <div class="mt-3 flex gap-2">
+  <div class="mt-3 flex min-w-0 flex-wrap gap-2">
     {#if task.status === "uploading" || task.status === "pending"}
       <button
         class="flex items-center gap-1 rounded-full bg-md3-warning-container px-3 py-1.5 text-xs font-medium text-md3-on-warning-container transition-all hover:brightness-110 disabled:opacity-50"
@@ -131,7 +131,7 @@
       </button>
     {/if}
 
-    <span class="ml-auto self-end font-mono text-[10px] text-md3-on-surface-variant" title={task.upload_id}>
+    <span class="ml-auto min-w-0 self-end truncate font-mono text-[10px] text-md3-on-surface-variant" title={task.upload_id}>
       {shortIdentifier(task.upload_id, 12)}&hellip;
     </span>
   </div>

@@ -168,7 +168,7 @@
 
   Each route area provides its own chrome (tab bar, AppBar, etc.).
 -->
-<div class="h-full flex flex-col">
+<div class="safe-area-shell flex h-full flex-col">
   <LockdownBanner active={serverStateStore.lockdown} />
   <!--
     Bounded flex slot for the routed content.  `min-h-0` is essential: it lets
@@ -177,7 +177,7 @@
     whole document.  Per-page transitions live in the individual layouts
     (e.g. /home) so navigation doesn't re-mount the entire app shell.
   -->
-  <div class="flex-1 min-h-0">
+  <div class="safe-area-top flex-1 min-h-0">
     {@render children()}
   </div>
   <DialogHost />

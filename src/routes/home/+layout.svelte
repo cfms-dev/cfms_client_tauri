@@ -46,9 +46,9 @@
   ]);
 </script>
 
-<div class="relative flex flex-col h-full min-h-0">
+<div class="relative flex h-full min-h-0 flex-col">
   <!-- Top bar -->
-  <header class="flex items-center h-12 px-4 bg-md3-surface/80 backdrop-blur-sm
+  <header class="flex min-h-12 items-center px-4 bg-md3-surface/80 backdrop-blur-sm
                   border-b border-md3-outline shrink-0 z-10">
     <span class="text-sm font-semibold text-md3-on-surface"
           style="font-family: var(--font-md3-sans);">

@@ -164,21 +164,21 @@
 
 <!-- MD3 card: rounded-xl (12px) surface container with outline border -->
 <div
-  class="bg-md3-surface-container/70 backdrop-blur-sm
+  class="w-full min-w-0 bg-md3-surface-container/70 backdrop-blur-sm
          rounded-xl border border-md3-outline
          p-4 transition-shadow hover:shadow-lg hover:shadow-md3-primary/5"
 >
   <!-- Top row: status icon + filename + priority badge -->
-  <div class="flex items-start gap-3 mb-2">
+  <div class="mb-2 flex min-w-0 flex-wrap items-start gap-3 sm:flex-nowrap">
     <!-- Status icon -->
     <span class="shrink-0 mt-0.5 {statusColor(task.status)}">
       <Icon name={statusIcon(task.status)} size="24px" />
     </span>
 
-    <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-2">
+    <div class="min-w-0 flex-1 basis-[14rem]">
+      <div class="flex min-w-0 items-center gap-2">
         <p
-          class="font-medium text-md3-on-surface truncate"
+          class="min-w-0 truncate font-medium text-md3-on-surface"
           title={task.filename}
           style="font-family: var(--font-md3-sans);"
         >
@@ -232,7 +232,7 @@
   />
 
   <!-- Actions (mirrors reference TaskTile button visibility) -->
-  <div class="flex gap-2 mt-3">
+  <div class="mt-3 flex min-w-0 flex-wrap gap-2">
     <!-- Pause/Resume: only when supports_resume is true and status is downloading/pending -->
     {#if canPause}
       {#if task.status === "downloading"}
@@ -317,7 +317,7 @@
     {/if}
 
     <!-- Task ID -->
-    <span class="ml-auto text-[10px] text-md3-on-surface-variant self-end font-mono">
+    <span class="ml-auto min-w-0 self-end truncate font-mono text-[10px] text-md3-on-surface-variant">
       {shortIdentifier(task.task_id, 12)}&hellip;
     </span>
   </div>

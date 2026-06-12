@@ -195,6 +195,7 @@
     revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
   );
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
+  const canGoToParent = $derived(!sameDirectory(currentFolderId, navigationRootId) && parentId !== null);
 
   $effect(() => {
     if (!status) return;
@@ -1568,12 +1569,26 @@
     </div>
   {/if}
 
+  {#if !loading && canGoToParent}
+    <button
+      class="inline-flex items-center gap-2 rounded-full border border-md3-outline/70
+             bg-md3-surface-container/70 px-3.5 py-2 text-sm font-medium
+             text-md3-primary-emphasis shadow-sm transition-all
+             hover:border-md3-primary/50 hover:bg-md3-primary-container/25 active:scale-95"
+      style="font-family: var(--font-md3-sans);"
+      onclick={handleGoToParent}
+    >
+      <Icon name="arrowBack" size="18px" />
+      {$t('files.parentDirectory')}
+    </button>
+  {/if}
+
   <!-- File list -->
   {#if !loading}
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline overflow-hidden">
-      <!-- Header -->
-      <div class="grid grid-cols-[auto_1fr_100px_160px] gap-3 px-4 py-2.5
+    <div class="overflow-x-auto rounded-xl border border-md3-outline bg-md3-surface-container/70 backdrop-blur-sm">
+      <div class="min-w-[620px] overflow-hidden">
+        <!-- Header -->
+        <div class="grid grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5
                   bg-md3-surface-container-high/50
                   text-xs font-medium text-md3-on-surface-variant
                   uppercase tracking-wider
@@ -1607,44 +1622,24 @@
           <span class="select-none">{$t('files.modified')}</span>
           <Icon name={sortIcon('modified')} size="15px" />
         </button>
-      </div>
+        </div>
 
-      {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
-        <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
-          {$t('files.empty')}
-        </p>
-      {/if}
+        {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
+          <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
+            {$t('files.empty')}
+          </p>
+        {/if}
 
-      <!-- Parent directory link -->
-      {#if parentId !== null && !sameDirectory(currentFolderId, navigationRootId)}
-        <button
-          class="grid grid-cols-[auto_1fr_100px_160px] gap-3 px-4 py-2.5 w-full text-left
+        <!-- Folders -->
+        {#each filteredFolders as folder (folder.id)}
+          <button
+            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
                  hover:bg-md3-primary-container/20
                  border-b border-md3-outline/50
                  transition-colors select-none"
-          onclick={handleGoToParent}
-        >
-          <span class="self-center text-md3-primary-emphasis">
-            <Icon name="arrowBack" size="20px" />
-          </span>
-          <span class="text-sm font-medium text-md3-primary-emphasis truncate">
-            &lt;…&gt;
-          </span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">{$t('files.parentDirectory')}</span>
-        </button>
-      {/if}
-
-      <!-- Folders -->
-      {#each filteredFolders as folder (folder.id)}
-        <button
-          class="grid grid-cols-[auto_1fr_100px_160px] gap-3 px-4 py-2.5 w-full text-left
-                 hover:bg-md3-primary-container/20
-                 border-b border-md3-outline/50
-                 transition-colors select-none"
-          onclick={() => handleFolderClick(folder)}
-          oncontextmenu={(e) => showFolderContextMenu(e, folder)}
-        >
+            onclick={() => handleFolderClick(folder)}
+            oncontextmenu={(e) => showFolderContextMenu(e, folder)}
+          >
           {#if selectMode}
             <span
               class="self-center {selectedFolderIds.has(folder.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
@@ -1664,19 +1659,19 @@
           <span class="text-xs text-md3-on-surface-variant text-right self-center">
             {formatDate(folder.created_time)}
           </span>
-        </button>
-      {/each}
+          </button>
+        {/each}
 
-      <!-- Documents / Files -->
-      {#each filteredDocuments as doc (doc.id)}
-        <button
-          class="grid grid-cols-[auto_1fr_100px_160px] gap-3 px-4 py-2.5 w-full text-left
+        <!-- Documents / Files -->
+        {#each filteredDocuments as doc (doc.id)}
+          <button
+            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
                  hover:bg-md3-surface-container-high/30
                  border-b border-md3-outline/50 last:border-b-0
                  transition-colors select-none"
-          onclick={() => handleDocumentClick(doc)}
-          oncontextmenu={(e) => showDocumentContextMenu(e, doc)}
-        >
+            onclick={() => handleDocumentClick(doc)}
+            oncontextmenu={(e) => showDocumentContextMenu(e, doc)}
+          >
           {#if selectMode}
             <span
               class="self-center {selectedDocumentIds.has(doc.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
@@ -1698,8 +1693,9 @@
           <span class="text-xs text-md3-on-surface-variant text-right self-center">
             {formatDate(doc.last_modified)}
           </span>
-        </button>
-      {/each}
+          </button>
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
