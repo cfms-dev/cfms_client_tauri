@@ -453,6 +453,12 @@ jobs:
           )
           PY
 
+      - name: Debug generated files
+        run: |
+          echo "After manifest generation:"
+          find artifacts -type f -print
+          test -f artifacts/latest.json && cat artifacts/latest.json || echo "latest.json NOT FOUND"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
@@ -488,12 +494,10 @@ jobs:
             ---
             🤖 Built by [GitHub Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
           files: |
-            release-windows-x86_64/*
-            release-macos-universal/*
-            release-linux-x86_64/*
-            release-android-aarch64-x86_64/*
-            SHA256SUMS.txt
-            latest.json
+            artifacts/release-windows-x86_64/**/*
+            artifacts/release-android-aarch64-x86_64/**/*
+            artifacts/SHA256SUMS.txt
+            artifacts/latest.json
           draft: false
           prerelease: ${{ contains(needs.version.outputs.version, '-') }}
           generate_release_notes: true
