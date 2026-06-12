@@ -366,6 +366,23 @@ export interface ConnectionSettings {
   force_ipv4: boolean;
   client_cert_path: string;
   client_key_path: string;
+  remember_connection_addresses: boolean;
+  recent_connection_addresses: string[];
+}
+
+export interface CaCertificateStatus {
+  caDir: string;
+  certificateCount: number;
+  lastChecked: number | null;
+}
+
+export interface CaCertificateUpdateResult {
+  added: string[];
+  updated: string[];
+  removed: string[];
+  unchanged: string[];
+  errors: string[];
+  lastChecked: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,6 +1081,16 @@ export async function setConnectionSettings(
   settings: ConnectionSettings,
 ): Promise<void> {
   return invoke("set_connection_settings", { settings });
+}
+
+/** Get local CA certificate store status. */
+export async function getCaCertificateStatus(): Promise<CaCertificateStatus> {
+  return invoke("get_ca_certificate_status");
+}
+
+/** Check the remote CA repository and update the local CA certificate store. */
+export async function updateCaCertificates(): Promise<CaCertificateUpdateResult> {
+  return invoke("update_ca_certificates");
 }
 
 // ---------------------------------------------------------------------------

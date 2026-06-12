@@ -13,7 +13,13 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
-  import { connect, disconnect, getAuthStatus, getServerState } from "$lib/api";
+  import {
+    connect,
+    disconnect,
+    getAuthStatus,
+    getConnectionSettings,
+    getServerState,
+  } from "$lib/api";
   import { loadAppVersion } from "$lib/app-info";
   import {
     authStore,
@@ -29,15 +35,33 @@
   let busy = $state(false);
   let serverAddressError = $state<string | null>(null);
   let appVersion = $state('');
+  let rememberConnectionAddresses = $state(false);
+  let recentConnectionAddresses = $state<string[]>([]);
+  let recentAddressesOpen = $state(false);
+  let serverAddressField: HTMLDivElement | null = null;
   let protocolError = $state<{
     serverVersion: number;
     clientVersion: number;
     needsUpdate: boolean;
   } | null>(null);
 
+  const canShowRecentAddresses = $derived(
+    rememberConnectionAddresses && recentConnectionAddresses.length > 0,
+  );
+
   // On mount: close any stale connection.
   onMount(async () => {
     appVersion = await loadAppVersion();
+    try {
+      const settings = await getConnectionSettings();
+      rememberConnectionAddresses = settings.remember_connection_addresses;
+      recentConnectionAddresses = settings.recent_connection_addresses;
+      if (rememberConnectionAddresses && recentConnectionAddresses[0]) {
+        hostPort = recentConnectionAddresses[0];
+      }
+    } catch {
+      /* ignore */
+    }
     // Close any previous connection to start fresh.
     try {
       await disconnect();
@@ -46,6 +70,17 @@
     }
     authStore.clear();
     serverStateStore.clear();
+  });
+
+  onMount(() => {
+    function closeRecentAddresses(event: PointerEvent) {
+      if (!serverAddressField?.contains(event.target as Node)) {
+        recentAddressesOpen = false;
+      }
+    }
+
+    document.addEventListener('pointerdown', closeRecentAddresses);
+    return () => document.removeEventListener('pointerdown', closeRecentAddresses);
   });
 
   function validateUrl(): boolean {
@@ -124,6 +159,26 @@
   async function goToSettings() {
     await goto("/home/settings");
   }
+
+  function toggleRecentAddresses() {
+    if (!canShowRecentAddresses || busy) return;
+    recentAddressesOpen = !recentAddressesOpen;
+  }
+
+  function chooseRecentAddress(address: string) {
+    hostPort = address;
+    recentAddressesOpen = false;
+  }
+
+  function handleServerAddressKeydown(event: KeyboardEvent) {
+    if (!canShowRecentAddresses) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      recentAddressesOpen = true;
+    } else if (event.key === 'Escape') {
+      recentAddressesOpen = false;
+    }
+  }
 </script>
 
 <div class="relative flex min-h-full items-center justify-center p-6">
@@ -178,29 +233,79 @@
         >
           {$t('connect.serverAddress')}
         </label>
-        <div
-          class="flex items-center rounded-xl border {serverAddressError ? 'border-md3-error' : 'border-md3-outline'}
-                    bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
-                    focus-within:border-transparent transition-colors overflow-hidden"
-        >
-          <span
-            class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
-                       select-none font-mono shrink-0"
-            style="font-family: var(--font-md3-sans);"
+        <div class="relative" bind:this={serverAddressField}>
+          <div
+            class="flex items-center rounded-xl border {serverAddressError ? 'border-md3-error' : 'border-md3-outline'}
+                      bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
+                      focus-within:border-transparent transition-colors overflow-hidden"
           >
-            wss://
-          </span>
-          <input
-            id="serverUrl"
-            type="text"
-            class="flex-1 pl-1 pr-3.5 py-2.5 bg-transparent
-                   text-md3-on-surface text-sm
-                   placeholder:text-md3-on-surface-variant
-                   focus:outline-none transition-colors"
-            placeholder="localhost:5104"
-            bind:value={hostPort}
-            disabled={busy}
-          />
+            <span
+              class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
+                         select-none font-mono shrink-0"
+              style="font-family: var(--font-md3-sans);"
+            >
+              wss://
+            </span>
+            <input
+              id="serverUrl"
+              type="text"
+              class="min-w-0 flex-1 pl-1 py-2.5 bg-transparent
+                     text-md3-on-surface text-sm
+                     placeholder:text-md3-on-surface-variant
+                     focus:outline-none transition-colors"
+              class:pr-3.5={!canShowRecentAddresses}
+              class:pr-2={canShowRecentAddresses}
+              placeholder="localhost:5104"
+              bind:value={hostPort}
+              disabled={busy}
+              onkeydown={handleServerAddressKeydown}
+              onfocus={() => {
+                if (canShowRecentAddresses) recentAddressesOpen = true;
+              }}
+            />
+            {#if canShowRecentAddresses}
+              <button
+                type="button"
+                class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
+                       transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
+                       disabled:opacity-50"
+                aria-label={$t('connect.recentAddresses')}
+                aria-expanded={recentAddressesOpen}
+                aria-controls="recentServerAddressList"
+                disabled={busy}
+                onclick={toggleRecentAddresses}
+              >
+                <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
+              </button>
+            {/if}
+          </div>
+
+          {#if canShowRecentAddresses && recentAddressesOpen}
+            <div
+              id="recentServerAddressList"
+              class="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-md3-outline
+                     bg-md3-surface-container-high shadow-xl shadow-black/20 animate-fade-scale-in"
+              role="listbox"
+            >
+              {#each recentConnectionAddresses as address}
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-md3-on-surface
+                         transition-colors hover:bg-md3-primary-container/45 focus:bg-md3-primary-container/45
+                         focus:outline-none"
+                  role="option"
+                  aria-selected={hostPort === address}
+                  onclick={() => chooseRecentAddress(address)}
+                >
+                  <Icon name="history" size="16px" />
+                  <span class="min-w-0 flex-1 truncate font-mono">{address}</span>
+                  {#if hostPort === address}
+                    <Icon name="done" size="16px" />
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
         {#if serverAddressError}
           <p class="mt-1 ml-1 text-xs text-md3-error">{serverAddressError}</p>

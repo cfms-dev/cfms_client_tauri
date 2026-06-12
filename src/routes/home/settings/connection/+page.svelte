@@ -3,8 +3,12 @@
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
+    getCaCertificateStatus,
     getConnectionSettings,
     setConnectionSettings,
+    updateCaCertificates,
+    type CaCertificateStatus,
+    type CaCertificateUpdateResult,
     type ConnectionSettings,
   } from '$lib/api';
   import { navigateUp } from '$lib/navigation';
@@ -19,9 +23,14 @@
     force_ipv4: false,
     client_cert_path: '',
     client_key_path: '',
+    remember_connection_addresses: false,
+    recent_connection_addresses: [],
   };
 
   let config = $state<ConnectionSettings>({ ...defaultConfig });
+  let caStatus = $state<CaCertificateStatus | null>(null);
+  let caUpdating = $state(false);
+  let caResult = $state<string | null>(null);
   let loading = $state(true);
   let saving = $state(false);
   let status = $state<string | null>(null);
@@ -43,7 +52,12 @@
 
   onMount(async () => {
     try {
-      config = await getConnectionSettings();
+      const [connectionConfig, certificateStatus] = await Promise.all([
+        getConnectionSettings(),
+        getCaCertificateStatus(),
+      ]);
+      config = connectionConfig;
+      caStatus = certificateStatus;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -60,6 +74,9 @@
         custom_proxy: config.custom_proxy.trim(),
         client_cert_path: config.client_cert_path.trim(),
         client_key_path: config.client_key_path.trim(),
+        recent_connection_addresses: config.remember_connection_addresses
+          ? config.recent_connection_addresses
+          : [],
       };
       await setConnectionSettings(payload);
       config = payload;
@@ -73,8 +90,53 @@
 
   function resetConnection() {
     config = { ...defaultConfig };
+    caResult = null;
     status = $t('settings.connection.resetStatus');
     error = null;
+  }
+
+  function setRememberConnectionAddresses(enabled: boolean) {
+    config = {
+      ...config,
+      remember_connection_addresses: enabled,
+      recent_connection_addresses: enabled ? config.recent_connection_addresses : [],
+    };
+  }
+
+  function formatLastChecked(timestamp: number | null | undefined) {
+    if (!timestamp) {
+      return $t('settings.connection.caLastCheckedNever');
+    }
+    return new Date(timestamp * 1000).toLocaleString();
+  }
+
+  function summarizeCaUpdate(result: CaCertificateUpdateResult) {
+    const parts: string[] = [];
+    if (result.added.length) parts.push($t('settings.connection.caAdded', { values: { count: result.added.length } }));
+    if (result.updated.length) parts.push($t('settings.connection.caUpdated', { values: { count: result.updated.length } }));
+    if (result.removed.length) parts.push($t('settings.connection.caRemoved', { values: { count: result.removed.length } }));
+    if (result.unchanged.length) parts.push($t('settings.connection.caUnchanged', { values: { count: result.unchanged.length } }));
+    return parts.join(' · ') || $t('settings.connection.caAlreadyCurrent');
+  }
+
+  async function updateCertificates() {
+    caUpdating = true;
+    caResult = null;
+    error = null;
+    try {
+      const result = await updateCaCertificates();
+      caStatus = await getCaCertificateStatus();
+      caResult = summarizeCaUpdate(result);
+      if (result.errors.length > 0) {
+        error = $t('settings.connection.caUpdateErrors', { values: { errors: result.errors.slice(0, 3).join('; ') } });
+      } else {
+        status = $t('settings.connection.caUpdateComplete');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      caUpdating = false;
+    }
   }
 </script>
 
@@ -145,6 +207,27 @@
     <section class="space-y-3">
       <div>
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('settings.connection.history')}
+        </h2>
+        <p class="text-xs text-md3-on-surface-variant mt-1">
+          {$t('settings.connection.historyHint')}
+        </p>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('settings.connection.rememberAddresses')}
+        <MdSwitch
+          bind:checked={config.remember_connection_addresses}
+          disabled={loading || saving}
+          ariaLabel={$t('settings.connection.rememberAddresses')}
+          onChange={setRememberConnectionAddresses}
+        />
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div>
+        <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.connection.identity')}
         </h2>
         <p class="text-xs text-md3-on-surface-variant mt-1">
@@ -173,6 +256,44 @@
           disabled={loading || saving}
         />
       </label>
+    </section>
+
+    <section class="space-y-3">
+      <div>
+        <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('settings.connection.caCertificates')}
+        </h2>
+        <p class="text-xs text-md3-on-surface-variant mt-1">
+          {$t('settings.connection.caHint')}
+        </p>
+      </div>
+
+      <div class="rounded-lg bg-md3-surface-container-high/70 p-3 text-xs text-md3-on-surface-variant space-y-1">
+        <div class="flex justify-between gap-3">
+          <span>{$t('settings.connection.caCertificateCount')}</span>
+          <span class="text-md3-on-surface">{caStatus?.certificateCount ?? '-'}</span>
+        </div>
+        <div class="flex justify-between gap-3">
+          <span>{$t('settings.connection.caLastChecked')}</span>
+          <span class="text-right text-md3-on-surface">{formatLastChecked(caStatus?.lastChecked)}</span>
+        </div>
+      </div>
+
+      <button
+        class="px-4 py-2 rounded-full font-medium text-sm
+               bg-md3-secondary-container text-md3-on-secondary-container
+               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
+        style="font-family: var(--font-md3-sans);"
+        onclick={updateCertificates}
+        disabled={loading || saving || caUpdating}
+      >
+        <Icon name="refresh" size="18px" />
+        {caUpdating ? $t('common.checking') : $t('settings.connection.caUpdateNow')}
+      </button>
+
+      {#if caResult}
+        <p class="text-xs text-md3-on-surface-variant">{caResult}</p>
+      {/if}
     </section>
 
     <div class="flex flex-wrap gap-2">

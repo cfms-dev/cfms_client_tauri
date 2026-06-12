@@ -329,6 +329,8 @@ pub fn run() {
             commands::translate_backend,
             commands::get_connection_settings,
             commands::set_connection_settings,
+            commands::get_ca_certificate_status,
+            commands::update_ca_certificates,
             commands::login,
             commands::change_password,
             commands::logout,
