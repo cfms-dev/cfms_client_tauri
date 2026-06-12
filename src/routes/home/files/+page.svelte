@@ -196,7 +196,7 @@
     revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
   );
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
-  const canGoToParent = $derived(!sameDirectory(currentFolderId, navigationRootId) && parentId !== null);
+  const canGoToParent = $derived(parentId !== null);
 
   $effect(() => {
     if (!status) return;
@@ -282,11 +282,21 @@
   }
 
   async function handleGoToParent() {
-    if (sameDirectory(currentFolderId, navigationRootId)) return;
-    // Pop the last entry and navigate to its parent
-    const ok = await loadDirectory(parentId);
+    if (parentId === null) return;
+    const targetParentId = parentId;
+    const shouldRebaseNavigationRoot =
+      navigationRootId !== null
+      && navHistory.length === 0
+      && sameDirectory(currentFolderId, navigationRootId);
+
+    // Pop the last breadcrumb entry when moving within the known path. If the
+    // current directory was opened as a custom root, rebase that root upward.
+    const ok = await loadDirectory(targetParentId);
     if (ok && navHistory.length > 0) {
       navHistory = navHistory.slice(0, -1);
+    } else if (ok && shouldRebaseNavigationRoot) {
+      navigationRootId = targetParentId;
+      navigationRootLabel = shortIdentifier(targetParentId);
     }
   }
 
@@ -1655,20 +1665,6 @@
     </div>
   {/if}
 
-  {#if !loading && canGoToParent}
-    <button
-      class="inline-flex items-center gap-2 rounded-full border border-md3-outline/70
-             bg-md3-surface-container/70 px-3.5 py-2 text-sm font-medium
-             text-md3-primary-emphasis shadow-sm transition-all
-             hover:border-md3-primary/50 hover:bg-md3-primary-container/25 active:scale-95"
-      style="font-family: var(--font-md3-sans);"
-      onclick={handleGoToParent}
-    >
-      <Icon name="arrowBack" size="18px" />
-      {$t('files.parentDirectory')}
-    </button>
-  {/if}
-
   <!-- File list -->
   {#if !loading}
     <div class="overflow-x-auto rounded-xl border border-md3-outline bg-md3-surface-container/70 backdrop-blur-sm">
@@ -1710,10 +1706,31 @@
         </button>
         </div>
 
-        {#if filteredFolders.length === 0 && filteredDocuments.length === 0}
+        {#if filteredFolders.length === 0 && filteredDocuments.length === 0 && !canGoToParent}
           <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
             {$t('files.empty')}
           </p>
+        {/if}
+
+        {#if canGoToParent}
+          <button
+            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
+                 border-md3-outline/50
+                 text-md3-primary-emphasis
+                 hover:bg-md3-primary-container/20
+                 transition-colors select-none"
+            class:border-b={filteredFolders.length > 0 || filteredDocuments.length > 0}
+            onclick={handleGoToParent}
+          >
+            <span class="self-center text-md3-primary-emphasis" aria-hidden="true">
+              <Icon name="arrowUpward" size="20px" />
+            </span>
+            <span class="text-sm font-medium truncate">
+              {$t('files.parentDirectory')}
+            </span>
+            <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
+            <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
+          </button>
         {/if}
 
         <!-- Folders -->

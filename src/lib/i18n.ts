@@ -340,7 +340,7 @@ const en = {
     size: 'Size',
     modified: 'Modified',
     empty: 'This directory is empty.',
-    parentDirectory: 'Parent directory',
+    parentDirectory: 'Up one level',
   },
   tasks: {
     title: 'Tasks',
@@ -996,7 +996,7 @@ const zh_CN = {
     size: '大小',
     modified: '修改时间',
     empty: '此目录为空。',
-    parentDirectory: '父目录',
+    parentDirectory: '返回上一级',
   },
   tasks: {
     title: '任务',
