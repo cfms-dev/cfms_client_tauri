@@ -7,6 +7,7 @@
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
   import Icon from './Icon.svelte';
+  import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
 
@@ -84,15 +85,6 @@
     }
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleVerify();
-    } else if (e.key === 'Escape') {
-      handleCancel();
-    }
-  }
-
   /** Only allow digits in TOTP mode. */
   function filterInput(value: string): string {
     if (useRecoveryCode) return value;
@@ -110,48 +102,19 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center p-4"
-  style="background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
-  onclick={handleCancel}
-  onkeydown={handleKeydown}
+<ModalFrame
+  title={$t('dialog.twoFactor.title')}
+  maxWidth="max-w-md"
+  closeLabel={$t('common.close')}
+  onClose={handleCancel}
 >
-  <!-- Dialog card — MD3 surface container -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="bg-md3-surface-container border border-md3-outline rounded-xl
-           w-full max-w-md shadow-2xl overflow-hidden"
-    style="border-radius: var(--radius-md3-dialog);"
-    onclick={(e: MouseEvent) => e.stopPropagation()}
-    onkeydown={() => {}}
-    role="dialog"
-    aria-modal="true"
-    aria-label={$t('dialog.twoFactor.title')}
-    tabindex="-1"
+  <form
+    onsubmit={(event) => {
+      event.preventDefault();
+      handleVerify();
+    }}
   >
-    <!-- Title bar -->
-    <div class="flex items-center justify-between px-6 pt-6 pb-2">
-      <h2
-        class="text-lg font-semibold text-md3-on-surface"
-        style="font-family: var(--font-md3-sans);"
-      >
-        {$t('dialog.twoFactor.title')}
-      </h2>
-      <button
-        type="button"
-        class="text-md3-on-surface-variant hover:text-md3-on-surface
-               transition-colors rounded-full p-1"
-        onclick={handleCancel}
-        disabled={busy}
-        aria-label={$t('common.close')}
-      >
-        <Icon name="close" size="20px" />
-      </button>
-    </div>
-
-    <!-- Body -->
-    <div class="px-6 pb-2 space-y-4">
+    <div class="space-y-4 p-5">
       <p class="text-sm text-md3-on-surface-variant">
         {description}
       </p>
@@ -200,7 +163,7 @@
     </div>
 
     <!-- Actions -->
-    <div class="flex items-center justify-between px-6 pb-6 pt-4 gap-3">
+    <div class="flex items-center justify-between border-t border-md3-outline/60 px-5 pb-5 pt-4 gap-3">
       <div class="flex-1"></div>
       <button
         type="button"
@@ -215,13 +178,12 @@
         {$t('common.cancel')}
       </button>
       <button
-        type="button"
+        type="submit"
         class="py-2 px-5 rounded-full font-medium text-sm
                bg-md3-primary text-md3-on-primary
                hover:brightness-110
                disabled:opacity-50 transition-all flex items-center gap-2"
         style="font-family: var(--font-md3-sans);"
-        onclick={handleVerify}
         disabled={busy || !code.trim()}
       >
         {#if busy}
@@ -232,5 +194,5 @@
         {/if}
       </button>
     </div>
-  </div>
-</div>
+  </form>
+</ModalFrame>

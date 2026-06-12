@@ -30,7 +30,10 @@
   import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import CreateUserAccountDialog from '$lib/components/CreateUserAccountDialog.svelte';
+  import CreateUserGroupDialog from '$lib/components/CreateUserGroupDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
@@ -51,6 +54,8 @@
     | { kind: 'group'; group: ManagedGroup };
 
   type ManageDialogState =
+    | { kind: 'create-user' }
+    | { kind: 'create-group' }
     | { kind: 'user-groups'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
     | { kind: 'block-user'; user: ManagedUser }
@@ -325,18 +330,14 @@
   }
 
   async function handleCreateUser() {
-    const username = (await dialogStore.prompt($t('manage.usernamePrompt')))?.trim();
-    if (!username) return;
-    const nickname = (await dialogStore.prompt($t('manage.nicknamePrompt'), username))?.trim() ?? '';
-    const password = await dialogStore.prompt({
-      message: $t('manage.initialPasswordPrompt'),
-      inputType: 'password',
-    }) ?? '';
-    if (!password) return;
+    activeDialog = { kind: 'create-user' };
+  }
 
+  async function saveCreatedUser(username: string, password: string, nickname: string) {
     await runBusy('create-user', async () => {
       await createUser(username, password, nickname);
       status = $t('manage.userCreated', { values: { username } });
+      activeDialog = null;
       await loadUserList();
     });
   }
@@ -415,13 +416,14 @@
   }
 
   async function handleCreateGroup() {
-    const groupName = (await dialogStore.prompt($t('manage.groupNamePrompt')))?.trim();
-    if (!groupName) return;
-    const displayName = (await dialogStore.prompt($t('manage.displayNamePrompt'), groupName))?.trim() ?? groupName;
+    activeDialog = { kind: 'create-group' };
+  }
 
+  async function saveCreatedGroup(groupName: string, displayName: string) {
     await runBusy('create-group', async () => {
       await createGroup(groupName, displayName);
       status = $t('manage.groupCreated', { values: { group: groupName } });
+      activeDialog = null;
       await loadGroupList();
     });
   }
@@ -905,7 +907,17 @@
   onClose={hideContextMenu}
 />
 
-{#if activeDialog?.kind === 'user-groups'}
+{#if activeDialog?.kind === 'create-user'}
+  <CreateUserAccountDialog
+    onSave={saveCreatedUser}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'create-group'}
+  <CreateUserGroupDialog
+    onSave={saveCreatedGroup}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'user-groups'}
   <ManageListEditorDialog
     title={$t('manage.editUserGroupsTitle', { values: { username: activeDialog.user.username } })}
     description={$t('manage.editUserGroupsDescription')}
@@ -946,115 +958,73 @@
 {/if}
 
 {#if detailTitle}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-    onclick={() => (detailTitle = null)}
+  <ModalFrame
+    title={detailTitle}
+    maxWidth="max-w-lg"
+    closeLabel={$t('common.close')}
+    onClose={() => (detailTitle = null)}
   >
-    <div
-      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-lg shadow-2xl"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') detailTitle = null;
-      }}
-    >
-      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">{detailTitle}</h3>
-        <button
-          class="p-1 rounded-full hover:bg-md3-surface-container-high"
-          aria-label={$t('common.close')}
-          onclick={() => (detailTitle = null)}
-        >
-          <Icon name="close" size="20px" />
-        </button>
-      </div>
-      <div class="p-5 space-y-3">
-        {#each detailRows as row}
-          <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
-            <span class="text-md3-on-surface-variant">{row.label}</span>
-            <span class="text-md3-on-surface break-words">{row.value || '-'}</span>
-          </div>
-        {/each}
-      </div>
+    <div class="p-5 space-y-3">
+      {#each detailRows as row}
+        <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
+          <span class="text-md3-on-surface-variant">{row.label}</span>
+          <span class="text-md3-on-surface break-words">{row.value || '-'}</span>
+        </div>
+      {/each}
     </div>
-  </div>
+  </ModalFrame>
 {/if}
 
 {#if blocksDialog}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-    role="presentation"
-    onclick={() => (blocksDialog = null)}
+  <ModalFrame
+    title={$t('manage.blocksFor', { values: { username: blocksDialog.username } })}
+    maxWidth="max-w-2xl"
+    closeLabel={$t('common.close')}
+    onClose={() => (blocksDialog = null)}
   >
-    <div
-      class="bg-md3-surface-container border border-md3-outline rounded-xl w-full max-w-2xl shadow-2xl"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') blocksDialog = null;
-      }}
-    >
-      <div class="flex items-center justify-between px-5 py-4 border-b border-md3-outline">
-        <h3 class="text-base font-semibold text-md3-on-surface">
-          {$t('manage.blocksFor', { values: { username: blocksDialog.username } })}
-        </h3>
-        <button
-          class="p-1 rounded-full hover:bg-md3-surface-container-high"
-          aria-label={$t('common.close')}
-          onclick={() => (blocksDialog = null)}
-        >
-          <Icon name="close" size="20px" />
-        </button>
-      </div>
-      <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
-        {#if blocksDialog.blocks.length === 0}
-          <p class="text-sm text-md3-on-surface-variant">{$t('manage.noActiveBlocks')}</p>
-        {:else}
-          {#each blocksDialog.blocks as block (block.block_id)}
-            <div class="border border-md3-outline rounded-xl p-3 space-y-2">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-md3-on-surface truncate">
-                    {$t('manage.blockRecordTitle', {
-                      values: {
-                        types: formatList(block.block_types),
-                        target: formatBlockTarget(block),
-                      },
-                    })}
-                  </p>
-                  <p class="text-xs text-md3-on-surface-variant break-all">
-                    {$t('manage.idWithValue', { values: { id: block.block_id } })}
-                  </p>
-                </div>
-                <button
-                  class="px-3 py-1 text-xs rounded-full bg-md3-error-container
-                         text-md3-on-error-container hover:brightness-110 disabled:opacity-50"
-                  onclick={() => handleUnblock(block.block_id)}
-                  disabled={busyKey !== null}
-                >
-                  {$t('files.revoke')}
-                </button>
+    <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
+      {#if blocksDialog.blocks.length === 0}
+        <p class="text-sm text-md3-on-surface-variant">{$t('manage.noActiveBlocks')}</p>
+      {:else}
+        {#each blocksDialog.blocks as block (block.block_id)}
+          <div class="border border-md3-outline rounded-xl p-3 space-y-2">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-md3-on-surface truncate">
+                  {$t('manage.blockRecordTitle', {
+                    values: {
+                      types: formatList(block.block_types),
+                      target: formatBlockTarget(block),
+                    },
+                  })}
+                </p>
+                <p class="text-xs text-md3-on-surface-variant break-all">
+                  {$t('manage.idWithValue', { values: { id: block.block_id } })}
+                </p>
               </div>
-              <p class="text-xs text-md3-on-surface-variant">
-                {$t('manage.blockRecordPeriod', {
-                  values: {
-                    created: formatDate(block.timestamp),
-                    start: formatDate(block.not_before),
-                    end: block.not_after === -1 ? $t('manage.permanent') : formatDate(block.not_after),
-                  },
-                })}
-              </p>
+              <button
+                class="px-3 py-1 text-xs rounded-full bg-md3-error-container
+                       text-md3-on-error-container hover:brightness-110 disabled:opacity-50"
+                onclick={() => handleUnblock(block.block_id)}
+                disabled={busyKey !== null}
+              >
+                {$t('files.revoke')}
+              </button>
             </div>
-          {/each}
-        {/if}
-      </div>
+            <p class="text-xs text-md3-on-surface-variant">
+              {$t('manage.blockRecordPeriod', {
+                values: {
+                  created: formatDate(block.timestamp),
+                  start: formatDate(block.not_before),
+                  end: block.not_after === -1 ? $t('manage.permanent') : formatDate(block.not_after),
+                },
+              })}
+            </p>
+          </div>
+        {/each}
+      {/if}
     </div>
-  </div>
+  </ModalFrame>
 {/if}
 
 {#snippet LoadingRow()}

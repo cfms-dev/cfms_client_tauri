@@ -1,6 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { fade } from 'svelte/transition';
   import Icon from '$lib/components/Icon.svelte';
+  import { menuScale } from '$lib/motion/transitions';
   import type {
     ContextMenuActionItem,
     ContextMenuItem,
@@ -73,6 +75,7 @@
   <div
     class="fixed inset-0 z-40"
     role="presentation"
+    transition:fade={{ duration: 90 }}
     onclick={onClose}
     oncontextmenu={(event) => {
       event.preventDefault();
@@ -85,6 +88,7 @@
            rounded-xl border border-md3-outline shadow-lg
            py-1 min-w-[190px] max-w-[min(260px,calc(100vw-16px))]"
     style="left: {menuX}px; top: {menuY}px; transform-origin: {originX} {originY};"
+    transition:menuScale={{ duration: 140 }}
     role="menu"
     tabindex="-1"
     oncontextmenu={(event) => event.preventDefault()}
@@ -114,26 +118,12 @@
 
 <style>
   .context-menu-surface {
-    animation: context-menu-enter 140ms var(--motion-easing-emphasized-decelerate) both;
     will-change: opacity, transform, filter;
-  }
-
-  @keyframes context-menu-enter {
-    from {
-      opacity: 0;
-      filter: blur(4px);
-      transform: translate3d(0, -3px, 0) scale(0.975);
-    }
-    to {
-      opacity: 1;
-      filter: blur(0);
-      transform: translate3d(0, 0, 0) scale(1);
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .context-menu-surface {
-      animation: none;
+      will-change: auto;
     }
   }
 </style>

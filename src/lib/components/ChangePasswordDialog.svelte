@@ -11,9 +11,9 @@
 
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
+  import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
-  import { flyScale } from '$lib/motion/transitions';
   import { notificationStore } from '$lib/stores.svelte';
 
   interface Props {
@@ -139,69 +139,32 @@
     if (!busy) onCancel();
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') handleCancel();
-  }
-
   function formatError(err: unknown) {
     return err instanceof Error ? err.message : String(err);
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center p-4"
-  style="background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
-  onclick={handleCancel}
-  onkeydown={handleKeydown}
+<ModalFrame
+  title={$t('dialog.changePassword.title')}
+  maxWidth="max-w-md"
+  closeLabel={$t('common.close')}
+  onClose={handleCancel}
 >
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="bg-md3-surface-container border border-md3-outline rounded-xl
-           w-full max-w-md shadow-2xl overflow-hidden"
-    style="border-radius: var(--radius-md3-dialog);"
-    in:flyScale={{ y: 16, duration: 320 }}
-    onclick={(e: MouseEvent) => e.stopPropagation()}
-    onkeydown={() => {}}
-    role="dialog"
-    aria-modal="true"
-    aria-label={$t('dialog.changePassword.title')}
-    tabindex="-1"
-  >
-    <!-- Title bar -->
-    <div class="flex items-center justify-between px-6 pt-6 pb-2">
-      <div class="flex items-center gap-2.5">
-        <span class="text-md3-primary-emphasis"><Icon name="lockPerson" size="22px" /></span>
-        <h2
-          class="text-lg font-semibold text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('dialog.changePassword.title')}
-        </h2>
-      </div>
-      <button
-        type="button"
-        class="text-md3-on-surface-variant hover:text-md3-on-surface
-               transition-colors rounded-full p-1"
-        onclick={handleCancel}
-        disabled={busy}
-        aria-label={$t('common.close')}
-      >
-        <Icon name="close" size="20px" />
-      </button>
-    </div>
-
-    <!-- Body -->
     <form
-      class="px-6 pb-2 space-y-4"
+      class="space-y-4 p-5"
       onsubmit={(e) => {
         e.preventDefault();
         handleSubmit();
       }}
     >
-      <p class="text-sm text-md3-on-surface-variant">
-        {$t('dialog.changePassword.changingFor', { values: { username } })}
-      </p>
+      <div class="flex items-start gap-3 rounded-lg border border-md3-outline/60 bg-md3-surface-container-high/40 p-3">
+        <span class="rounded-lg bg-md3-primary-container/70 p-2 text-md3-primary-emphasis">
+          <Icon name="lockPerson" size="20px" />
+        </span>
+        <p class="text-sm text-md3-on-surface-variant">
+          {$t('dialog.changePassword.changingFor', { values: { username } })}
+        </p>
+      </div>
 
       <!-- Old password -->
       <div>
@@ -363,5 +326,4 @@
         </button>
       </div>
     </form>
-  </div>
-</div>
+</ModalFrame>

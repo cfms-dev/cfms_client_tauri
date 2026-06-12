@@ -37,7 +37,7 @@
 
   const activeTaskCount = $derived(downloadStore.activeTasks.length + uploadStore.activeTasks.length);
   const tabPadding = $derived(showTabBar ? 112 + chromeStore.snackbarStackHeight : 0);
-  const floatingLift = $derived(chromeStore.snackbarStackHeight);
+  const snackbarLift = $derived(chromeStore.snackbarStackHeight);
 
   interface TabDef {
     href: string;
@@ -79,14 +79,14 @@
 <div class="relative flex h-full min-h-0 flex-col">
   <!-- Top bar -->
   <header
-    class="home-topbar relative flex min-h-12 items-center overflow-hidden px-4 bg-md3-surface/80 backdrop-blur-sm
+    class="home-topbar relative flex min-h-10 items-center overflow-hidden px-4 bg-md3-surface/80 backdrop-blur-sm
            border-b border-md3-outline shrink-0 z-10"
     class:home-topbar--lockdown={serverStateStore.lockdown}
   >
     {#if serverStateStore.lockdown}
       <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 text-white">
-        <Icon name="warning" size="20px" />
-        <span class="text-base font-bold" style="font-family: var(--font-md3-serif);">
+        <Icon name="warning" size="18px" />
+        <span class="text-sm font-bold" style="font-family: var(--font-md3-serif);">
           {$t('lockdown.banner')}
         </span>
       </div>
@@ -137,7 +137,7 @@
       title={serverStateStore.lockdown ? $t('lockdown.disableAction') : $t('lockdown.enableAction')}
       class="lockdown-fab fixed right-5 z-50 inline-flex h-14 w-14 items-center justify-center rounded-2xl p-0 shadow-2xl transition-all disabled:opacity-60"
       class:lockdown-fab--active={serverStateStore.lockdown}
-      style={`bottom: calc(1.25rem + var(--safe-area-bottom, 0px) + ${floatingLift}px); transition: bottom 520ms var(--motion-easing-emphasized-decelerate), transform 200ms var(--motion-easing-standard), background 250ms var(--motion-easing-standard);`}
+      style={`--lockdown-snackbar-lift: ${snackbarLift}px;`}
       onclick={toggleLockdown}
       disabled={lockdownBusy}
       in:flyScale={{ y: 14, duration: 260 }}
@@ -153,10 +153,15 @@
 
 <style>
   .lockdown-fab {
+    bottom: calc(1.25rem + var(--safe-area-bottom, 0px));
     border: 1px solid color-mix(in srgb, var(--color-md3-primary) 45%, transparent);
     color: var(--color-md3-on-primary-container);
     background:
       linear-gradient(135deg, color-mix(in srgb, var(--color-md3-primary) 78%, #ffffff 8%), var(--color-md3-primary-container));
+    transition:
+      bottom 520ms var(--motion-easing-emphasized-decelerate),
+      transform 200ms var(--motion-easing-standard),
+      background 250ms var(--motion-easing-standard);
     box-shadow:
       0 18px 46px rgba(0, 0, 0, 0.34),
       0 1px 0 rgba(255, 255, 255, 0.22) inset;
@@ -171,6 +176,12 @@
     color: var(--color-md3-on-error-container);
     background:
       linear-gradient(135deg, color-mix(in srgb, var(--color-md3-error-container) 86%, #ffffff 8%), #991b1b);
+  }
+
+  @media (max-width: 640px) {
+    .lockdown-fab {
+      bottom: calc(1.25rem + var(--safe-area-bottom, 0px) + var(--lockdown-snackbar-lift, 0px));
+    }
   }
 
   .home-topbar--lockdown::before {

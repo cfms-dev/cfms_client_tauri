@@ -29,7 +29,7 @@
   <div
     class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/48 p-4"
     role="presentation"
-    transition:fade={{ duration: 160 }}
+    transition:fade|global={{ duration: 160 }}
     onclick={onClose}
   >
     <div
@@ -38,7 +38,7 @@
       aria-modal="true"
       aria-label={title}
       tabindex="-1"
-      transition:flyScale={{ y: 18, duration: 260 }}
+      transition:flyScale|global={{ y: 18, duration: 240 }}
       onclick={(e) => e.stopPropagation()}
       onkeydown={handleKeydown}
     >

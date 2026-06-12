@@ -17,6 +17,12 @@ export interface PopScaleParams {
   delay?: number;
 }
 
+export interface MenuScaleParams {
+  duration?: number;
+  delay?: number;
+  y?: number;
+}
+
 const emphasized = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 function prefersReducedMotion(): boolean {
@@ -96,5 +102,29 @@ export function popScale(
         node.style.opacity = "";
       }
     },
+  };
+}
+
+export function menuScale(
+  _node: Element,
+  params: MenuScaleParams = {},
+): TransitionConfig {
+  if (prefersReducedMotion()) return instant();
+
+  const {
+    duration = 140,
+    delay = 0,
+    y = -3,
+  } = params;
+
+  return {
+    delay,
+    duration,
+    easing: emphasized,
+    css: (t, u) => `
+      opacity: ${t};
+      transform: translate3d(0, ${u * y}px, 0) scale(${0.975 + t * 0.025});
+      filter: blur(${u * 4}px);
+    `,
   };
 }
