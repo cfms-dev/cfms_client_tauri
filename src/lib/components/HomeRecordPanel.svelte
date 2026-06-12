@@ -41,7 +41,7 @@
     <span class="blueprint-panel-icon {iconClass}">
       <Icon name={icon} size="20px" />
     </span>
-    <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+    <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-serif);">
       {title}
     </h2>
   </div>
@@ -90,23 +90,6 @@
 <style>
   .blueprint-panel {
     position: relative;
-    border-radius: 20px;
-    background:
-      linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(8, 47, 73, 0.34)),
-      rgba(15, 23, 42, 0.62);
-  }
-
-  .blueprint-panel::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background-image:
-      linear-gradient(rgba(125, 211, 252, 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(125, 211, 252, 0.06) 1px, transparent 1px);
-    background-size: 28px 28px;
-    mask-image: linear-gradient(180deg, black, transparent 82%);
   }
 
   .blueprint-panel-icon {
@@ -117,18 +100,14 @@
     justify-content: center;
     width: 34px;
     height: 34px;
-    border-radius: 9999px;
-    background: rgba(8, 47, 73, 0.48);
   }
 
   .blueprint-record-row {
     position: relative;
     z-index: 1;
-    border-radius: 14px;
-    background: rgba(15, 23, 42, 0.38);
   }
 
   .blueprint-record-row:hover {
-    background: rgba(30, 41, 59, 0.58);
+    opacity: 0.86;
   }
 </style>

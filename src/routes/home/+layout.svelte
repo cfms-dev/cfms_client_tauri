@@ -80,11 +80,6 @@
   <!-- Top bar -->
   <header class="flex min-h-12 items-center px-4 bg-md3-surface/80 backdrop-blur-sm
                   border-b border-md3-outline shrink-0 z-10">
-    <span class="text-sm font-semibold text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);">
-      CFMS
-    </span>
-
     <div class="ml-auto flex items-center gap-3">
       {#if authStore.isLoggedIn}
         <span class="text-xs text-md3-on-surface-variant">

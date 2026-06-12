@@ -72,10 +72,7 @@
   <section class="blueprint-hero overflow-hidden">
     <div class="relative z-10 grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-7">
       <div class="min-w-0">
-        <p class="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
-          CFMS
-        </p>
-        <h1 class="mt-2 text-[clamp(1.75rem,7vw,3.25rem)] font-semibold leading-tight text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        <h1 class="text-[clamp(1.75rem,7vw,3.25rem)] font-semibold leading-tight text-md3-on-surface" style="font-family: var(--font-md3-serif);">
           {$t('home.workspace')}
         </h1>
         <p class="mt-3 max-w-xl text-sm text-md3-on-surface-variant sm:text-base">
@@ -133,28 +130,11 @@
 <style>
   .blueprint-home {
     isolation: isolate;
+    position: relative;
   }
 
   .blueprint-hero {
     position: relative;
-    border-radius: 24px;
-    background:
-      linear-gradient(135deg, rgba(8, 47, 73, 0.58), rgba(15, 23, 42, 0.72) 54%, rgba(30, 27, 75, 0.48)),
-      rgba(15, 23, 42, 0.72);
-  }
-
-  .blueprint-hero::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgba(125, 211, 252, 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(125, 211, 252, 0.08) 1px, transparent 1px),
-      linear-gradient(rgba(148, 163, 184, 0.06) 2px, transparent 2px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.06) 2px, transparent 2px);
-    background-size: 26px 26px, 26px 26px, 104px 104px, 104px 104px;
-    mask-image: linear-gradient(120deg, black 12%, transparent 88%);
   }
 
   .blueprint-status-chip {
@@ -162,14 +142,11 @@
     align-items: center;
     gap: 0.5rem;
     min-height: 2.5rem;
-    border-radius: 9999px;
     padding: 0.55rem 0.85rem;
     color: var(--color-md3-on-surface);
-    background: rgba(6, 78, 59, 0.42);
   }
 
   .blueprint-status-chip-muted {
-    background: rgba(15, 23, 42, 0.46);
     color: var(--color-md3-on-surface-variant);
   }
 </style>
