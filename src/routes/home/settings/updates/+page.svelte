@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { getSetting, setSetting } from '$lib/api';
   import type { UpdateChannel } from '$lib/updater';
+  import { navigateUp } from '$lib/navigation';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -57,7 +59,7 @@
 </script>
 
 <div class="channel-page">
-  <button class="back-button" onclick={() => goto('/home/settings')}>
+  <button class="back-button" onclick={() => navigateUp(page.url.pathname)}>
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}
   </button>

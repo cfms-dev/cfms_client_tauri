@@ -576,18 +576,6 @@
     kind: 'folder' | 'document',
     item: ServerDirectoryEntry | ServerDocumentEntry,
   ) {
-    const name = kind === 'folder'
-      ? (item as ServerDirectoryEntry).name
-      : (item as ServerDocumentEntry).title;
-    const confirmed = await dialogStore.confirm({
-      title: $t('common.delete'),
-      message: $t('files.deleteConfirm', { values: { name } }),
-      confirmLabel: $t('common.delete'),
-      cancelLabel: $t('common.cancel'),
-      danger: true,
-    });
-    if (!confirmed) return;
-
     try {
       if (kind === 'folder') {
         await deleteDirectory((item as ServerDirectoryEntry).id);
@@ -982,14 +970,6 @@
 
   async function handleDeleteSelected() {
     if (totalSelected === 0) return;
-    const confirmed = await dialogStore.confirm({
-      title: $t('common.delete'),
-      message: $t('files.deleteSelectedConfirm', { values: { count: totalSelected } }),
-      confirmLabel: $t('common.delete'),
-      cancelLabel: $t('common.cancel'),
-      danger: true,
-    });
-    if (!confirmed) return;
     try {
       for (const id of selectedFolderIds) {
         await deleteDirectory(id);

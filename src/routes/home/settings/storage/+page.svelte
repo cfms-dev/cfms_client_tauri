@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     loadUserPreference,
     saveUserPreference,
     type UserPreference,
   } from '$lib/api';
+  import { navigateUp } from '$lib/navigation';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
@@ -75,7 +76,7 @@
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
     style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/settings')}
+    onclick={() => navigateUp(page.url.pathname)}
   >
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}

@@ -6,8 +6,10 @@
   // Reference: SettingsModel in reference/src/include/ui/models/settings/overview.py
 
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
+  import { navigateUp } from '$lib/navigation';
   import Icon from '$lib/components/Icon.svelte';
   import type { IconName } from '$lib/icons';
 
@@ -37,7 +39,7 @@
   const visibleEntries = $derived(entries.filter((entry) => !entry.requiresAuth || authStore.isLoggedIn));
 
   function goBack() {
-    goto(authStore.isLoggedIn ? '/home/more' : '/connect');
+    void navigateUp(page.url.pathname);
   }
 </script>
 

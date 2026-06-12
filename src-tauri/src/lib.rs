@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+#[cfg(target_os = "android")]
+use tauri::Runtime;
 use tauri::{Emitter, Manager};
 use tauri_plugin_log::log::LevelFilter;
 use tauri_plugin_log::{Target, TargetKind};
@@ -112,12 +114,21 @@ pub struct AppHandleState {
     /// Pending application update selected by the most recent updater check.
     pub pending_update: Arc<Mutex<Option<tauri_plugin_updater::Update>>>,
 
+    /// Pending Android APK update selected by the most recent updater check.
+    #[cfg(target_os = "android")]
+    pub pending_mobile_update: Arc<Mutex<Option<commands::MobileAppUpdate>>>,
+
     /// Application data directory (for persistence file paths).
     pub app_data_dir: PathBuf,
 
     /// Background service manager.  Wrapped in Arc+Mutex so it can be
     /// activated on the async runtime and later shut down.
     pub service_manager: Arc<tokio::sync::Mutex<Option<ServiceManager>>>,
+}
+
+#[cfg(target_os = "android")]
+pub struct AndroidApkInstaller<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +155,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(updater_plugin())
+        .plugin(apk_installer_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -172,6 +184,8 @@ pub fn run() {
             let active_downloads = ActiveRegistry::new();
             let active_uploads = ActiveUploadRegistry::new();
             let pending_update = Arc::new(Mutex::new(None));
+            #[cfg(target_os = "android")]
+            let pending_mobile_update = Arc::new(Mutex::new(None));
 
             // --- Register background services (no Tokio context needed) ---
             // Services are activated later inside a Tauri async runtime block.
@@ -269,6 +283,8 @@ pub fn run() {
                 active_uploads,
                 localizer,
                 pending_update,
+                #[cfg(target_os = "android")]
+                pending_mobile_update,
                 app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
             });
@@ -400,4 +416,22 @@ fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_pl
 #[cfg(any(target_os = "android", target_os = "ios"))]
 fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("updater-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("apk-installer")
+        .setup(|app, api| {
+            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "ApkInstallerPlugin")?;
+            app.manage(AndroidApkInstaller { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("apk-installer-noop").build()
 }

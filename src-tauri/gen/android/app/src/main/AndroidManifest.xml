@@ -14,6 +14,9 @@
     <!-- Required for the persistent notification on Android 13+ (API 33) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Allows the updater to hand downloaded APKs to Android's package installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Network state for connectivity-aware service behaviour -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 

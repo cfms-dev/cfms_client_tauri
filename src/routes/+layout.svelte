@@ -17,8 +17,10 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
+  import { onBackButtonPress } from "@tauri-apps/api/app";
   import { initEventListeners } from "$lib/events";
   import { initI18n } from "$lib/i18n";
+  import { navigateUp } from "$lib/navigation";
   import {
     authStore,
     serverStateStore,
@@ -138,6 +140,24 @@
         }
       }, 2000);
     }
+  });
+
+  onMount(() => {
+    let removeBackButtonListener: (() => void) | null = null;
+
+    onBackButtonPress(() => {
+      void navigateUp(page.url.pathname);
+    })
+      .then((listener) => {
+        removeBackButtonListener = () => {
+          void listener.unregister();
+        };
+      })
+      .catch(() => {
+        /* Non-mobile platforms do not provide the Android back-button event. */
+      });
+
+    return () => removeBackButtonListener?.();
   });
 
   // Periodic auth status polling (every 30s).

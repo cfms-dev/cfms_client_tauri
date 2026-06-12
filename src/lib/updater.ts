@@ -10,6 +10,7 @@ export interface AppUpdateMetadata {
   body?: string | null;
   channel: UpdateChannel;
   releaseUrl: string;
+  installMode: 'desktop' | 'android-apk';
 }
 
 export type AppUpdateDownloadEvent =

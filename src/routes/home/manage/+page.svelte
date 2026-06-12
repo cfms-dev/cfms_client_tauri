@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     blockUser,
@@ -27,6 +27,7 @@
     type UserBlockTarget,
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
+  import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -606,7 +607,7 @@
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
     style="font-family: var(--font-md3-sans);"
-    onclick={() => goto('/home/more')}
+    onclick={() => navigateUp(page.url.pathname)}
   >
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}

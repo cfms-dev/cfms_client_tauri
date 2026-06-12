@@ -57,6 +57,16 @@
     }
     return $t('settings.updates.preparingDownload');
   });
+  const installCompleteMessage = $derived(
+    update?.installMode === 'android-apk'
+      ? $t('settings.updates.installCompleteAndroid')
+      : $t('settings.updates.installComplete'),
+  );
+  const installButtonLabel = $derived(
+    update?.installMode === 'android-apk'
+      ? $t('settings.updates.downloadAndOpenInstaller')
+      : $t('settings.updates.downloadAndInstall'),
+  );
 
   $effect(() => {
     if (!status) return;
@@ -117,7 +127,7 @@
         progress = snapshot;
       });
       installed = true;
-      status = $t('settings.updates.installComplete');
+      status = installCompleteMessage;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
@@ -225,11 +235,11 @@
         {:else}
           <Icon name="download" size="18px" />
         {/if}
-        {$t('settings.updates.downloadAndInstall')}
+        {installButtonLabel}
       </button>
     {/if}
 
-    {#if installed}
+    {#if installed && update?.installMode !== 'android-apk'}
       <button class="success-action" onclick={restartNow}>
         <Icon name="refresh" size="18px" />
         {$t('settings.updates.restartNow')}

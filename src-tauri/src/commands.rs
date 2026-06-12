@@ -18,9 +18,14 @@ use cfms_crypto::dek;
 use cfms_service::services::download_queue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "android")]
+use std::io::Write;
+
 use tauri::{Emitter, Manager, ipc::Channel};
 use tauri_plugin_updater::UpdaterExt;
 
+#[cfg(target_os = "android")]
+use crate::AndroidApkInstaller;
 use crate::{AppHandleState, UploadInterruption};
 
 const UPDATE_RELEASES_API: &str =
@@ -123,6 +128,8 @@ struct GithubReleaseDto {
 struct GithubAssetDto {
     name: String,
     browser_download_url: String,
+    #[cfg(target_os = "android")]
+    digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -134,6 +141,28 @@ pub struct AppUpdateMetadata {
     pub body: Option<String>,
     pub channel: String,
     pub release_url: String,
+    pub install_mode: String,
+}
+
+#[derive(Debug, Clone)]
+#[cfg(target_os = "android")]
+pub struct MobileAppUpdate {
+    download_url: String,
+    file_name: String,
+    digest: Option<AssetDigest>,
+}
+
+#[cfg(target_os = "android")]
+#[derive(Debug, Clone)]
+struct AssetDigest {
+    kind: AssetDigestKind,
+    value: String,
+}
+
+#[cfg(target_os = "android")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AssetDigestKind {
+    Sha256,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -311,9 +340,18 @@ pub async fn check_app_update(
     channel: Option<String>,
 ) -> Result<Option<AppUpdateMetadata>, String> {
     let channel = UpdateChannel::parse(channel.as_deref());
-    let release = find_update_release(channel).await?;
+
+    #[cfg(target_os = "android")]
+    {
+        return check_android_app_update(&app, state, channel).await;
+    }
+
+    #[cfg(not(target_os = "android"))]
+    let release = find_update_release(channel, UpdateAssetKind::DesktopManifest).await?;
+    #[cfg(not(target_os = "android"))]
     let Some((manifest_url, release_url)) = release.as_ref().and_then(|release| {
-        select_update_manifest_asset(release, channel).map(|url| (url, release.html_url.clone()))
+        select_update_manifest_asset(release, channel)
+            .map(|asset| (asset.browser_download_url.clone(), release.html_url.clone()))
     }) else {
         let mut pending = state
             .pending_update
@@ -342,6 +380,7 @@ pub async fn check_app_update(
         body: update.body.clone(),
         channel: channel.as_str().to_string(),
         release_url,
+        install_mode: "desktop".to_string(),
     });
 
     let mut pending = state
@@ -354,10 +393,20 @@ pub async fn check_app_update(
 }
 
 #[tauri::command]
-pub async fn install_app_update(
+pub async fn install_app_update<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        return install_android_app_update(app, state, on_event).await;
+    }
+
+    #[cfg(not(target_os = "android"))]
+    let _ = &app;
+
+    #[cfg(not(target_os = "android"))]
     let update = {
         let mut pending = state
             .pending_update
@@ -388,7 +437,269 @@ pub async fn install_app_update(
         .map_err(|e| format!("Failed to install update: {e}"))
 }
 
-async fn find_update_release(channel: UpdateChannel) -> Result<Option<GithubReleaseDto>, String> {
+#[cfg(target_os = "android")]
+async fn check_android_app_update(
+    app: &tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    channel: UpdateChannel,
+) -> Result<Option<AppUpdateMetadata>, String> {
+    let release = find_update_release(channel, UpdateAssetKind::AndroidApk).await?;
+    let Some(release) = release else {
+        clear_mobile_pending_update(&state)?;
+        return Ok(None);
+    };
+
+    let current_version = app.package_info().version.to_string();
+    if !is_release_newer(&release.tag_name, &current_version) {
+        clear_mobile_pending_update(&state)?;
+        return Ok(None);
+    }
+
+    let Some(asset) = select_android_apk_asset(&release) else {
+        clear_mobile_pending_update(&state)?;
+        return Ok(None);
+    };
+
+    let digest = asset.digest.as_deref().and_then(parse_asset_digest);
+    let file_name = sanitize_update_file_name(&asset.name, &release.tag_name);
+
+    let update = MobileAppUpdate {
+        download_url: asset.browser_download_url.clone(),
+        file_name,
+        digest,
+    };
+
+    let metadata = AppUpdateMetadata {
+        current_version,
+        version: release.tag_name,
+        date: release.published_at,
+        body: release.body,
+        channel: channel.as_str().to_string(),
+        release_url: release.html_url,
+        install_mode: "android-apk".to_string(),
+    };
+
+    let mut pending = state
+        .pending_mobile_update
+        .lock()
+        .map_err(|_| "Mobile updater state is unavailable.".to_string())?;
+    *pending = Some(update);
+
+    Ok(Some(metadata))
+}
+
+#[cfg(target_os = "android")]
+async fn install_android_app_update<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppHandleState>,
+    on_event: Channel<AppUpdateDownloadEvent>,
+) -> Result<(), String> {
+    let update = {
+        let pending = state
+            .pending_mobile_update
+            .lock()
+            .map_err(|_| "Mobile updater state is unavailable.".to_string())?;
+        pending.clone()
+    };
+
+    let Some(update) = update else {
+        return Err("No pending Android update is available. Check for updates first.".to_string());
+    };
+
+    let update_dir = state.app_data_dir.join("updates");
+    tokio::fs::create_dir_all(&update_dir)
+        .await
+        .map_err(|e| format!("Failed to create update directory: {e}"))?;
+    let target_path = update_dir.join(&update.file_name);
+
+    download_mobile_update(&update, &target_path, &on_event).await?;
+
+    let installer = app.state::<AndroidApkInstaller<R>>();
+    installer
+        .handle
+        .run_mobile_plugin::<()>(
+            "installApk",
+            serde_json::json!({ "path": target_path.to_string_lossy() }),
+        )
+        .map_err(|e| format!("Failed to open Android package installer: {e}"))?;
+
+    let mut pending = state
+        .pending_mobile_update
+        .lock()
+        .map_err(|_| "Mobile updater state is unavailable.".to_string())?;
+    *pending = None;
+
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+fn clear_mobile_pending_update(state: &tauri::State<'_, AppHandleState>) -> Result<(), String> {
+    let mut pending = state
+        .pending_mobile_update
+        .lock()
+        .map_err(|_| "Mobile updater state is unavailable.".to_string())?;
+    *pending = None;
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+async fn download_mobile_update(
+    update: &MobileAppUpdate,
+    target_path: &std::path::Path,
+    on_event: &Channel<AppUpdateDownloadEvent>,
+) -> Result<(), String> {
+    if is_cached_mobile_update_valid(target_path, update).await? {
+        let size = tokio::fs::metadata(target_path)
+            .await
+            .ok()
+            .map(|metadata| metadata.len());
+        let _ = on_event.send(AppUpdateDownloadEvent::Started {
+            content_length: size,
+        });
+        if let Some(size) = size {
+            let _ = on_event.send(AppUpdateDownloadEvent::Progress {
+                chunk_length: size as usize,
+            });
+        }
+        let _ = on_event.send(AppUpdateDownloadEvent::Finished);
+        return Ok(());
+    }
+
+    let mut response = reqwest::Client::new()
+        .get(&update.download_url)
+        .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download Android update: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("Android update download failed: {e}"))?;
+
+    let content_length = response.content_length();
+    let _ = on_event.send(AppUpdateDownloadEvent::Started { content_length });
+
+    let tmp_path = target_path.with_extension("apk.part");
+    let mut file = std::fs::File::create(&tmp_path)
+        .map_err(|e| format!("Failed to create temporary update file: {e}"))?;
+
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("Failed while downloading Android update: {e}"))?
+    {
+        file.write_all(&chunk)
+            .map_err(|e| format!("Failed to write Android update file: {e}"))?;
+        let _ = on_event.send(AppUpdateDownloadEvent::Progress {
+            chunk_length: chunk.len(),
+        });
+    }
+
+    file.flush()
+        .map_err(|e| format!("Failed to flush Android update file: {e}"))?;
+    drop(file);
+
+    if let Some(digest) = &update.digest {
+        verify_update_digest(&tmp_path, digest).await?;
+    }
+
+    tokio::fs::rename(&tmp_path, target_path)
+        .await
+        .map_err(|e| format!("Failed to finalize Android update file: {e}"))?;
+
+    let _ = on_event.send(AppUpdateDownloadEvent::Finished);
+    Ok(())
+}
+
+#[cfg(target_os = "android")]
+async fn is_cached_mobile_update_valid(
+    target_path: &std::path::Path,
+    update: &MobileAppUpdate,
+) -> Result<bool, String> {
+    let Ok(metadata) = tokio::fs::metadata(target_path).await else {
+        return Ok(false);
+    };
+    if metadata.len() == 0 {
+        return Ok(false);
+    }
+
+    let Some(digest) = &update.digest else {
+        return Ok(false);
+    };
+
+    verify_update_digest(target_path, digest)
+        .await
+        .map(|_| true)
+}
+
+#[cfg(target_os = "android")]
+async fn verify_update_digest(path: &std::path::Path, digest: &AssetDigest) -> Result<(), String> {
+    match digest.kind {
+        AssetDigestKind::Sha256 => {
+            let expected = digest.value.to_ascii_lowercase();
+            let path = path.to_path_buf();
+            let actual = tokio::task::spawn_blocking(move || {
+                cfms_transfer::compute_sha256(&path).map(hex::encode)
+            })
+            .await
+            .map_err(|e| format!("SHA-256 verification task failed: {e}"))?
+            .map_err(|e| format!("Failed to calculate update SHA-256: {e}"))?;
+
+            if actual == expected {
+                Ok(())
+            } else {
+                Err("Downloaded update failed SHA-256 verification.".to_string())
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+fn parse_asset_digest(raw: &str) -> Option<AssetDigest> {
+    let (kind, value) = raw.split_once(':')?;
+    let kind = match kind.trim().to_ascii_lowercase().as_str() {
+        "sha256" => AssetDigestKind::Sha256,
+        _ => return None,
+    };
+    let value = value.trim().to_ascii_lowercase();
+    if value.is_empty() {
+        return None;
+    }
+    Some(AssetDigest { kind, value })
+}
+
+#[cfg(target_os = "android")]
+fn sanitize_update_file_name(raw: &str, version: &str) -> String {
+    let fallback = format!("cfms-client-{version}.apk");
+    let source = if raw.trim().is_empty() {
+        &fallback
+    } else {
+        raw
+    };
+    let mut sanitized = source
+        .chars()
+        .map(|ch| match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => ch,
+            _ => '_',
+        })
+        .collect::<String>();
+
+    if !sanitized.to_ascii_lowercase().ends_with(".apk") {
+        sanitized.push_str(".apk");
+    }
+
+    sanitized
+}
+
+#[derive(Debug, Clone, Copy)]
+enum UpdateAssetKind {
+    DesktopManifest,
+    #[cfg(target_os = "android")]
+    AndroidApk,
+}
+
+async fn find_update_release(
+    channel: UpdateChannel,
+    asset_kind: UpdateAssetKind,
+) -> Result<Option<GithubReleaseDto>, String> {
     let releases = reqwest::Client::new()
         .get(UPDATE_RELEASES_API)
         .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
@@ -404,7 +715,7 @@ async fn find_update_release(channel: UpdateChannel) -> Result<Option<GithubRele
 
     let mut candidates = releases
         .into_iter()
-        .filter(|release| select_update_manifest_asset(release, channel).is_some())
+        .filter(|release| select_update_asset(release, channel, asset_kind).is_some())
         .filter_map(|release| {
             channel_match_priority(channel, release_channel(&release))
                 .map(|priority| (priority, release))
@@ -421,10 +732,22 @@ async fn find_update_release(channel: UpdateChannel) -> Result<Option<GithubRele
     Ok(candidates.into_iter().map(|(_, release)| release).next())
 }
 
+fn select_update_asset(
+    release: &GithubReleaseDto,
+    channel: UpdateChannel,
+    kind: UpdateAssetKind,
+) -> Option<&GithubAssetDto> {
+    match kind {
+        UpdateAssetKind::DesktopManifest => select_update_manifest_asset(release, channel),
+        #[cfg(target_os = "android")]
+        UpdateAssetKind::AndroidApk => select_android_apk_asset(release),
+    }
+}
+
 fn select_update_manifest_asset(
     release: &GithubReleaseDto,
     channel: UpdateChannel,
-) -> Option<String> {
+) -> Option<&GithubAssetDto> {
     let channel_manifest = format!("latest-{}.json", channel.as_str());
     release
         .assets
@@ -436,7 +759,31 @@ fn select_update_manifest_asset(
                 .iter()
                 .find(|asset| asset.name == "latest.json")
         })
-        .map(|asset| asset.browser_download_url.clone())
+}
+
+#[cfg(target_os = "android")]
+fn select_android_apk_asset(release: &GithubReleaseDto) -> Option<&GithubAssetDto> {
+    release
+        .assets
+        .iter()
+        .filter(|asset| asset.name.to_ascii_lowercase().ends_with(".apk"))
+        .max_by_key(|asset| android_apk_asset_score(&asset.name))
+}
+
+#[cfg(target_os = "android")]
+fn android_apk_asset_score(name: &str) -> u8 {
+    let lower = name.to_ascii_lowercase();
+    let mut score = 0;
+    if lower.contains("universal") {
+        score += 4;
+    }
+    if lower.contains("android") {
+        score += 2;
+    }
+    if !lower.contains("debug") {
+        score += 1;
+    }
+    score
 }
 
 fn release_channel(release: &GithubReleaseDto) -> UpdateChannel {
@@ -483,6 +830,17 @@ fn compare_release_version(
 
 fn parse_release_version(tag: &str) -> Option<semver::Version> {
     semver::Version::parse(tag.trim_start_matches('v')).ok()
+}
+
+#[cfg(target_os = "android")]
+fn is_release_newer(release_tag: &str, current_version: &str) -> bool {
+    let Some(release_version) = parse_release_version(release_tag) else {
+        return false;
+    };
+    let Some(current_version) = parse_release_version(current_version) else {
+        return true;
+    };
+    release_version > current_version
 }
 
 // ---------------------------------------------------------------------------

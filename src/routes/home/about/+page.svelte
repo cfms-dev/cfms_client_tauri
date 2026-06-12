@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { protocolVersion } from '$lib/api';
   import { loadAppVersion } from '$lib/app-info';
-  import { authStore } from '$lib/stores.svelte';
+  import { navigateUp } from '$lib/navigation';
   import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -21,7 +21,7 @@
   });
 
   function goBack() {
-    goto(authStore.isLoggedIn ? '/home/more' : '/connect');
+    void navigateUp(page.url.pathname);
   }
 </script>
 
