@@ -89,6 +89,7 @@ struct UploadFileResult {
 #[derive(Debug)]
 struct PreparedUploadSource {
     path: std::path::PathBuf,
+    display_name: Option<String>,
     cleanup_on_drop: bool,
 }
 
@@ -113,6 +114,7 @@ impl Drop for PreparedUploadSource {
 #[serde(rename_all = "camelCase")]
 struct AndroidImportedUploadPath {
     path: String,
+    display_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1525,13 +1527,17 @@ pub async fn upload_document_file<R: Runtime>(
     file_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
+    upload_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let source = prepare_upload_source(&app_handle, file_path)?;
+    let upload_name =
+        clean_optional_upload_name(upload_name).or_else(|| source.display_name.clone());
     let result = upload_local_file(
         &app_handle,
         &state,
         parent_id,
         source.path.clone(),
+        upload_name,
         upload_id,
         conflict_strategy.unwrap_or_default(),
     )
@@ -1556,6 +1562,7 @@ pub async fn upload_directory<R: Runtime>(
     directory_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
+    upload_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let source = prepare_upload_directory_source(&app_handle, directory_path)?;
     let root = source.path.clone();
@@ -1563,11 +1570,14 @@ pub async fn upload_directory<R: Runtime>(
         return Err("Selected path is not a directory".to_string());
     }
 
-    let root_name = root
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "Selected directory has no valid name".to_string())?
-        .to_string();
+    let root_name = clean_optional_upload_name(upload_name)
+        .or_else(|| source.display_name.clone())
+        .or_else(|| {
+            root.file_name()
+                .and_then(|name| name.to_str())
+                .map(ToOwned::to_owned)
+        })
+        .ok_or_else(|| "Selected directory has no valid name".to_string())?;
 
     let root_id = create_server_directory(&state, parent_id, root_name, true).await?;
     let entries = collect_directory_entries(&root)?;
@@ -1614,6 +1624,7 @@ pub async fn upload_directory<R: Runtime>(
                 &state,
                 Some(parent_server_id),
                 entry,
+                None,
                 upload_id.clone(),
                 conflict_strategy,
             )
@@ -3617,6 +3628,26 @@ async fn create_server_directory(
         .ok_or_else(|| "Server response missing directory id".to_string())
 }
 
+fn clean_optional_upload_name(name: Option<String>) -> Option<String> {
+    name.and_then(|value| {
+        let cleaned = value
+            .chars()
+            .map(|ch| match ch {
+                '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'..='\u{1f}' => '_',
+                _ => ch,
+            })
+            .collect::<String>()
+            .trim()
+            .trim_matches('.')
+            .to_string();
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
+    })
+}
+
 #[cfg(target_os = "android")]
 fn prepare_upload_source<R: Runtime>(
     app_handle: &tauri::AppHandle<R>,
@@ -3626,6 +3657,7 @@ fn prepare_upload_source<R: Runtime>(
     if source.is_file() {
         return Ok(PreparedUploadSource {
             path: source,
+            display_name: None,
             cleanup_on_drop: false,
         });
     }
@@ -3645,6 +3677,7 @@ fn prepare_upload_source<R: Runtime>(
 
     Ok(PreparedUploadSource {
         path: imported_path,
+        display_name: Some(imported.display_name),
         cleanup_on_drop: true,
     })
 }
@@ -3661,6 +3694,7 @@ fn prepare_upload_source<R: Runtime>(
 
     Ok(PreparedUploadSource {
         path: source,
+        display_name: None,
         cleanup_on_drop: false,
     })
 }
@@ -3674,6 +3708,7 @@ fn prepare_upload_directory_source<R: Runtime>(
     if source.is_dir() {
         return Ok(PreparedUploadSource {
             path: source,
+            display_name: None,
             cleanup_on_drop: false,
         });
     }
@@ -3693,6 +3728,7 @@ fn prepare_upload_directory_source<R: Runtime>(
 
     Ok(PreparedUploadSource {
         path: imported_path,
+        display_name: Some(imported.display_name),
         cleanup_on_drop: true,
     })
 }
@@ -3709,6 +3745,7 @@ fn prepare_upload_directory_source<R: Runtime>(
 
     Ok(PreparedUploadSource {
         path: source,
+        display_name: None,
         cleanup_on_drop: false,
     })
 }
@@ -3718,6 +3755,7 @@ async fn upload_local_file<R: Runtime>(
     state: &AppHandleState,
     parent_id: Option<String>,
     source: std::path::PathBuf,
+    upload_name: Option<String>,
     upload_id: String,
     conflict_strategy: UploadConflictStrategy,
 ) -> Result<UploadFileResult, String> {
@@ -3725,11 +3763,14 @@ async fn upload_local_file<R: Runtime>(
         return Err("Selected path is not a file".to_string());
     }
 
-    let file_name = source
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "Selected file has no valid name".to_string())?
-        .to_string();
+    let file_name = upload_name
+        .or_else(|| {
+            source
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(ToOwned::to_owned)
+        })
+        .ok_or_else(|| "Selected file has no valid name".to_string())?;
     let mut upload_control = state.active_uploads.register(&upload_id);
 
     emit_upload_progress(

@@ -46,6 +46,7 @@ class UploadFileImporterPlugin(private val activity: Activity) : Plugin(activity
 
             val response = JSObject().apply {
                 put("path", target.absolutePath)
+                put("displayName", displayName)
             }
             invoke.resolve(response)
         } catch (ex: Exception) {
@@ -95,9 +96,11 @@ class UploadFileImporterPlugin(private val activity: Activity) : Plugin(activity
             try {
                 val args = invoke.parseArgs(ImportDirectoryArgs::class.java)
                 val sourceUri = Uri.parse(args.uri)
+                val displayName = displayNameForDirectory(sourceUri)
                 val target = copyDirectoryToCache(sourceUri)
                 val response = JSObject().apply {
                     put("path", target.absolutePath)
+                    put("displayName", displayName)
                 }
                 invoke.resolve(response)
             } catch (ex: Exception) {

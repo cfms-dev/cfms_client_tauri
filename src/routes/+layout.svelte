@@ -20,7 +20,7 @@
   import { onBackButtonPress } from "@tauri-apps/api/app";
   import { initEventListeners } from "$lib/events";
   import { initI18n } from "$lib/i18n";
-  import { navigateUp } from "$lib/navigation";
+  import { initNavigationHistory, navigateUp } from "$lib/navigation";
   import {
     authStore,
     serverStateStore,
@@ -33,6 +33,7 @@
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
 
   let { children }: { children: Snippet } = $props();
+  initNavigationHistory();
 
   // Routes that don't require any connection/auth.
   const PUBLIC_ROUTES = ["/connect", "/connect/disclaimer", "/init"];

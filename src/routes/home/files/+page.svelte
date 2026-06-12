@@ -859,7 +859,7 @@
         multiple: false,
         directory: false,
         pickerMode: 'document',
-        fileAccessMode: 'copy',
+        fileAccessMode: 'scoped',
         title: $t('files.selectRevisionFile'),
       });
     } catch (err) {
@@ -1095,7 +1095,7 @@
         multiple: true,
         directory: false,
         pickerMode: 'document',
-        fileAccessMode: 'copy',
+        fileAccessMode: 'scoped',
         title: $t('files.selectFilesToUpload'),
       });
     } catch (err) {
@@ -1109,7 +1109,16 @@
     const targetFolderId = currentFolderId;
     notificationStore.info($t('files.uploadQueued', { values: { count: files.length } }));
     for (const filePath of files) {
-      scheduleUpload(filePath, (uploadId) => uploadDocumentFile(targetFolderId, filePath, uploadId));
+      scheduleUpload(
+        filePath,
+        (uploadId, uploadName) => uploadDocumentFile(
+          targetFolderId,
+          filePath,
+          uploadId,
+          'overwrite',
+          uploadName,
+        ),
+      );
     }
   }
 
@@ -1133,13 +1142,23 @@
     const targetFolderId = currentFolderId;
     scheduleUpload(
       selected,
-      (uploadId) => uploadDirectory(targetFolderId, selected, uploadId),
+      (uploadId, uploadName) => uploadDirectory(
+        targetFolderId,
+        selected,
+        uploadId,
+        'overwrite',
+        uploadName,
+      ),
       displayName,
     );
   }
 
   async function selectAndroidUploadFolderAfterPickerError(err: unknown) {
     const message = formatError(err);
+    if (isPickerCancel(message)) {
+      return null;
+    }
+
     if (!message.includes('Folder picker is not implemented')) {
       error = message;
       return null;
@@ -1155,15 +1174,16 @@
 
   function scheduleUpload(
     sourcePath: string,
-    action: (uploadId: string) => Promise<unknown>,
+    action: (uploadId: string, uploadName: string) => Promise<unknown>,
     displayName?: string,
   ) {
     const uploadId = createUploadId();
+    const uploadName = displayName?.trim() || uploadDisplayName(sourcePath);
     uploadStore.addQueued(
       uploadId,
-      displayName?.trim() || basename(sourcePath),
+      uploadName,
       sourcePath,
-      action,
+      (id) => action(id, uploadName),
       async () => {
         await loadDirectory(currentFolderId);
       },
@@ -1187,6 +1207,17 @@
       }
     }
     return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+  }
+
+  function uploadDisplayName(path: string) {
+    return stripUploadCachePrefix(basename(path));
+  }
+
+  function stripUploadCachePrefix(name: string) {
+    return name
+      .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_/i, '')
+      .replace(/^[0-9a-f]{32}_/i, '')
+      .replace(/^\d{10,}[-_][0-9a-f]{6,}[-_]/i, '');
   }
 
   function openSearchDialog() {
@@ -1358,9 +1389,19 @@
 
   function handlePickerError(err: unknown) {
     const message = formatError(err);
+    if (isPickerCancel(message)) return;
+
     error = message.includes('Folder picker is not implemented')
       ? $t('files.mobileFolderUploadUnsupported')
       : message;
+  }
+
+  function isPickerCancel(message: string) {
+    const normalized = message.toLowerCase();
+    return normalized.includes('cancelled')
+      || normalized.includes('canceled')
+      || normalized.includes('cancel')
+      || normalized.includes('no folder was selected');
   }
 
   interface RevisionGraphRow {

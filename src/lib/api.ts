@@ -748,6 +748,7 @@ export async function uploadDocumentFile(
   filePath: string,
   uploadId: string,
   conflictStrategy: UploadConflictStrategy = "overwrite",
+  uploadName?: string,
 ): Promise<{
   upload_id: string;
   task_id: string | null;
@@ -761,6 +762,7 @@ export async function uploadDocumentFile(
     filePath,
     uploadId,
     conflictStrategy,
+    uploadName: uploadName ?? null,
   });
 }
 
@@ -769,6 +771,7 @@ export async function uploadDirectory(
   directoryPath: string,
   uploadId: string,
   conflictStrategy: UploadConflictStrategy = "overwrite",
+  uploadName?: string,
 ): Promise<{
   upload_id: string;
   directory_id: string;
@@ -780,6 +783,7 @@ export async function uploadDirectory(
     directoryPath,
     uploadId,
     conflictStrategy,
+    uploadName: uploadName ?? null,
   });
 }
 
