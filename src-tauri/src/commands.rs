@@ -21,10 +21,12 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "android")]
 use std::io::Write;
 
-use tauri::{Emitter, Manager, ipc::Channel};
+use tauri::{Emitter, Manager, Runtime, ipc::Channel};
 #[cfg(not(target_os = "android"))]
 use tauri_plugin_updater::UpdaterExt;
 
+#[cfg(target_os = "android")]
+use crate::AndroidUploadFileImporter;
 #[cfg(target_os = "android")]
 use crate::{AndroidApkInstaller, AndroidFileOpener};
 use crate::{AppHandleState, UploadInterruption};
@@ -82,6 +84,27 @@ struct UploadFileResult {
     file_name: String,
     skipped: bool,
     overwritten: bool,
+}
+
+#[derive(Debug)]
+struct PreparedUploadSource {
+    path: std::path::PathBuf,
+    cleanup_on_drop: bool,
+}
+
+impl Drop for PreparedUploadSource {
+    fn drop(&mut self) {
+        if self.cleanup_on_drop {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AndroidImportedUploadFile {
+    path: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -1403,16 +1426,13 @@ pub async fn set_current_revision(
 
 /// Upload a local file as a new revision for an existing document.
 #[tauri::command]
-pub async fn upload_new_revision(
-    app_handle: tauri::AppHandle,
+pub async fn upload_new_revision<R: Runtime>(
+    app_handle: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     document_id: String,
     file_path: String,
 ) -> Result<serde_json::Value, String> {
-    let source = std::path::PathBuf::from(file_path);
-    if !source.is_file() {
-        return Err("Selected path is not a file".to_string());
-    }
+    let source = prepare_upload_source(&app_handle, file_path)?;
 
     let (conn, username, token) = get_connection_auth(&state).await?;
     let resp = send_action_request(
@@ -1459,7 +1479,8 @@ pub async fn upload_new_revision(
         );
     };
 
-    let result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress).await;
+    let result =
+        cfms_transfer::upload::send(&transfer_conn, &task_id, &source.path, &progress).await;
     transfer_conn.close().await;
     result.map_err(|e| format!("Upload failed: {e}"))?;
 
@@ -1482,20 +1503,20 @@ pub async fn upload_new_revision(
 
 /// Upload a local file as a new document in a server-side directory.
 #[tauri::command]
-pub async fn upload_document_file(
-    app_handle: tauri::AppHandle,
+pub async fn upload_document_file<R: Runtime>(
+    app_handle: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     parent_id: Option<String>,
     file_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
 ) -> Result<serde_json::Value, String> {
-    let source = std::path::PathBuf::from(file_path);
+    let source = prepare_upload_source(&app_handle, file_path)?;
     let result = upload_local_file(
         &app_handle,
         &state,
         parent_id,
-        source,
+        source.path.clone(),
         upload_id,
         conflict_strategy.unwrap_or_default(),
     )
@@ -3557,8 +3578,56 @@ async fn create_server_directory(
         .ok_or_else(|| "Server response missing directory id".to_string())
 }
 
-async fn upload_local_file(
-    app_handle: &tauri::AppHandle,
+#[cfg(target_os = "android")]
+fn prepare_upload_source<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    file_path: String,
+) -> Result<PreparedUploadSource, String> {
+    let source = std::path::PathBuf::from(&file_path);
+    if source.is_file() {
+        return Ok(PreparedUploadSource {
+            path: source,
+            cleanup_on_drop: false,
+        });
+    }
+
+    let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
+    let imported = importer
+        .handle
+        .run_mobile_plugin::<AndroidImportedUploadFile>(
+            "importFile",
+            serde_json::json!({ "uri": file_path }),
+        )
+        .map_err(|e| format!("Failed to import selected file: {e}"))?;
+    let imported_path = std::path::PathBuf::from(imported.path);
+    if !imported_path.is_file() {
+        return Err("Selected path is not a file".to_string());
+    }
+
+    Ok(PreparedUploadSource {
+        path: imported_path,
+        cleanup_on_drop: true,
+    })
+}
+
+#[cfg(not(target_os = "android"))]
+fn prepare_upload_source<R: Runtime>(
+    _app_handle: &tauri::AppHandle<R>,
+    file_path: String,
+) -> Result<PreparedUploadSource, String> {
+    let source = std::path::PathBuf::from(file_path);
+    if !source.is_file() {
+        return Err("Selected path is not a file".to_string());
+    }
+
+    Ok(PreparedUploadSource {
+        path: source,
+        cleanup_on_drop: false,
+    })
+}
+
+async fn upload_local_file<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
     state: &AppHandleState,
     parent_id: Option<String>,
     source: std::path::PathBuf,
@@ -3812,8 +3881,8 @@ fn upload_interruption_message(reason: UploadInterruption) -> &'static str {
     }
 }
 
-fn emit_interrupted_upload(
-    app_handle: &tauri::AppHandle,
+fn emit_interrupted_upload<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
     upload_id: &str,
     task_id: Option<&str>,
     file_name: &str,
@@ -3835,8 +3904,8 @@ fn emit_interrupted_upload(
     );
 }
 
-fn emit_upload_progress(
-    app_handle: &tauri::AppHandle,
+fn emit_upload_progress<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
     upload_id: &str,
     task_id: Option<&str>,
     file_name: &str,

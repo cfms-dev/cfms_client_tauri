@@ -136,6 +136,11 @@ pub struct AndroidFileOpener<R: Runtime> {
     pub handle: tauri::plugin::PluginHandle<R>,
 }
 
+#[cfg(target_os = "android")]
+pub struct AndroidUploadFileImporter<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -162,6 +167,7 @@ pub fn run() {
         .plugin(updater_plugin())
         .plugin(apk_installer_plugin())
         .plugin(file_opener_plugin())
+        .plugin(upload_file_importer_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -459,4 +465,23 @@ fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
 #[cfg(not(target_os = "android"))]
 fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("file-opener-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("upload-file-importer")
+        .setup(|app, api| {
+            let handle =
+                api.register_android_plugin(PLUGIN_IDENTIFIER, "UploadFileImporterPlugin")?;
+            app.manage(AndroidUploadFileImporter { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("upload-file-importer-noop").build()
 }

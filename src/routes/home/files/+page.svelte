@@ -852,11 +852,19 @@
   }
 
   async function handleUploadNewVersion(doc: ServerDocumentEntry) {
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      title: $t('files.selectRevisionFile'),
-    });
+    let selected: string | null;
+    try {
+      selected = await open({
+        multiple: false,
+        directory: false,
+        pickerMode: 'document',
+        fileAccessMode: 'copy',
+        title: $t('files.selectRevisionFile'),
+      });
+    } catch (err) {
+      handlePickerError(err);
+      return;
+    }
     if (!selected || Array.isArray(selected)) return;
 
     await runFileAction(async () => {
@@ -1080,11 +1088,19 @@
   }
 
   async function handleUploadFiles() {
-    const selected = await open({
-      multiple: true,
-      directory: false,
-      title: $t('files.selectFilesToUpload'),
-    });
+    let selected: string | string[] | null;
+    try {
+      selected = await open({
+        multiple: true,
+        directory: false,
+        pickerMode: 'document',
+        fileAccessMode: 'copy',
+        title: $t('files.selectFilesToUpload'),
+      });
+    } catch (err) {
+      handlePickerError(err);
+      return;
+    }
     if (!selected) return;
     const files = Array.isArray(selected) ? selected : [selected];
     if (files.length === 0) return;
@@ -1097,11 +1113,17 @@
   }
 
   async function handleUploadFolder() {
-    const selected = await open({
-      multiple: false,
-      directory: true,
-      title: $t('files.selectFolderToUpload'),
-    });
+    let selected: string | null;
+    try {
+      selected = await open({
+        multiple: false,
+        directory: true,
+        title: $t('files.selectFolderToUpload'),
+      });
+    } catch (err) {
+      handlePickerError(err);
+      return;
+    }
     if (!selected || Array.isArray(selected)) return;
 
     const targetFolderId = currentFolderId;
@@ -1128,6 +1150,15 @@
   }
 
   function basename(path: string) {
+    if (path.includes('://')) {
+      try {
+        const url = new URL(path);
+        const candidate = decodeURIComponent(url.pathname.split('/').filter(Boolean).at(-1) ?? '');
+        if (candidate) return candidate;
+      } catch {
+        // Fall through to plain path parsing.
+      }
+    }
     return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
   }
 
@@ -1296,6 +1327,13 @@
 
   function formatError(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
+  }
+
+  function handlePickerError(err: unknown) {
+    const message = formatError(err);
+    error = message.includes('Folder picker is not implemented')
+      ? $t('files.mobileFolderUploadUnsupported')
+      : message;
   }
 
   interface RevisionGraphRow {
