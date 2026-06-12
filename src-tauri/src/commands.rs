@@ -211,6 +211,7 @@ struct GithubReleaseDto {
 #[derive(Debug, Clone, Deserialize)]
 struct GithubAssetDto {
     name: String,
+    label: Option<String>,
     browser_download_url: String,
     #[cfg(target_os = "android")]
     digest: Option<String>,
@@ -443,11 +444,16 @@ pub async fn check_app_update(
     channel: Option<String>,
 ) -> Result<Option<AppUpdateMetadata>, String> {
     let channel = UpdateChannel::parse(channel.as_deref());
-    let release = find_update_release(channel, UpdateAssetKind::DesktopManifest).await?;
-    let Some((manifest_url, release_url)) = release.as_ref().and_then(|release| {
-        select_update_manifest_asset(release, channel)
-            .map(|asset| (asset.browser_download_url.clone(), release.html_url.clone()))
-    }) else {
+    let Some(release) = find_update_release(channel, UpdateAssetKind::DesktopManifest).await?
+    else {
+        let mut pending = state
+            .pending_update
+            .lock()
+            .map_err(|_| "Updater state is unavailable.".to_string())?;
+        *pending = None;
+        return Ok(None);
+    };
+    let Some(manifest_asset) = select_update_manifest_asset(&release, channel) else {
         let mut pending = state
             .pending_update
             .lock()
@@ -456,9 +462,12 @@ pub async fn check_app_update(
         return Ok(None);
     };
 
+    let manifest_url = manifest_asset.browser_download_url.clone();
+    let release_url = release.html_url.clone();
+
     let endpoint =
         url::Url::parse(&manifest_url).map_err(|e| format!("Invalid update manifest URL: {e}"))?;
-    let update = app
+    let mut update = app
         .updater_builder()
         .endpoints(vec![endpoint])
         .map_err(|e| format!("Failed to configure updater endpoint: {e}"))?
@@ -467,6 +476,10 @@ pub async fn check_app_update(
         .check()
         .await
         .map_err(|e| format!("Failed to check for updates: {e}"))?;
+
+    if let Some(update) = update.as_mut() {
+        reconcile_update_download_url(update, &release)?;
+    }
 
     let metadata = update.as_ref().map(|update| AppUpdateMetadata {
         current_version: update.current_version.clone(),
@@ -555,6 +568,7 @@ pub async fn install_app_update<R: tauri::Runtime>(
     };
 
     let mut started = false;
+    let download_url = update.download_url.clone();
     update
         .download_and_install(
             |chunk_length, content_length| {
@@ -569,7 +583,7 @@ pub async fn install_app_update<R: tauri::Runtime>(
             },
         )
         .await
-        .map_err(|e| format!("Failed to install update: {e}"))
+        .map_err(|e| format!("Failed to install update from {download_url}: {e}"))
 }
 
 #[cfg(target_os = "android")]
@@ -894,6 +908,38 @@ fn select_update_manifest_asset(
                 .iter()
                 .find(|asset| asset.name == "latest.json")
         })
+}
+
+#[cfg(not(target_os = "android"))]
+fn reconcile_update_download_url(
+    update: &mut tauri_plugin_updater::Update,
+    release: &GithubReleaseDto,
+) -> Result<(), String> {
+    let Some(requested_file_name) = update_download_file_name(&update.download_url) else {
+        return Ok(());
+    };
+
+    let Some(asset) = release.assets.iter().find(|asset| {
+        asset.name == requested_file_name || asset.label.as_deref() == Some(&requested_file_name)
+    }) else {
+        return Ok(());
+    };
+
+    if asset.browser_download_url == update.download_url.as_str() {
+        return Ok(());
+    }
+
+    update.download_url = url::Url::parse(&asset.browser_download_url)
+        .map_err(|e| format!("Invalid update asset URL: {e}"))?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+fn update_download_file_name(download_url: &url::Url) -> Option<String> {
+    download_url
+        .path_segments()
+        .and_then(|mut segments| segments.next_back())
+        .map(|segment| segment.replace("%20", " "))
 }
 
 #[cfg(target_os = "android")]

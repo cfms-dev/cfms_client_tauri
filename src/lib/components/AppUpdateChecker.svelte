@@ -121,6 +121,7 @@
     installing = true;
     error = null;
     installed = false;
+    progress = { phase: 'downloading', downloadedBytes: 0, totalBytes: null, progress: null };
 
     try {
       await installAppUpdate((snapshot) => {
@@ -206,7 +207,7 @@
       <div class="progress-track" aria-label={progressLabel}>
         <div
           class="progress-fill {progress.progress === null && progress.phase === 'downloading' ? 'animate-progress-stripe' : ''}"
-          style="width: {progress.progress === null ? 38 : progress.progress * 100}%;"
+          style="width: {progress.progress === null ? 0 : progress.progress * 100}%;"
         ></div>
       </div>
       <div class="progress-label">
@@ -358,7 +359,6 @@
 
   .progress-fill {
     height: 100%;
-    min-width: 0.65rem;
     background: linear-gradient(90deg, var(--color-md3-primary-emphasis), var(--color-md3-success));
     transition: width var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate);
   }

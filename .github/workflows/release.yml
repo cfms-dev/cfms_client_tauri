@@ -365,6 +365,23 @@ jobs:
         with:
           path: artifacts
 
+      - name: Normalize artifact file names
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path("artifacts")
+          for path in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+              if not path.is_file() or " " not in path.name:
+                  continue
+
+              target = path.with_name(path.name.replace(" ", "_"))
+              if target.exists():
+                  raise SystemExit(f"Cannot normalize {path}: {target} already exists")
+
+              path.rename(target)
+          PY
+
       - name: Generate checksums
         run: |
           cd artifacts
@@ -395,6 +412,7 @@ jobs:
           import os
           from datetime import datetime, timezone
           from pathlib import Path
+          from urllib.parse import quote
 
           root = Path("artifacts")
           repo = os.environ["REPOSITORY"]
@@ -404,8 +422,11 @@ jobs:
           def first(pattern: str):
               return next(root.rglob(pattern), None)
 
+          def github_asset_name(path: Path) -> str:
+              return path.name.replace(" ", "_")
+
           def asset_url(path: Path) -> str:
-              return f"https://github.com/{repo}/releases/download/{tag}/{path.name}"
+              return f"https://github.com/{repo}/releases/download/{tag}/{quote(github_asset_name(path))}"
 
           def signature_for(path: Path) -> str | None:
               sig = Path(f"{path}.sig")
@@ -428,10 +449,14 @@ jobs:
 
           platforms = {}
 
-          windows = first("*.exe") or first("*.msi")
+          windows_nsis = first("*.exe")
+          windows_msi = first("*.msi")
+          windows = windows_nsis or windows_msi
           macos = first("*.app.tar.gz")
           linux = first("*.AppImage")
 
+          add_platform(platforms, "windows-x86_64-nsis", windows_nsis)
+          add_platform(platforms, "windows-x86_64-msi", windows_msi)
           add_platform(platforms, "windows-x86_64", windows)
           add_platform(platforms, "darwin-x86_64", macos)
           add_platform(platforms, "darwin-aarch64", macos)
