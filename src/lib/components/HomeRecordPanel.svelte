@@ -50,8 +50,8 @@
 </script>
 
 <section class="blueprint-panel min-w-0 overflow-hidden">
-  <div class="flex items-center gap-3 px-5 pt-5">
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+  <div class="flex items-center gap-2.5 px-4 pt-4">
+    <div class="flex min-w-0 flex-1 items-center gap-2.5">
       <span class="blueprint-panel-icon {iconClass}">
         <Icon name={icon} size="20px" />
       </span>
@@ -60,21 +60,21 @@
       </h2>
     </div>
     {#if records.length > 0}
-      <IconButton icon="deleteSweep" label={clearLabel} tone="danger" size={19} onclick={onClear} />
+      <IconButton icon="playlistRemove" label={clearLabel} tone="danger" size={19} onclick={onClear} />
     {/if}
   </div>
 
   {#if loading}
-    <div class="flex items-center gap-2 px-5 py-10 text-sm text-md3-on-surface-variant">
+    <div class="flex items-center gap-2 px-4 py-8 text-sm text-md3-on-surface-variant">
       <ProgressRing size={18} strokeWidth={2.5} label={loadingLabel} />
       {loadingLabel}
     </div>
   {:else if records.length === 0}
-    <p class="px-5 py-10 text-center text-sm text-md3-on-surface-variant">
+    <p class="px-4 py-8 text-center text-sm text-md3-on-surface-variant">
       {emptyLabel}
     </p>
   {:else}
-    <div class="grid gap-2 p-3">
+    <div class="grid gap-1.5 px-4 pb-3 pt-3">
       {#each records as item, index (recordKey(item))}
         {@const unavailable = isUnavailable(item)}
         <div
@@ -83,7 +83,7 @@
         >
           <button
             type="button"
-            class="blueprint-record-row grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-3.5 py-3 text-left transition disabled:cursor-not-allowed"
+            class="blueprint-record-row grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed"
             class:blueprint-record-row--unavailable={unavailable}
             disabled={openingId === recordKey(item) || unavailable}
             onclick={() => onOpen(item)}
@@ -105,7 +105,7 @@
               {/if}
             </span>
           </button>
-          <IconButton icon="remove" label={removeLabel} size={18} onclick={() => onRemove(item)} />
+          <IconButton icon="close" label={removeLabel} size={18} onclick={() => onRemove(item)} />
         </div>
       {/each}
     </div>
@@ -123,8 +123,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
   }
 
   .blueprint-record-row {

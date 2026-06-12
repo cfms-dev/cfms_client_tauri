@@ -24,6 +24,8 @@
   let menuEl = $state<HTMLDivElement | null>(null);
   let menuX = $state(0);
   let menuY = $state(0);
+  let originX = $state<'left' | 'right'>('left');
+  let originY = $state<'top' | 'bottom'>('top');
 
   const visibleItems = $derived(filterContextMenuItems(items, userPermissions));
 
@@ -41,8 +43,13 @@
 
       const rect = menuEl.getBoundingClientRect();
       const padding = 8;
-      menuX = Math.max(padding, Math.min(nextX, window.innerWidth - rect.width - padding));
-      menuY = Math.max(padding, Math.min(nextY, window.innerHeight - rect.height - padding));
+      const adjustedX = Math.max(padding, Math.min(nextX, window.innerWidth - rect.width - padding));
+      const adjustedY = Math.max(padding, Math.min(nextY, window.innerHeight - rect.height - padding));
+
+      menuX = adjustedX;
+      menuY = adjustedY;
+      originX = nextX > adjustedX + rect.width / 2 ? 'right' : 'left';
+      originY = nextY > adjustedY + rect.height / 2 ? 'bottom' : 'top';
       menuEl.focus();
     });
   });
@@ -74,10 +81,10 @@
   ></div>
   <div
     bind:this={menuEl}
-    class="fixed z-50 bg-md3-surface-container/95 backdrop-blur-sm
+    class="context-menu-surface fixed z-50 bg-md3-surface-container/95 backdrop-blur-sm
            rounded-xl border border-md3-outline shadow-lg
            py-1 min-w-[190px] max-w-[min(260px,calc(100vw-16px))]"
-    style="left: {menuX}px; top: {menuY}px;"
+    style="left: {menuX}px; top: {menuY}px; transform-origin: {originX} {originY};"
     role="menu"
     tabindex="-1"
     oncontextmenu={(event) => event.preventDefault()}
@@ -104,3 +111,29 @@
     {/each}
   </div>
 {/if}
+
+<style>
+  .context-menu-surface {
+    animation: context-menu-enter 140ms var(--motion-easing-emphasized-decelerate) both;
+    will-change: opacity, transform, filter;
+  }
+
+  @keyframes context-menu-enter {
+    from {
+      opacity: 0;
+      filter: blur(4px);
+      transform: translate3d(0, -3px, 0) scale(0.975);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .context-menu-surface {
+      animation: none;
+    }
+  }
+</style>

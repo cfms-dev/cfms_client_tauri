@@ -51,6 +51,7 @@ export const ICONS = {
   checkBoxBlank: 'check_box_outline_blank',
   radioChecked:  'radio_button_checked',
   radioUnchecked:'radio_button_unchecked',
+  playlistRemove:'playlist_remove',
 
   // ---- Download status ----
   checkCircle:   'check_circle',

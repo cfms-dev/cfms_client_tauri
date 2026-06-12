@@ -113,9 +113,9 @@
   }
 </script>
 
-<div class="blueprint-home mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
+<div class="blueprint-home mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
   <section class="blueprint-hero overflow-hidden">
-    <div class="relative z-10 grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-7">
+    <div class="relative z-10 grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
       <div class="min-w-0">
         <h1 class="text-[clamp(1.75rem,7vw,3.25rem)] font-semibold leading-tight text-md3-on-surface" style="font-family: var(--font-md3-serif);">
           {$t('home.workspace')}
@@ -128,7 +128,7 @@
         </p>
       </div>
 
-      <div class="grid min-w-[12rem] content-end gap-2 text-sm">
+      <div class="grid min-w-[12rem] content-end gap-1 text-sm">
         <div class="blueprint-status-chip">
           <Icon name={serverStateStore.connected ? 'checkCircle' : 'errorFilled'} size="18px" />
           <span>{serverStateStore.connected ? $t('common.connected') : $t('common.disconnected')}</span>
@@ -145,7 +145,7 @@
     </div>
   </section>
 
-  <div class="grid gap-5 lg:grid-cols-2">
+  <div class="grid gap-4 lg:grid-cols-2">
     <HomeRecordPanel
       title={$t('home.recent')}
       icon="history"
@@ -198,8 +198,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    min-height: 2.5rem;
-    padding: 0.55rem 0.85rem;
+    min-height: 2.2rem;
+    padding: 0.42rem 0.75rem;
     color: var(--color-md3-on-surface);
   }
 

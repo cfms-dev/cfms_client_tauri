@@ -51,13 +51,15 @@
       icon: 'password', action: () => { successMsg = null; showChangePassword = true; } },
     { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
-    { label: $t('more.about'), description: $t('more.aboutDescription'),
-      icon: 'info', href: '/home/about' },
     { label: $t('files.trash'), description: $t('more.trashDescription'),
       icon: 'delete', href: '/home/trash' },
     { label: $t('more.management'), description: $t('more.managementDescription'),
       icon: 'adminPanelSettings', href: '/home/manage', hidden: !isAdmin },
+    { label: $t('more.about'), description: $t('more.aboutDescription'),
+      icon: 'info', href: '/home/about' },
   ]);
+
+  const visibleMenuEntries = $derived(menuEntries.filter((e) => !e.hidden));
 
   function handleEntry(entry: MenuEntry) {
     if (entry.action) entry.action();
@@ -122,12 +124,12 @@
   <!-- Menu entries -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline overflow-hidden">
-    {#each menuEntries.filter((e) => !e.hidden) as entry, i}
+    {#each visibleMenuEntries as entry, i}
       <button
         class="w-full flex items-center gap-4 px-5 py-3.5 text-left
                hover:bg-md3-surface-container-high/50
                transition-colors
-               {i < menuEntries.filter((e) => !e.hidden).length - 1
+               {i < visibleMenuEntries.length - 1
                  ? 'border-b border-md3-outline/50' : ''}"
         onclick={() => handleEntry(entry)}
       >
