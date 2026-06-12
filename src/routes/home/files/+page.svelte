@@ -196,7 +196,25 @@
     revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
   );
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
-  const canGoToParent = $derived(parentId !== null);
+  const parentTargetId = $derived.by<string | null | undefined>(() => {
+    if (
+      navigationRootId !== null
+      && navHistory.length === 0
+      && sameDirectory(currentFolderId, navigationRootId)
+    ) {
+      return undefined;
+    }
+
+    if (parentId !== null) return parentId;
+
+    const currentHistoryEntry = navHistory[navHistory.length - 1];
+    if (currentHistoryEntry && sameDirectory(currentFolderId, currentHistoryEntry.id)) {
+      return navHistory[navHistory.length - 2]?.id ?? null;
+    }
+
+    return undefined;
+  });
+  const canGoToParent = $derived(parentTargetId !== undefined);
 
   $effect(() => {
     if (!status) return;
@@ -282,21 +300,12 @@
   }
 
   async function handleGoToParent() {
-    if (parentId === null) return;
-    const targetParentId = parentId;
-    const shouldRebaseNavigationRoot =
-      navigationRootId !== null
-      && navHistory.length === 0
-      && sameDirectory(currentFolderId, navigationRootId);
+    if (parentTargetId === undefined) return;
+    const targetParentId = parentTargetId;
 
-    // Pop the last breadcrumb entry when moving within the known path. If the
-    // current directory was opened as a custom root, rebase that root upward.
     const ok = await loadDirectory(targetParentId);
     if (ok && navHistory.length > 0) {
       navHistory = navHistory.slice(0, -1);
-    } else if (ok && shouldRebaseNavigationRoot) {
-      navigationRootId = targetParentId;
-      navigationRootLabel = shortIdentifier(targetParentId);
     }
   }
 
