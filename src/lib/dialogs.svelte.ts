@@ -15,6 +15,7 @@ export interface PromptDialogOptions {
   cancelLabel?: string;
   multiline?: boolean;
   inputType?: string;
+  selectOnOpen?: boolean;
 }
 
 type DialogKind = "confirm" | "prompt";
@@ -31,6 +32,7 @@ export interface DialogRequest {
   danger: boolean;
   multiline: boolean;
   inputType: string;
+  selectOnOpen: boolean;
   resolve: (value: boolean | string | null) => void;
 }
 
@@ -56,6 +58,7 @@ class DialogStoreImpl {
         danger: normalized.danger ?? false,
         multiline: false,
         inputType: "text",
+        selectOnOpen: false,
         resolve: (value) => resolve(value === true),
       });
     });
@@ -78,6 +81,7 @@ class DialogStoreImpl {
         danger: false,
         multiline: normalized.multiline ?? false,
         inputType: normalized.inputType ?? "text",
+        selectOnOpen: normalized.selectOnOpen ?? false,
         resolve: (value) => resolve(typeof value === "string" ? value : null),
       });
     });

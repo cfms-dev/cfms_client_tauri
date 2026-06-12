@@ -13,7 +13,12 @@
     if (!request || request.id === lastDialogId) return;
     lastDialogId = request.id;
     inputValue = request.defaultValue;
-    tick().then(() => inputElement?.focus());
+    tick().then(() => {
+      inputElement?.focus();
+      if (request.kind === 'prompt' && request.selectOnOpen) {
+        inputElement?.select();
+      }
+    });
   });
 
   function close() {

@@ -320,6 +320,7 @@
       defaultValue: currentFolderId ?? '/',
       confirmLabel: $t('common.open'),
       cancelLabel: $t('common.cancel'),
+      selectOnOpen: true,
     });
     if (value === null) return;
 
