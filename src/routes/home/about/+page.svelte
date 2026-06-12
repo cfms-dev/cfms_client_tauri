@@ -1,36 +1,23 @@
 <script lang="ts">
-  // About page
-  //
-  // Application version information, copyright, and software update check.
-  //
-  // Adapted from the admin page's about section.
-  // Reference: AboutModel in reference/src/include/ui/models/about.py
-
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { cryptoInfo, protocolVersion } from '$lib/api';
+  import { protocolVersion } from '$lib/api';
   import { loadAppVersion } from '$lib/app-info';
   import { authStore } from '$lib/stores.svelte';
+  import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
-  let cryptoInfoData = $state<{
-    kdf_iterations: number;
-    salt_len: number;
-    key_len: number;
-    nonce_len: number;
-    tag_len: number;
-  } | null>(null);
   let protoVer = $state(0);
   let appVersion = $state('');
 
   onMount(async () => {
     appVersion = await loadAppVersion();
     try {
-      const [info, ver] = await Promise.all([cryptoInfo(), protocolVersion()]);
-      cryptoInfoData = info;
-      protoVer = ver;
-    } catch { /* ignore */ }
+      protoVer = await protocolVersion();
+    } catch {
+      // Non-fatal on the about page.
+    }
   });
 
   function goBack() {
@@ -38,88 +25,124 @@
   }
 </script>
 
-<div class="p-6 space-y-6 max-w-lg mx-auto">
-  <!-- Back button -->
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={goBack}
-  >
+<div class="about-page">
+  <button class="back-button" onclick={goBack}>
     <Icon name="arrowBack" size="18px" />
     {$t('common.back')}
   </button>
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('about.title')}
-  </h1>
+  <header class="page-header">
+    <h1>{$t('about.title')}</h1>
+    <p>{$t('about.productName')}</p>
+  </header>
 
-  <!-- App info -->
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-3">
-    <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      {$t('about.productName')}
-    </h2>
+  <section class="product-meta" aria-label={$t('about.productName')}>
+    <dl>
+      <div>
+        <dt>{$t('about.version')}</dt>
+        <dd>{appVersion || '...'}</dd>
+      </div>
+      <div>
+        <dt>{$t('about.protocol')}</dt>
+        <dd>v{protoVer || '...'}</dd>
+      </div>
+      <div>
+        <dt>{$t('about.copyright')}</dt>
+        <dd>© 2025–2026 Creeper Team</dd>
+      </div>
+      <div>
+        <dt>{$t('about.license')}</dt>
+        <dd>Apache License 2.0</dd>
+      </div>
+    </dl>
+  </section>
 
-    <div class="text-sm space-y-1.5">
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.version')}:</span> {appVersion || '...'}
-      </p>
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.protocol')}:</span> v{protoVer}
-      </p>
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.copyright')}:</span> © 2025–2026 Creeper Team
-      </p>
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.license')}:</span> Apache License 2.0
-      </p>
-    </div>
-  </div>
-
-  <!-- Technical info -->
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5">
-    <h2 class="text-sm font-semibold mb-3 text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      {$t('about.technicalDetails')}
-    </h2>
-    <div class="text-sm space-y-1.5">
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.encryption')}:</span> AES-256-GCM · PBKDF2-HMAC-SHA256
-      </p>
-      {#if cryptoInfoData}
-        <p class="text-md3-on-surface-variant">
-          <span class="text-md3-on-surface">{$t('about.kdf')}:</span>
-          {cryptoInfoData.kdf_iterations.toLocaleString()} {$t('about.iterations')},
-          {$t('about.byteSalt', { values: { count: cryptoInfoData.salt_len } })}
-        </p>
-      {/if}
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.transport')}:</span> WSS with frame multiplexing
-      </p>
-      <p class="text-md3-on-surface-variant">
-        <span class="text-md3-on-surface">{$t('about.frontend')}:</span> Svelte 5 + TailwindCSS v4 · MD3
-      </p>
-    </div>
-  </div>
-
-  <!-- Software update -->
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-4">
-    <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      {$t('about.softwareUpdate')}
-    </h2>
-
-    <button
-      class="px-4 py-2 rounded-full font-medium text-sm
-             bg-md3-primary-container text-md3-on-primary-container
-             hover:brightness-110
-             disabled:opacity-50 transition-all flex items-center gap-2"
-      style="font-family: var(--font-md3-sans);"
-      onclick={() => goto('/home/settings/updates')}
-    >
-      <Icon name="update" size="18px" />
-      {$t('about.checkForUpdates')}
-    </button>
-  </div>
+  <AppUpdateChecker />
 </div>
+
+<style>
+  .about-page {
+    width: min(720px, calc(100vw - 3rem));
+    margin: 0 auto;
+    padding: 2rem 0 3rem;
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    color: var(--color-md3-on-surface-variant);
+    font: 0.875rem var(--font-md3-sans);
+    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .back-button:hover {
+    color: var(--color-md3-on-surface);
+  }
+
+  .page-header {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  h1 {
+    margin: 0;
+    color: var(--color-md3-on-surface);
+    font-family: var(--font-md3-sans);
+    font-size: clamp(1.6rem, 4vw, 2.25rem);
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .page-header p {
+    margin: 0;
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.95rem;
+  }
+
+  .product-meta {
+    padding-block: 0.25rem 0.75rem;
+  }
+
+  dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 2rem;
+  }
+
+  dl > div {
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--color-md3-on-surface-variant);
+    font-family: var(--font-md3-sans);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  dd {
+    margin: 0.25rem 0 0;
+    color: var(--color-md3-on-surface);
+    font-size: 1rem;
+    word-break: break-word;
+  }
+
+  @media (max-width: 640px) {
+    .about-page {
+      width: min(100% - 2rem, 720px);
+      padding-top: 1.5rem;
+    }
+
+    dl {
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+  }
+</style>
