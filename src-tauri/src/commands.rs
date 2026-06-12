@@ -2012,6 +2012,26 @@ pub async fn reset_user_password(
 }
 
 #[tauri::command]
+pub async fn set_lockdown(
+    state: tauri::State<'_, AppHandleState>,
+    status: bool,
+) -> Result<bool, String> {
+    let changed =
+        server_action_bool(&state, "lockdown", serde_json::json!({ "status": status })).await?;
+
+    state
+        .inner
+        .app_lockdown
+        .store(status, std::sync::atomic::Ordering::SeqCst);
+    let _ = state
+        .inner
+        .event_tx
+        .send(cfms_core::ServiceEvent::Lockdown { status });
+
+    Ok(changed)
+}
+
+#[tauri::command]
 pub async fn block_user(
     state: tauri::State<'_, AppHandleState>,
     username: String,
@@ -3204,32 +3224,7 @@ pub async fn change_password(
 /// Log out and clear all authentication state.
 #[tauri::command]
 pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
-    // Clear auth fields.
-    {
-        let mut u = state.inner.username.write().await;
-        let mut t = state.inner.token.write().await;
-        let mut e = state.inner.token_exp.write().await;
-        let mut n = state.inner.nickname.write().await;
-        let mut p = state.inner.permissions.write().await;
-        let mut g = state.inner.groups.write().await;
-        let mut d = state.inner.dek.write().await;
-        let mut a = state.inner.avatar_path.write().await;
-        *u = None;
-        *t = None;
-        *e = None;
-        *n = None;
-        p.clear();
-        g.clear();
-        *d = None;
-        *a = None;
-    }
-
-    // Clear the in-memory download task queue so next user starts fresh.
-    state.tasks.clear();
-    state
-        .inner
-        .pending_2fa
-        .store(false, std::sync::atomic::Ordering::SeqCst);
+    clear_auth_state(&state).await;
 
     // Close the connection if one is open.
     {
@@ -3241,6 +3236,19 @@ pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), Strin
     }
 
     Ok(())
+}
+
+/// Clear authentication state while preserving the current server connection.
+#[tauri::command]
+pub async fn clear_auth_session(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
+    clear_auth_state(&state).await;
+    Ok(())
+}
+
+/// Request process termination from the native side.
+#[tauri::command]
+pub fn quit_application(app_handle: tauri::AppHandle) {
+    app_handle.exit(0);
 }
 
 /// Establish a WSS connection to the CFMS server and perform the initial
@@ -4684,6 +4692,33 @@ async fn server_action_bool(
 ) -> Result<bool, String> {
     server_action_json(state, action, data).await?;
     Ok(true)
+}
+
+async fn clear_auth_state(state: &AppHandleState) {
+    {
+        let mut u = state.inner.username.write().await;
+        let mut t = state.inner.token.write().await;
+        let mut e = state.inner.token_exp.write().await;
+        let mut n = state.inner.nickname.write().await;
+        let mut p = state.inner.permissions.write().await;
+        let mut g = state.inner.groups.write().await;
+        let mut d = state.inner.dek.write().await;
+        let mut a = state.inner.avatar_path.write().await;
+        *u = None;
+        *t = None;
+        *e = None;
+        *n = None;
+        p.clear();
+        g.clear();
+        *d = None;
+        *a = None;
+    }
+
+    state.tasks.clear();
+    state
+        .inner
+        .pending_2fa
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 fn non_empty_optional(value: Option<String>) -> Option<String> {

@@ -25,8 +25,7 @@
 
   const isAdmin = $derived(
     authStore.permissions.some((p) =>
-      ['manage_system', 'view_audit_logs', 'list_users', 'list_groups',
-       'apply_lockdown', 'bypass_lockdown'].includes(p)
+      ['manage_system', 'view_audit_logs', 'list_users', 'list_groups'].includes(p)
     )
   );
 

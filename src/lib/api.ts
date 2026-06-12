@@ -453,6 +453,16 @@ export async function logout(): Promise<void> {
   return invoke("logout");
 }
 
+/** Clear auth state while preserving the current server connection. */
+export async function clearAuthSession(): Promise<void> {
+  return invoke("clear_auth_session");
+}
+
+/** Request the native shell to terminate the application. */
+export async function quitApplication(): Promise<void> {
+  return invoke("quit_application");
+}
+
 /** Establish WSS connection to a CFMS server and perform the initial
  *  server_info handshake.
  *
@@ -955,6 +965,10 @@ export async function resetUserPassword(
     bypassPasswdRequirements,
     forceUpdateAfterLogin,
   });
+}
+
+export async function setLockdown(status: boolean): Promise<boolean> {
+  return invoke("set_lockdown", { status });
 }
 
 export async function blockUser(

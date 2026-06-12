@@ -50,6 +50,10 @@
     return PUBLIC_HOME_ROUTES.some((route) => path === route || path.startsWith(`${route}/`));
   }
 
+  const showRootLockdownBanner = $derived(
+    serverStateStore.lockdown && !page.url.pathname.startsWith(HOME_PREFIX),
+  );
+
   // ---------------------------------------------------------------------------
   // Auth guard — runs reactively whenever the URL or auth state changes.
   // ---------------------------------------------------------------------------
@@ -190,7 +194,7 @@
   Each route area provides its own chrome (tab bar, AppBar, etc.).
 -->
 <div class="safe-area-shell flex h-full flex-col">
-  <LockdownBanner active={serverStateStore.lockdown} />
+  <LockdownBanner active={showRootLockdownBanner} />
   <!--
     Bounded flex slot for the routed content.  `min-h-0` is essential: it lets
     this flex child shrink to the available space so descendant scroll
