@@ -18,9 +18,14 @@ use cfms_crypto::{config as crypto_config, dek};
 use cfms_service::services::download_queue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, ipc::Channel};
+use tauri_plugin_updater::UpdaterExt;
 
 use crate::{AppHandleState, UploadInterruption};
+
+const UPDATE_RELEASES_API: &str =
+    "https://api.github.com/repos/cfms-dev/cfms_client_tauri/releases";
+const UPDATE_USER_AGENT: &str = "cfms-client-tauri-updater";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConnectionSettingsDto {
@@ -71,6 +76,78 @@ struct UploadFileResult {
     file_name: String,
     skipped: bool,
     overwritten: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateChannel {
+    Stable,
+    Beta,
+    Alpha,
+}
+
+impl UpdateChannel {
+    fn parse(value: Option<&str>) -> Self {
+        match value
+            .unwrap_or("stable")
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "alpha" => Self::Alpha,
+            "beta" => Self::Beta,
+            _ => Self::Stable,
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Beta => "beta",
+            Self::Alpha => "alpha",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GithubReleaseDto {
+    tag_name: String,
+    body: Option<String>,
+    prerelease: bool,
+    html_url: String,
+    published_at: Option<String>,
+    assets: Vec<GithubAssetDto>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct GithubAssetDto {
+    name: String,
+    browser_download_url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateMetadata {
+    pub current_version: String,
+    pub version: String,
+    pub date: Option<String>,
+    pub body: Option<String>,
+    pub channel: String,
+    pub release_url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "event", content = "data")]
+pub enum AppUpdateDownloadEvent {
+    #[serde(rename_all = "camelCase")]
+    Started {
+        content_length: Option<u64>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        chunk_length: usize,
+    },
+    Finished,
 }
 
 impl ConnectionSettingsDto {
@@ -221,6 +298,191 @@ pub async fn get_service_status(
             running: lockdown,
         },
     ])
+}
+
+// ---------------------------------------------------------------------------
+// Application updater
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn check_app_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    channel: Option<String>,
+) -> Result<Option<AppUpdateMetadata>, String> {
+    let channel = UpdateChannel::parse(channel.as_deref());
+    let release = find_update_release(channel).await?;
+    let Some((manifest_url, release_url)) = release.as_ref().and_then(|release| {
+        select_update_manifest_asset(release, channel).map(|url| (url, release.html_url.clone()))
+    }) else {
+        let mut pending = state
+            .pending_update
+            .lock()
+            .map_err(|_| "Updater state is unavailable.".to_string())?;
+        *pending = None;
+        return Ok(None);
+    };
+
+    let endpoint =
+        url::Url::parse(&manifest_url).map_err(|e| format!("Invalid update manifest URL: {e}"))?;
+    let update = app
+        .updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|e| format!("Failed to configure updater endpoint: {e}"))?
+        .build()
+        .map_err(|e| format!("Failed to initialize updater: {e}"))?
+        .check()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {e}"))?;
+
+    let metadata = update.as_ref().map(|update| AppUpdateMetadata {
+        current_version: update.current_version.clone(),
+        version: update.version.clone(),
+        date: update.date.map(|date| date.to_string()),
+        body: update.body.clone(),
+        channel: channel.as_str().to_string(),
+        release_url,
+    });
+
+    let mut pending = state
+        .pending_update
+        .lock()
+        .map_err(|_| "Updater state is unavailable.".to_string())?;
+    *pending = update;
+
+    Ok(metadata)
+}
+
+#[tauri::command]
+pub async fn install_app_update(
+    state: tauri::State<'_, AppHandleState>,
+    on_event: Channel<AppUpdateDownloadEvent>,
+) -> Result<(), String> {
+    let update = {
+        let mut pending = state
+            .pending_update
+            .lock()
+            .map_err(|_| "Updater state is unavailable.".to_string())?;
+        pending.take()
+    };
+
+    let Some(update) = update else {
+        return Err("No pending update is available. Check for updates first.".to_string());
+    };
+
+    let mut started = false;
+    update
+        .download_and_install(
+            |chunk_length, content_length| {
+                if !started {
+                    let _ = on_event.send(AppUpdateDownloadEvent::Started { content_length });
+                    started = true;
+                }
+                let _ = on_event.send(AppUpdateDownloadEvent::Progress { chunk_length });
+            },
+            || {
+                let _ = on_event.send(AppUpdateDownloadEvent::Finished);
+            },
+        )
+        .await
+        .map_err(|e| format!("Failed to install update: {e}"))
+}
+
+async fn find_update_release(channel: UpdateChannel) -> Result<Option<GithubReleaseDto>, String> {
+    let releases = reqwest::Client::new()
+        .get(UPDATE_RELEASES_API)
+        .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch release list: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("GitHub release request failed: {e}"))?
+        .json::<Vec<GithubReleaseDto>>()
+        .await
+        .map_err(|e| format!("Failed to parse release list: {e}"))?;
+
+    let mut candidates = releases
+        .into_iter()
+        .filter(|release| select_update_manifest_asset(release, channel).is_some())
+        .filter_map(|release| {
+            channel_match_priority(channel, release_channel(&release))
+                .map(|priority| (priority, release))
+        })
+        .collect::<Vec<_>>();
+
+    candidates.sort_by(|(left_priority, left), (right_priority, right)| {
+        left_priority
+            .cmp(right_priority)
+            .then_with(|| compare_release_version(right, left))
+            .then_with(|| right.published_at.cmp(&left.published_at))
+    });
+
+    Ok(candidates.into_iter().map(|(_, release)| release).next())
+}
+
+fn select_update_manifest_asset(
+    release: &GithubReleaseDto,
+    channel: UpdateChannel,
+) -> Option<String> {
+    let channel_manifest = format!("latest-{}.json", channel.as_str());
+    release
+        .assets
+        .iter()
+        .find(|asset| asset.name == channel_manifest)
+        .or_else(|| {
+            release
+                .assets
+                .iter()
+                .find(|asset| asset.name == "latest.json")
+        })
+        .map(|asset| asset.browser_download_url.clone())
+}
+
+fn release_channel(release: &GithubReleaseDto) -> UpdateChannel {
+    if let Some(body) = release.body.as_deref() {
+        let lower = body.to_ascii_lowercase();
+        if lower.contains("<!-- channel: alpha -->") {
+            return UpdateChannel::Alpha;
+        }
+        if lower.contains("<!-- channel: beta -->") {
+            return UpdateChannel::Beta;
+        }
+        if lower.contains("<!-- channel: stable -->") {
+            return UpdateChannel::Stable;
+        }
+    }
+
+    if release.prerelease {
+        UpdateChannel::Alpha
+    } else {
+        UpdateChannel::Stable
+    }
+}
+
+fn channel_match_priority(requested: UpdateChannel, actual: UpdateChannel) -> Option<u8> {
+    match (requested, actual) {
+        (UpdateChannel::Stable, UpdateChannel::Stable) => Some(0),
+        (UpdateChannel::Beta, UpdateChannel::Beta) => Some(0),
+        (UpdateChannel::Beta, UpdateChannel::Stable) => Some(1),
+        (UpdateChannel::Alpha, UpdateChannel::Alpha) => Some(0),
+        (UpdateChannel::Alpha, UpdateChannel::Beta) => Some(1),
+        (UpdateChannel::Alpha, UpdateChannel::Stable) => Some(2),
+        _ => None,
+    }
+}
+
+fn compare_release_version(
+    left: &GithubReleaseDto,
+    right: &GithubReleaseDto,
+) -> std::cmp::Ordering {
+    let left_version = parse_release_version(&left.tag_name);
+    let right_version = parse_release_version(&right.tag_name);
+    left_version.cmp(&right_version)
+}
+
+fn parse_release_version(tag: &str) -> Option<semver::Version> {
+    semver::Version::parse(tag.trim_start_matches('v')).ok()
 }
 
 // ---------------------------------------------------------------------------

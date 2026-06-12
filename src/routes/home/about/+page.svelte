@@ -13,7 +13,6 @@
   import { loadAppVersion } from '$lib/app-info';
   import { authStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   let cryptoInfoData = $state<{
     kdf_iterations: number;
@@ -24,8 +23,6 @@
   } | null>(null);
   let protoVer = $state(0);
   let appVersion = $state('');
-  let checkingUpdate = $state(false);
-  let updateResult = $state<string | null>(null);
 
   onMount(async () => {
     appVersion = await loadAppVersion();
@@ -35,15 +32,6 @@
       protoVer = ver;
     } catch { /* ignore */ }
   });
-
-  async function checkForUpdates() {
-    checkingUpdate = true;
-    updateResult = null;
-    // Stub: actual update checking against GitHub releases is a Rust backend concern.
-    await new Promise((r) => setTimeout(r, 1500));
-    updateResult = $t('about.latestVersion');
-    checkingUpdate = false;
-  }
 
   function goBack() {
     goto(authStore.isLoggedIn ? '/home/more' : '/connect');
@@ -122,26 +110,13 @@
       {$t('about.softwareUpdate')}
     </h2>
 
-    {#if checkingUpdate}
-      <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-        <ProgressRing size={16} strokeWidth={2.4} label={$t('about.checkingUpdates')} />
-        {$t('about.checkingUpdates')}
-      </div>
-    {:else if updateResult}
-      <p class="text-sm text-md3-success flex items-center gap-1.5">
-        <Icon name="checkCircle" size="16px" />
-        {updateResult}
-      </p>
-    {/if}
-
     <button
       class="px-4 py-2 rounded-full font-medium text-sm
              bg-md3-primary-container text-md3-on-primary-container
              hover:brightness-110
              disabled:opacity-50 transition-all flex items-center gap-2"
       style="font-family: var(--font-md3-sans);"
-      onclick={checkForUpdates}
-      disabled={checkingUpdate}
+      onclick={() => goto('/home/settings/updates')}
     >
       <Icon name="update" size="18px" />
       {$t('about.checkForUpdates')}

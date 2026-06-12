@@ -108,6 +108,9 @@ pub struct AppHandleState {
     /// Backend localization state (Fluent-backed).
     pub localizer: Arc<LocalizationManager>,
 
+    /// Pending application update selected by the most recent updater check.
+    pub pending_update: Arc<Mutex<Option<tauri_plugin_updater::Update>>>,
+
     /// Application data directory (for persistence file paths).
     pub app_data_dir: PathBuf,
 
@@ -136,6 +139,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(updater_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -163,6 +168,7 @@ pub fn run() {
             let tasks = QueueState::new();
             let active_downloads = ActiveRegistry::new();
             let active_uploads = ActiveUploadRegistry::new();
+            let pending_update = Arc::new(Mutex::new(None));
 
             // --- Register background services (no Tokio context needed) ---
             // Services are activated later inside a Tauri async runtime block.
@@ -257,6 +263,7 @@ pub fn run() {
                 active_downloads,
                 active_uploads,
                 localizer,
+                pending_update,
                 app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
             });
@@ -270,6 +277,8 @@ pub fn run() {
             commands::protocol_version,
             commands::crypto_info,
             commands::get_service_status,
+            commands::check_app_update,
+            commands::install_app_update,
             commands::add_download,
             commands::get_download_tasks,
             commands::pause_download,
@@ -375,4 +384,15 @@ fn background_service_plugin<R: tauri::Runtime>()
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn background_service_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("background-service-noop").build()
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config>
+{
+    tauri_plugin_updater::Builder::new().build()
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("updater-noop").build()
 }

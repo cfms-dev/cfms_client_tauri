@@ -108,7 +108,9 @@ jobs:
           name: release-windows-x86_64
           path: |
             src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.sig
             src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.sig
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -182,6 +184,7 @@ jobs:
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -259,16 +262,86 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          find . -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.AppImage*' -o -name '*.deb' -o -name '*.rpm' -o -name '*.app.tar.gz' \) \
+          find . -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.sig' -o -name '*.dmg' -o -name '*.AppImage*' -o -name '*.deb' -o -name '*.rpm' -o -name '*.app.tar.gz' \) \
             -exec sha256sum {} \; > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Generate Tauri updater manifest
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path("artifacts")
+          repo = os.environ["REPOSITORY"]
+          tag = os.environ["TAG"]
+          version = os.environ["VERSION"]
+
+          def first(pattern: str):
+              return next(root.rglob(pattern), None)
+
+          def asset_url(path: Path) -> str:
+              return f"https://github.com/{repo}/releases/download/{tag}/{path.name}"
+
+          def signature_for(path: Path) -> str | None:
+              sig = Path(f"{path}.sig")
+              if sig.exists():
+                  return sig.read_text(encoding="utf-8").strip()
+              return None
+
+          def add_platform(platforms: dict, key: str, path: Path | None):
+              if path is None:
+                  return
+              signature = signature_for(path)
+              if not signature:
+                  return
+              platforms[key] = {
+                  "signature": signature,
+                  "url": asset_url(path),
+              }
+
+          platforms = {}
+          windows = first("*.exe") or first("*.msi")
+          macos = first("*.app.tar.gz")
+          linux = first("*.AppImage")
+
+          add_platform(platforms, "windows-x86_64", windows)
+          add_platform(platforms, "darwin-x86_64", macos)
+          add_platform(platforms, "darwin-aarch64", macos)
+          add_platform(platforms, "linux-x86_64", linux)
+
+          if not platforms:
+              raise SystemExit("No signed updater artifacts found")
+
+          manifest = {
+              "version": version,
+              "notes": f"CFMS Client {version}",
+              "pub_date": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+              "platforms": platforms,
+          }
+
+          (root / "latest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: CFMS Client ${{ needs.version.outputs.version }}
           body: |
+            <!-- channel: ${{ contains(needs.version.outputs.version, 'alpha') && 'alpha' || contains(needs.version.outputs.version, 'beta') && 'beta' || 'stable' }} -->
+
             ## CFMS Client ${{ needs.version.outputs.version }}
 
             ### 📦 Downloads
@@ -296,6 +369,7 @@ jobs:
             artifacts/release-macos-universal/*
             artifacts/release-linux-x86_64/*
             artifacts/SHA256SUMS.txt
+            artifacts/latest.json
           draft: false
           prerelease: ${{ contains(needs.version.outputs.version, '-') }}
           generate_release_notes: true
