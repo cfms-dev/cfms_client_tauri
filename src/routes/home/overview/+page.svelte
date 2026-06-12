@@ -2,18 +2,28 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getDocument } from '$lib/api';
+  import { getDirectoryInfo, getDocument } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
   import HomeRecordPanel from '$lib/components/HomeRecordPanel.svelte';
   import {
-    getRecentVisits,
+    clearFavoriteRecords,
+    clearRecentVisits,
     loadFavoriteRecords,
+    loadRecentVisits,
     rememberVisit,
+    removeRecentVisit,
+    setFavoriteRecord,
     type FilePreferenceScope,
     type FileRecord,
     type RecentFileRecord,
   } from '$lib/file-preferences';
-  import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
+  import {
+    authStore,
+    eventLog,
+    fileShortcutValidationStore,
+    notificationStore,
+    serverStateStore,
+  } from '$lib/stores.svelte';
 
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);
@@ -22,10 +32,11 @@
 
   onMount(async () => {
     const scope = currentFilePreferenceScope();
-    recent = getRecentVisits(scope);
     try {
+      recent = await loadRecentVisits(scope);
       favorites = await loadFavoriteRecords(scope);
     } catch {
+      recent = [];
       favorites = [];
     } finally {
       loadingFavorites = false;
@@ -36,10 +47,10 @@
     openingId = `${record.type}:${record.id}`;
     try {
       const scope = currentFilePreferenceScope();
-      rememberVisit(scope, record);
-      recent = getRecentVisits(scope);
 
       if (record.type === 'directory') {
+        await getDirectoryInfo(record.id);
+        recent = await rememberVisit(scope, record);
         const params = new URLSearchParams({
           folder: record.id,
           name: record.name,
@@ -47,13 +58,47 @@
         await goto(`/home/files?${params.toString()}`);
       } else {
         await getDocument(record.id, record.name);
+        recent = await rememberVisit(scope, record);
         notificationStore.success($t('home.downloadQueued', { values: { name: record.name } }));
       }
     } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
+      if (isUnavailableError(err)) {
+        fileShortcutValidationStore.markUnavailable(record.type, record.id);
+        eventLog.push('warning', `Shortcut is no longer accessible: ${record.type}:${record.id}`);
+      } else {
+        notificationStore.error(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       openingId = null;
     }
+  }
+
+  async function removeRecent(record: FileRecord) {
+    recent = await removeRecentVisit(currentFilePreferenceScope(), record);
+  }
+
+  async function removeFavorite(record: FileRecord) {
+    await setFavoriteRecord(currentFilePreferenceScope(), record, false);
+    favorites = favorites.filter((item) => item.type !== record.type || item.id !== record.id);
+  }
+
+  async function clearRecent() {
+    recent = await clearRecentVisits(currentFilePreferenceScope());
+  }
+
+  async function clearFavorites() {
+    await clearFavoriteRecords(currentFilePreferenceScope());
+    favorites = [];
+  }
+
+  function isShortcutUnavailable(record: FileRecord) {
+    return fileShortcutValidationStore.isUnavailable(record.type, record.id);
+  }
+
+  function isUnavailableError(err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return /Server returned\s+(403|404|410)\b/i.test(message)
+      || /not found|no longer exists|does not exist|access denied/i.test(message);
   }
 
   function formatVisitTime(timestamp: number) {
@@ -107,9 +152,15 @@
       records={recent}
       emptyLabel={$t('home.noRecent')}
       loadingLabel={$t('common.loadingEllipsis')}
+      clearLabel={$t('home.clearRecent')}
+      removeLabel={$t('home.removeShortcut')}
+      unavailableLabel={$t('home.unavailable')}
       {openingId}
       meta={(item) => item.visitedAt ? formatVisitTime(item.visitedAt) : ''}
+      isUnavailable={isShortcutUnavailable}
       onOpen={openRecord}
+      onRemove={removeRecent}
+      onClear={clearRecent}
     />
 
     <HomeRecordPanel
@@ -120,9 +171,15 @@
       loading={loadingFavorites}
       emptyLabel={$t('home.noFavorites')}
       loadingLabel={$t('common.loadingEllipsis')}
+      clearLabel={$t('home.clearFavorites')}
+      removeLabel={$t('home.removeShortcut')}
+      unavailableLabel={$t('home.unavailable')}
       {openingId}
       meta={(item) => item.type === 'directory' ? $t('files.directory') : $t('files.document')}
+      isUnavailable={isShortcutUnavailable}
       onOpen={openRecord}
+      onRemove={removeFavorite}
+      onClear={clearFavorites}
     />
   </div>
 </div>

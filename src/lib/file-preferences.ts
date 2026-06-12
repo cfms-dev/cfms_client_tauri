@@ -56,6 +56,86 @@ export function directoryToRecord(
 }
 
 export function getRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] {
+  return getLegacyRecentVisits(scope);
+}
+
+export async function loadRecentVisits(scope: FilePreferenceScope): Promise<RecentFileRecord[]> {
+  if (!hasFilePreferenceScope(scope)) return [];
+
+  const preferences = await loadUserPreference();
+  let records = recentRecordsFromPreference(preferences);
+  if (records.length === 0) {
+    const migrated = getLegacyRecentVisits(scope);
+    if (migrated.length > 0) {
+      records = migrated;
+      await saveUserPreference({
+        ...preferences,
+        recent_visits: records,
+      });
+      clearLegacyRecentVisits(scope);
+    }
+  }
+  return records;
+}
+
+export async function rememberVisit(
+  scope: FilePreferenceScope,
+  record: FileRecord,
+): Promise<RecentFileRecord[]> {
+  assertFilePreferenceScope(scope);
+
+  const preferences = await loadUserPreference();
+  const existing = recentRecordsFromPreference(preferences);
+  const next: RecentFileRecord = {
+    ...record,
+    parentId: normalizeDirectoryId(record.parentId),
+    visitedAt: Date.now(),
+  };
+  const records = [
+    next,
+    ...existing.filter((item) => item.type !== record.type || item.id !== record.id),
+  ].slice(0, MAX_RECENT_VISITS);
+
+  await saveUserPreference({
+    ...preferences,
+    recent_visits: records,
+  });
+  clearLegacyRecentVisits(scope);
+  return records;
+}
+
+export async function removeRecentVisit(
+  scope: FilePreferenceScope,
+  record: FileRecord,
+): Promise<RecentFileRecord[]> {
+  assertFilePreferenceScope(scope);
+
+  const preferences = await loadUserPreference();
+  const records = recentRecordsFromPreference(preferences).filter(
+    (item) => item.type !== record.type || item.id !== record.id,
+  );
+
+  await saveUserPreference({
+    ...preferences,
+    recent_visits: records,
+  });
+  clearLegacyRecentVisits(scope);
+  return records;
+}
+
+export async function clearRecentVisits(scope: FilePreferenceScope): Promise<RecentFileRecord[]> {
+  assertFilePreferenceScope(scope);
+
+  const preferences = await loadUserPreference();
+  await saveUserPreference({
+    ...preferences,
+    recent_visits: [],
+  });
+  clearLegacyRecentVisits(scope);
+  return [];
+}
+
+function getLegacyRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] {
   if (typeof localStorage === 'undefined') return [];
   const key = recentVisitsKey(scope);
   if (!key) return [];
@@ -74,23 +154,11 @@ export function getRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] 
   }
 }
 
-export function rememberVisit(scope: FilePreferenceScope, record: FileRecord): RecentFileRecord[] {
-  if (typeof localStorage === 'undefined') return [];
+function clearLegacyRecentVisits(scope: FilePreferenceScope) {
+  if (typeof localStorage === 'undefined') return;
   const key = recentVisitsKey(scope);
-  if (!key) return [];
-
-  const next: RecentFileRecord = {
-    ...record,
-    parentId: normalizeDirectoryId(record.parentId),
-    visitedAt: Date.now(),
-  };
-  const records = [
-    next,
-    ...getRecentVisits(scope).filter((item) => item.type !== record.type || item.id !== record.id),
-  ].slice(0, MAX_RECENT_VISITS);
-
-  localStorage.setItem(key, JSON.stringify(records));
-  return records;
+  if (!key) return;
+  localStorage.removeItem(key);
 }
 
 export async function loadFavoriteRecords(scope: FilePreferenceScope): Promise<FileRecord[]> {
@@ -115,6 +183,17 @@ export function favoriteRecordsFromPreference(preferences: UserPreference): File
   ];
 }
 
+export function recentRecordsFromPreference(preferences: UserPreference): RecentFileRecord[] {
+  return (preferences.recent_visits ?? [])
+    .filter(isRecentFileRecord)
+    .map((record) => ({
+      ...record,
+      parentId: normalizeDirectoryId(record.parentId),
+    }))
+    .sort((a, b) => b.visitedAt - a.visitedAt)
+    .slice(0, MAX_RECENT_VISITS);
+}
+
 export async function setFavoriteRecord(
   scope: FilePreferenceScope,
   record: FileRecord,
@@ -134,6 +213,20 @@ export async function setFavoriteRecord(
   const next: UserPreference = {
     ...preferences,
     favourites,
+  };
+  await saveUserPreference(next);
+  return next;
+}
+
+export async function clearFavoriteRecords(scope: FilePreferenceScope): Promise<UserPreference> {
+  assertFilePreferenceScope(scope);
+  const preferences = await loadUserPreference();
+  const next: UserPreference = {
+    ...preferences,
+    favourites: {
+      files: {},
+      directories: {},
+    },
   };
   await saveUserPreference(next);
   return next;

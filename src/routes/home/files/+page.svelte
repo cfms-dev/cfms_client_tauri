@@ -245,7 +245,7 @@
     const ok = await loadDirectory(folderId);
     if (ok) {
       navHistory = [...navHistory, { label: folderName, id: folderId }];
-      rememberVisit(
+      await rememberVisit(
         currentFilePreferenceScope(),
         {
           type: 'directory',
@@ -383,7 +383,7 @@
   async function handleDownload(doc: ServerDocumentEntry) {
     try {
       await getDocument(doc.id, doc.title);
-      rememberVisit(currentFilePreferenceScope(), documentToRecord(doc, currentFolderId));
+      await rememberVisit(currentFilePreferenceScope(), documentToRecord(doc, currentFolderId));
     } catch (e) {
       error = String(e);
     }
@@ -1275,7 +1275,7 @@
       navigationRootId = directory.id;
       navigationRootLabel = directory.name;
       navHistory = [];
-      rememberVisit(currentFilePreferenceScope(), directoryToRecord(directory, null));
+      await rememberVisit(currentFilePreferenceScope(), directoryToRecord(directory, null));
     }
   }
 

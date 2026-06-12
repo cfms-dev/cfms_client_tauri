@@ -154,6 +154,10 @@ const en = {
     noRecent: 'Recently opened folders and downloaded documents will appear here.',
     noFavorites: 'Star folders or documents from the file manager to keep them here.',
     downloadQueued: 'Download queued: {name}',
+    clearRecent: 'Clear recent',
+    clearFavorites: 'Clear favorites',
+    removeShortcut: 'Remove from this list',
+    unavailable: 'No longer accessible',
   },
   files: {
     title: 'File Management',
@@ -810,6 +814,10 @@ const zh_CN = {
     noRecent: '最近打开的目录和下载过的文档会显示在这里。',
     noFavorites: '可在文件管理器中收藏目录或文档，它们会显示在这里。',
     downloadQueued: '已加入下载队列：{name}',
+    clearRecent: '清空最近访问',
+    clearFavorites: '清空收藏',
+    removeShortcut: '从此列表移除',
+    unavailable: '已不可访问',
   },
   files: {
     title: '文件管理',

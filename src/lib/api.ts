@@ -299,7 +299,16 @@ export type ServiceEvent =
   | { event: "ConnectionRestored" }
   | { event: "ConnectionLost"; data: { error: string } }
   | { event: "TokenExpired" }
-  | { event: "FavoritesValidationComplete"; data: { invalid_count: number } };
+  | {
+      event: "FavoritesValidationComplete";
+      data: {
+        invalid_count: number;
+        invalid_files: string[];
+        invalid_directories: string[];
+        access_denied_files: string[];
+        access_denied_directories: string[];
+      };
+    };
 
 // ---------------------------------------------------------------------------
 // Auth / Connection types
@@ -1113,6 +1122,7 @@ export async function setUserAvatar(
 export interface UserPreference {
   theme: string;
   favourites: Favourites;
+  recent_visits: RecentVisitPreferenceRecord[];
   use_external_storage: boolean;
   external_storage_path: string;
 }
@@ -1120,6 +1130,14 @@ export interface UserPreference {
 export interface Favourites {
   files: Record<string, string>;
   directories: Record<string, string>;
+}
+
+export interface RecentVisitPreferenceRecord {
+  type: ServerObjectType;
+  id: string;
+  name: string;
+  parentId?: string | null;
+  visitedAt: number;
 }
 
 /** Load the current user's preferences from the encrypted local file. */

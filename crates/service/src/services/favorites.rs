@@ -33,7 +33,7 @@ pub async fn run(
             break;
         }
 
-        let unavailable_count = tick(
+        let status = tick(
             &state,
             &app_data_dir,
             &mut invalid_files,
@@ -46,7 +46,11 @@ pub async fn run(
         let _ = state
             .event_tx
             .send(ServiceEvent::FavoritesValidationComplete {
-                invalid_count: unavailable_count as u32,
+                invalid_count: status.invalid_count() as u32,
+                invalid_files: status.invalid_files,
+                invalid_directories: status.invalid_directories,
+                access_denied_files: status.access_denied_files,
+                access_denied_directories: status.access_denied_directories,
             });
 
         tokio::select! {
@@ -58,7 +62,7 @@ pub async fn run(
     tracing::info!("FavoritesValidationService stopped");
 }
 
-/// Validate all favorites and return the count of invalid items.
+/// Validate all favorites/recent visits and return their current unavailable state.
 async fn tick(
     state: &AppState,
     app_data_dir: &std::path::Path,
@@ -66,7 +70,7 @@ async fn tick(
     invalid_directories: &mut HashSet<String>,
     access_denied_files: &mut HashSet<String>,
     access_denied_directories: &mut HashSet<String>,
-) -> usize {
+) -> ValidationStatus {
     let Some(snapshot) = validation_snapshot(state).await else {
         clear_validation_state(
             invalid_files,
@@ -74,14 +78,14 @@ async fn tick(
             access_denied_files,
             access_denied_directories,
         );
-        return 0;
+        return ValidationStatus::default();
     };
 
     let preferences = match load_preferences(app_data_dir, &snapshot).await {
         Ok(preferences) => preferences,
         Err(error) => {
             tracing::warn!("Skipping favorites validation: {error}");
-            return unavailable_count(
+            return validation_status(
                 invalid_files,
                 invalid_directories,
                 access_denied_files,
@@ -90,14 +94,17 @@ async fn tick(
         }
     };
 
-    if preferences.favourites.files.is_empty() && preferences.favourites.directories.is_empty() {
+    let file_ids = validation_file_ids(&preferences);
+    let directory_ids = validation_directory_ids(&preferences);
+
+    if file_ids.is_empty() && directory_ids.is_empty() {
         clear_validation_state(
             invalid_files,
             invalid_directories,
             access_denied_files,
             access_denied_directories,
         );
-        return 0;
+        return ValidationStatus::default();
     }
 
     let conn = match super::connection::ensure_connected(
@@ -110,7 +117,7 @@ async fn tick(
         Ok(conn) => conn,
         Err(error) => {
             tracing::warn!("Skipping favorites validation: {error}");
-            return unavailable_count(
+            return validation_status(
                 invalid_files,
                 invalid_directories,
                 access_denied_files,
@@ -119,38 +126,70 @@ async fn tick(
         }
     };
 
-    for file_id in preferences.favourites.files.keys() {
+    for file_id in file_ids {
         validate_item(
             &conn,
             &snapshot,
             "get_document_info",
-            serde_json::json!({ "document_id": file_id }),
-            file_id,
+            serde_json::json!({ "document_id": &file_id }),
+            &file_id,
             invalid_files,
             access_denied_files,
         )
         .await;
     }
 
-    for dir_id in preferences.favourites.directories.keys() {
+    for dir_id in directory_ids {
         validate_item(
             &conn,
             &snapshot,
             "get_directory_info",
-            serde_json::json!({ "directory_id": dir_id }),
-            dir_id,
+            serde_json::json!({ "directory_id": &dir_id }),
+            &dir_id,
             invalid_directories,
             access_denied_directories,
         )
         .await;
     }
 
-    unavailable_count(
+    validation_status(
         invalid_files,
         invalid_directories,
         access_denied_files,
         access_denied_directories,
     )
+}
+
+fn validation_file_ids(preferences: &cfms_core::UserPreference) -> HashSet<String> {
+    preferences
+        .favourites
+        .files
+        .keys()
+        .cloned()
+        .chain(
+            preferences
+                .recent_visits
+                .iter()
+                .filter(|item| item.object_type == "document")
+                .map(|item| item.id.clone()),
+        )
+        .collect()
+}
+
+fn validation_directory_ids(preferences: &cfms_core::UserPreference) -> HashSet<String> {
+    preferences
+        .favourites
+        .directories
+        .keys()
+        .cloned()
+        .chain(
+            preferences
+                .recent_visits
+                .iter()
+                .filter(|item| item.object_type == "directory")
+                .map(|item| item.id.clone()),
+        )
+        .collect()
 }
 
 #[derive(Clone)]
@@ -243,14 +282,46 @@ fn clear_validation_state(
     access_denied_directories.clear();
 }
 
-fn unavailable_count(
+#[derive(Default)]
+struct ValidationStatus {
+    invalid_files: Vec<String>,
+    invalid_directories: Vec<String>,
+    access_denied_files: Vec<String>,
+    access_denied_directories: Vec<String>,
+}
+
+impl ValidationStatus {
+    fn invalid_count(&self) -> usize {
+        self.invalid_files.len()
+            + self.invalid_directories.len()
+            + self.access_denied_files.len()
+            + self.access_denied_directories.len()
+    }
+}
+
+fn validation_status(
     invalid_files: &HashSet<String>,
     invalid_directories: &HashSet<String>,
     access_denied_files: &HashSet<String>,
     access_denied_directories: &HashSet<String>,
-) -> usize {
-    invalid_files.len()
-        + invalid_directories.len()
-        + access_denied_files.len()
-        + access_denied_directories.len()
+) -> ValidationStatus {
+    let mut invalid_files = invalid_files.iter().cloned().collect::<Vec<_>>();
+    let mut invalid_directories = invalid_directories.iter().cloned().collect::<Vec<_>>();
+    let mut access_denied_files = access_denied_files.iter().cloned().collect::<Vec<_>>();
+    let mut access_denied_directories = access_denied_directories
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>();
+
+    invalid_files.sort();
+    invalid_directories.sort();
+    access_denied_files.sort();
+    access_denied_directories.sort();
+
+    ValidationStatus {
+        invalid_files,
+        invalid_directories,
+        access_denied_files,
+        access_denied_directories,
+    }
 }

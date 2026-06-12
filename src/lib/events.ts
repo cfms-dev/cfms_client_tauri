@@ -5,7 +5,15 @@
 
 import { listen } from "@tauri-apps/api/event";
 import type { ServiceEvent, UploadProgressEvent } from "./api";
-import { authStore, downloadStore, eventLog, notificationStore, serverStateStore, uploadStore } from "./stores.svelte";
+import {
+  authStore,
+  downloadStore,
+  eventLog,
+  fileShortcutValidationStore,
+  notificationStore,
+  serverStateStore,
+  uploadStore,
+} from "./stores.svelte";
 
 let unlisten: (() => void) | null = null;
 let unlistenUpload: (() => void) | null = null;
@@ -89,13 +97,11 @@ export async function initEventListeners(): Promise<void> {
 
       case "FavoritesValidationComplete": {
         const { invalid_count } = event.data;
+        fileShortcutValidationStore.apply(event.data);
         if (invalid_count > 0) {
           eventLog.push(
             "warning",
-            `Favorites validation: ${invalid_count} items are no longer accessible`,
-          );
-          notificationStore.warning(
-            `Favorites validation: ${invalid_count} items are no longer accessible`,
+            `Shortcut validation: ${invalid_count} items are no longer accessible`,
           );
         }
         break;

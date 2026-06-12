@@ -214,8 +214,14 @@ pub enum ServiceEvent {
     ConnectionLost { error: String },
     /// The authentication token has expired.
     TokenExpired,
-    /// A favorites validation cycle completed.
-    FavoritesValidationComplete { invalid_count: u32 },
+    /// A favorites/recent validation cycle completed.
+    FavoritesValidationComplete {
+        invalid_count: u32,
+        invalid_files: Vec<String>,
+        invalid_directories: Vec<String>,
+        access_denied_files: Vec<String>,
+        access_denied_directories: Vec<String>,
+    },
     /// The number of active (non-terminal, badge-eligible) download tasks changed.
     ActiveCountChanged { count: u32 },
 }
@@ -336,6 +342,10 @@ pub struct UserPreference {
     #[serde(default)]
     pub favourites: Favourites,
 
+    /// Recently visited files and directories for quick access from the home page.
+    #[serde(default)]
+    pub recent_visits: Vec<RecentFileRecord>,
+
     /// Whether to use an external storage location for downloads.
     #[serde(default)]
     pub use_external_storage: bool,
@@ -351,6 +361,7 @@ impl Default for UserPreference {
         Self {
             theme: default_theme(),
             favourites: Favourites::default(),
+            recent_visits: Vec::new(),
             use_external_storage: false,
             external_storage_path: String::new(),
         }
@@ -370,4 +381,23 @@ pub struct Favourites {
     /// Map of directory path → label.
     #[serde(default)]
     pub directories: std::collections::HashMap<String, String>,
+}
+
+/// A recently visited file or directory stored in the per-user preference file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentFileRecord {
+    /// Server object type: "document" or "directory".
+    #[serde(rename = "type")]
+    pub object_type: String,
+    /// Server-side object ID.
+    pub id: String,
+    /// Display name captured when the item was visited.
+    pub name: String,
+    /// Parent directory, if known.
+    #[serde(default, alias = "parent_id")]
+    pub parent_id: Option<String>,
+    /// Visit timestamp in milliseconds since Unix epoch.
+    #[serde(default, alias = "visited_at")]
+    pub visited_at: u64,
 }
