@@ -23,7 +23,7 @@
 //! ServiceManager
 //!  ├── shutdown_tx ──► rx_1 ──► TokenRefreshService (owns its loop)
 //!  │                   rx_2 ──► FavoritesValidation (owns its loop)
-//!  │                   rx_3 ──► LockdownMonitor (owns its loop)
+//!  │                   rx_3 ──► ServerPushService (owns its loop)
 //!  │                   rx_4 ──► DownloadQueue (owns its loop)
 //!  └── handles: Vec<JoinHandle<()>>
 //! ```

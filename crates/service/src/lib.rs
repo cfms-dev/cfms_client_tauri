@@ -20,3 +20,4 @@ pub mod scan;
 pub mod service;
 pub mod services;
 pub mod state;
+pub mod user_preferences;

@@ -42,13 +42,22 @@ pub async fn run(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) {
 /// A single tick of the refresh logic.
 async fn tick(state: &AppState) {
     // Check if we have a valid session.
-    let (token, token_exp) = {
+    if state.pending_2fa.load(std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+
+    let (username, token, token_exp) = {
+        let username = state.username.read().await;
         let token = state.token.read().await;
         let exp = state.token_exp.read().await;
-        if token.is_none() || exp.is_none() {
+        if username.is_none() || token.is_none() || exp.is_none() {
             return; // Not logged in — nothing to refresh.
         }
-        (token.clone().unwrap(), exp.unwrap())
+        (
+            username.clone().unwrap(),
+            token.clone().unwrap(),
+            exp.unwrap(),
+        )
     };
 
     let now = unix_now();
@@ -64,7 +73,7 @@ async fn tick(state: &AppState) {
 
     if remaining <= REFRESH_THRESHOLD.as_secs() as i64 {
         tracing::info!("Token expires in {remaining}s — refreshing…");
-        match try_refresh(state, &token).await {
+        match try_refresh(state, &username, &token).await {
             Ok((new_token, new_exp)) => {
                 let mut t = state.token.write().await;
                 let mut e = state.token_exp.write().await;
@@ -85,7 +94,11 @@ async fn tick(state: &AppState) {
 }
 
 /// Attempt to refresh the token via the server connection.
-async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), String> {
+async fn try_refresh(
+    state: &AppState,
+    username: &str,
+    token: &str,
+) -> Result<(String, i64), String> {
     let conn = super::connection::ensure_connected(
         state,
         super::connection::DEFAULT_RECONNECT_ATTEMPTS,
@@ -93,29 +106,14 @@ async fn try_refresh(state: &AppState, token: &str) -> Result<(String, i64), Str
     )
     .await?;
 
-    let mut stream = conn
-        .create_stream()
-        .await
-        .map_err(|e| format!("create_stream: {e}"))?;
-
-    let request = serde_json::json!({
-        "action": "refresh_token",
-        "data": {},
-        "username": "",
-        "token": token,
-        "timestamp": unix_now(),
-        "nonce": rand_nonce(),
-    });
-
-    stream
-        .send(&conn, serde_json::to_vec(&request).unwrap())
-        .await
-        .map_err(|e| format!("send: {e}"))?;
-
-    let response_raw = stream.recv().await.ok_or("no response")?;
-
-    let response: cfms_core::Response =
-        serde_json::from_slice(&response_raw).map_err(|e| format!("parse response: {e}"))?;
+    let response = super::rpc::send_action_request(
+        &conn,
+        "refresh_token",
+        serde_json::json!({}),
+        username,
+        token,
+    )
+    .await?;
 
     if response.code != 200 {
         return Err(format!("server returned {}", response.code));
@@ -137,10 +135,21 @@ async fn clear_auth(state: &AppState) {
     let mut token = state.token.write().await;
     let mut token_exp = state.token_exp.write().await;
     let mut nickname = state.nickname.write().await;
+    let mut permissions = state.permissions.write().await;
+    let mut groups = state.groups.write().await;
+    let mut dek = state.dek.write().await;
+    let mut avatar_path = state.avatar_path.write().await;
     *username = None;
     *token = None;
     *token_exp = None;
     *nickname = None;
+    permissions.clear();
+    groups.clear();
+    *dek = None;
+    *avatar_path = None;
+    state
+        .pending_2fa
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 fn unix_now() -> i64 {
@@ -148,14 +157,4 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
-}
-
-fn rand_nonce() -> String {
-    use std::fmt::Write;
-    let mut s = String::with_capacity(16);
-    for _ in 0..16 {
-        let b: u8 = rand::random();
-        write!(&mut s, "{b:02x}").unwrap();
-    }
-    s
 }

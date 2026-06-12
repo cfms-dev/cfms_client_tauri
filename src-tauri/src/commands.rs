@@ -14,7 +14,7 @@ use cfms_core::{
     DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServerInfo,
     ServiceStatusInfo, UserPreference,
 };
-use cfms_crypto::{config as crypto_config, dek};
+use cfms_crypto::dek;
 use cfms_service::services::download_queue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -282,7 +282,7 @@ pub async fn get_service_status(
             running: true,
         },
         ServiceStatusInfo {
-            name: "lockdown_monitor".into(),
+            name: "server_push".into(),
             running: true,
         },
         ServiceStatusInfo {
@@ -2395,7 +2395,7 @@ pub async fn connect(
         *pv = Some(server_info.protocol_version);
     }
     // Apply initial lockdown status from server_info.
-    // The lockdown_monitor background service will also fire Lockdown events
+    // The server_push background service will also fire Lockdown events
     // for dynamic changes, but this covers the static case during connect.
     {
         let mut dse = state.inner.disable_ssl_enforcement.write().await;
@@ -2914,7 +2914,6 @@ pub async fn set_user_avatar(
 /// Mirrors [`load_user_preference`] in the Python reference.
 #[tauri::command]
 pub async fn load_user_preference(
-    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
     let username = {
@@ -2930,44 +2929,20 @@ pub async fn load_user_preference(
     .ok_or_else(|| "No server address".to_string())?;
 
     let server_hash = cfms_core::get_server_hash(&server_addr);
-    let pref_dir = get_user_prefs_dir(&app_handle)?;
-    let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
-
-    if !pref_path.exists() {
-        return serde_json::to_value(UserPreference::default())
-            .map_err(|e| format!("Serialization error: {e}"));
-    }
-
-    let raw =
-        std::fs::read(&pref_path).map_err(|e| format!("Failed to read preference file: {e}"))?;
-
     let dek = {
         let d = state.inner.dek.read().await;
         d.clone()
     };
 
-    if crypto_config::is_encrypted(&raw) {
-        let dek =
-            dek.ok_or_else(|| "Encrypted config file found but DEK is not available".to_string())?;
-        let plaintext = crypto_config::decrypt_config(&raw, &dek)
-            .map_err(|e| format!("Failed to decrypt preference file: {e}"))?;
-        let pref: UserPreference = serde_json::from_slice(&plaintext)
-            .map_err(|e| format!("Invalid preference data: {e}"))?;
-        Ok(serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))?)
-    } else {
-        // Plaintext (legacy) — parse and migrate to encrypted.
-        let pref: UserPreference = serde_json::from_slice(&raw).unwrap_or_default();
-        // Migrate to encrypted format when DEK is available.
-        if let Some(ref dek) = dek {
-            let plaintext =
-                serde_json::to_vec(&pref).map_err(|e| format!("Serialization error: {e}"))?;
-            let encrypted = crypto_config::encrypt_config(&plaintext, dek)
-                .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
-            // Best-effort write — don't fail if we can't migrate.
-            let _ = std::fs::write(&pref_path, &encrypted);
-        }
-        Ok(serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))?)
-    }
+    let app_data_dir = state.app_data_dir.clone();
+    let pref = tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, dek.as_deref())
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Preference load task failed: {e}"))??;
+
+    serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))
 }
 
 /// Save the user preference file to disk.
@@ -2979,7 +2954,6 @@ pub async fn load_user_preference(
 /// Mirrors [`save_user_preference`] in the Python reference.
 #[tauri::command]
 pub async fn save_user_preference(
-    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     preferences: serde_json::Value,
 ) -> Result<(), String> {
@@ -2996,46 +2970,27 @@ pub async fn save_user_preference(
     .ok_or_else(|| "No server address".to_string())?;
 
     let server_hash = cfms_core::get_server_hash(&server_addr);
-    let pref_dir = get_user_prefs_dir(&app_handle)?;
-    let pref_path = pref_dir.join(format!("{}_{}.json", server_hash, username));
-
-    // Ensure the directory exists.
-    std::fs::create_dir_all(&pref_dir).map_err(|e| format!("Failed to create prefs dir: {e}"))?;
-
-    let plaintext =
-        serde_json::to_vec(&preferences).map_err(|e| format!("Serialization error: {e}"))?;
+    let preferences: UserPreference =
+        serde_json::from_value(preferences).map_err(|e| format!("Invalid preference data: {e}"))?;
 
     let dek = {
         let d = state.inner.dek.read().await;
         d.clone()
     };
 
-    if let Some(ref dek) = dek {
-        let encrypted = crypto_config::encrypt_config(&plaintext, dek)
-            .map_err(|e| format!("Failed to encrypt preference file: {e}"))?;
-        std::fs::write(&pref_path, &encrypted)
-            .map_err(|e| format!("Failed to write preference file: {e}"))?;
-    } else {
-        // Don't overwrite an existing encrypted file when no DEK is available.
-        if pref_path.exists()
-            && let Ok(raw) = std::fs::read(&pref_path)
-            && crypto_config::is_encrypted(&raw)
-        {
-            return Ok(()); // Leave the encrypted file untouched.
-        }
-        std::fs::write(&pref_path, &plaintext)
-            .map_err(|e| format!("Failed to write preference file: {e}"))?;
-    }
-
-    Ok(())
-}
-
-/// Resolve the user preferences directory from the app data path.
-fn get_user_prefs_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    app_handle
-        .path()
-        .resolve("user_preferences", tauri::path::BaseDirectory::AppData)
-        .map_err(|e| format!("Cannot resolve user prefs dir: {e}"))
+    let app_data_dir = state.app_data_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::save(
+            &app_data_dir,
+            &server_hash,
+            &username,
+            dek.as_deref(),
+            &preferences,
+        )
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Preference save task failed: {e}"))?
 }
 
 // ---------------------------------------------------------------------------

@@ -728,6 +728,7 @@ dependencies = [
  "cfms-crypto",
  "cfms-transfer",
  "cfms-transport",
+ "hex",
  "ignore",
  "rand 0.8.6",
  "rusqlite",

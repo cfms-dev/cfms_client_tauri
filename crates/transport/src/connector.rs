@@ -223,6 +223,11 @@ impl Connection {
         self.closed.load(Ordering::SeqCst)
     }
 
+    /// Return whether two handles point at the same underlying connection.
+    pub fn is_same_connection(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.closed, &other.closed)
+    }
+
     /// Close the connection and all associated streams.
     pub async fn close(self) {
         self.closed.store(true, Ordering::SeqCst);

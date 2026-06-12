@@ -6,6 +6,7 @@
 pub mod connection;
 pub mod download_queue;
 pub mod favorites;
-pub mod lockdown;
+pub mod rpc;
+pub mod server_push;
 pub mod task_persistence;
 pub mod token_refresh;

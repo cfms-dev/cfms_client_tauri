@@ -3,6 +3,7 @@
 //! Configures the Tauri runtime, initialises background services, sets up
 //! the persistent SQLite database, and registers all IPC commands.
 
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod background;
 mod commands;
 mod localization;
@@ -186,18 +187,20 @@ pub fn run() {
             });
 
             let s2 = Arc::clone(&state);
+            let prefs_app_data_dir = app_data_dir.clone();
             service_manager.register("favorites_validation", move |rx| {
                 let s = Arc::clone(&s2);
+                let app_data_dir = prefs_app_data_dir.clone();
                 async move {
-                    cfms_service::services::favorites::run(s, rx).await;
+                    cfms_service::services::favorites::run(s, app_data_dir, rx).await;
                 }
             });
 
             let s3 = Arc::clone(&state);
-            service_manager.register("lockdown_monitor", move |rx| {
+            service_manager.register("server_push", move |rx| {
                 let s = Arc::clone(&s3);
                 async move {
-                    cfms_service::services::lockdown::run(s, rx).await;
+                    cfms_service::services::server_push::run(s, rx).await;
                 }
             });
 
