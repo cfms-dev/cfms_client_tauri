@@ -363,6 +363,7 @@ pub fn run() {
             commands::upload_new_revision,
             commands::upload_document_file,
             commands::upload_directory,
+            commands::select_upload_directory,
             commands::pause_upload,
             commands::resume_upload,
             commands::cancel_upload,

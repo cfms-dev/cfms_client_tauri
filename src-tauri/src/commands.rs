@@ -95,7 +95,15 @@ struct PreparedUploadSource {
 impl Drop for PreparedUploadSource {
     fn drop(&mut self) {
         if self.cleanup_on_drop {
-            let _ = std::fs::remove_file(&self.path);
+            match std::fs::metadata(&self.path) {
+                Ok(metadata) if metadata.is_dir() => {
+                    let _ = std::fs::remove_dir_all(&self.path);
+                }
+                Ok(_) => {
+                    let _ = std::fs::remove_file(&self.path);
+                }
+                Err(_) => {}
+            }
         }
     }
 }
@@ -103,8 +111,15 @@ impl Drop for PreparedUploadSource {
 #[cfg(target_os = "android")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AndroidImportedUploadFile {
+struct AndroidImportedUploadPath {
     path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AndroidSelectedUploadDirectory {
+    uri: String,
+    name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -1534,15 +1549,16 @@ pub async fn upload_document_file<R: Runtime>(
 
 /// Upload a local directory recursively, preserving its directory structure.
 #[tauri::command]
-pub async fn upload_directory(
-    app_handle: tauri::AppHandle,
+pub async fn upload_directory<R: Runtime>(
+    app_handle: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     parent_id: Option<String>,
     directory_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
 ) -> Result<serde_json::Value, String> {
-    let root = std::path::PathBuf::from(directory_path);
+    let source = prepare_upload_directory_source(&app_handle, directory_path)?;
+    let root = source.path.clone();
     if !root.is_dir() {
         return Err("Selected path is not a directory".to_string());
     }
@@ -1612,6 +1628,29 @@ pub async fn upload_directory(
         "total_files": total_files,
         "uploaded_files": uploaded_files,
     }))
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn select_upload_directory<R: Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<AndroidSelectedUploadDirectory, String> {
+    let importer = app.state::<AndroidUploadFileImporter<R>>();
+    importer
+        .handle
+        .run_mobile_plugin::<AndroidSelectedUploadDirectory>(
+            "selectDirectory",
+            serde_json::json!({}),
+        )
+        .map_err(|e| format!("Failed to select upload folder: {e}"))
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn select_upload_directory<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+) -> Result<AndroidSelectedUploadDirectory, String> {
+    Err("Android folder picker is only available on Android.".to_string())
 }
 
 #[tauri::command]
@@ -3594,7 +3633,7 @@ fn prepare_upload_source<R: Runtime>(
     let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
     let imported = importer
         .handle
-        .run_mobile_plugin::<AndroidImportedUploadFile>(
+        .run_mobile_plugin::<AndroidImportedUploadPath>(
             "importFile",
             serde_json::json!({ "uri": file_path }),
         )
@@ -3618,6 +3657,54 @@ fn prepare_upload_source<R: Runtime>(
     let source = std::path::PathBuf::from(file_path);
     if !source.is_file() {
         return Err("Selected path is not a file".to_string());
+    }
+
+    Ok(PreparedUploadSource {
+        path: source,
+        cleanup_on_drop: false,
+    })
+}
+
+#[cfg(target_os = "android")]
+fn prepare_upload_directory_source<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    directory_path: String,
+) -> Result<PreparedUploadSource, String> {
+    let source = std::path::PathBuf::from(&directory_path);
+    if source.is_dir() {
+        return Ok(PreparedUploadSource {
+            path: source,
+            cleanup_on_drop: false,
+        });
+    }
+
+    let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
+    let imported = importer
+        .handle
+        .run_mobile_plugin::<AndroidImportedUploadPath>(
+            "importDirectory",
+            serde_json::json!({ "uri": directory_path }),
+        )
+        .map_err(|e| format!("Failed to import selected folder: {e}"))?;
+    let imported_path = std::path::PathBuf::from(imported.path);
+    if !imported_path.is_dir() {
+        return Err("Selected path is not a directory".to_string());
+    }
+
+    Ok(PreparedUploadSource {
+        path: imported_path,
+        cleanup_on_drop: true,
+    })
+}
+
+#[cfg(not(target_os = "android"))]
+fn prepare_upload_directory_source<R: Runtime>(
+    _app_handle: &tauri::AppHandle<R>,
+    directory_path: String,
+) -> Result<PreparedUploadSource, String> {
+    let source = std::path::PathBuf::from(directory_path);
+    if !source.is_dir() {
+        return Err("Selected path is not a directory".to_string());
     }
 
     Ok(PreparedUploadSource {

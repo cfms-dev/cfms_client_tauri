@@ -280,6 +280,11 @@ export interface UploadTaskDto {
   completed_at: number | null;
 }
 
+export interface SelectedUploadDirectory {
+  uri: string;
+  name: string;
+}
+
 // ---------------------------------------------------------------------------
 // Service Events (tagged union — cfms_core::ServiceEvent)
 // ---------------------------------------------------------------------------
@@ -776,6 +781,10 @@ export async function uploadDirectory(
     uploadId,
     conflictStrategy,
   });
+}
+
+export async function selectUploadDirectory(): Promise<SelectedUploadDirectory> {
+  return invoke("select_upload_directory");
 }
 
 export async function pauseUpload(uploadId: string): Promise<boolean> {

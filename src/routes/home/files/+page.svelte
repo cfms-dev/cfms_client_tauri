@@ -33,6 +33,7 @@
     setAccessRules,
     setCurrentRevision,
     searchFiles,
+    selectUploadDirectory,
     uploadDirectory,
     uploadDocumentFile,
     uploadNewRevision,
@@ -1114,6 +1115,7 @@
 
   async function handleUploadFolder() {
     let selected: string | null;
+    let displayName: string | undefined;
     try {
       selected = await open({
         multiple: false,
@@ -1121,20 +1123,45 @@
         title: $t('files.selectFolderToUpload'),
       });
     } catch (err) {
-      handlePickerError(err);
-      return;
+      const fallback = await selectAndroidUploadFolderAfterPickerError(err);
+      if (!fallback) return;
+      selected = fallback.uri;
+      displayName = fallback.name;
     }
     if (!selected || Array.isArray(selected)) return;
 
     const targetFolderId = currentFolderId;
-    scheduleUpload(selected, (uploadId) => uploadDirectory(targetFolderId, selected, uploadId));
+    scheduleUpload(
+      selected,
+      (uploadId) => uploadDirectory(targetFolderId, selected, uploadId),
+      displayName,
+    );
   }
 
-  function scheduleUpload(sourcePath: string, action: (uploadId: string) => Promise<unknown>) {
+  async function selectAndroidUploadFolderAfterPickerError(err: unknown) {
+    const message = formatError(err);
+    if (!message.includes('Folder picker is not implemented')) {
+      error = message;
+      return null;
+    }
+
+    try {
+      return await selectUploadDirectory();
+    } catch (fallbackErr) {
+      handlePickerError(fallbackErr);
+      return null;
+    }
+  }
+
+  function scheduleUpload(
+    sourcePath: string,
+    action: (uploadId: string) => Promise<unknown>,
+    displayName?: string,
+  ) {
     const uploadId = createUploadId();
     uploadStore.addQueued(
       uploadId,
-      basename(sourcePath),
+      displayName?.trim() || basename(sourcePath),
       sourcePath,
       action,
       async () => {
