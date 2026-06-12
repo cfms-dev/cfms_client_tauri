@@ -36,6 +36,7 @@ tracing.workspace = true
 rand.workspace = true
 hex = "0.4.3"
 reqwest.workspace = true
+rustls.workspace = true
 semver.workspace = true
 url.workspace = true
 fluent-bundle.workspace = true

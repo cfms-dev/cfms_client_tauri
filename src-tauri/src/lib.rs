@@ -125,6 +125,8 @@ pub struct AppHandleState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
