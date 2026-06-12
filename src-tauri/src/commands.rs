@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 
 use tauri::{Emitter, Manager, ipc::Channel};
+#[cfg(not(target_os = "android"))]
 use tauri_plugin_updater::UpdaterExt;
 
 #[cfg(target_os = "android")]
@@ -333,6 +334,7 @@ pub async fn get_service_status(
 // Application updater
 // ---------------------------------------------------------------------------
 
+#[cfg(target_os = "android")]
 #[tauri::command]
 pub async fn check_app_update(
     app: tauri::AppHandle,
@@ -340,15 +342,18 @@ pub async fn check_app_update(
     channel: Option<String>,
 ) -> Result<Option<AppUpdateMetadata>, String> {
     let channel = UpdateChannel::parse(channel.as_deref());
+    check_android_app_update(&app, state, channel).await
+}
 
-    #[cfg(target_os = "android")]
-    {
-        return check_android_app_update(&app, state, channel).await;
-    }
-
-    #[cfg(not(target_os = "android"))]
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn check_app_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    channel: Option<String>,
+) -> Result<Option<AppUpdateMetadata>, String> {
+    let channel = UpdateChannel::parse(channel.as_deref());
     let release = find_update_release(channel, UpdateAssetKind::DesktopManifest).await?;
-    #[cfg(not(target_os = "android"))]
     let Some((manifest_url, release_url)) = release.as_ref().and_then(|release| {
         select_update_manifest_asset(release, channel)
             .map(|asset| (asset.browser_download_url.clone(), release.html_url.clone()))
@@ -392,21 +397,24 @@ pub async fn check_app_update(
     Ok(metadata)
 }
 
+#[cfg(target_os = "android")]
 #[tauri::command]
 pub async fn install_app_update<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
-    #[cfg(target_os = "android")]
-    {
-        return install_android_app_update(app, state, on_event).await;
-    }
+    install_android_app_update(app, state, on_event).await
+}
 
-    #[cfg(not(target_os = "android"))]
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn install_app_update<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppHandleState>,
+    on_event: Channel<AppUpdateDownloadEvent>,
+) -> Result<(), String> {
     let _ = &app;
-
-    #[cfg(not(target_os = "android"))]
     let update = {
         let mut pending = state
             .pending_update
