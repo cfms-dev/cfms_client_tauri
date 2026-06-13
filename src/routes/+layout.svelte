@@ -28,7 +28,9 @@
     serviceStatusStore,
     disclaimerStore,
   } from "$lib/stores.svelte";
+  import { appLockStore } from "$lib/app-lock.svelte";
   import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
+  import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
@@ -60,6 +62,10 @@
   // ---------------------------------------------------------------------------
   $effect(() => {
     const path = page.url.pathname;
+
+    if (!authStore.isLoggedIn && appLockStore.locked) {
+      appLockStore.unlock();
+    }
 
     if (
       disclaimerStore.checked &&
@@ -125,6 +131,7 @@
   // ---------------------------------------------------------------------------
   onMount(async () => {
     await initI18n();
+    await appLockStore.init();
 
     // Initialize disclaimer check.
     disclaimerStore.init();
@@ -211,4 +218,5 @@
   </div>
   <DialogHost />
   <SnackBarHost />
+  <AppLockOverlay />
 </div>

@@ -14,7 +14,9 @@
     disconnect,
     quitApplication,
   } from '$lib/api';
+  import { appLockStore } from '$lib/app-lock.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
 
@@ -76,12 +78,26 @@
     });
   }
 
+  function handleAppLock() {
+    appLockStore.lock();
+  }
+
   function formatError(err: unknown) {
     return err instanceof Error ? err.message : String(err);
   }
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-md3-surface p-5">
+  {#if authStore.isLoggedIn && appLockStore.canLock}
+    <div class="fixed right-4 top-4 z-[55]">
+      <IconButton
+        icon="lock"
+        label={$t('appLock.lockNow')}
+        onclick={handleAppLock}
+      />
+    </div>
+  {/if}
+
   <div class="w-full max-w-[520px] space-y-6 py-8 text-center">
     <div class="flex justify-center">
       <span class="rounded-full bg-md3-error-container p-5 text-md3-on-error-container shadow-lg shadow-black/10">

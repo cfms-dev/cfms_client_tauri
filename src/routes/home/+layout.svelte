@@ -15,8 +15,10 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { authStore, serverStateStore, downloadStore, uploadStore, chromeStore, notificationStore } from '$lib/stores.svelte';
+  import { appLockStore } from '$lib/app-lock.svelte';
   import { clearAuthSession, disconnect, setLockdown } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
@@ -147,6 +149,12 @@
       accountMenuOpen = false;
     }
   }
+
+  function handleAppLock() {
+    if (!appLockStore.canLock) return;
+    closeAccountMenu();
+    appLockStore.lock();
+  }
 </script>
 
 <svelte:window bind:innerWidth={viewportWidth} onclick={closeAccountMenu} onkeydown={(event) => { if (event.key === 'Escape') closeAccountMenu(); }} />
@@ -216,6 +224,15 @@
                   <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.nickname ?? authStore.username}</p>
                   <p class="truncate text-xs text-md3-on-surface-variant">{authStore.username}</p>
                 </div>
+                {#if appLockStore.canLock}
+                  <IconButton
+                    class="ml-auto shrink-0"
+                    icon="lock"
+                    label={$t('appLock.lockNow')}
+                    disabled={accountActionBusy}
+                    onclick={handleAppLock}
+                  />
+                {/if}
               </div>
               <button
                 type="button"

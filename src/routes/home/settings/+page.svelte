@@ -30,6 +30,8 @@
       icon: 'storage', href: '/home/settings/storage', requiresAuth: true },
     { labelKey: 'settings.activity.title', descriptionKey: 'settings.activity.description',
       icon: 'history', href: '/home/settings/activity', requiresAuth: true },
+    { labelKey: 'appLock.settings.title', descriptionKey: 'appLock.settings.description',
+      icon: 'lockPerson', href: '/home/settings/app-lock', requiresAuth: true },
     { labelKey: 'settings.updates.title', descriptionKey: 'settings.updates.description',
       icon: 'browserUpdated', href: '/home/settings/updates' },
     { labelKey: 'settings.twofa.title', descriptionKey: 'settings.twofa.description',
