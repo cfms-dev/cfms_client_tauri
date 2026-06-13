@@ -43,6 +43,7 @@ pub async fn run(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) {
                     Err(error) => {
                         tracing::warn!("Primary connection reconnect failed: {error}");
                         clear_closed_connection(&state).await;
+                        clear_auth(&state).await;
                         let _ = state.event_tx.send(ServiceEvent::ConnectionLost { error });
                     }
                 }
@@ -114,6 +115,29 @@ async fn clear_closed_connection(state: &AppState) {
     {
         *conn = None;
     }
+}
+
+async fn clear_auth(state: &AppState) {
+    let mut username = state.username.write().await;
+    let mut token = state.token.write().await;
+    let mut token_exp = state.token_exp.write().await;
+    let mut nickname = state.nickname.write().await;
+    let mut permissions = state.permissions.write().await;
+    let mut groups = state.groups.write().await;
+    let mut dek = state.dek.write().await;
+    let mut avatar_path = state.avatar_path.write().await;
+
+    *username = None;
+    *token = None;
+    *token_exp = None;
+    *nickname = None;
+    permissions.clear();
+    groups.clear();
+    *dek = None;
+    *avatar_path = None;
+    state
+        .pending_2fa
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 }
 
 async fn load_config(state: &AppState) -> Result<ConnectionConfig, String> {

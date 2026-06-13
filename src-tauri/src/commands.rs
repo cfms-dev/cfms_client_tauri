@@ -3416,6 +3416,10 @@ pub async fn connect(
     url: String,
     disable_ssl_enforcement: bool,
 ) -> Result<serde_json::Value, String> {
+    clear_auth_state(&state).await;
+    close_primary_connection(&state).await;
+    clear_connection_state(&state).await;
+
     // Use a writable CA directory under AppData. On Android, bundled
     // resources live inside the APK and cannot be enumerated through
     // std::fs; ensure_writable_ca_dir seeds AppData from compile-time
@@ -3745,62 +3749,17 @@ fn proxy_rule_scheme(raw: &str) -> Option<&'static str> {
     }
 }
 
-/// Close the WSS connection and clear all server metadata.
+/// Close the WSS connection and clear all server/auth metadata.
 ///
 /// Resets the connection, address, server name, protocol version, and
-/// lockdown flag so the frontend reflects a clean disconnected state.
-///
-/// Auth state is **not** cleared here — call [`logout`] separately if
-/// you also need to purge credentials.
+/// lockdown flag so the frontend reflects a clean disconnected state. Auth
+/// state is also cleared so credentials never outlive the server session they
+/// came from.
 #[tauri::command]
 pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
-    let conn = {
-        let mut c = state.inner.conn.write().await;
-        c.take()
-    };
-
-    if let Some(conn) = conn {
-        // Spawn to avoid blocking the command.
-        tokio::spawn(async move { conn.close().await });
-    }
-
-    // Clear all server metadata.
-    {
-        let mut addr = state.inner.server_address.write().await;
-        *addr = None;
-    }
-    {
-        let mut name = state.inner.server_name.write().await;
-        *name = None;
-    }
-    {
-        let mut pv = state.inner.server_protocol_version.write().await;
-        *pv = None;
-    }
-    state
-        .inner
-        .app_lockdown
-        .store(false, std::sync::atomic::Ordering::SeqCst);
-    {
-        let mut ca = state.inner.ca_dir.write().await;
-        *ca = None;
-    }
-    {
-        let mut force_ipv4 = state.inner.force_ipv4.write().await;
-        *force_ipv4 = false;
-    }
-    {
-        let mut proxy = state.inner.proxy_addr.write().await;
-        *proxy = None;
-    }
-    {
-        let mut cert = state.inner.client_cert_path.write().await;
-        *cert = None;
-    }
-    {
-        let mut key = state.inner.client_key_path.write().await;
-        *key = None;
-    }
+    clear_auth_state(&state).await;
+    close_primary_connection(&state).await;
+    clear_connection_state(&state).await;
 
     tracing::info!("Disconnected");
     Ok(())
@@ -4930,6 +4889,56 @@ async fn clear_auth_state(state: &AppHandleState) {
         .inner
         .pending_2fa
         .store(false, std::sync::atomic::Ordering::SeqCst);
+}
+
+async fn close_primary_connection(state: &AppHandleState) {
+    let conn = {
+        let mut c = state.inner.conn.write().await;
+        c.take()
+    };
+
+    if let Some(conn) = conn {
+        tokio::spawn(async move { conn.close().await });
+    }
+}
+
+async fn clear_connection_state(state: &AppHandleState) {
+    {
+        let mut addr = state.inner.server_address.write().await;
+        *addr = None;
+    }
+    {
+        let mut name = state.inner.server_name.write().await;
+        *name = None;
+    }
+    {
+        let mut pv = state.inner.server_protocol_version.write().await;
+        *pv = None;
+    }
+    state
+        .inner
+        .app_lockdown
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    {
+        let mut ca = state.inner.ca_dir.write().await;
+        *ca = None;
+    }
+    {
+        let mut force_ipv4 = state.inner.force_ipv4.write().await;
+        *force_ipv4 = false;
+    }
+    {
+        let mut proxy = state.inner.proxy_addr.write().await;
+        *proxy = None;
+    }
+    {
+        let mut cert = state.inner.client_cert_path.write().await;
+        *cert = None;
+    }
+    {
+        let mut key = state.inner.client_key_path.write().await;
+        *key = None;
+    }
 }
 
 fn non_empty_optional(value: Option<String>) -> Option<String> {

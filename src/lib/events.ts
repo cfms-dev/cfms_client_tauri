@@ -83,6 +83,7 @@ export async function initEventListeners(): Promise<void> {
 
       case "ConnectionLost": {
         serverStateStore.connected = false;
+        authStore.clear();
         eventLog.push("error", `Connection lost: ${event.data.error}`);
         notificationStore.error("Connection lost. Please reconnect.", 8000);
         break;

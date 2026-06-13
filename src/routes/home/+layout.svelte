@@ -108,6 +108,16 @@
     accountMenuOpen = true;
   }
 
+  function handleAccountPointerEnter(event: PointerEvent) {
+    if (event.pointerType !== 'mouse') return;
+    openAccountMenu();
+  }
+
+  function handleAccountPointerLeave(event: PointerEvent) {
+    if (event.pointerType !== 'mouse') return;
+    scheduleAccountMenuClose();
+  }
+
   function scheduleAccountMenuClose() {
     if (accountCloseTimer !== null) {
       window.clearTimeout(accountCloseTimer);
@@ -183,8 +193,8 @@
         <div
           class="relative"
           role="presentation"
-          onpointerenter={openAccountMenu}
-          onpointerleave={scheduleAccountMenuClose}
+          onpointerenter={handleAccountPointerEnter}
+          onpointerleave={handleAccountPointerLeave}
         >
           <button
             type="button"

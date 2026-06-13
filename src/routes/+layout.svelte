@@ -29,7 +29,7 @@
     disclaimerStore,
   } from "$lib/stores.svelte";
   import { appLockStore } from "$lib/app-lock.svelte";
-  import { getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
+  import { clearAuthSession, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
   import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
@@ -102,6 +102,11 @@
     // 3. If not connected and trying to access protected/connection routes,
     //    redirect to connect.
     if (!serverStateStore.connected) {
+      if (authStore.isLoggedIn || authStore.isPending2FA) {
+        authStore.clear();
+        appLockStore.resetForSignedOut();
+      }
+
       if (!PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE && !isPublicHomeRoute(path)) {
         goto("/connect", { replaceState: true });
         return;
@@ -118,7 +123,7 @@
     }
 
     // 5. If fully authenticated and on connect or login, go to home.
-    if (authStore.isLoggedIn) {
+    if (serverStateStore.connected && authStore.isLoggedIn) {
       if (path === "/connect" || path === "/login") {
         goto("/home/overview", { replaceState: true });
         return;
@@ -186,8 +191,21 @@
   $effect(() => {
     const interval = setInterval(async () => {
       try {
+        const serverState = await getServerState();
+        serverStateStore.apply(serverState);
+
+        if (!serverState.connected) {
+          if (authStore.isLoggedIn || authStore.isPending2FA) {
+            authStore.clear();
+            appLockStore.resetForSignedOut();
+            void clearAuthSession().catch(() => {
+              /* backend may already be disconnected/cleared */
+            });
+          }
+          return;
+        }
+
         authStore.apply(await getAuthStatus());
-        serverStateStore.apply(await getServerState());
       } catch {
         /* ignore */
       }
