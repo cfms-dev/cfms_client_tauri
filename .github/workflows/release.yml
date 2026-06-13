@@ -354,7 +354,7 @@ jobs:
       - version
       - build-windows
       # - build-macos
-      # - build-linux
+      - build-linux
       - build-android
     runs-on: ubuntu-latest
     permissions:
