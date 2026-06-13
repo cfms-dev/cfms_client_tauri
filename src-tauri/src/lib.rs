@@ -141,6 +141,11 @@ pub struct AndroidUploadFileImporter<R: Runtime> {
     pub handle: tauri::plugin::PluginHandle<R>,
 }
 
+#[cfg(target_os = "android")]
+pub struct AndroidPasskey<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -168,6 +173,7 @@ pub fn run() {
         .plugin(apk_installer_plugin())
         .plugin(file_opener_plugin())
         .plugin(upload_file_importer_plugin())
+        .plugin(android_passkey_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -311,6 +317,9 @@ pub fn run() {
             commands::crypto_info,
             commands::get_service_status,
             commands::validate_file_shortcuts,
+            commands::android_passkey_availability,
+            commands::android_create_passkey,
+            commands::android_get_passkey,
             commands::check_app_update,
             commands::install_app_update,
             commands::add_download,
@@ -492,4 +501,22 @@ fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugi
 #[cfg(not(target_os = "android"))]
 fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("upload-file-importer-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn android_passkey_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("android-passkey")
+        .setup(|app, api| {
+            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidPasskeyPlugin")?;
+            app.manage(AndroidPasskey { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_passkey_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("android-passkey-noop").build()
 }

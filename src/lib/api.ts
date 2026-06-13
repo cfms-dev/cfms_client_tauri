@@ -385,6 +385,21 @@ export interface CaCertificateUpdateResult {
   lastChecked: number | null;
 }
 
+export interface AndroidPasskeyAvailability {
+  available: boolean;
+  webViewWebAuthn: boolean;
+}
+
+export interface AndroidPasskeyRegistration {
+  id: string;
+  registrationResponseJson: string;
+}
+
+export interface AndroidPasskeyAssertion {
+  id: string;
+  authenticationResponseJson: string;
+}
+
 export interface FileShortcutValidationResult {
   invalid_count: number;
   invalid_files: string[];
@@ -426,6 +441,22 @@ export async function getServiceStatus(): Promise<ServiceStatusInfo[]> {
 /** Immediately validate whether favorites and recent visits are still accessible. */
 export async function validateFileShortcuts(): Promise<FileShortcutValidationResult> {
   return invoke("validate_file_shortcuts");
+}
+
+export async function getAndroidPasskeyAvailability(): Promise<AndroidPasskeyAvailability> {
+  return invoke("android_passkey_availability");
+}
+
+export async function createAndroidPasskey(
+  requestJson: string,
+): Promise<AndroidPasskeyRegistration> {
+  return invoke("android_create_passkey", { requestJson });
+}
+
+export async function getAndroidPasskey(
+  requestJson: string,
+): Promise<AndroidPasskeyAssertion> {
+  return invoke("android_get_passkey", { requestJson });
 }
 
 // ---------------------------------------------------------------------------

@@ -39,7 +39,7 @@
     "createUpdaterArtifacts": true,
     "android": {
       "autoIncrementVersionCode": false,
-      "minSdkVersion": 24
+      "minSdkVersion": 28
     },
     "targets": "all",
     "resources": {

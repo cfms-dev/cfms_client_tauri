@@ -1,10 +1,19 @@
 import { browser } from '$app/environment';
-import { getSetting, loadUserPreference, saveUserPreference, setSetting } from './api';
+import {
+  createAndroidPasskey,
+  getAndroidPasskey,
+  getAndroidPasskeyAvailability,
+  getSetting,
+  loadUserPreference,
+  saveUserPreference,
+  setSetting,
+} from './api';
 
 const SETTINGS_KEY = 'app_lock_settings_v1';
 const PIN_ITERATIONS = 180_000;
 const PIN_LENGTH = 4;
 const DEFAULT_TIMED_LOCK_MS = 5 * 60 * 1000;
+const ANDROID_PASSKEY_RP_ID = 'cfms-client-tauri.crpteam.club';
 
 export type AppLockMethod = 'pin' | 'platform';
 
@@ -166,6 +175,35 @@ class AppLockStoreImpl {
   }
 
   async registerPlatformCredential(displayName: string) {
+    if (await shouldUseAndroidPasskeys()) {
+      const requestJson = createAndroidPasskeyRegistrationRequest(
+        displayName,
+        this.settings.platformCredentials.map((item) => item.id),
+      );
+      const credential = await createAndroidPasskey(requestJson);
+      if (!credential.id) {
+        throw new Error('No Android passkey was created.');
+      }
+
+      const existing = this.settings.platformCredentials.filter((item) => item.id !== credential.id);
+      this.settings = {
+        ...this.settings,
+        enabled: true,
+        platformCredentials: [
+          ...existing,
+          {
+            id: credential.id,
+            label: displayName || 'Android passkey',
+            createdAt: Date.now(),
+          },
+        ],
+        updatedAt: Date.now(),
+      };
+      await this.persist();
+      this.rescheduleTimedLock();
+      return;
+    }
+
     if (!browser || !window.PublicKeyCredential || !navigator.credentials) {
       throw new Error('Platform passkeys are not available in this WebView.');
     }
@@ -230,6 +268,20 @@ class AppLockStoreImpl {
   }
 
   async verifyPlatformCredential() {
+    if (await shouldUseAndroidPasskeys()) {
+      if (!this.hasPlatformCredential) return false;
+
+      const credential = await getAndroidPasskey(
+        createAndroidPasskeyAuthenticationRequest(
+          this.settings.platformCredentials.map((item) => item.id),
+        ),
+      );
+      return Boolean(
+        credential.id
+        && this.settings.platformCredentials.some((item) => item.id === credential.id),
+      );
+    }
+
     if (!browser || !window.PublicKeyCredential || !navigator.credentials || !this.hasPlatformCredential) {
       return false;
     }
@@ -413,6 +465,15 @@ function normalizeTimedLockMs(value: unknown) {
 }
 
 async function isPlatformAuthenticatorAvailable() {
+  if (isAndroidRuntime()) {
+    try {
+      const availability = await getAndroidPasskeyAvailability();
+      return availability.available || availability.webViewWebAuthn;
+    } catch {
+      return false;
+    }
+  }
+
   if (!browser || !window.PublicKeyCredential) return false;
   try {
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -475,4 +536,64 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array) {
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) diff |= a[i] ^ b[i];
   return diff === 0;
+}
+
+async function shouldUseAndroidPasskeys() {
+  if (!isAndroidRuntime()) return false;
+  try {
+    return (await getAndroidPasskeyAvailability()).available;
+  } catch {
+    return false;
+  }
+}
+
+function isAndroidRuntime() {
+  return browser
+    && typeof window !== 'undefined'
+    && '__TAURI_INTERNALS__' in window
+    && /Android/i.test(navigator.userAgent);
+}
+
+function createAndroidPasskeyRegistrationRequest(displayName: string, existingCredentialIds: string[]) {
+  const userDisplayName = displayName || 'CFMS user';
+  return JSON.stringify({
+    challenge: bytesToBase64Url(randomBytes(32)),
+    rp: {
+      name: 'CFMS Client',
+      id: ANDROID_PASSKEY_RP_ID,
+    },
+    user: {
+      id: bytesToBase64Url(randomBytes(16)),
+      name: userDisplayName,
+      displayName: userDisplayName,
+    },
+    pubKeyCredParams: [
+      { type: 'public-key', alg: -7 },
+      { type: 'public-key', alg: -257 },
+    ],
+    timeout: 60_000,
+    attestation: 'none',
+    excludeCredentials: existingCredentialIds.map((id) => ({
+      type: 'public-key',
+      id,
+    })),
+    authenticatorSelection: {
+      requireResidentKey: true,
+      residentKey: 'required',
+      userVerification: 'required',
+    },
+  });
+}
+
+function createAndroidPasskeyAuthenticationRequest(credentialIds: string[]) {
+  return JSON.stringify({
+    challenge: bytesToBase64Url(randomBytes(32)),
+    rpId: ANDROID_PASSKEY_RP_ID,
+    allowCredentials: credentialIds.map((id) => ({
+      type: 'public-key',
+      id,
+    })),
+    userVerification: 'required',
+    timeout: 60_000,
+  });
 }
