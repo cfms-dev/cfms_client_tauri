@@ -63,8 +63,8 @@
   $effect(() => {
     const path = page.url.pathname;
 
-    if (!authStore.isLoggedIn && appLockStore.locked) {
-      appLockStore.unlock();
+    if (!authStore.isLoggedIn) {
+      appLockStore.resetForSignedOut();
     }
 
     if (
@@ -131,7 +131,7 @@
   // ---------------------------------------------------------------------------
   onMount(async () => {
     await initI18n();
-    await appLockStore.init();
+    await appLockStore.refreshPlatformAvailability();
 
     // Initialize disclaimer check.
     disclaimerStore.init();
@@ -156,6 +156,12 @@
         }
       }, 2000);
     }
+  });
+
+  $effect(() => {
+    if (!authStore.isLoggedIn || !authStore.username) return;
+    const scopeKey = `${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`;
+    void appLockStore.init(scopeKey);
   });
 
   onMount(() => {

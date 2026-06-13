@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { getSetting, setSetting } from './api';
+import { getSetting, loadUserPreference, saveUserPreference, setSetting } from './api';
 
 const SETTINGS_KEY = 'app_lock_settings_v1';
 const PIN_ITERATIONS = 180_000;
@@ -42,6 +42,7 @@ class AppLockStoreImpl {
   locked = $state(false);
   platformAvailable = $state(false);
   busy = $state(false);
+  private scopeKey: string | null = null;
 
   get pinLength() {
     return this.settings.pin?.length ?? PIN_LENGTH;
@@ -70,17 +71,33 @@ class AppLockStoreImpl {
     return methods;
   }
 
-  async init() {
-    if (this.initialized) return;
+  async init(scopeKey: string) {
+    if (this.initialized && this.scopeKey === scopeKey) return;
     await this.refreshPlatformAvailability();
 
     try {
-      const raw = await getSetting(SETTINGS_KEY);
-      this.settings = parseSettings(raw);
+      const preferences = await loadUserPreference();
+      const appLockSettings = parseSettingsValue(preferences.app_lock);
+
+      if (isDefaultSettings(appLockSettings)) {
+        const legacySettings = await loadLegacySettings();
+        if (legacySettings && !isDefaultSettings(legacySettings)) {
+          this.settings = legacySettings;
+          this.scopeKey = scopeKey;
+          this.initialized = true;
+          await this.persist();
+          await clearLegacySettings();
+          return;
+        }
+      }
+
+      this.settings = appLockSettings;
+      this.scopeKey = scopeKey;
+      this.initialized = true;
     } catch {
       this.settings = defaultSettings();
-    } finally {
-      this.initialized = true;
+      this.scopeKey = null;
+      this.initialized = false;
     }
   }
 
@@ -226,8 +243,19 @@ class AppLockStoreImpl {
     this.locked = false;
   }
 
+  resetForSignedOut() {
+    this.settings = defaultSettings();
+    this.initialized = false;
+    this.locked = false;
+    this.scopeKey = null;
+  }
+
   async persist() {
-    await setSetting(SETTINGS_KEY, JSON.stringify(this.settings));
+    const preferences = await loadUserPreference();
+    await saveUserPreference({
+      ...preferences,
+      app_lock: this.settings,
+    });
   }
 }
 
@@ -248,23 +276,51 @@ export function isCredentialOperationCancelled(err: unknown) {
     || /timed out|not allowed|cancel/i.test(message);
 }
 
-function parseSettings(raw: string | null): AppLockSettings {
+async function loadLegacySettings() {
+  try {
+    const raw = await getSetting(SETTINGS_KEY);
+    return parseSettingsJson(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function clearLegacySettings() {
+  try {
+    await setSetting(SETTINGS_KEY, '');
+  } catch {
+    /* Best-effort cleanup after migration. */
+  }
+}
+
+function parseSettingsJson(raw: string | null): AppLockSettings {
   if (!raw) return defaultSettings();
 
   try {
-    const parsed = JSON.parse(raw) as Partial<AppLockSettings>;
-    return {
-      version: 1,
-      enabled: Boolean(parsed.enabled),
-      pin: isPinRecord(parsed.pin) ? parsed.pin : null,
-      platformCredentials: Array.isArray(parsed.platformCredentials)
-        ? parsed.platformCredentials.filter(isPlatformCredentialRecord)
-        : [],
-      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
-    };
+    return parseSettingsValue(JSON.parse(raw));
   } catch {
     return defaultSettings();
   }
+}
+
+function parseSettingsValue(value: unknown): AppLockSettings {
+  if (!value || typeof value !== 'object') return defaultSettings();
+  const parsed = value as Partial<AppLockSettings>;
+  return {
+    version: 1,
+    enabled: Boolean(parsed.enabled),
+    pin: isPinRecord(parsed.pin) ? parsed.pin : null,
+    platformCredentials: Array.isArray(parsed.platformCredentials)
+      ? parsed.platformCredentials.filter(isPlatformCredentialRecord)
+      : [],
+    updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
+  };
+}
+
+function isDefaultSettings(settings: AppLockSettings) {
+  return !settings.enabled
+    && settings.pin === null
+    && settings.platformCredentials.length === 0;
 }
 
 function isPinRecord(value: unknown): value is PinRecord {

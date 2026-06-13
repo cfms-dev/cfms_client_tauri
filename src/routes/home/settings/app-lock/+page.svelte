@@ -8,7 +8,7 @@
     isCredentialOperationCancelled,
   } from '$lib/app-lock.svelte';
   import { navigateUp } from '$lib/navigation';
-  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
 
@@ -33,7 +33,9 @@
   });
 
   onMount(async () => {
-    await appLockStore.init();
+    if (authStore.isLoggedIn && authStore.username) {
+      await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+    }
     await appLockStore.refreshPlatformAvailability();
   });
 

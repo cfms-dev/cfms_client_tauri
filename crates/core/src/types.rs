@@ -358,6 +358,11 @@ pub struct UserPreference {
     /// `use_external_storage` is `true`).
     #[serde(default)]
     pub external_storage_path: String,
+
+    /// Per-user app-lock settings. Stored here so PIN verifier material and
+    /// platform credential metadata are encrypted with the user preference DEK.
+    #[serde(default)]
+    pub app_lock: serde_json::Value,
 }
 
 impl Default for UserPreference {
@@ -369,6 +374,7 @@ impl Default for UserPreference {
             record_recent_visits: default_record_recent_visits(),
             use_external_storage: false,
             external_storage_path: String::new(),
+            app_lock: serde_json::Value::Null,
         }
     }
 }

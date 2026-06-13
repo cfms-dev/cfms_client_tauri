@@ -1186,6 +1186,7 @@ export interface UserPreference {
   record_recent_visits: boolean;
   use_external_storage: boolean;
   external_storage_path: string;
+  app_lock?: unknown;
 }
 
 export interface Favourites {
