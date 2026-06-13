@@ -28,9 +28,11 @@
   let useRecoveryCode = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let errorShake = $state(false);
   let pulseIndex = $state<number | null>(null);
   let codeInput: HTMLInputElement | null = $state(null);
   let pulseTimer: ReturnType<typeof setTimeout> | null = null;
+  let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
   const description = $derived(
     useRecoveryCode
@@ -54,8 +56,21 @@
     useRecoveryCode = !useRecoveryCode;
     code = '';
     error = null;
+    errorShake = false;
     pulseIndex = null;
     queueMicrotask(() => codeInput?.focus());
+  }
+
+  function triggerErrorMotion() {
+    if (errorTimer) clearTimeout(errorTimer);
+    errorShake = false;
+    requestAnimationFrame(() => {
+      errorShake = true;
+      errorTimer = setTimeout(() => {
+        errorShake = false;
+        errorTimer = null;
+      }, 360);
+    });
   }
 
   async function handleVerify() {
@@ -66,10 +81,12 @@
       error = useRecoveryCode
         ? $t('dialog.twoFactor.enterRecovery')
         : $t('dialog.twoFactor.enterTotp');
+      triggerErrorMotion();
       return;
     }
     if (!useRecoveryCode && trimmed.length !== 6) {
       error = $t('dialog.twoFactor.enterTotp');
+      triggerErrorMotion();
       return;
     }
 
@@ -84,9 +101,11 @@
         error = useRecoveryCode
           ? $t('dialog.twoFactor.invalidRecovery')
           : $t('dialog.twoFactor.invalidCode');
+        triggerErrorMotion();
       }
     } catch (e) {
       error = String(e);
+      triggerErrorMotion();
     } finally {
       busy = false;
     }
@@ -149,7 +168,10 @@
     pulseCodeCell(previous, filtered);
     code = filtered;
     moveTotpCaretToEnd(target);
-    if (error) error = null;
+    if (error) {
+      error = null;
+      errorShake = false;
+    }
 
     if (!useRecoveryCode && !busy && previous.length < 6 && filtered.length === 6) {
       void handleVerify();
@@ -158,6 +180,7 @@
 
   onDestroy(() => {
     if (pulseTimer) clearTimeout(pulseTimer);
+    if (errorTimer) clearTimeout(errorTimer);
   });
 </script>
 
@@ -222,6 +245,7 @@
               inputmode="text"
               class="w-full rounded-2xl border bg-md3-field/90 py-3.5 pl-12 pr-4 text-sm text-md3-on-surface outline-none transition-all placeholder:text-md3-on-surface-variant
                      {error ? 'border-md3-error shadow-[0_0_0_4px_rgba(248,113,113,0.12)]' : 'border-md3-outline focus:border-md3-primary focus:shadow-[0_0_0_4px_rgba(79,70,229,0.18)]'}"
+              class:twofa-field-shake={errorShake}
               placeholder={inputPlaceholder}
               maxlength={inputMaxLength}
               value={code}
@@ -236,6 +260,7 @@
             type="button"
             class="code-entry group relative grid w-full cursor-text grid-cols-6 gap-2 rounded-3xl px-1 py-2 transition-all sm:gap-3"
             class:code-entry-error={Boolean(error)}
+            class:code-entry-shake={errorShake}
             onclick={() => codeInput?.focus()}
             aria-label={$t('dialog.twoFactor.enterTotp')}
           >
@@ -260,6 +285,7 @@
                 class="code-cell"
                 class:code-cell-active={code.length === index}
                 class:code-cell-pulse={pulseIndex === index}
+                class:code-cell-error-pop={errorShake}
               >
                 {digit}
               </span>
@@ -268,7 +294,10 @@
         {/if}
 
         {#if error}
-          <p class="mt-3 flex items-center justify-center gap-1.5 text-sm text-md3-error">
+          <p
+            class="mt-3 flex items-center justify-center gap-1.5 text-sm text-md3-error"
+            class:twofa-error-shake={errorShake}
+          >
             <Icon name="errorFilled" size="17px" />
             {error}
           </p>
@@ -384,6 +413,16 @@
     animation: code-line-pulse 180ms var(--motion-easing-emphasized-decelerate);
   }
 
+  .twofa-error-shake,
+  .code-entry-shake,
+  .twofa-field-shake {
+    animation: twofa-error-shake 340ms var(--motion-easing-standard);
+  }
+
+  .code-cell-error-pop {
+    animation: code-error-pop 340ms var(--motion-easing-emphasized-decelerate);
+  }
+
   @keyframes icon-rise {
     from {
       opacity: 0;
@@ -405,9 +444,45 @@
     }
   }
 
+  @keyframes twofa-error-shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-9px);
+    }
+    40% {
+      transform: translateX(8px);
+    }
+    60% {
+      transform: translateX(-5px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+
+  @keyframes code-error-pop {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+    }
+    35% {
+      transform: translateY(3px) scale(0.98);
+    }
+    70% {
+      transform: translateY(-2px) scale(1.02);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .twofa-icon,
-    .code-cell-pulse {
+    .code-cell-pulse,
+    .twofa-error-shake,
+    .code-entry-shake,
+    .twofa-field-shake,
+    .code-cell-error-pop {
       animation: none !important;
     }
 

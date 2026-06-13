@@ -96,18 +96,18 @@
 
   .app-pin-pad--comfortable {
     --app-pin-pad-width: 390px;
-    --app-pin-key-size: clamp(72px, min(20vw, 16vh), 104px);
+    --app-pin-key-size: clamp(72px, min(20vw, 16svh), 104px);
     --app-pin-key-gap-block: 1.2rem;
     --app-pin-key-gap-inline: 1.5rem;
-    --app-pin-digit-size: clamp(2.7rem, min(10vw, 7vh), 3.8rem);
+    --app-pin-digit-size: clamp(2.7rem, min(10vw, 7svh), 3.8rem);
   }
 
   .app-pin-pad--compact {
     --app-pin-pad-width: 340px;
-    --app-pin-key-size: clamp(58px, min(18vw, 12vh), 84px);
+    --app-pin-key-size: clamp(58px, min(18vw, 12svh), 84px);
     --app-pin-key-gap-block: 0.85rem;
     --app-pin-key-gap-inline: 1rem;
-    --app-pin-digit-size: clamp(2.1rem, min(8vw, 5.5vh), 3rem);
+    --app-pin-digit-size: clamp(2.1rem, min(8vw, 5.5svh), 3rem);
   }
 
   .app-pin-pad__dots {
@@ -237,9 +237,22 @@
   }
 
   @media (max-width: 420px) {
+    .app-pin-pad--comfortable,
+    .app-pin-pad--compact {
+      --app-pin-pad-width: min(100%, 384px);
+      --app-pin-key-size: clamp(74px, 24vw, 92px);
+      --app-pin-key-gap-block: clamp(0.8rem, 2.6svh, 1.15rem);
+      --app-pin-key-gap-inline: clamp(0.7rem, 3vw, 1rem);
+      --app-pin-digit-size: clamp(2.45rem, 11vw, 3.25rem);
+    }
+
     .app-pin-pad__dot {
       inline-size: 17px;
       block-size: 17px;
+    }
+
+    .app-pin-pad__keys {
+      margin-block-start: 1.35rem;
     }
   }
 

@@ -23,6 +23,12 @@ export interface MenuScaleParams {
   y?: number;
 }
 
+export interface SnackbarMotionParams {
+  y?: number;
+  duration?: number;
+  delay?: number;
+}
+
 const emphasized = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 function prefersReducedMotion(): boolean {
@@ -125,6 +131,30 @@ export function menuScale(
       opacity: ${t};
       transform: translate3d(0, ${u * y}px, 0) scale(${0.975 + t * 0.025});
       filter: blur(${u * 4}px);
+    `,
+  };
+}
+
+export function snackbarMotion(
+  _node: Element,
+  params: SnackbarMotionParams = {},
+): TransitionConfig {
+  if (prefersReducedMotion()) return instant();
+
+  const {
+    y = 18,
+    duration = 220,
+    delay = 0,
+  } = params;
+
+  return {
+    delay,
+    duration,
+    easing: emphasized,
+    css: (t, u) => `
+      opacity: ${t};
+      transform: translate3d(0, ${u * y}px, 0) scale(${0.96 + t * 0.04});
+      filter: blur(${u * 5}px);
     `,
   };
 }

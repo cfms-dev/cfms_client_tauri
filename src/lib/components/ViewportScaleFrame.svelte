@@ -6,12 +6,16 @@
     class: className = '',
     inlinePadding = 40,
     blockPadding = 112,
+    mobileInlinePadding = 24,
+    mobileBlockPadding = 48,
     minScale = 0.1,
   }: {
     children: Snippet;
     class?: string;
     inlinePadding?: number;
     blockPadding?: number;
+    mobileInlinePadding?: number;
+    mobileBlockPadding?: number;
     minScale?: number;
   } = $props();
 
@@ -25,8 +29,10 @@
       return 1;
     }
 
-    const inlineScale = Math.max(0, viewportWidth - inlinePadding) / contentWidth;
-    const blockScale = Math.max(0, viewportHeight - blockPadding) / contentHeight;
+    const effectiveInlinePadding = viewportWidth <= 640 ? mobileInlinePadding : inlinePadding;
+    const effectiveBlockPadding = viewportWidth <= 640 ? mobileBlockPadding : blockPadding;
+    const inlineScale = Math.max(0, viewportWidth - effectiveInlinePadding) / contentWidth;
+    const blockScale = Math.max(0, viewportHeight - effectiveBlockPadding) / contentHeight;
     return Math.min(1, Math.max(minScale, Math.min(inlineScale, blockScale)));
   });
 

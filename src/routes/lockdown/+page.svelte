@@ -100,7 +100,7 @@
 
   <div class="w-full max-w-[520px] space-y-6 py-8 text-center">
     <div class="flex justify-center">
-      <span class="rounded-full bg-md3-error-container p-5 text-md3-on-error-container shadow-lg shadow-black/10">
+      <span class="text-md3-error">
         <Icon name="emergencyHome" size="56px" />
       </span>
     </div>
@@ -128,19 +128,19 @@
       <p class="text-xs text-md3-on-surface-variant mb-4">
         {$t('lockdown.wait')}
       </p>
-      <div class="grid gap-2 sm:grid-cols-3">
+      <div class="lockdown-action-grid">
         <button
-          class="lockdown-action lockdown-action--danger"
+          class="lockdown-action"
           style="font-family: var(--font-md3-sans);"
-          onclick={handleQuit}
-          disabled={busyAction !== null}
+          onclick={handleLogout}
+          disabled={busyAction !== null || !serverStateStore.connected}
         >
-          {#if busyAction === 'quit'}
+          {#if busyAction === 'logout'}
             <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
           {:else}
-            <Icon name="close" size="18px" />
+            <Icon name="logout" size="18px" />
           {/if}
-          {$t('lockdown.quit')}
+          {$t('lockdown.logout')}
         </button>
         <button
           class="lockdown-action"
@@ -156,17 +156,17 @@
           {$t('lockdown.disconnect')}
         </button>
         <button
-          class="lockdown-action"
+          class="lockdown-action lockdown-action--quit"
           style="font-family: var(--font-md3-sans);"
-          onclick={handleLogout}
-          disabled={busyAction !== null || !serverStateStore.connected}
+          onclick={handleQuit}
+          disabled={busyAction !== null}
         >
-          {#if busyAction === 'logout'}
+          {#if busyAction === 'quit'}
             <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
           {:else}
-            <Icon name="logout" size="18px" />
+            <Icon name="close" size="18px" />
           {/if}
-          {$t('lockdown.logout')}
+          {$t('lockdown.quit')}
         </button>
       </div>
       <p class="mt-3 text-xs leading-relaxed text-md3-on-surface-variant">
@@ -177,27 +177,33 @@
 </div>
 
 <style>
+  .lockdown-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 0.75rem;
+  }
+
   .lockdown-action {
     display: inline-flex;
     min-block-size: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border: 1px solid var(--color-md3-outline);
+    border: 0;
     border-radius: 9999px;
     padding: 0.625rem 0.875rem;
     color: var(--color-md3-on-surface);
-    background: color-mix(in srgb, var(--color-md3-surface-container-high) 72%, transparent);
+    background: transparent;
     font-size: 0.8125rem;
     font-weight: 600;
     transition:
-      background var(--motion-duration-short4) var(--motion-easing-standard),
+      color var(--motion-duration-short4) var(--motion-easing-standard),
       transform var(--motion-duration-short4) var(--motion-easing-standard),
       opacity var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
   .lockdown-action:hover:not(:disabled) {
-    background: var(--color-md3-surface-container-highest);
+    color: var(--color-md3-primary-emphasis);
     transform: translateY(-1px);
   }
 
@@ -206,9 +212,18 @@
     opacity: 0.5;
   }
 
-  .lockdown-action--danger {
-    border-color: var(--color-md3-error);
+  .lockdown-action--quit {
+    grid-column: 1 / -1;
     color: var(--color-md3-error);
-    background: color-mix(in srgb, var(--color-md3-error-container) 55%, transparent);
+  }
+
+  @media (max-width: 360px) {
+    .lockdown-action-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lockdown-action--quit {
+      grid-column: auto;
+    }
   }
 </style>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
-  import { flyScale } from "$lib/motion/transitions";
+  import { snackbarMotion } from "$lib/motion/transitions";
   import {
     chromeStore,
     floatingProgressStore,
@@ -185,7 +185,7 @@
       <div
         class="snackbar snackbar-progress pointer-events-auto relative flex w-full max-w-md items-center gap-4 overflow-hidden rounded-lg px-5 py-4 shadow-2xl"
         role="status"
-        transition:flyScale={{ y: 22, duration: 260 }}
+        transition:snackbarMotion={{ y: 22, duration: 220 }}
       >
         <ProgressRing
           size={34}
@@ -209,7 +209,7 @@
           entry.type,
         )}"
         role="status"
-        transition:flyScale={{ y: 22, duration: 320 }}
+        transition:snackbarMotion={{ y: 22, duration: 220 }}
       >
         <span class="mt-0.5 shrink-0">
           <Icon name={iconFor(entry.type)} size="20px" />

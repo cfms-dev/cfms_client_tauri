@@ -94,22 +94,25 @@
       return;
     }
 
-    // 2. If lockdown is cleared and we're on the lockdown page, go back
-    //    to connect (the user may need to re-authenticate).
+    // 2. If lockdown is cleared and we're on the lockdown page, resume the
+    //    current session instead of discarding it.
     if (!serverStateStore.lockdown && path === LOCKDOWN_ROUTE) {
-      goto("/connect", { replaceState: true });
+      goto(authStore.isLoggedIn ? "/home/overview" : serverStateStore.connected ? "/login" : "/connect", {
+        replaceState: true,
+      });
       return;
     }
 
     // 3. If not connected and trying to access protected/connection routes,
     //    redirect to connect.
     if (!serverStateStore.connected) {
-      if (authStore.isLoggedIn || authStore.isPending2FA) {
+      const hasReconnectTarget = serverStateStore.remoteAddress !== null;
+      if (!hasReconnectTarget && (authStore.isLoggedIn || authStore.isPending2FA)) {
         authStore.clear();
         appLockStore.resetForSignedOut();
       }
 
-      if (!PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE && !isPublicHomeRoute(path)) {
+      if (!hasReconnectTarget && !PUBLIC_ROUTES.includes(path) && path !== LOCKDOWN_ROUTE && !isPublicHomeRoute(path)) {
         goto("/connect", { replaceState: true });
         return;
       }
@@ -212,11 +215,14 @@
 
         if (!serverState.connected) {
           if (authStore.isLoggedIn || authStore.isPending2FA) {
-            authStore.clear();
-            appLockStore.resetForSignedOut();
-            void clearAuthSession().catch(() => {
-              /* backend may already be disconnected/cleared */
-            });
+            const hasReconnectTarget = serverState.server_address !== null;
+            if (!hasReconnectTarget) {
+              authStore.clear();
+              appLockStore.resetForSignedOut();
+              void clearAuthSession().catch(() => {
+                /* backend may already be disconnected/cleared */
+              });
+            }
           }
           return;
         }

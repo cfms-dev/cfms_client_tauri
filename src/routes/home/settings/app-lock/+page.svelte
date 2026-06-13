@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade } from 'svelte/transition';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
@@ -13,6 +14,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
   import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
+  import { flyScale } from '$lib/motion/transitions';
 
   const pinLength = getRequiredPinLength();
 
@@ -409,16 +411,16 @@
   <div
     class="pin-setup-backdrop fixed inset-0 z-[70] flex items-center justify-center overflow-auto px-5 py-10"
     role="presentation"
-    onclick={() => closePinSetup()}
+    transition:fade|global={{ duration: 180 }}
   >
-    <ViewportScaleFrame inlinePadding={40} blockPadding={136}>
+    <ViewportScaleFrame inlinePadding={40} blockPadding={136} mobileBlockPadding={36}>
       <div
         class="pin-setup-panel flex w-[520px] max-w-full flex-col items-center text-center text-white"
         role="dialog"
         aria-modal="true"
         aria-label={pinSetupTitle}
         tabindex="-1"
-        onclick={(event) => event.stopPropagation()}
+        transition:flyScale|global={{ y: 16, duration: 260 }}
         onkeydown={(event) => event.stopPropagation()}
       >
         <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
@@ -510,10 +512,6 @@
     backdrop-filter: blur(16px);
   }
 
-  .pin-setup-panel {
-    animation: pin-setup-enter 280ms var(--motion-easing-emphasized-decelerate) both;
-  }
-
   .pin-setup-cancel {
     display: inline-flex;
     min-block-size: 42px;
@@ -539,25 +537,5 @@
   .pin-setup-cancel:disabled {
     cursor: not-allowed;
     opacity: 0.45;
-  }
-
-  @keyframes pin-setup-enter {
-    from {
-      opacity: 0;
-      transform: translateY(14px) scale(0.985);
-      filter: blur(6px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-      filter: blur(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .pin-setup-panel {
-      animation: none !important;
-    }
   }
 </style>

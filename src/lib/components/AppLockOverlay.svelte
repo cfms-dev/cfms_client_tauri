@@ -2,7 +2,7 @@
   import { fade } from 'svelte/transition';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { appLockStore } from '$lib/app-lock.svelte';
+  import { appLockStore, isCredentialOperationCancelled } from '$lib/app-lock.svelte';
   import { disconnect, logout } from '$lib/api';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import AppPinPad from '$lib/components/AppPinPad.svelte';
@@ -114,8 +114,12 @@
       }
       await handleFailedAttempt();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      status = message || $t('appLock.unlock.platformCancelled');
+      if (isCredentialOperationCancelled(err)) {
+        status = null;
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        status = message || $t('appLock.unlock.platformCancelled');
+      }
     } finally {
       busy = false;
     }
@@ -208,7 +212,7 @@
     aria-label={unlockTitle}
     transition:fade|global={{ duration: 180 }}
   >
-    <ViewportScaleFrame inlinePadding={40} blockPadding={136}>
+    <ViewportScaleFrame inlinePadding={40} blockPadding={136} mobileBlockPadding={36}>
       <div class="app-lock-content flex flex-col items-center text-center">
         <div class="mb-8 rounded-[2rem] bg-white/12 p-5 shadow-2xl shadow-black/20">
           <Icon name="lock" size="64px" />
