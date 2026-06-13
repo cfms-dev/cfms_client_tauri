@@ -11,6 +11,7 @@
   //            ConnectFormController in reference/src/include/controllers/connect.py
 
   import { onMount } from "svelte";
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
   import {
@@ -21,6 +22,7 @@
     getServerState,
   } from "$lib/api";
   import { loadAppVersion } from "$lib/app-info";
+  import { consumeLoginToConnectTransition, markConnectToLoginTransition } from "$lib/auth-transition";
   import {
     authStore,
     notificationStore,
@@ -39,6 +41,7 @@
   let recentConnectionAddresses = $state<string[]>([]);
   let recentAddressesOpen = $state(false);
   let serverAddressField: HTMLDivElement | null = null;
+  let playLoginReturnTransition = $state(browser ? consumeLoginToConnectTransition() : false);
   let protocolError = $state<{
     serverVersion: number;
     clientVersion: number;
@@ -137,6 +140,7 @@
       authStore.apply(await getAuthStatus());
       serverStateStore.apply(await getServerState());
 
+      markConnectToLoginTransition();
       goto("/login");
     } catch (e) {
       const msg = String(e);
@@ -181,7 +185,7 @@
   }
 </script>
 
-<div class="relative flex min-h-full items-center justify-center p-6">
+<div class="connect-auth-shell" class:connect-auth-shell--login-return={playLoginReturnTransition}>
   <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
     <button
       type="button"
@@ -203,7 +207,12 @@
     </button>
   </div>
 
-  <div class="w-full animate-fade-scale-in" style="max-width: 420px;">
+  <section class="connect-auth-panel">
+  <div
+    class="connect-form-stage"
+    class:animate-fade-scale-in={!playLoginReturnTransition}
+    class:connect-form-stage--login-return={playLoginReturnTransition}
+  >
       <!-- App title -->
       <h1
         class="mb-2 text-center text-2xl font-bold text-md3-on-surface"
@@ -386,4 +395,152 @@
         {$t('about.version')} {appVersion || '...'}
       </p>
   </div>
+  </section>
+
+  <section class="connect-auth-visual" aria-hidden="true">
+    <img
+      src="/astronomy.jpg"
+      alt=""
+      class="connect-auth-visual-image"
+    />
+  </section>
 </div>
+
+<style>
+  .connect-auth-shell {
+    position: relative;
+    display: flex;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  .connect-auth-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 100%;
+    flex: 0 0 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background:
+      linear-gradient(
+        135deg,
+        var(--color-md3-bg-gradient-start) 0%,
+        var(--color-md3-bg-gradient-mid-1) 28%,
+        var(--color-md3-bg-gradient-mid-2) 58%,
+        var(--color-md3-bg-gradient-end) 100%
+      );
+  }
+
+  .connect-form-stage {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .connect-auth-visual {
+    display: none;
+    min-height: 100%;
+    min-width: 0;
+    flex: 0 0 0;
+    overflow: hidden;
+    background: #0e1217;
+  }
+
+  .connect-auth-visual-image {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+  }
+
+  @media (min-width: 1024px) {
+    .connect-auth-visual {
+      display: block;
+    }
+
+    .connect-auth-shell--login-return .connect-auth-panel {
+      animation: connect-panel-expand var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: flex-basis;
+    }
+
+    .connect-auth-shell--login-return .connect-auth-visual {
+      animation: connect-visual-collapse var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: flex-basis, opacity;
+    }
+
+    .connect-auth-shell--login-return .connect-auth-visual-image {
+      animation: connect-visual-image-retreat var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: transform;
+    }
+  }
+
+  .connect-form-stage--login-return {
+    animation: connect-form-crossfade var(--motion-duration-long4)
+      var(--motion-easing-emphasized) both;
+    will-change: opacity, transform, filter;
+  }
+
+  @keyframes connect-panel-expand {
+    from {
+      flex-basis: 520px;
+    }
+    to {
+      flex-basis: 100%;
+    }
+  }
+
+  @keyframes connect-visual-collapse {
+    from {
+      flex-basis: calc(100% - 520px);
+      opacity: 1;
+    }
+    to {
+      flex-basis: 0;
+      opacity: 0.96;
+    }
+  }
+
+  @keyframes connect-visual-image-retreat {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(18%, 0, 0) scale(1.04);
+    }
+  }
+
+  @keyframes connect-form-crossfade {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.985);
+      filter: blur(5px);
+    }
+    28% {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.985);
+      filter: blur(5px);
+    }
+    72% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .connect-auth-shell--login-return .connect-auth-panel,
+    .connect-auth-shell--login-return .connect-auth-visual,
+    .connect-auth-shell--login-return .connect-auth-visual-image,
+    .connect-form-stage--login-return {
+      animation: none !important;
+    }
+  }
+</style>

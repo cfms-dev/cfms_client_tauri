@@ -13,6 +13,7 @@
   //            LoginFormController in reference/src/include/controllers/login.py
 
   import { onMount } from "svelte";
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
   import { authStore, notificationStore, serverStateStore } from "$lib/stores.svelte";
@@ -35,6 +36,7 @@
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
+  import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
   import { info } from '@tauri-apps/plugin-log';
 
   let username = $state("");
@@ -47,6 +49,7 @@
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
   let passwordInput: HTMLInputElement | null = $state(null);
+  let playConnectTransition = $state(browser ? consumeConnectToLoginTransition() : false);
 
   // Cached avatar path — populated reactively as the user types a username.
   // When non-null it contains a local filesystem path to a previously
@@ -324,6 +327,7 @@
       await logout();
       authStore.clear();
       serverStateStore.clear();
+      markLoginToConnectTransition();
       goto("/connect");
     } catch (e) {
       notificationStore.error(formatError(e));
@@ -333,9 +337,13 @@
   }
 </script>
 
-<div class="grid min-h-full overflow-hidden bg-[#0e1217] lg:grid-cols-[520px_minmax(0,1fr)]">
-  <section class="flex min-h-full items-center justify-center px-5 py-12">
-  <div class="w-full max-w-[360px] animate-fade-scale-in">
+<div class="auth-shell" class:auth-shell--connect-intro={playConnectTransition}>
+  <section class="auth-panel">
+  <div
+    class="auth-form-stage"
+    class:animate-fade-scale-in={!playConnectTransition}
+    class:auth-form-stage--connect-intro={playConnectTransition}
+  >
     {#if busy && loadingPhase}
       <!-- Data loading state -->
       <div
@@ -580,11 +588,11 @@
   </div>
   </section>
 
-  <section class="hidden min-h-full overflow-hidden lg:block">
+  <section class="auth-visual" aria-hidden="true">
     <img
       src="/astronomy.jpg"
       alt=""
-      class="h-full w-full object-cover"
+      class="auth-visual-image"
     />
   </section>
 </div>
@@ -597,6 +605,151 @@
     method={authStore.twofaMethod}
   />
 {/if}
+
+<style>
+  .auth-shell {
+    display: flex;
+    min-height: 100%;
+    overflow: hidden;
+    background: #0e1217;
+  }
+
+  .auth-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 100%;
+    flex: 0 0 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.25rem;
+    background:
+      linear-gradient(
+        135deg,
+        var(--color-md3-bg-gradient-start) 0%,
+        var(--color-md3-bg-gradient-mid-1) 28%,
+        var(--color-md3-bg-gradient-mid-2) 58%,
+        var(--color-md3-bg-gradient-end) 100%
+      );
+  }
+
+  .auth-form-stage {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .auth-visual {
+    display: none;
+    min-height: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    background: #0e1217;
+  }
+
+  .auth-visual-image {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+  }
+
+  @media (min-width: 1024px) {
+    .auth-panel {
+      flex-basis: 520px;
+      padding-right: 2rem;
+      padding-left: 2rem;
+    }
+
+    .auth-visual {
+      display: block;
+    }
+
+    .auth-shell--connect-intro .auth-panel {
+      animation: auth-panel-shrink var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: flex-basis;
+    }
+
+    .auth-shell--connect-intro .auth-visual {
+      animation: auth-visual-expand var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: flex-basis, opacity;
+    }
+
+    .auth-shell--connect-intro .auth-visual-image {
+      animation: auth-visual-image-push var(--motion-duration-long4)
+        var(--motion-easing-emphasized) both;
+      will-change: transform;
+    }
+  }
+
+  .auth-form-stage--connect-intro {
+    animation: auth-form-crossfade var(--motion-duration-long4)
+      var(--motion-easing-emphasized) both;
+    will-change: opacity, transform, filter;
+  }
+
+  @keyframes auth-panel-shrink {
+    from {
+      flex-basis: 100%;
+    }
+    to {
+      flex-basis: 520px;
+    }
+  }
+
+  @keyframes auth-visual-expand {
+    from {
+      flex-basis: 0;
+      opacity: 0.96;
+    }
+    to {
+      flex-basis: calc(100% - 520px);
+      opacity: 1;
+    }
+  }
+
+  @keyframes auth-visual-image-push {
+    from {
+      transform: translate3d(18%, 0, 0) scale(1.04);
+    }
+    to {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  @keyframes auth-form-crossfade {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.985);
+      filter: blur(5px);
+    }
+    28% {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.985);
+      filter: blur(5px);
+    }
+    72% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auth-shell--connect-intro .auth-panel,
+    .auth-shell--connect-intro .auth-visual,
+    .auth-shell--connect-intro .auth-visual-image,
+    .auth-form-stage--connect-intro {
+      animation: none !important;
+    }
+  }
+</style>
 
 <!-- Change Password Dialog (self-change flow for 4001/4002) -->
 {#if showChangePassword}
