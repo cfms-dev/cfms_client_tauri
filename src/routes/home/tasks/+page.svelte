@@ -1,38 +1,51 @@
 <script lang="ts">
-  // Download Manager (Tasks) page
-  //
-  // Shows the download task queue with progress bars and actions.
-  // Data is reactive via downloadStore (updated by backend events).
-  //
-  // Adapted from the existing downloads page.
-  // Reference: TasksView in reference/src/include/ui/views/tasks.py
+  // Task manager page: upload/download tabs with a shared status filter.
 
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskStatus } from '$lib/api';
+  import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
-  let filter: DownloadTaskStatus | 'all' = $state('all');
+  type TaskTab = 'downloads' | 'uploads';
+  type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
+
+  let activeTab = $state<TaskTab>('downloads');
+  let filter = $state<TaskFilter>('all');
   let busy = $state(false);
   let menuOpen = $state(false);
 
-  const filters: Array<{ key: DownloadTaskStatus | 'all'; label: string }> = [
-    { key: 'all', label: $t('tasks.all') },
-    { key: 'pending', label: $t('tasks.pending') },
-    { key: 'downloading', label: $t('tasks.downloading') },
-    { key: 'paused', label: $t('tasks.paused') },
-    { key: 'completed', label: $t('tasks.completed') },
-    { key: 'failed', label: $t('tasks.failed') },
-    { key: 'cancelled', label: $t('tasks.cancelled') },
-  ];
+  const tabs = $derived([
+    {
+      key: 'downloads' as const,
+      label: $t('tasks.downloads'),
+      icon: 'download' as const,
+    },
+    {
+      key: 'uploads' as const,
+      label: $t('tasks.uploads'),
+      icon: 'upload' as const,
+    },
+  ]);
 
-  const filtered = $derived(downloadStore.getTasksByStatus(filter));
+  const filters = $derived<Array<{ key: TaskFilter; label: string; count: number }>>([
+    { key: 'all', label: $t('tasks.all'), count: currentTaskCount('all') },
+    { key: 'pending', label: $t('tasks.pending'), count: currentTaskCount('pending') },
+    { key: 'active', label: $t('tasks.inProgress'), count: currentTaskCount('active') },
+    { key: 'paused', label: $t('tasks.paused'), count: currentTaskCount('paused') },
+    { key: 'completed', label: $t('tasks.completed'), count: currentTaskCount('completed') },
+    { key: 'failed', label: $t('tasks.failed'), count: currentTaskCount('failed') },
+    { key: 'cancelled', label: $t('tasks.cancelled'), count: currentTaskCount('cancelled') },
+  ]);
+
+  const filteredDownloads = $derived(filterDownloadTasks([...downloadStore.tasks.values()], filter));
+  const filteredUploads = $derived(filterUploadTasks(uploadStore.allTasks, filter));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
-  const uploadTasks = $derived(uploadStore.allTasks);
+  const visibleTaskCount = $derived(activeTab === 'downloads' ? filteredDownloads.length : filteredUploads.length);
+  const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
   const completedOrCancelledCount = $derived(
     downloadStore.completedTasks.length
       + downloadStore.cancelledTasks.length
@@ -58,6 +71,38 @@
       const tasks = await getDownloadTasks();
       downloadStore.setAll(tasks);
     } catch { /* ignore */ }
+  }
+
+  function switchTab(tab: TaskTab) {
+    activeTab = tab;
+  }
+
+  function currentTaskCount(nextFilter: TaskFilter) {
+    return activeTab === 'downloads'
+      ? filterDownloadTasks([...downloadStore.tasks.values()], nextFilter).length
+      : filterUploadTasks(uploadStore.allTasks, nextFilter).length;
+  }
+
+  function filterDownloadTasks(tasks: DownloadTaskDto[], nextFilter: TaskFilter) {
+    if (nextFilter === 'all') return tasks;
+    return tasks.filter((task) => downloadMatchesFilter(task, nextFilter));
+  }
+
+  function filterUploadTasks(tasks: UploadTaskDto[], nextFilter: TaskFilter) {
+    if (nextFilter === 'all') return tasks;
+    return tasks.filter((task) => uploadMatchesFilter(task, nextFilter));
+  }
+
+  function downloadMatchesFilter(task: DownloadTaskDto, nextFilter: TaskFilter) {
+    if (nextFilter === 'pending') return task.status === 'pending' || task.status === 'scheduled';
+    if (nextFilter === 'active') return ['downloading', 'decrypting', 'verifying'].includes(task.status);
+    return task.status === nextFilter;
+  }
+
+  function uploadMatchesFilter(task: UploadTaskDto, nextFilter: TaskFilter) {
+    if (nextFilter === 'active') return task.status === 'uploading';
+    if (nextFilter === 'completed') return task.status === 'completed' || task.status === 'skipped';
+    return task.status === nextFilter;
   }
 
   async function handleClearCompleted() {
@@ -87,9 +132,9 @@
   async function handlePauseAll() {
     busy = true;
     try {
-      for (const t of downloadStore.activeTasks) {
-        if (['downloading', 'decrypting', 'verifying'].includes(t.status)) {
-          await pauseDownload(t.task_id);
+      for (const task of downloadStore.activeTasks) {
+        if (['downloading', 'decrypting', 'verifying'].includes(task.status)) {
+          await pauseDownload(task.task_id);
         }
       }
       for (const task of uploadStore.activeTasks) {
@@ -105,9 +150,9 @@
   async function handleResumeAll() {
     busy = true;
     try {
-      for (const t of downloadStore.activeTasks) {
-        if (t.status === 'paused') {
-          await resumeDownload(t.task_id);
+      for (const task of [...downloadStore.tasks.values()]) {
+        if (task.status === 'paused') {
+          await resumeDownload(task.task_id);
         }
       }
       for (const task of uploadStore.pausedTasks) {
@@ -123,9 +168,9 @@
   async function handleCancelPending() {
     busy = true;
     try {
-      for (const t of downloadStore.activeTasks) {
-        if (t.status === 'pending') {
-          await cancelDownload(t.task_id);
+      for (const task of downloadStore.activeTasks) {
+        if (task.status === 'pending') {
+          await cancelDownload(task.task_id);
         }
       }
       for (const task of uploadStore.activeTasks) {
@@ -157,15 +202,13 @@
 </script>
 
 <div class="min-w-0 space-y-4 p-4 sm:p-6">
-  <!-- Header row -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-3">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex min-w-0 items-center gap-3">
       <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('tasks.title')}
       </h1>
       <button
-        class="p-1.5 rounded-full text-md3-on-surface-variant
-               hover:bg-md3-surface-container-high transition-colors"
+        class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
         onclick={refresh}
         title={$t('common.refresh')}
       >
@@ -173,11 +216,9 @@
       </button>
     </div>
 
-    <!-- More actions popup menu -->
     <div class="relative">
       <button
-        class="p-1.5 rounded-full text-md3-on-surface-variant
-               hover:bg-md3-surface-container-high transition-colors"
+        class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
         onclick={() => (menuOpen = !menuOpen)}
         title={$t('tasks.moreActions')}
       >
@@ -185,62 +226,22 @@
       </button>
 
       {#if menuOpen}
-        <!-- Backdrop to close -->
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
         <div class="fixed inset-0 z-10" onclick={() => (menuOpen = false)} role="presentation"></div>
-        <!-- MD3 menu -->
-        <div class="absolute right-0 top-full mt-1 z-20 w-48
-                    bg-md3-surface-container rounded-xl border border-md3-outline
-                    shadow-lg py-1 overflow-hidden">
-          <button
-            class="w-full flex items-center gap-2 px-4 py-2 text-sm
-                   hover:bg-md3-surface-container-high transition-colors
-                   text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handlePauseAll}
-            disabled={busy}
-          >
+        <div class="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container py-1 shadow-lg">
+          <button class="task-menu-item text-md3-on-surface" onclick={handlePauseAll} disabled={busy}>
             <Icon name="pause" size="16px" /> {$t('tasks.pauseAll')}
           </button>
-          <button
-            class="w-full flex items-center gap-2 px-4 py-2 text-sm
-                   hover:bg-md3-surface-container-high transition-colors
-                   text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handleResumeAll}
-            disabled={busy}
-          >
+          <button class="task-menu-item text-md3-on-surface" onclick={handleResumeAll} disabled={busy}>
             <Icon name="resume" size="16px" /> {$t('tasks.resumeAllPaused')}
           </button>
-          <button
-            class="w-full flex items-center gap-2 px-4 py-2 text-sm
-                   hover:bg-md3-surface-container-high transition-colors
-                   text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handleCancelPending}
-            disabled={busy}
-          >
+          <button class="task-menu-item text-md3-on-surface" onclick={handleCancelPending} disabled={busy}>
             <Icon name="cancel" size="16px" /> {$t('tasks.cancelAllPending')}
           </button>
-          <div class="border-t border-md3-outline my-1"></div>
-          <button
-            class="w-full flex items-center gap-2 px-4 py-2 text-sm
-                   hover:bg-md3-surface-container-high transition-colors
-                   text-md3-success"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handleClearCompleted}
-            disabled={busy || completedOrCancelledCount === 0}
-          >
+          <div class="my-1 border-t border-md3-outline"></div>
+          <button class="task-menu-item text-md3-success" onclick={handleClearCompleted} disabled={busy || completedOrCancelledCount === 0}>
             <Icon name="clearAll" size="16px" /> {$t('tasks.clearCompleted')}
           </button>
-          <button
-            class="w-full flex items-center gap-2 px-4 py-2 text-sm
-                   hover:bg-md3-surface-container-high transition-colors
-                   text-md3-error"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handleClearFailed}
-            disabled={busy || failedOrCancelledCount === 0}
-          >
+          <button class="task-menu-item text-md3-error" onclick={handleClearFailed} disabled={busy || failedOrCancelledCount === 0}>
             <Icon name="deleteSweep" size="16px" /> {$t('tasks.clearFailed')}
           </button>
         </div>
@@ -248,68 +249,160 @@
     </div>
   </div>
 
-  {#if uploadTasks.length > 0}
-    <section class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold uppercase text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-          {$t('tasks.uploads')}
-        </h2>
-      </div>
-      <div class="grid gap-3">
-        {#each uploadTasks as task (task.upload_id)}
-          <UploadTaskCard
-            {task}
-            onPause={handlePauseUpload}
-            onResume={handleResumeUpload}
-            onCancel={handleCancelUpload}
-          />
-        {/each}
-      </div>
-    </section>
-  {/if}
-
-  <!-- Filter chips -->
-  <h2 class="text-sm font-semibold uppercase text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-    {$t('tasks.downloads')}
-  </h2>
-  <div class="flex gap-1.5 flex-wrap">
-    {#each filters as f}
+  <div class="task-tabs" role="tablist" aria-label={$t('tasks.title')}>
+    {#each tabs as tab}
       <button
-        class="px-3.5 py-1.5 text-xs rounded-full font-medium transition-all"
-        class:bg-md3-primary={filter === f.key}
-        class:text-md3-on-primary={filter === f.key}
-        class:bg-md3-surface-container-high={filter !== f.key}
-        class:text-md3-on-surface-variant={filter !== f.key}
-        class:hover:bg-md3-surface-container-highest={filter !== f.key}
-        style="font-family: var(--font-md3-sans);"
-        onclick={() => (filter = f.key)}
+        type="button"
+        role="tab"
+        aria-selected={activeTab === tab.key}
+        class="task-tab"
+        class:task-tab-active={activeTab === tab.key}
+        onclick={() => switchTab(tab.key)}
       >
-        {f.label}
-        {#if f.key !== 'all'}
-          <span class="ml-1 opacity-60">
-            ({downloadStore.getTasksByStatus(f.key).length})
-          </span>
-        {/if}
+        <Icon name={tab.icon} size="18px" />
+        <span>{tab.label}</span>
       </button>
     {/each}
   </div>
 
-  <!-- Task list -->
-  <div class="grid gap-3">
-    {#if filtered.length > 0}
-      {#each filtered as task (task.task_id)}
-        <DownloadTaskCard task={task} onRemove={handleRemove} />
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="inline-flex items-center gap-1 text-xs font-semibold uppercase text-md3-on-surface-variant">
+      <Icon name="filterList" size="16px" />
+      {$t('files.filter')}
+    </span>
+    <div class="flex flex-wrap gap-1.5">
+      {#each filters as f}
+        <button
+          class="rounded-full px-3.5 py-1.5 text-xs font-medium transition-all"
+          class:bg-md3-primary={filter === f.key}
+          class:text-md3-on-primary={filter === f.key}
+          class:bg-md3-surface-container-high={filter !== f.key}
+          class:text-md3-on-surface-variant={filter !== f.key}
+          class:hover:bg-md3-surface-container-highest={filter !== f.key}
+          style="font-family: var(--font-md3-sans);"
+          onclick={() => (filter = f.key)}
+        >
+          {f.label}
+          <span class="ml-1 opacity-60">({f.count})</span>
+        </button>
       {/each}
-    {:else}
-      <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                  border border-md3-outline p-10 text-center space-y-3">
+    </div>
+  </div>
+
+  <div class="grid gap-3">
+    {#if activeTab === 'downloads'}
+      {#if filteredDownloads.length > 0}
+        {#each filteredDownloads as task (task.task_id)}
+          <DownloadTaskCard task={task} onRemove={handleRemove} />
+        {/each}
+      {/if}
+    {:else if filteredUploads.length > 0}
+      {#each filteredUploads as task (task.upload_id)}
+        <UploadTaskCard
+          {task}
+          onPause={handlePauseUpload}
+          onResume={handleResumeUpload}
+          onCancel={handleCancelUpload}
+        />
+      {/each}
+    {/if}
+
+    {#if visibleTaskCount === 0}
+      <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-10 text-center backdrop-blur-sm">
         <span class="text-md3-on-surface-variant">
-          <Icon name="downloadDone" size="64px" />
+          <Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="64px" />
         </span>
-        <p class="text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-          {filter === 'all' ? $t('tasks.noTasks') : $t('tasks.noTasksByStatus', { values: { status: currentFilterLabel } })}
+        <p class="mt-3 text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+          {filter === 'all' ? emptyTitle : $t('tasks.noTasksByStatus', { values: { status: currentFilterLabel } })}
         </p>
       </div>
     {/if}
   </div>
 </div>
+
+<style>
+  .task-tabs {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    gap: 0.35rem;
+  }
+
+  .task-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 0;
+    padding: 0.35rem 0.45rem 0.5rem;
+    color: var(--color-md3-on-surface-variant);
+    background: transparent;
+    font-family: var(--font-md3-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition:
+      background-color 180ms var(--motion-easing-standard),
+      color 180ms var(--motion-easing-standard),
+      transform 180ms var(--motion-easing-standard);
+  }
+
+  .task-tab:hover {
+    color: var(--color-md3-on-surface);
+  }
+
+  .task-tab-active {
+    color: var(--color-md3-primary-emphasis);
+  }
+
+  .task-tab::after {
+    content: "";
+    position: absolute;
+    right: 0.45rem;
+    bottom: 0;
+    left: 0.45rem;
+    height: 2px;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0;
+    transform: scaleX(0.35);
+    transition:
+      opacity 160ms var(--motion-easing-standard),
+      transform 200ms var(--motion-easing-emphasized-decelerate);
+  }
+
+  .task-tab-active::after {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  .task-menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-family: var(--font-md3-sans);
+    font-size: 0.875rem;
+    transition: background-color 160ms var(--motion-easing-standard);
+  }
+
+  .task-menu-item:hover:not(:disabled) {
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .task-menu-item:disabled {
+    opacity: 0.5;
+  }
+
+  @media (max-width: 520px) {
+    .task-tabs {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .task-tab {
+      flex: 0 1 auto;
+    }
+  }
+</style>

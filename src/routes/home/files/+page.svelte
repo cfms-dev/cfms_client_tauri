@@ -77,7 +77,7 @@
     setFavoriteRecord,
   } from '$lib/file-preferences';
   import { shortIdentifier } from '$lib/identifiers';
-  import { authStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
+  import { authStore, floatingProgressStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -1002,19 +1002,43 @@
   }
 
   async function handleDeleteSelected() {
-    if (totalSelected === 0) return;
+    if (totalSelected === 0 || batchBusy) return;
+    const progressId = 'files:batch-delete';
+    const progressTitle = $t('files.batchDeleting');
+    const total = totalSelected;
+    let completed = 0;
+    batchBusy = true;
+    updateBatchProgress(progressId, progressTitle, completed, total);
     try {
       for (const id of selectedFolderIds) {
         await deleteDirectory(id);
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       for (const id of selectedDocumentIds) {
         await deleteDocument(id);
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       clearSelection();
       await loadDirectory(currentFolderId);
     } catch (e) {
       error = String(e);
+    } finally {
+      batchBusy = false;
+      floatingProgressStore.remove(progressId);
     }
+  }
+
+  function updateBatchProgress(id: string, title: string, current: number, total: number) {
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    floatingProgressStore.upsert(
+      id,
+      title,
+      $t('files.batchProgress', { values: { current, total, percent } }),
+      current,
+      total,
+    );
   }
 
   async function handleDownloadSelected() {
@@ -1131,7 +1155,6 @@
     if (files.length === 0) return;
 
     const targetFolderId = currentFolderId;
-    notificationStore.info($t('files.uploadQueued', { values: { count: files.length } }));
     for (const filePath of files) {
       scheduleUpload(
         filePath,
@@ -1216,9 +1239,6 @@
       }
     }
 
-    if (queued > 0) {
-      notificationStore.info($t('files.uploadQueued', { values: { count: queued } }));
-    }
     if (unsupported > 0) {
       notificationStore.warning($t('files.dropUnsupported'));
     }
@@ -1429,7 +1449,8 @@
   }
 
   function handleNavigateTrash() {
-    goto('/home/trash');
+    const folder = currentFolderId ?? '/';
+    goto(`/home/trash?folder=${encodeURIComponent(folder)}`);
   }
 
   function setSort(field: SortField) {
@@ -1792,7 +1813,7 @@
         icon="delete"
         label={$t('common.delete')}
         tone="danger"
-        disabled={totalSelected === 0}
+        disabled={totalSelected === 0 || batchBusy}
         onclick={handleDeleteSelected}
         class="!h-8 !w-8"
         size={17}

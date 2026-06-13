@@ -1,9 +1,12 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
+  import ProgressRing from "$lib/components/ProgressRing.svelte";
   import { flyScale } from "$lib/motion/transitions";
   import {
     chromeStore,
+    floatingProgressStore,
     notificationStore,
+    type FloatingProgressEntry,
     type NotificationEntry,
   } from "$lib/stores.svelte";
 
@@ -13,6 +16,26 @@
   const timers = new Map<number, { timer: number; createdAt: number }>();
   let expandedIds = $state<Set<number>>(new Set());
   let hostEl = $state<HTMLDivElement | null>(null);
+  type StackEntry =
+    | { kind: "progress"; key: string; createdAt: number; entry: FloatingProgressEntry }
+    | { kind: "notification"; key: string; createdAt: number; entry: NotificationEntry };
+
+  const stackEntries = $derived<StackEntry[]>(
+    [
+      ...floatingProgressStore.entries.map((entry) => ({
+        kind: "progress" as const,
+        key: `progress:${entry.id}`,
+        createdAt: entry.createdAt,
+        entry,
+      })),
+      ...notificationStore.entries.map((entry) => ({
+        kind: "notification" as const,
+        key: `notification:${entry.id}`,
+        createdAt: entry.createdAt,
+        entry,
+      })),
+    ].sort((a, b) => b.createdAt - a.createdAt),
+  );
 
   $effect(() => {
     const interval = window.setInterval(() => {
@@ -26,7 +49,7 @@
 
   $effect(() => {
     const updateHeight = () => {
-      if (notificationStore.entries.length === 0) {
+      if (stackEntries.length === 0) {
         chromeStore.setSnackbarStackHeight(0);
         return;
       }
@@ -39,7 +62,7 @@
 
     if (!hostEl || typeof ResizeObserver === "undefined") {
       chromeStore.setSnackbarStackHeight(
-        notificationStore.entries.length > 0 ? 96 : 0,
+        stackEntries.length > 0 ? 96 : 0,
       );
       return;
     }
@@ -157,72 +180,96 @@
   bind:this={hostEl}
   class="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 px-4"
 >
-  {#each notificationStore.entries as entry (entry.id)}
-    <div
-      class="snackbar pointer-events-auto relative flex w-full max-w-md items-start gap-3 overflow-hidden rounded-lg px-4 py-3 shadow-2xl {toneClass(
-        entry.type,
-      )}"
-      role="status"
-      transition:flyScale={{ y: 22, duration: 320 }}
-    >
-      <span class="mt-0.5 shrink-0">
-        <Icon name={iconFor(entry.type)} size="20px" />
-      </span>
-
-      <div class="min-w-0 flex-1">
-        {#if entry.groupTitle}
-          <p class="truncate text-sm font-semibold leading-5">
-            {entry.groupTitle}
+  {#each stackEntries as item (item.key)}
+    {#if item.kind === "progress"}
+      <div
+        class="snackbar snackbar-progress pointer-events-auto relative flex w-full max-w-md items-center gap-4 overflow-hidden rounded-lg px-5 py-4 shadow-2xl"
+        role="status"
+        transition:flyScale={{ y: 22, duration: 260 }}
+      >
+        <ProgressRing
+          size={34}
+          strokeWidth={5}
+          class="snackbar-progress-ring"
+          label={item.entry.title}
+        />
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-base font-bold leading-6">
+            {item.entry.title}
           </p>
-          <p class="text-sm leading-5 opacity-90">{entry.text}</p>
-        {:else}
-          <p class="text-sm leading-5">{entry.text}</p>
+          <p class="truncate text-sm leading-5 opacity-90">
+            {item.entry.text}
+          </p>
+        </div>
+      </div>
+    {:else}
+      {@const entry = item.entry}
+      <div
+        class="snackbar pointer-events-auto relative flex w-full max-w-md items-start gap-3 overflow-hidden rounded-lg px-4 py-3 shadow-2xl {toneClass(
+          entry.type,
+        )}"
+        role="status"
+        transition:flyScale={{ y: 22, duration: 320 }}
+      >
+        <span class="mt-0.5 shrink-0">
+          <Icon name={iconFor(entry.type)} size="20px" />
+        </span>
+
+        <div class="min-w-0 flex-1">
+          {#if entry.groupTitle}
+            <p class="truncate text-sm font-semibold leading-5">
+              {entry.groupTitle}
+            </p>
+            <p class="text-sm leading-5 opacity-90">{entry.text}</p>
+          {:else}
+            <p class="text-sm leading-5">{entry.text}</p>
+          {/if}
+
+          {#if expandedIds.has(entry.id) && entry.items.length > 1}
+            <div
+              class="mt-2 max-h-32 space-y-1 overflow-auto rounded-md bg-black/10 p-2"
+            >
+              {#each entry.items.slice().reverse() as item}
+                <p class="truncate text-xs leading-4 opacity-90">{item.text}</p>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        {#if entry.items.length > 1}
+          <button
+            class="flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold opacity-85 transition hover:bg-white/10 hover:opacity-100"
+            aria-label={expandedIds.has(entry.id)
+              ? "Collapse notifications"
+              : "Expand notifications"}
+            onclick={() => toggleExpanded(entry.id)}
+          >
+            {entry.items.length}
+            <Icon
+              name={expandedIds.has(entry.id) ? "expandLess" : "expandMore"}
+              size="16px"
+            />
+          </button>
         {/if}
 
-        {#if expandedIds.has(entry.id) && entry.items.length > 1}
-          <div
-            class="mt-2 max-h-32 space-y-1 overflow-auto rounded-md bg-black/10 p-2"
-          >
-            {#each entry.items.slice().reverse() as item}
-              <p class="truncate text-xs leading-4 opacity-90">{item.text}</p>
-            {/each}
-          </div>
+        <button
+          class="shrink-0 rounded-full p-0.5 opacity-75 transition hover:bg-white/10 hover:opacity-100"
+          aria-label="Close"
+          onclick={() => remove(entry.id)}
+        >
+          <Icon name="close" size="18px" />
+        </button>
+
+        {#if entry.timeoutMs !== null}
+          <span class="absolute inset-x-0 bottom-0 h-1 bg-white/12">
+            <span
+              class="block h-full bg-current opacity-80 transition-[width] duration-100 ease-linear"
+              style={`width: ${progress(entry) * 100}%`}
+            ></span>
+          </span>
         {/if}
       </div>
-
-      {#if entry.items.length > 1}
-        <button
-          class="flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold opacity-85 transition hover:bg-white/10 hover:opacity-100"
-          aria-label={expandedIds.has(entry.id)
-            ? "Collapse notifications"
-            : "Expand notifications"}
-          onclick={() => toggleExpanded(entry.id)}
-        >
-          {entry.items.length}
-          <Icon
-            name={expandedIds.has(entry.id) ? "expandLess" : "expandMore"}
-            size="16px"
-          />
-        </button>
-      {/if}
-
-      <button
-        class="shrink-0 rounded-full p-0.5 opacity-75 transition hover:bg-white/10 hover:opacity-100"
-        aria-label="Close"
-        onclick={() => remove(entry.id)}
-      >
-        <Icon name="close" size="18px" />
-      </button>
-
-      {#if entry.timeoutMs !== null}
-        <span class="absolute inset-x-0 bottom-0 h-1 bg-white/12">
-          <span
-            class="block h-full bg-current opacity-80 transition-[width] duration-100 ease-linear"
-            style={`width: ${progress(entry) * 100}%`}
-          ></span>
-        </span>
-      {/if}
-    </div>
+    {/if}
   {/each}
 </div>
 
@@ -256,6 +303,14 @@
       var(--md3-inverse-surface, #313033) 92%,
       transparent
     );
+  }
+
+  .snackbar-progress {
+    background: color-mix(in srgb, var(--md3-inverse-surface, #313033) 94%, transparent);
+  }
+
+  :global(.snackbar-progress-ring) {
+    color: #22d3ee;
   }
 
   .snackbar-success {

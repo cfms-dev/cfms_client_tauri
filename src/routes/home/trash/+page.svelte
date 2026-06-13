@@ -13,7 +13,7 @@
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { navigateUp } from '$lib/navigation';
-  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { authStore, floatingProgressStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -71,7 +71,7 @@
   });
 
   onMount(() => {
-    loadItems(folderId);
+    loadItems(page.url.searchParams.get('folder') ?? folderId);
   });
 
   async function loadItems(nextFolderId = folderId) {
@@ -213,17 +213,26 @@
 
   async function handleRestoreSelected() {
     if (totalSelected === 0 || batchBusy) return;
+    const progressId = 'trash:batch-restore';
+    const progressTitle = $t('trash.batchRestoring');
+    const total = totalSelected;
+    let completed = 0;
     batchBusy = true;
+    updateBatchProgress(progressId, progressTitle, completed, total);
     error = null;
     let restored = 0;
     try {
       for (const id of selectedFolderIds) {
         await restoreDirectory(id, null);
         restored += 1;
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       for (const id of selectedDocumentIds) {
         await restoreDocument(id, null);
         restored += 1;
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       status = $t('trash.batchRestoreSuccess', { values: { count: restored } });
       clearSelection();
@@ -232,6 +241,7 @@
       error = formatError(err);
     } finally {
       batchBusy = false;
+      floatingProgressStore.remove(progressId);
     }
   }
 
@@ -246,17 +256,26 @@
     });
     if (!confirmed) return;
 
+    const progressId = 'trash:batch-purge';
+    const progressTitle = $t('trash.batchPurging');
+    const total = totalSelected;
+    let completed = 0;
     batchBusy = true;
+    updateBatchProgress(progressId, progressTitle, completed, total);
     error = null;
     let purged = 0;
     try {
       for (const id of selectedFolderIds) {
         await purgeDirectory(id);
         purged += 1;
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       for (const id of selectedDocumentIds) {
         await purgeDocument(id);
         purged += 1;
+        completed += 1;
+        updateBatchProgress(progressId, progressTitle, completed, total);
       }
       status = $t('trash.batchPurgeSuccess', { values: { count: purged } });
       clearSelection();
@@ -265,7 +284,19 @@
       error = formatError(err);
     } finally {
       batchBusy = false;
+      floatingProgressStore.remove(progressId);
     }
+  }
+
+  function updateBatchProgress(id: string, title: string, current: number, total: number) {
+    const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+    floatingProgressStore.upsert(
+      id,
+      title,
+      $t('trash.batchProgress', { values: { current, total, percent } }),
+      current,
+      total,
+    );
   }
 </script>
 
@@ -397,81 +428,83 @@
     </div>
   {:else}
     <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline overflow-hidden">
-      <div class="grid grid-cols-[auto_1fr_180px_auto] gap-3 px-4 py-2.5
-                  bg-md3-surface-container-high/50 text-xs font-medium
-                  text-md3-on-surface-variant uppercase tracking-wider
-                  border-b border-md3-outline">
-        <span></span>
-        <span>{$t('trash.name')}</span>
-        <span class="text-right">{$t('trash.created')}</span>
-        <span class="text-right">{$t('trash.actions')}</span>
-      </div>
-
-      {#if items.length === 0}
-        <div class="p-12 text-center space-y-3">
-          <span class="text-md3-on-surface-variant">
-            <Icon name="delete" size="64px" />
-          </span>
-          <p class="text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-            {$t('trash.empty')}
-          </p>
+                border border-md3-outline overflow-x-auto">
+      <div class="min-w-[720px]">
+        <div class="grid grid-cols-[auto_minmax(280px,1fr)_180px_auto] gap-3 px-4 py-2.5
+                    bg-md3-surface-container-high/50 text-xs font-medium
+                    text-md3-on-surface-variant uppercase tracking-wider
+                    border-b border-md3-outline">
+          <span></span>
+          <span>{$t('trash.name')}</span>
+          <span class="text-right">{$t('trash.created')}</span>
+          <span class="text-right">{$t('trash.actions')}</span>
         </div>
-      {:else}
-        {#each items as item (item.kind + item.id)}
-          <div
-            class="grid grid-cols-[auto_1fr_180px_auto] gap-3 px-4 py-2.5
-                   border-b border-md3-outline/50 last:border-b-0 items-center text-left transition-colors
-                   hover:bg-md3-surface-container-high/30"
-          >
-            {#if selectMode}
-              <button
-                type="button"
-                class="self-center text-left {isSelected(item) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
-                aria-label={isSelected(item) ? $t('files.selectNone') : $t('files.selectAll')}
-                onclick={() => item.kind === 'directory' ? toggleSelectFolder(item.id) : toggleSelectDocument(item.id)}
-              >
-                <Icon name={isSelected(item) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
-              </button>
-            {:else}
-              <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
-                <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
-              </span>
-            {/if}
-            <div class="min-w-0">
-              <p class="text-sm text-md3-on-surface-variant truncate line-through decoration-md3-error/90 decoration-2">
-                {item.name}
-              </p>
-              <p class="text-xs text-md3-on-surface-variant truncate">ID: {item.id}</p>
-            </div>
-            <span class="text-xs text-md3-on-surface-variant text-right">
-              {formatDate(item.created_time)}
+
+        {#if items.length === 0}
+          <div class="p-12 text-center space-y-3">
+            <span class="text-md3-on-surface-variant">
+              <Icon name="delete" size="64px" />
             </span>
-            <div class="flex items-center justify-end gap-1">
-              <button
-                class="p-1.5 rounded-full text-md3-on-surface-variant
-                       hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
-                       disabled:opacity-40 transition-colors"
-                title={$t('trash.restore')}
-                onclick={(event) => { event.stopPropagation(); handleRestore(item.kind, item.id, item.name); }}
-                disabled={!canRestore || busyItemId === item.id}
-              >
-                <Icon name="restoreFromTrash" size="18px" />
-              </button>
-              <button
-                class="p-1.5 rounded-full text-md3-error
-                       hover:bg-md3-error-container/40 disabled:opacity-40
-                       transition-colors"
-                title={$t('trash.purge')}
-                onclick={(event) => { event.stopPropagation(); handlePurge(item.kind, item.id, item.name); }}
-                disabled={!canPurge || busyItemId === item.id}
-              >
-                <Icon name="deleteForever" size="18px" />
-              </button>
-            </div>
+            <p class="text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
+              {$t('trash.empty')}
+            </p>
           </div>
-        {/each}
-      {/if}
+        {:else}
+          {#each items as item (item.kind + item.id)}
+            <div
+              class="grid grid-cols-[auto_minmax(280px,1fr)_180px_auto] gap-3 px-4 py-2.5
+                     border-b border-md3-outline/50 last:border-b-0 items-center text-left transition-colors
+                     hover:bg-md3-surface-container-high/30"
+            >
+              {#if selectMode}
+                <button
+                  type="button"
+                  class="self-center text-left {isSelected(item) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+                  aria-label={isSelected(item) ? $t('files.selectNone') : $t('files.selectAll')}
+                  onclick={() => item.kind === 'directory' ? toggleSelectFolder(item.id) : toggleSelectDocument(item.id)}
+                >
+                  <Icon name={isSelected(item) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
+                </button>
+              {:else}
+                <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                  <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
+                </span>
+              {/if}
+              <div class="min-w-0">
+                <p class="text-sm text-md3-on-surface-variant truncate line-through decoration-md3-error/90 decoration-2">
+                  {item.name}
+                </p>
+                <p class="text-xs text-md3-on-surface-variant truncate">ID: {item.id}</p>
+              </div>
+              <span class="text-xs text-md3-on-surface-variant text-right">
+                {formatDate(item.created_time)}
+              </span>
+              <div class="flex items-center justify-end gap-1">
+                <button
+                  class="p-1.5 rounded-full text-md3-on-surface-variant
+                         hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
+                         disabled:opacity-40 transition-colors"
+                  title={$t('trash.restore')}
+                  onclick={(event) => { event.stopPropagation(); handleRestore(item.kind, item.id, item.name); }}
+                  disabled={!canRestore || busyItemId === item.id}
+                >
+                  <Icon name="restoreFromTrash" size="18px" />
+                </button>
+                <button
+                  class="p-1.5 rounded-full text-md3-error
+                         hover:bg-md3-error-container/40 disabled:opacity-40
+                         transition-colors"
+                  title={$t('trash.purge')}
+                  onclick={(event) => { event.stopPropagation(); handlePurge(item.kind, item.id, item.name); }}
+                  disabled={!canPurge || busyItemId === item.id}
+                >
+                  <Icon name="deleteForever" size="18px" />
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
     </div>
   {/if}
 </div>

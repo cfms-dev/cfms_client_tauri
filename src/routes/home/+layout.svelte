@@ -16,6 +16,7 @@
   import { authStore, serverStateStore, downloadStore, uploadStore, chromeStore, notificationStore } from '$lib/stores.svelte';
   import { clearAuthSession, disconnect, setLockdown } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
+  import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
   import { flyScale } from '$lib/motion/transitions';
@@ -26,6 +27,7 @@
   let accountMenuOpen = $state(false);
   let accountActionBusy = $state(false);
   let viewportWidth = $state(0);
+  let accountCloseTimer: number | null = null;
 
   // Routes that use the tab bar (show the bottom navigation).
   const TAB_ROUTES = ['/home/overview', '/home/files', '/home/tasks', '/home/more'];
@@ -81,12 +83,34 @@
   }
 
   function closeAccountMenu() {
+    if (accountCloseTimer !== null) {
+      window.clearTimeout(accountCloseTimer);
+      accountCloseTimer = null;
+    }
     accountMenuOpen = false;
   }
 
   function toggleAccountMenu(event: MouseEvent) {
     event.stopPropagation();
     accountMenuOpen = !accountMenuOpen;
+  }
+
+  function openAccountMenu() {
+    if (accountCloseTimer !== null) {
+      window.clearTimeout(accountCloseTimer);
+      accountCloseTimer = null;
+    }
+    accountMenuOpen = true;
+  }
+
+  function scheduleAccountMenuClose() {
+    if (accountCloseTimer !== null) {
+      window.clearTimeout(accountCloseTimer);
+    }
+    accountCloseTimer = window.setTimeout(() => {
+      accountMenuOpen = false;
+      accountCloseTimer = null;
+    }, 180);
   }
 
   async function handleLogout() {
@@ -127,7 +151,7 @@
 <div class="relative flex h-full min-h-0 flex-col">
   <!-- Top bar -->
   <header
-    class="home-topbar relative flex min-h-10 items-center overflow-hidden px-4 bg-md3-surface/80 backdrop-blur-sm
+    class="home-topbar relative flex min-h-10 items-center overflow-visible px-4 bg-md3-surface/80 backdrop-blur-sm
            border-b border-md3-outline shrink-0 z-10"
     class:home-topbar--lockdown={serverStateStore.lockdown}
   >
@@ -142,7 +166,12 @@
 
     <div class="relative z-20 ml-auto flex items-center gap-3">
       {#if authStore.isLoggedIn}
-        <div class="relative">
+        <div
+          class="relative"
+          role="presentation"
+          onpointerenter={openAccountMenu}
+          onpointerleave={scheduleAccountMenuClose}
+        >
           <button
             type="button"
             class="account-trigger inline-flex max-w-[15rem] items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
@@ -163,16 +192,24 @@
 
           {#if accountMenuOpen}
             <div
-              class="account-menu absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-48 overflow-hidden rounded-lg border border-md3-outline/70 bg-md3-surface-container/95 py-1 shadow-2xl backdrop-blur-xl"
+              class="account-menu absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-60 overflow-hidden rounded-lg border border-md3-outline/70 bg-md3-surface-container/95 py-1 shadow-2xl backdrop-blur-xl"
               role="menu"
               tabindex="-1"
               in:flyScale={{ y: -6, duration: 180 }}
+              out:flyScale={{ y: -4, duration: 120 }}
               onclick={(event) => event.stopPropagation()}
               onkeydown={(event) => event.stopPropagation()}
             >
-              <div class="border-b border-md3-outline/50 px-3 py-2">
-                <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.nickname ?? authStore.username}</p>
-                <p class="truncate text-xs text-md3-on-surface-variant">{authStore.username}</p>
+              <div class="flex items-center gap-3 border-b border-md3-outline/50 px-3 py-2.5">
+                <AvatarPreview
+                  username={authStore.username ?? ''}
+                  avatarPath={authStore.avatarPath}
+                  size={34}
+                />
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.nickname ?? authStore.username}</p>
+                  <p class="truncate text-xs text-md3-on-surface-variant">{authStore.username}</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -267,9 +304,9 @@
     width: 100%;
     align-items: center;
     gap: 0.65rem;
-    padding: 0.65rem 0.8rem;
+    padding: 0.48rem 0.75rem;
     color: var(--color-md3-on-surface);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     text-align: left;
     transition:
       background-color 160ms var(--motion-easing-standard),
