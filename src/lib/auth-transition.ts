@@ -1,5 +1,6 @@
 const CONNECT_TO_LOGIN_TRANSITION_KEY = 'cfms.connectToLoginTransition';
 const LOGIN_TO_CONNECT_TRANSITION_KEY = 'cfms.loginToConnectTransition';
+const CONNECT_TO_UTILITY_TRANSITION_KEY = 'cfms.connectToUtilityTransition';
 
 export function markConnectToLoginTransition() {
   markTransition(CONNECT_TO_LOGIN_TRANSITION_KEY);
@@ -15,6 +16,14 @@ export function markLoginToConnectTransition() {
 
 export function consumeLoginToConnectTransition() {
   return consumeTransition(LOGIN_TO_CONNECT_TRANSITION_KEY);
+}
+
+export function markConnectToUtilityTransition() {
+  markTransition(CONNECT_TO_UTILITY_TRANSITION_KEY);
+}
+
+export function consumeConnectToUtilityTransition() {
+  return consumeTransition(CONNECT_TO_UTILITY_TRANSITION_KEY);
 }
 
 function markTransition(key: string) {

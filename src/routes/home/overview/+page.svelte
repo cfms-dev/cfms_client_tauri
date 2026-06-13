@@ -28,6 +28,7 @@
 
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);
+  let loadingRecent = $state(true);
   let loadingFavorites = $state(true);
   let openingId = $state<string | null>(null);
   let recordRecentVisits = $state(true);
@@ -44,6 +45,7 @@
       favorites = [];
       recordRecentVisits = true;
     } finally {
+      loadingRecent = false;
       loadingFavorites = false;
     }
   });
@@ -155,6 +157,7 @@
       title={$t('home.recent')}
       icon="history"
       records={recent}
+      loading={loadingRecent}
       emptyLabel={recordRecentVisits ? $t('home.noRecent') : $t('home.recentRecordingDisabled')}
       loadingLabel={$t('common.loadingEllipsis')}
       clearLabel={$t('home.clearRecent')}

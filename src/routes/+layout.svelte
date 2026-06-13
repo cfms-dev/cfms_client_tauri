@@ -21,6 +21,7 @@
   import { initEventListeners } from "$lib/events";
   import { initI18n } from "$lib/i18n";
   import { initNavigationHistory, navigateUp } from "$lib/navigation";
+  import { appUpdateState } from "$lib/app-update-state.svelte";
   import {
     authStore,
     serverStateStore,
@@ -130,6 +131,9 @@
 
     // Start listening for backend events.
     await initEventListeners();
+
+    // Kick off one non-blocking update check for this client session.
+    void appUpdateState.check();
 
     // Fetch initial service status.
     try {

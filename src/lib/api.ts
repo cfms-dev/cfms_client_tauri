@@ -385,6 +385,14 @@ export interface CaCertificateUpdateResult {
   lastChecked: number | null;
 }
 
+export interface FileShortcutValidationResult {
+  invalid_count: number;
+  invalid_files: string[];
+  invalid_directories: string[];
+  access_denied_files: string[];
+  access_denied_directories: string[];
+}
+
 // ---------------------------------------------------------------------------
 // IPC command wrappers
 // ---------------------------------------------------------------------------
@@ -413,6 +421,11 @@ export async function cryptoInfo(): Promise<{
 /** Get the running status of all background services. */
 export async function getServiceStatus(): Promise<ServiceStatusInfo[]> {
   return invoke("get_service_status");
+}
+
+/** Immediately validate whether favorites and recent visits are still accessible. */
+export async function validateFileShortcuts(): Promise<FileShortcutValidationResult> {
+  return invoke("validate_file_shortcuts");
 }
 
 // ---------------------------------------------------------------------------

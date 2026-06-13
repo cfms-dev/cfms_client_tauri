@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { getSetting, setSetting } from '$lib/api';
+  import { appUpdateState } from '$lib/app-update-state.svelte';
   import type { UpdateChannel } from '$lib/updater';
   import { navigateUp } from '$lib/navigation';
   import { notificationStore } from '$lib/stores.svelte';
@@ -49,6 +50,7 @@
     error = null;
     try {
       await setSetting('update_channel', channel);
+      appUpdateState.setChannel(channel);
       status = $t('settings.updates.saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);

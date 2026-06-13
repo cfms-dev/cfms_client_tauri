@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde::Serialize;
 use tokio::sync::watch;
 
 use cfms_core::ServiceEvent;
@@ -16,6 +17,15 @@ use crate::state::AppState;
 
 /// Interval between validation runs.
 pub const INTERVAL: Duration = Duration::from_secs(300);
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ShortcutValidationStatus {
+    pub invalid_count: u32,
+    pub invalid_files: Vec<String>,
+    pub invalid_directories: Vec<String>,
+    pub access_denied_files: Vec<String>,
+    pub access_denied_directories: Vec<String>,
+}
 
 /// Run the favorites validation loop.
 pub async fn run(
@@ -33,20 +43,22 @@ pub async fn run(
             break;
         }
 
-        let status = tick(
-            &state,
-            &app_data_dir,
-            &mut invalid_files,
-            &mut invalid_directories,
-            &mut access_denied_files,
-            &mut access_denied_directories,
-        )
-        .await;
+        let status = ShortcutValidationStatus::from(
+            tick(
+                &state,
+                &app_data_dir,
+                &mut invalid_files,
+                &mut invalid_directories,
+                &mut access_denied_files,
+                &mut access_denied_directories,
+            )
+            .await,
+        );
 
         let _ = state
             .event_tx
             .send(ServiceEvent::FavoritesValidationComplete {
-                invalid_count: status.invalid_count() as u32,
+                invalid_count: status.invalid_count,
                 invalid_files: status.invalid_files,
                 invalid_directories: status.invalid_directories,
                 access_denied_files: status.access_denied_files,
@@ -60,6 +72,29 @@ pub async fn run(
     }
 
     tracing::info!("FavoritesValidationService stopped");
+}
+
+/// Run one immediate favorites/recent-visits validation cycle.
+pub async fn validate_now(
+    state: &AppState,
+    app_data_dir: &std::path::Path,
+) -> ShortcutValidationStatus {
+    let mut invalid_files = HashSet::new();
+    let mut invalid_directories = HashSet::new();
+    let mut access_denied_files = HashSet::new();
+    let mut access_denied_directories = HashSet::new();
+
+    ShortcutValidationStatus::from(
+        tick(
+            state,
+            app_data_dir,
+            &mut invalid_files,
+            &mut invalid_directories,
+            &mut access_denied_files,
+            &mut access_denied_directories,
+        )
+        .await,
+    )
 }
 
 /// Validate all favorites/recent visits and return their current unavailable state.
@@ -296,6 +331,18 @@ impl ValidationStatus {
             + self.invalid_directories.len()
             + self.access_denied_files.len()
             + self.access_denied_directories.len()
+    }
+}
+
+impl From<ValidationStatus> for ShortcutValidationStatus {
+    fn from(status: ValidationStatus) -> Self {
+        Self {
+            invalid_count: status.invalid_count() as u32,
+            invalid_files: status.invalid_files,
+            invalid_directories: status.invalid_directories,
+            access_denied_files: status.access_denied_files,
+            access_denied_directories: status.access_denied_directories,
+        }
     }
 }
 

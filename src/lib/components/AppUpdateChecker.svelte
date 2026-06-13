@@ -3,28 +3,21 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getSetting } from '$lib/api';
   import {
-    checkAppUpdate,
     formatBytes,
     installAppUpdate,
     relaunchApp,
-    type AppUpdateMetadata,
-    type UpdateChannel,
     type UpdateProgressSnapshot,
   } from '$lib/updater';
+  import { appUpdateState } from '$lib/app-update-state.svelte';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
-  let channel = $state<UpdateChannel>('stable');
-  let checked = $state(false);
   let appVersion = $state('');
   let loading = $state(true);
-  let checking = $state(false);
   let installing = $state(false);
   let installed = $state(false);
-  let update = $state<AppUpdateMetadata | null>(null);
   let progress = $state<UpdateProgressSnapshot>({
     phase: 'idle',
     downloadedBytes: 0,
@@ -34,7 +27,7 @@
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
 
-  const channelLabel = $derived($t(`settings.updates.${channel}`));
+  const channelLabel = $derived($t(`settings.updates.${appUpdateState.channel}`));
   const progressPercent = $derived(
     progress.progress === null ? null : Math.round(progress.progress * 1000) / 10,
   );
@@ -58,12 +51,12 @@
     return $t('settings.updates.preparingDownload');
   });
   const installCompleteMessage = $derived(
-    update?.installMode === 'android-apk'
+    appUpdateState.update?.installMode === 'android-apk'
       ? $t('settings.updates.installCompleteAndroid')
       : $t('settings.updates.installComplete'),
   );
   const installButtonLabel = $derived(
-    update?.installMode === 'android-apk'
+    appUpdateState.update?.installMode === 'android-apk'
       ? $t('settings.updates.downloadAndOpenInstaller')
       : $t('settings.updates.downloadAndInstall'),
   );
@@ -82,13 +75,10 @@
 
   onMount(async () => {
     try {
-      const [saved, version] = await Promise.all([
-        getSetting('update_channel'),
+      const [, version] = await Promise.all([
+        appUpdateState.ensureChannel(),
         getVersion().catch(() => $t('common.unknown')),
       ]);
-      if (saved === 'stable' || saved === 'beta' || saved === 'alpha') {
-        channel = saved;
-      }
       appVersion = version;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -98,26 +88,20 @@
   });
 
   async function checkForUpdates() {
-    checking = true;
     error = null;
-    update = null;
     installed = false;
     progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
 
-    try {
-      const found = await checkAppUpdate(channel);
-      checked = true;
-      update = found;
-      if (!found) status = $t('settings.updates.latest');
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      checking = false;
+    const found = await appUpdateState.check({ force: true });
+    if (appUpdateState.error) {
+      error = appUpdateState.error;
+    } else if (!found) {
+      status = $t('settings.updates.latest');
     }
   }
 
   async function installUpdate() {
-    if (!update) return;
+    if (!appUpdateState.update) return;
     installing = true;
     error = null;
     installed = false;
@@ -163,7 +147,7 @@
       </p>
     </div>
 
-    {#if checking}
+    {#if appUpdateState.checking}
       <span class="inline-status text-md3-primary-emphasis">
         <ProgressRing size={16} strokeWidth={2.4} label={$t('about.checkingUpdates')} />
         {$t('about.checkingUpdates')}
@@ -173,12 +157,12 @@
         <Icon name="checkCircle" size="18px" />
         {$t('settings.updates.installed')}
       </span>
-    {:else if update}
+    {:else if appUpdateState.update}
       <span class="inline-status text-md3-warning">
         <Icon name="update" size="18px" />
         {$t('settings.updates.available')}
       </span>
-    {:else if checked}
+    {:else if appUpdateState.checked}
       <span class="inline-status text-md3-success">
         <Icon name="checkCircle" size="18px" />
         {$t('settings.updates.latest')}
@@ -186,16 +170,16 @@
     {/if}
   </div>
 
-  {#if update}
+  {#if appUpdateState.update}
     <div class="release-block animate-fade-scale-in">
       <div class="release-title">
-        <h3>{$t('settings.updates.newVersion', { values: { version: update.version } })}</h3>
-        <span>{formatReleaseDate(update.date)}</span>
+        <h3>{$t('settings.updates.newVersion', { values: { version: appUpdateState.update.version } })}</h3>
+        <span>{formatReleaseDate(appUpdateState.update.date)}</span>
       </div>
-      {#if update.body}
-        <pre>{update.body}</pre>
+      {#if appUpdateState.update.body}
+        <pre>{appUpdateState.update.body}</pre>
       {/if}
-      <a href={update.releaseUrl} target="_blank" rel="noreferrer">
+      <a href={appUpdateState.update.releaseUrl} target="_blank" rel="noreferrer">
         {$t('settings.updates.openRelease')}
         <Icon name="openInNew" size="16px" />
       </a>
@@ -220,8 +204,8 @@
   {/if}
 
   <div class="actions">
-    <button class="primary-action" onclick={checkForUpdates} disabled={loading || checking || installing}>
-      {#if checking}
+    <button class="primary-action" onclick={checkForUpdates} disabled={loading || appUpdateState.checking || installing}>
+      {#if appUpdateState.checking}
         <ProgressRing size={18} strokeWidth={2.4} label={$t('about.checkingUpdates')} />
       {:else}
         <Icon name="update" size="18px" />
@@ -229,8 +213,8 @@
       {$t('settings.updates.check')}
     </button>
 
-    {#if update && !installed}
-      <button class="success-action" onclick={installUpdate} disabled={installing || checking}>
+    {#if appUpdateState.update && !installed}
+      <button class="success-action" onclick={installUpdate} disabled={installing || appUpdateState.checking}>
         {#if installing}
           <ProgressRing size={18} strokeWidth={2.4} label={$t('settings.updates.installing')} />
         {:else}
@@ -240,14 +224,14 @@
       </button>
     {/if}
 
-    {#if installed && update?.installMode !== 'android-apk'}
+    {#if installed && appUpdateState.update?.installMode !== 'android-apk'}
       <button class="success-action" onclick={restartNow}>
         <Icon name="refresh" size="18px" />
         {$t('settings.updates.restartNow')}
       </button>
     {/if}
 
-    <button class="text-action" onclick={() => goto('/home/settings/updates')} disabled={checking || installing}>
+    <button class="text-action" onclick={() => goto('/home/settings/updates')} disabled={appUpdateState.checking || installing}>
       <Icon name="settings" size="18px" />
       {$t('settings.updates.configureChannel')}
     </button>

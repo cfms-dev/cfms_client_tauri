@@ -310,6 +310,7 @@ pub fn run() {
             commands::protocol_version,
             commands::crypto_info,
             commands::get_service_status,
+            commands::validate_file_shortcuts,
             commands::check_app_update,
             commands::install_app_update,
             commands::add_download,

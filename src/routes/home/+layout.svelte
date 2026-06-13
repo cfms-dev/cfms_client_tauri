@@ -10,6 +10,7 @@
   // Reference: HomeModel in reference/src/include/ui/models/home.py
 
   import type { Snippet } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
@@ -19,6 +20,7 @@
   import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
+  import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
   import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
 
@@ -28,6 +30,7 @@
   let accountActionBusy = $state(false);
   let viewportWidth = $state(0);
   let accountCloseTimer: number | null = null;
+  let playConnectUtilityTransition = $state(browser ? consumeConnectToUtilityTransition() : false);
 
   // Routes that use the tab bar (show the bottom navigation).
   const TAB_ROUTES = ['/home/overview', '/home/files', '/home/tasks', '/home/more'];
@@ -148,7 +151,10 @@
 
 <svelte:window bind:innerWidth={viewportWidth} onclick={closeAccountMenu} onkeydown={(event) => { if (event.key === 'Escape') closeAccountMenu(); }} />
 
-<div class="relative flex h-full min-h-0 flex-col">
+<div
+  class="relative flex h-full min-h-0 flex-col"
+  class:home-shell--connect-utility={playConnectUtilityTransition}
+>
   <!-- Top bar -->
   <header
     class="home-topbar relative flex min-h-10 items-center overflow-visible px-4 bg-md3-surface/80 backdrop-blur-sm
@@ -244,7 +250,10 @@
     entrance per route (in-only, so outgoing/incoming pages never overlap or
     trap clicks).  Extra bottom padding clears the floating tab bar.
   -->
-  <main class="flex-1 min-h-0 overflow-y-auto">
+  <main
+    class="flex-1 min-h-0 overflow-y-auto"
+    class:home-main--connect-utility={playConnectUtilityTransition}
+  >
     {#key $page.url.pathname}
       <div
         in:flyScale={{ y: 12, duration: 300 }}
@@ -297,6 +306,17 @@
     box-shadow:
       0 18px 46px rgba(0, 0, 0, 0.34),
       0 1px 0 rgba(255, 255, 255, 0.22) inset;
+  }
+
+  .home-shell--connect-utility .home-topbar {
+    animation: utility-topbar-enter 260ms var(--motion-easing-emphasized-decelerate) both;
+    will-change: opacity, transform;
+  }
+
+  .home-main--connect-utility {
+    animation: utility-main-enter 360ms var(--motion-easing-emphasized-decelerate) both;
+    transform-origin: calc(100% - 3rem) 0.75rem;
+    will-change: opacity, transform, filter;
   }
 
   .account-menu-item {
@@ -370,9 +390,43 @@
     }
   }
 
+  @keyframes utility-topbar-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -8px, 0);
+    }
+
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes utility-main-enter {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -10px, 0) scale(0.985);
+      filter: blur(6px);
+    }
+
+    72% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1.002);
+      filter: blur(0);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: blur(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .lockdown-fab,
-    .home-topbar--lockdown::before {
+    .home-topbar--lockdown::before,
+    .home-shell--connect-utility .home-topbar,
+    .home-main--connect-utility {
       transition: none !important;
       animation: none !important;
     }

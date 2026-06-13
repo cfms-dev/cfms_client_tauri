@@ -16,7 +16,12 @@
   import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
-  import { authStore, notificationStore, serverStateStore } from "$lib/stores.svelte";
+  import {
+    authStore,
+    fileShortcutValidationStore,
+    notificationStore,
+    serverStateStore,
+  } from "$lib/stores.svelte";
   import {
     login,
     changePassword,
@@ -29,6 +34,7 @@
     getDownloadTasks,
     reloadTasksForUser,
     checkCachedAvatar,
+    validateFileShortcuts,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -109,6 +115,12 @@
       downloadStore.setAll(tasks);
     } catch {
       // Non-fatal: task reload failure does not block login.
+    }
+
+    try {
+      fileShortcutValidationStore.apply(await validateFileShortcuts());
+    } catch {
+      // Non-fatal: shortcut validation failure does not block login.
     }
   }
 

@@ -22,7 +22,11 @@
     getServerState,
   } from "$lib/api";
   import { loadAppVersion } from "$lib/app-info";
-  import { consumeLoginToConnectTransition, markConnectToLoginTransition } from "$lib/auth-transition";
+  import {
+    consumeLoginToConnectTransition,
+    markConnectToLoginTransition,
+    markConnectToUtilityTransition,
+  } from "$lib/auth-transition";
   import {
     authStore,
     notificationStore,
@@ -157,10 +161,12 @@
 
   /** Navigate to the about/update page when the server is newer. */
   async function goToAbout() {
+    markConnectToUtilityTransition();
     await goto("/home/about");
   }
 
   async function goToSettings() {
+    markConnectToUtilityTransition();
     await goto("/home/settings");
   }
 
