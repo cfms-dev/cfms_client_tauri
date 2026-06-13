@@ -16,6 +16,7 @@
     length = 4,
     disabled = false,
     shake = false,
+    density = 'comfortable',
     deleteLabel = 'Delete',
     class: className = '',
   }: {
@@ -23,6 +24,7 @@
     length?: number;
     disabled?: boolean;
     shake?: boolean;
+    density?: 'comfortable' | 'compact';
     deleteLabel?: string;
     class?: string;
   } = $props();
@@ -40,7 +42,7 @@
   }
 </script>
 
-<div class={`app-pin-pad ${className}`}>
+<div class={`app-pin-pad app-pin-pad--${density} ${className}`}>
   <div class="app-pin-pad__dots" class:app-pin-pad__dots--shake={shake}>
     {#each dots as filled}
       <span class="app-pin-pad__dot" class:app-pin-pad__dot--filled={filled}></span>
@@ -87,9 +89,25 @@
   .app-pin-pad {
     display: flex;
     inline-size: 100%;
-    max-inline-size: 420px;
+    max-inline-size: var(--app-pin-pad-width, 390px);
     flex-direction: column;
     align-items: center;
+  }
+
+  .app-pin-pad--comfortable {
+    --app-pin-pad-width: 390px;
+    --app-pin-key-size: clamp(72px, min(20vw, 16vh), 104px);
+    --app-pin-key-gap-block: 1.2rem;
+    --app-pin-key-gap-inline: 1.5rem;
+    --app-pin-digit-size: clamp(2.7rem, min(10vw, 7vh), 3.8rem);
+  }
+
+  .app-pin-pad--compact {
+    --app-pin-pad-width: 340px;
+    --app-pin-key-size: clamp(58px, min(18vw, 12vh), 84px);
+    --app-pin-key-gap-block: 0.85rem;
+    --app-pin-key-gap-inline: 1rem;
+    --app-pin-digit-size: clamp(2.1rem, min(8vw, 5.5vh), 3rem);
   }
 
   .app-pin-pad__dots {
@@ -121,14 +139,14 @@
     inline-size: 100%;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-items: center;
-    gap: 1.5rem 2rem;
-    margin-block-start: 2rem;
+    gap: var(--app-pin-key-gap-block) var(--app-pin-key-gap-inline);
+    margin-block-start: 1.6rem;
   }
 
   .app-pin-key {
     display: inline-flex;
-    inline-size: clamp(86px, 25vw, 118px);
-    block-size: clamp(86px, 25vw, 118px);
+    inline-size: var(--app-pin-key-size);
+    block-size: var(--app-pin-key-size);
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -159,7 +177,7 @@
   }
 
   .app-pin-key__digit {
-    font-size: clamp(3rem, 12vw, 4.4rem);
+    font-size: var(--app-pin-digit-size);
     font-weight: 300;
     line-height: 0.92;
   }

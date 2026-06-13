@@ -199,7 +199,7 @@
               title={serverStateStore.connected ? $t('common.connected') : $t('common.disconnected')}
             ></span>
             <span class="min-w-0 truncate">
-              {authStore.nickname ?? authStore.username}
+              {authStore.displayName}
             </span>
             <Icon name="expandMore" size="16px" />
           </button>
@@ -221,7 +221,7 @@
                   size={34}
                 />
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.nickname ?? authStore.username}</p>
+                  <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.displayName}</p>
                   <p class="truncate text-xs text-md3-on-surface-variant">{authStore.username}</p>
                 </div>
                 {#if appLockStore.canLock}

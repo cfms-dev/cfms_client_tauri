@@ -142,7 +142,8 @@ const en = {
     setupAction: 'Set up app lock',
     setupRequired: 'Set up an unlock method first',
     unlock: {
-      title: 'Enter your app PIN',
+      title: 'Unlock app',
+      pinTitle: 'Enter your app PIN',
       enterPin: 'Enter PIN',
       invalidPin: 'Incorrect verification. Try again.',
       tryAgain: 'Try again in {seconds}s',
@@ -927,7 +928,8 @@ const zh_CN = {
     setupAction: '设置应用锁',
     setupRequired: '请先设置一种解锁方式',
     unlock: {
-      title: '输入应用锁 PIN',
+      title: '解锁应用',
+      pinTitle: '输入应用锁 PIN',
       enterPin: '请输入 PIN',
       invalidPin: '验证不正确，请重试。',
       tryAgain: '{seconds} 秒后重试',

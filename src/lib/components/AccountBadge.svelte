@@ -19,7 +19,7 @@
   } = $props();
 
   const username = $derived(authStore.username ?? $t('common.unknown'));
-  const nickname = $derived(authStore.nickname);
+  const nickname = $derived(authStore.displayName);
   const groups = $derived(authStore.groups);
   const avatarPath = $derived(authStore.avatarPath);
 </script>

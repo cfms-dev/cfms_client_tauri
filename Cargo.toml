@@ -68,7 +68,7 @@ rustls-pemfile = "2"
 webpki-roots = "0.26"
 tokio-socks = "0.5"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "socks"] }
 tracing = { version = "0.1", features = ["log"] }
 url = "2"
 dashmap = "5"

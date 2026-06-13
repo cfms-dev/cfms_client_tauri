@@ -28,6 +28,11 @@
   const lockedOutMs = $derived(Math.max(0, lockoutUntil - now));
   const canUsePin = $derived(appLockStore.hasPin && lockedOutMs <= 0 && !busy);
   const canUsePlatform = $derived(appLockStore.hasPlatformCredential && !busy && lockedOutMs <= 0);
+  const unlockTitle = $derived(
+    appLockStore.hasPin && !appLockStore.hasPlatformCredential
+      ? $t('appLock.unlock.pinTitle')
+      : $t('appLock.unlock.title'),
+  );
   const contentScale = $derived.by(() => {
     if (viewportWidth <= 0 || viewportHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) return 1;
     const inlineScale = (viewportWidth - 40) / contentWidth;
@@ -192,7 +197,7 @@
     class="app-lock-overlay fixed inset-0 z-[90] flex min-h-full items-center justify-center overflow-auto px-5 py-8 text-white"
     role="dialog"
     aria-modal="true"
-    aria-label={$t('appLock.unlock.title')}
+    aria-label={unlockTitle}
     transition:fade|global={{ duration: 180 }}
   >
     <div class="app-lock-frame" style={scaledFrameStyle}>
@@ -207,7 +212,7 @@
           </div>
 
           <h2 class="text-3xl font-light tracking-normal sm:text-4xl" style="font-family: var(--font-md3-sans);">
-            {$t('appLock.unlock.title')}
+            {unlockTitle}
           </h2>
 
           <div class="mt-7 min-h-7 text-lg text-white/88">
@@ -244,6 +249,7 @@
               class="mt-8"
               bind:value={pin}
               length={appLockStore.pinLength}
+              density="compact"
               disabled={!canUsePin}
               {shake}
               deleteLabel={$t('common.delete')}
@@ -257,6 +263,11 @@
 
 <style>
   .app-lock-overlay {
+    min-block-size: 100dvh;
+    padding-block-start: calc(var(--safe-area-top, 0px) + 1.25rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+    padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
+    padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
       linear-gradient(145deg, rgba(14, 19, 50, 0.98), rgba(43, 16, 55, 0.98) 58%, rgba(30, 20, 39, 0.98)),
       radial-gradient(circle at 18% 14%, rgba(103, 80, 164, 0.28), transparent 34%);
@@ -278,6 +289,7 @@
 
   .app-lock-content {
     inline-size: 520px;
+    max-block-size: calc(100dvh - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 2.5rem);
     animation: app-lock-enter 360ms var(--motion-easing-emphasized-decelerate) both;
   }
 

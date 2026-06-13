@@ -93,6 +93,10 @@ class AuthStoreImpl {
     return this.requires2fa && this.username !== null && !this.hasToken;
   }
 
+  get displayName() {
+    return this.nickname ?? this.username;
+  }
+
   /** Apply a full AuthStatus snapshot from the backend.
    *
    *  Only handles auth-specific fields.  Server-state fields (connection status,
@@ -100,7 +104,7 @@ class AuthStoreImpl {
    *  by the caller — the two stores are fully independent. */
   apply(s: AuthStatus) {
     this.username = s.username;
-    this.nickname = s.nickname;
+    this.nickname = normalizeNickname(s.nickname, s.username);
     this.hasToken = s.has_token;
     this.tokenExp = s.token_exp;
     this.permissions = s.permissions;
@@ -128,6 +132,14 @@ class AuthStoreImpl {
 }
 
 export const authStore = new AuthStoreImpl();
+
+function normalizeNickname(nickname: string | null, username: string | null) {
+  const cleanNickname = nickname?.trim();
+  if (cleanNickname) return cleanNickname;
+
+  const cleanUsername = username?.trim();
+  return cleanUsername || null;
+}
 
 // ---------------------------------------------------------------------------
 // Download store

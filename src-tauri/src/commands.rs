@@ -324,21 +324,42 @@ impl ConnectionSettingsDto {
     }
 
     fn proxy_addr(&self) -> Result<Option<String>, String> {
-        if !self.enable_proxy {
+        let raw = self.configured_proxy_setting();
+        let Some(raw) = raw else {
             return Ok(None);
+        };
+
+        normalize_socks5_proxy(&raw)
+    }
+
+    fn update_proxy_url(&self) -> Result<Option<url::Url>, String> {
+        let raw = self.configured_proxy_setting();
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+
+        let default_scheme = if self.follow_system_proxy {
+            "http"
+        } else {
+            "socks5h"
+        };
+
+        normalize_update_proxy(&raw, default_scheme)
+    }
+
+    fn configured_proxy_setting(&self) -> Option<String> {
+        if !self.enable_proxy {
+            return None;
         }
 
         let raw = if self.follow_system_proxy {
             system_proxy_setting()
         } else {
             Some(self.custom_proxy.trim().to_string())
-        };
+        }?;
 
-        let Some(raw) = raw else {
-            return Ok(None);
-        };
-
-        normalize_socks5_proxy(&raw)
+        let trimmed = raw.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
     }
 
     fn client_identity_paths(&self) -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {
@@ -466,7 +487,14 @@ pub async fn check_app_update(
     channel: Option<String>,
 ) -> Result<Option<AppUpdateMetadata>, String> {
     let channel = UpdateChannel::parse(channel.as_deref());
-    let Some(release) = find_update_release(channel, UpdateAssetKind::DesktopManifest).await?
+    let proxy_url = update_proxy_url(&state)?;
+    tracing::info!(
+        "Checking for app updates (proxy={})",
+        describe_update_proxy(proxy_url.as_ref())
+    );
+    let client = update_http_client(proxy_url.as_ref())?;
+    let Some(release) =
+        find_update_release(&client, channel, UpdateAssetKind::DesktopManifest).await?
     else {
         let mut pending = state
             .pending_update
@@ -489,10 +517,14 @@ pub async fn check_app_update(
 
     let endpoint =
         url::Url::parse(&manifest_url).map_err(|e| format!("Invalid update manifest URL: {e}"))?;
-    let mut update = app
+    let mut updater_builder = app
         .updater_builder()
         .endpoints(vec![endpoint])
-        .map_err(|e| format!("Failed to configure updater endpoint: {e}"))?
+        .map_err(|e| format!("Failed to configure updater endpoint: {e}"))?;
+    if let Some(proxy_url) = proxy_url {
+        updater_builder = updater_builder.proxy(proxy_url);
+    }
+    let mut update = updater_builder
         .build()
         .map_err(|e| format!("Failed to initialize updater: {e}"))?
         .check()
@@ -577,6 +609,10 @@ pub async fn install_app_update<R: tauri::Runtime>(
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
     let _ = &app;
+    let update_proxy = {
+        let settings = ConnectionSettingsDto::load(&state.settings);
+        settings.update_proxy_url()?
+    };
     let update = {
         let mut pending = state
             .pending_update
@@ -585,12 +621,17 @@ pub async fn install_app_update<R: tauri::Runtime>(
         pending.take()
     };
 
-    let Some(update) = update else {
+    let Some(mut update) = update else {
         return Err("No pending update is available. Check for updates first.".to_string());
     };
 
     let mut started = false;
     let download_url = update.download_url.clone();
+    update.proxy = update_proxy;
+    tracing::info!(
+        "Installing app update (proxy={})",
+        describe_update_proxy(update.proxy.as_ref())
+    );
     update
         .download_and_install(
             |chunk_length, content_length| {
@@ -614,7 +655,13 @@ async fn check_android_app_update(
     state: tauri::State<'_, AppHandleState>,
     channel: UpdateChannel,
 ) -> Result<Option<AppUpdateMetadata>, String> {
-    let release = find_update_release(channel, UpdateAssetKind::AndroidApk).await?;
+    let proxy_url = update_proxy_url(&state)?;
+    tracing::info!(
+        "Checking for Android app updates (proxy={})",
+        describe_update_proxy(proxy_url.as_ref())
+    );
+    let client = update_http_client(proxy_url.as_ref())?;
+    let release = find_update_release(&client, channel, UpdateAssetKind::AndroidApk).await?;
     let Some(release) = release else {
         clear_mobile_pending_update(&state)?;
         return Ok(None);
@@ -665,6 +712,12 @@ async fn install_android_app_update<R: tauri::Runtime>(
     state: tauri::State<'_, AppHandleState>,
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
+    let proxy_url = update_proxy_url(&state)?;
+    tracing::info!(
+        "Installing Android app update (proxy={})",
+        describe_update_proxy(proxy_url.as_ref())
+    );
+    let client = update_http_client(proxy_url.as_ref())?;
     let update = {
         let pending = state
             .pending_mobile_update
@@ -683,7 +736,7 @@ async fn install_android_app_update<R: tauri::Runtime>(
         .map_err(|e| format!("Failed to create update directory: {e}"))?;
     let target_path = update_dir.join(&update.file_name);
 
-    download_mobile_update(&update, &target_path, &on_event).await?;
+    download_mobile_update(&client, &update, &target_path, &on_event).await?;
 
     let installer = app.state::<AndroidApkInstaller<R>>();
     installer
@@ -715,6 +768,7 @@ fn clear_mobile_pending_update(state: &tauri::State<'_, AppHandleState>) -> Resu
 
 #[cfg(target_os = "android")]
 async fn download_mobile_update(
+    client: &reqwest::Client,
     update: &MobileAppUpdate,
     target_path: &std::path::Path,
     on_event: &Channel<AppUpdateDownloadEvent>,
@@ -736,7 +790,7 @@ async fn download_mobile_update(
         return Ok(());
     }
 
-    let mut response = reqwest::Client::new()
+    let mut response = client
         .get(&update.download_url)
         .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
         .send()
@@ -868,10 +922,11 @@ enum UpdateAssetKind {
 }
 
 async fn find_update_release(
+    client: &reqwest::Client,
     channel: UpdateChannel,
     asset_kind: UpdateAssetKind,
 ) -> Result<Option<GithubReleaseDto>, String> {
-    let releases = reqwest::Client::new()
+    let releases = client
         .get(UPDATE_RELEASES_API)
         .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
@@ -901,6 +956,35 @@ async fn find_update_release(
     });
 
     Ok(candidates.into_iter().map(|(_, release)| release).next())
+}
+
+fn update_proxy_url(state: &tauri::State<'_, AppHandleState>) -> Result<Option<url::Url>, String> {
+    let settings = ConnectionSettingsDto::load(&state.settings);
+    settings.update_proxy_url()
+}
+
+fn update_http_client(proxy_url: Option<&url::Url>) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder().user_agent(UPDATE_USER_AGENT);
+    if let Some(proxy_url) = proxy_url {
+        let proxy = reqwest::Proxy::all(proxy_url.as_str())
+            .map_err(|e| format!("Failed to configure updater proxy: {e}"))?;
+        builder = builder.proxy(proxy);
+    }
+    builder
+        .build()
+        .map_err(|e| format!("Failed to initialize updater HTTP client: {e}"))
+}
+
+fn describe_update_proxy(proxy_url: Option<&url::Url>) -> String {
+    let Some(proxy_url) = proxy_url else {
+        return "none".to_string();
+    };
+
+    let host = proxy_url.host_str().unwrap_or("unknown");
+    match proxy_url.port() {
+        Some(port) => format!("{}://{}:{}", proxy_url.scheme(), host, port),
+        None => format!("{}://{}", proxy_url.scheme(), host),
+    }
 }
 
 fn select_update_asset(
@@ -3532,6 +3616,10 @@ fn trimmed_path(value: &str) -> Option<std::path::PathBuf> {
 }
 
 fn system_proxy_setting() -> Option<String> {
+    env_proxy_setting().or_else(platform_system_proxy_setting)
+}
+
+fn env_proxy_setting() -> Option<String> {
     [
         "CFMS_PROXY",
         "ALL_PROXY",
@@ -3545,8 +3633,44 @@ fn system_proxy_setting() -> Option<String> {
     .filter(|value| !value.is_empty())
 }
 
+#[cfg(windows)]
+fn platform_system_proxy_setting() -> Option<String> {
+    use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let internet_settings = hkcu
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            KEY_READ,
+        )
+        .ok()?;
+    let enabled = internet_settings
+        .get_value::<u32, _>("ProxyEnable")
+        .unwrap_or(0);
+    if enabled == 0 {
+        return None;
+    }
+
+    internet_settings
+        .get_value::<String, _>("ProxyServer")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(not(windows))]
+fn platform_system_proxy_setting() -> Option<String> {
+    None
+}
+
 fn normalize_socks5_proxy(raw: &str) -> Result<Option<String>, String> {
-    let trimmed = raw.trim();
+    let selected = match select_proxy_rule(raw, &["socks"]) {
+        Some(value) => value,
+        None if raw.contains('=') => return Ok(None),
+        None => raw.trim().to_string(),
+    };
+    let trimmed = selected.trim();
     if trimmed.is_empty() {
         return Ok(None);
     }
@@ -3569,6 +3693,66 @@ fn normalize_socks5_proxy(raw: &str) -> Result<Option<String>, String> {
     }
 
     Ok(Some(without_scheme.to_string()))
+}
+
+fn normalize_update_proxy(raw: &str, default_scheme: &str) -> Result<Option<url::Url>, String> {
+    let selected = select_proxy_rule(raw, &["socks", "https", "http"])
+        .unwrap_or_else(|| raw.trim().to_string());
+    let trimmed = selected.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let proxy_url = if trimmed.contains("://") {
+        url::Url::parse(trimmed).map_err(|e| format!("Invalid updater proxy URL: {e}"))?
+    } else {
+        let scheme = proxy_rule_scheme(raw).unwrap_or(default_scheme);
+        url::Url::parse(&format!("{scheme}://{trimmed}"))
+            .map_err(|e| format!("Invalid updater proxy URL: {e}"))?
+    };
+
+    match proxy_url.scheme() {
+        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Ok(Some(proxy_url)),
+        _ => Err(
+            "Only HTTP, HTTPS and SOCKS proxy URLs are supported for update checks.".to_string(),
+        ),
+    }
+}
+
+fn select_proxy_rule(raw: &str, preferred_keys: &[&str]) -> Option<String> {
+    if !raw.contains('=') {
+        return None;
+    }
+
+    let entries = raw
+        .split(';')
+        .filter_map(|entry| {
+            let (key, value) = entry.split_once('=')?;
+            let key = key.trim().to_ascii_lowercase();
+            let value = value.trim();
+            (!key.is_empty() && !value.is_empty()).then(|| (key, value.to_string()))
+        })
+        .collect::<Vec<_>>();
+
+    preferred_keys.iter().find_map(|preferred| {
+        entries
+            .iter()
+            .find(|(key, _)| key == preferred)
+            .map(|(_, value)| value.clone())
+    })
+}
+
+fn proxy_rule_scheme(raw: &str) -> Option<&'static str> {
+    if !raw.contains('=') {
+        return None;
+    }
+    if select_proxy_rule(raw, &["socks"]).is_some() {
+        Some("socks5h")
+    } else if select_proxy_rule(raw, &["https", "http"]).is_some() {
+        Some("http")
+    } else {
+        None
+    }
 }
 
 /// Close the WSS connection and clear all server metadata.

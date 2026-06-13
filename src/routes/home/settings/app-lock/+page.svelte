@@ -32,6 +32,7 @@
   const pinSetupTitle = $derived(
     pinSetupStep === 'new' ? $t('appLock.settings.newPin') : $t('appLock.settings.confirmPin'),
   );
+  const platformCredentialName = $derived(authStore.displayName ?? 'CFMS user');
 
   $effect(() => {
     if (!error) return;
@@ -78,7 +79,7 @@
   async function addPlatformCredential() {
     busy = 'platform';
     try {
-      await appLockStore.registerPlatformCredential(authStore.nickname ?? authStore.username ?? 'CFMS user');
+      await appLockStore.registerPlatformCredential(platformCredentialName);
       notificationStore.success($t('appLock.settings.platformSaved'));
     } catch (err) {
       if (isCredentialOperationCancelled(err)) {
@@ -361,7 +362,7 @@
       onkeydown={(event) => event.stopPropagation()}
     >
       <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
-        <Icon name="pin" size="48px" />
+        <Icon name="password" size="48px" />
       </div>
       <h2 class="text-3xl font-light" style="font-family: var(--font-md3-sans);">
         {pinSetupTitle}
@@ -376,6 +377,7 @@
         class="mt-7"
         bind:value={pinSetupEntry}
         length={pinLength}
+        density="compact"
         disabled={busy !== null}
         shake={pinSetupShake}
         deleteLabel={$t('common.delete')}
@@ -387,6 +389,7 @@
         onclick={() => closePinSetup()}
         disabled={busy === 'pin'}
       >
+        <Icon name="arrowBack" size="18px" />
         {$t('common.cancel')}
       </button>
     </div>
@@ -435,6 +438,11 @@
   }
 
   .pin-setup-backdrop {
+    min-block-size: 100dvh;
+    padding-block-start: calc(var(--safe-area-top, 0px) + 1.25rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+    padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
+    padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
       linear-gradient(145deg, rgba(14, 19, 50, 0.94), rgba(43, 16, 55, 0.95) 58%, rgba(30, 20, 39, 0.95));
     -webkit-backdrop-filter: blur(16px);
@@ -442,16 +450,21 @@
   }
 
   .pin-setup-panel {
+    max-block-size: calc(100dvh - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 2.5rem);
     animation: pin-setup-enter 280ms var(--motion-easing-emphasized-decelerate) both;
   }
 
   .pin-setup-cancel {
+    display: inline-flex;
     min-block-size: 42px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border: 0;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.1);
+    background: transparent;
     color: white;
-    padding: 0.5rem 1.2rem;
+    padding: 0.5rem 0.9rem;
     font-size: 0.875rem;
     font-weight: 650;
     transition:
@@ -460,7 +473,7 @@
   }
 
   .pin-setup-cancel:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.1);
   }
 
   .pin-setup-cancel:disabled {

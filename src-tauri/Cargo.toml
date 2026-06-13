@@ -36,6 +36,7 @@ tracing.workspace = true
 rand.workspace = true
 hex = "0.4.3"
 reqwest.workspace = true
+reqwest-updater-socks = { package = "reqwest", version = "0.13", default-features = false, features = ["socks"] }
 rustls.workspace = true
 semver.workspace = true
 url.workspace = true
@@ -43,6 +44,9 @@ fluent-bundle.workspace = true
 unic-langid.workspace = true
 tauri-plugin-log = "2"
 tauri-plugin-background-service.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 [features]
 default = ["custom-protocol"]
