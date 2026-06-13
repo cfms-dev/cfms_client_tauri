@@ -336,6 +336,34 @@ async fn download_mobile_update(
         return Ok(());
     }
 
+    remove_file_if_exists(target_path).await?;
+
+    let mut last_error = None;
+    for attempt in 1..=2 {
+        match download_mobile_update_once(client, update, target_path, on_event).await {
+            Ok(()) => return Ok(()),
+            Err(err) if is_update_digest_error(&err) && attempt < 2 => {
+                tracing::warn!(
+                    "Downloaded Android update failed SHA-256 verification; retrying download"
+                );
+                let _ = remove_file_if_exists(&target_path.with_extension("apk.part")).await;
+                let _ = remove_file_if_exists(target_path).await;
+                last_error = Some(err);
+            }
+            Err(err) => return Err(err),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| "Failed to download Android update.".to_string()))
+}
+
+#[cfg(target_os = "android")]
+async fn download_mobile_update_once(
+    client: &reqwest::Client,
+    update: &MobileAppUpdate,
+    target_path: &std::path::Path,
+    on_event: &Channel<AppUpdateDownloadEvent>,
+) -> Result<(), String> {
     let mut response = client
         .get(&update.download_url)
         .header(reqwest::header::USER_AGENT, UPDATE_USER_AGENT)
@@ -369,7 +397,10 @@ async fn download_mobile_update(
     drop(file);
 
     if let Some(digest) = &update.digest {
-        verify_update_digest(&tmp_path, digest).await?;
+        if let Err(err) = verify_update_digest(&tmp_path, digest).await {
+            let _ = remove_file_if_exists(&tmp_path).await;
+            return Err(err);
+        }
     }
 
     tokio::fs::rename(&tmp_path, target_path)
@@ -399,6 +430,13 @@ async fn is_cached_mobile_update_valid(
     verify_update_digest(target_path, digest)
         .await
         .map(|_| true)
+        .or_else(|err| {
+            if is_update_digest_error(&err) {
+                Ok(false)
+            } else {
+                Err(err)
+            }
+        })
 }
 
 #[cfg(target_os = "android")]
@@ -420,6 +458,20 @@ async fn verify_update_digest(path: &std::path::Path, digest: &AssetDigest) -> R
                 Err("Downloaded update failed SHA-256 verification.".to_string())
             }
         }
+    }
+}
+
+#[cfg(target_os = "android")]
+fn is_update_digest_error(error: &str) -> bool {
+    error.contains("SHA-256 verification")
+}
+
+#[cfg(target_os = "android")]
+async fn remove_file_if_exists(path: &std::path::Path) -> Result<(), String> {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Failed to remove stale update file: {err}")),
     }
 }
 

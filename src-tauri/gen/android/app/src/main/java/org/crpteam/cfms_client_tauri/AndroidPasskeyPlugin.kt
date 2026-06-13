@@ -60,7 +60,10 @@ class AndroidPasskeyPlugin(private val activity: Activity) : Plugin(activity) {
     fun createPasskey(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PasskeyRequestArgs::class.java)
-            val request = CreatePublicKeyCredentialRequest(args.requestJson)
+            val request = CreatePublicKeyCredentialRequest(
+                requestJson = normalizeRequestJson(args.requestJson),
+                preferImmediatelyAvailableCredentials = false
+            )
             credentialManager.createCredentialAsync(
                 activity,
                 request,
@@ -96,7 +99,12 @@ class AndroidPasskeyPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             val args = invoke.parseArgs(PasskeyRequestArgs::class.java)
             val request = GetCredentialRequest(
-                listOf(GetPublicKeyCredentialOption(args.requestJson))
+                credentialOptions = listOf(
+                    GetPublicKeyCredentialOption(
+                        requestJson = normalizeRequestJson(args.requestJson)
+                    )
+                ),
+                preferImmediatelyAvailableCredentials = false
             )
             credentialManager.getCredentialAsync(
                 activity,
@@ -133,6 +141,11 @@ class AndroidPasskeyPlugin(private val activity: Activity) : Plugin(activity) {
         return parsed.optString("rawId").ifBlank {
             parsed.optString("id")
         }
+    }
+
+    private fun normalizeRequestJson(requestJson: String): String {
+        val parsed = JSONObject(requestJson)
+        return parsed.toString()
     }
 
     private fun rejectCredentialError(invoke: Invoke, fallback: String, ex: Exception) {
