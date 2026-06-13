@@ -57,10 +57,10 @@ pub fn load(
     }
 
     let pref = serde_json::from_slice::<UserPreference>(&raw).unwrap_or_default();
-    if let Some(dek) = dek {
-        if let Err(error) = save(app_data, server_hash, username, Some(dek), &pref) {
-            tracing::warn!("Failed to migrate plaintext preference file: {error}");
-        }
+    if let Some(dek) = dek
+        && let Err(error) = save(app_data, server_hash, username, Some(dek), &pref)
+    {
+        tracing::warn!("Failed to migrate plaintext preference file: {error}");
     }
 
     Ok(pref)
