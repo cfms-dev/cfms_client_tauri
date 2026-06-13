@@ -1,0 +1,91 @@
+// Download queue commands
+// ---------------------------------------------------------------------------
+
+/// Add a download task to the persistent queue.
+#[tauri::command]
+pub async fn add_download(
+    state: tauri::State<'_, AppHandleState>,
+    task: DownloadTaskDto,
+) -> Result<(), String> {
+    state
+        .tasks
+        .insert(&task)
+        .map_err(|e| format!("Failed to add download: {e}"))
+}
+
+/// Get all download tasks, optionally filtered by status.
+#[tauri::command]
+pub async fn get_download_tasks(
+    state: tauri::State<'_, AppHandleState>,
+    status_filter: Option<DownloadTaskStatus>,
+) -> Result<Vec<DownloadTaskDto>, String> {
+    Ok(state.tasks.list(status_filter))
+}
+
+/// Pause an in-progress download.
+#[tauri::command]
+pub async fn pause_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    download_queue::pause_task(&state.tasks, &task_id)
+        .map_err(|e| format!("Failed to pause download: {e}"))
+}
+
+/// Resume a paused download.
+#[tauri::command]
+pub async fn resume_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    download_queue::resume_task(&state.tasks, &task_id)
+        .map_err(|e| format!("Failed to resume download: {e}"))
+}
+
+/// Cancel a download task.
+#[tauri::command]
+pub async fn cancel_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    download_queue::cancel_task(&state.tasks, &state.active_downloads, &task_id)
+        .map_err(|e| format!("Failed to cancel download: {e}"))
+}
+
+/// Clear completed and cancelled tasks.
+#[tauri::command]
+pub async fn clear_completed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
+    Ok(state.tasks.clear_completed() as u32)
+}
+
+/// Clear failed tasks. Returns count removed.
+#[tauri::command]
+pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
+    Ok(state.tasks.clear_failed() as u32)
+}
+
+/// Delete a download task and remove its file from disk.
+///
+/// Removes the task from the in-memory queue and deletes the associated file
+/// if it exists on the filesystem.
+#[tauri::command]
+pub async fn delete_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    // Look up the task to get its file_path for filesystem cleanup.
+    if let Some(task) = state.tasks.get(&task_id) {
+        // Try to delete the file from disk (best-effort, don't fail if missing).
+        let path = std::path::Path::new(&task.file_path);
+        if path.exists() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    // Remove from the in-memory queue.
+    state.tasks.delete(&task_id);
+
+    Ok(true)
+}
+
+// ---------------------------------------------------------------------------

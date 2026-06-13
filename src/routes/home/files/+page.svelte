@@ -55,6 +55,7 @@
   import AuthorizeAccessDialog from '$lib/components/AuthorizeAccessDialog.svelte';
   import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import FileTable from '$lib/components/files/FileTable.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import MdCheckbox from '$lib/components/MdCheckbox.svelte';
@@ -66,7 +67,7 @@
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
-  import { normalizeDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
+  import { normalizeDirectoryId, sameDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
   import {
     directoryToRecord,
     documentToRecord,
@@ -76,7 +77,12 @@
     rememberVisit,
     setFavoriteRecord,
   } from '$lib/file-preferences';
+  import { formatBytes, formatDate, formatError, formatUnknown, isPickerCancel } from '$lib/files/formatting';
+  import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
+  import { sortDocuments, sortFolders, type SortDirection, type SortField } from '$lib/files/sorting';
+  import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
   import { shortIdentifier } from '$lib/identifiers';
+  import type { IconName } from '$lib/icons';
   import { authStore, floatingProgressStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
 
   // --- Navigation state ---
@@ -97,8 +103,6 @@
   let selectMode = $state(false);
   let selectedFolderIds = $state<Set<string>>(new Set());
   let selectedDocumentIds = $state<Set<string>>(new Set());
-  type SortField = 'name' | 'size' | 'modified';
-  type SortDirection = 'asc' | 'desc';
   let sortField = $state<SortField>('name');
   let sortDirection = $state<SortDirection>('asc');
 
@@ -204,7 +208,7 @@
     if (
       navigationRootId !== null
       && navHistory.length === 0
-      && sameDirectory(currentFolderId, navigationRootId)
+      && sameDirectoryId(currentFolderId, navigationRootId)
     ) {
       return undefined;
     }
@@ -212,7 +216,7 @@
     if (parentId !== null) return parentId;
 
     const currentHistoryEntry = navHistory[navHistory.length - 1];
-    if (currentHistoryEntry && sameDirectory(currentFolderId, currentHistoryEntry.id)) {
+    if (currentHistoryEntry && sameDirectoryId(currentFolderId, currentHistoryEntry.id)) {
       return navHistory[navHistory.length - 2]?.id ?? null;
     }
 
@@ -288,7 +292,7 @@
       await loadDirectory(null);
       return;
     }
-    if (sameDirectory(targetId, navigationRootId)) {
+    if (sameDirectoryId(targetId, navigationRootId)) {
       const ok = await loadDirectory(navigationRootId);
       if (ok) navHistory = [];
       return;
@@ -311,10 +315,6 @@
     if (ok && navHistory.length > 0) {
       navHistory = navHistory.slice(0, -1);
     }
-  }
-
-  function sameDirectory(a: string | null | undefined, b: string | null | undefined) {
-    return normalizeDirectoryId(a) === normalizeDirectoryId(b);
   }
 
   async function handleJumpToDirectory() {
@@ -1256,10 +1256,6 @@
     }
   }
 
-  function isAndroidTreeUri(path: string) {
-    return path.startsWith('content://') && path.includes('/tree/');
-  }
-
   function handleNativeDragEnter() {
     dragUploadActive = true;
   }
@@ -1356,30 +1352,6 @@
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function basename(path: string) {
-    if (path.includes('://')) {
-      try {
-        const url = new URL(path);
-        const candidate = decodeURIComponent(url.pathname.split('/').filter(Boolean).at(-1) ?? '');
-        if (candidate) return candidate;
-      } catch {
-        // Fall through to plain path parsing.
-      }
-    }
-    return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
-  }
-
-  function uploadDisplayName(path: string) {
-    return stripUploadCachePrefix(basename(path));
-  }
-
-  function stripUploadCachePrefix(name: string) {
-    return name
-      .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_/i, '')
-      .replace(/^[0-9a-f]{32}_/i, '')
-      .replace(/^\d{10,}[-_][0-9a-f]{6,}[-_]/i, '');
-  }
-
   function openSearchDialog() {
     searchDialog = {
       ...searchDialog,
@@ -1462,7 +1434,7 @@
     sortDirection = field === 'name' ? 'asc' : 'desc';
   }
 
-  function sortIcon(field: SortField) {
+  function sortIcon(field: SortField): IconName {
     if (sortField !== field) return 'swapVert';
     return sortDirection === 'asc' ? 'arrowUpward' : 'arrowDownward';
   }
@@ -1479,75 +1451,6 @@
     return `${label} · ${direction}`;
   }
 
-  function sortedFolders(input: ServerDirectoryEntry[]) {
-    return [...input].sort((a, b) => compareEntries(
-      {
-        name: a.name,
-        size: 0,
-        modified: a.created_time ?? 0,
-      },
-      {
-        name: b.name,
-        size: 0,
-        modified: b.created_time ?? 0,
-      },
-    ));
-  }
-
-  function sortedDocuments(input: ServerDocumentEntry[]) {
-    return [...input].sort((a, b) => compareEntries(
-      {
-        name: a.title,
-        size: a.size ?? 0,
-        modified: a.last_modified ?? 0,
-      },
-      {
-        name: b.title,
-        size: b.size ?? 0,
-        modified: b.last_modified ?? 0,
-      },
-    ));
-  }
-
-  function compareEntries(
-    a: { name: string; size: number; modified: number },
-    b: { name: string; size: number; modified: number },
-  ) {
-    const sign = sortDirection === 'asc' ? 1 : -1;
-    if (sortField === 'name') {
-      return sign * a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-    }
-    if (sortField === 'size') {
-      return sign * ((a.size - b.size) || a.name.localeCompare(b.name));
-    }
-    return sign * ((a.modified - b.modified) || a.name.localeCompare(b.name));
-  }
-
-  // --- Formatting helpers ---
-
-  function formatBytes(bytes: number): string {
-    if (bytes === 0) return '—';
-    const k = 1024;
-    const sizes = ['B', 'KiB', 'MiB', 'GiB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
-  }
-
-  function formatDate(ts: number | null): string {
-    if (!ts) return '—';
-    return new Date(ts * 1000).toLocaleString();
-  }
-
-  function formatUnknown(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '—';
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value, null, 2);
-  }
-
-  function formatError(err: unknown): string {
-    return err instanceof Error ? err.message : String(err);
-  }
-
   function handlePickerError(err: unknown) {
     const message = formatError(err);
     if (isPickerCancel(message)) return;
@@ -1555,110 +1458,6 @@
     error = message.includes('Folder picker is not implemented')
       ? $t('files.mobileFolderUploadUnsupported')
       : message;
-  }
-
-  function isPickerCancel(message: string) {
-    const normalized = message.toLowerCase();
-    return normalized.includes('cancelled')
-      || normalized.includes('canceled')
-      || normalized.includes('cancel')
-      || normalized.includes('no folder was selected');
-  }
-
-  interface RevisionGraphRow {
-    revision: RevisionEntry;
-    lane: number;
-    laneCount: number;
-    before: Array<string | null>;
-    after: Array<string | null>;
-    parentLane: number | null;
-    hasChildren: boolean;
-    hasBranch: boolean;
-    hasMerge: boolean;
-  }
-
-  function buildRevisionRows(entries: RevisionEntry[]): RevisionGraphRow[] {
-    const sorted = [...entries].sort((a, b) => {
-      const at = a.created_time ?? 0;
-      const bt = b.created_time ?? 0;
-      if (bt !== at) return bt - at;
-      return String(b.id).localeCompare(String(a.id));
-    });
-    const childCount = new Map<string, number>();
-    for (const entry of sorted) {
-      if (entry.parent_id !== null && entry.parent_id !== undefined) {
-        const parentKey = String(entry.parent_id);
-        childCount.set(parentKey, (childCount.get(parentKey) ?? 0) + 1);
-      }
-    }
-
-    let lanes: Array<string | null> = [];
-    const rows: RevisionGraphRow[] = [];
-
-    for (const revision of sorted) {
-      const revisionId = String(revision.id);
-      let lane = lanes.findIndex((id) => id === revisionId);
-      if (lane === -1) {
-        lane = lanes.length;
-        lanes.push(revisionId);
-      }
-
-      const before = [...lanes];
-      let after = [...lanes];
-      let parentLane: number | null = null;
-      const parentId = revision.parent_id === null || revision.parent_id === undefined
-        ? null
-        : String(revision.parent_id);
-
-      if (parentId !== null) {
-        const existingParentLane = after.findIndex((id, index) => index !== lane && id === parentId);
-        if (existingParentLane >= 0) {
-          after.splice(lane, 1);
-          parentLane = existingParentLane > lane ? existingParentLane - 1 : existingParentLane;
-        } else {
-          after[lane] = parentId;
-          parentLane = lane;
-        }
-      } else {
-        after.splice(lane, 1);
-        parentLane = null;
-      }
-
-      const laneCount = Math.max(before.length, after.length, lane + 1, 1);
-      const children = childCount.get(revisionId) ?? 0;
-      rows.push({
-        revision,
-        lane,
-        laneCount,
-        before,
-        after,
-        parentLane,
-        hasChildren: children > 0,
-        hasBranch: children > 1,
-        hasMerge: parentLane !== null && parentLane !== lane,
-      });
-      lanes = after;
-    }
-
-    return rows;
-  }
-
-  function graphWidth(row: RevisionGraphRow): number {
-    return row.laneCount * 24 + 16;
-  }
-
-  function laneX(lane: number): number {
-    return lane * 24 + 12;
-  }
-
-  function graphLineColor(id: string | null | undefined): string {
-    if (id === null || id === undefined) return 'var(--color-md3-outline)';
-    const colors = ['#4ea1ff', '#c084fc', '#34d399', '#f59e0b', '#fb7185'];
-    let hash = 0;
-    for (let i = 0; i < id.length; i += 1) {
-      hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-    }
-    return colors[hash % colors.length];
   }
 
   // --- Init ---
@@ -1708,8 +1507,8 @@
 
   // --- Display lists ---
 
-  const filteredFolders = $derived.by(() => sortedFolders(folders));
-  const filteredDocuments = $derived.by(() => sortedDocuments(documents));
+  const filteredFolders = $derived.by(() => sortFolders(folders, sortField, sortDirection));
+  const filteredDocuments = $derived.by(() => sortDocuments(documents, sortField, sortDirection));
 </script>
 
 <div
@@ -1849,150 +1648,23 @@
     <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
   </div>
 
-  <!-- Loading -->
-  {#if loading}
-    <div class="flex items-center gap-2 text-sm text-md3-on-surface-variant">
-      <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-      {$t('common.loadingEllipsis')}
-    </div>
-  {/if}
-
-  <!-- File list -->
-  {#if !loading}
-    <div class="overflow-x-auto rounded-xl border border-md3-outline bg-md3-surface-container/70 backdrop-blur-sm">
-      <div class="min-w-[620px] overflow-hidden">
-        <!-- Header -->
-        <div class="grid grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5
-                  bg-md3-surface-container-high/50
-                  text-xs font-medium text-md3-on-surface-variant
-                  uppercase tracking-wider
-                  border-b border-md3-outline"
-           style="font-family: var(--font-md3-sans);">
-        <span aria-hidden="true"></span>
-        <button
-          type="button"
-          class="flex min-w-0 items-center gap-1 text-left uppercase transition-colors hover:text-md3-on-surface"
-          title={sortTitle('name')}
-          onclick={() => setSort('name')}
-        >
-          <span class="select-none">{$t('files.name')}</span>
-          <Icon name={sortIcon('name')} size="15px" />
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-end gap-1 text-right uppercase transition-colors hover:text-md3-on-surface"
-          title={sortTitle('size')}
-          onclick={() => setSort('size')}
-        >
-          <span class="select-none">{$t('files.size')}</span>
-          <Icon name={sortIcon('size')} size="15px" />
-        </button>
-        <button
-          type="button"
-          class="flex items-center justify-end gap-1 text-right uppercase transition-colors hover:text-md3-on-surface"
-          title={sortTitle('modified')}
-          onclick={() => setSort('modified')}
-        >
-          <span class="select-none">{$t('files.modified')}</span>
-          <Icon name={sortIcon('modified')} size="15px" />
-        </button>
-        </div>
-
-        {#if filteredFolders.length === 0 && filteredDocuments.length === 0 && !canGoToParent}
-          <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
-            {$t('files.empty')}
-          </p>
-        {/if}
-
-        {#if canGoToParent}
-          <button
-            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
-                 border-md3-outline/50
-                 text-md3-primary-emphasis
-                 hover:bg-md3-primary-container/20
-                 transition-colors select-none"
-            class:border-b={filteredFolders.length > 0 || filteredDocuments.length > 0}
-            onclick={handleGoToParent}
-          >
-            <span class="self-center text-md3-primary-emphasis" aria-hidden="true">
-              <Icon name="arrowUpward" size="20px" />
-            </span>
-            <span class="text-sm font-medium truncate">
-              {$t('files.parentDirectory')}
-            </span>
-            <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
-            <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
-          </button>
-        {/if}
-
-        <!-- Folders -->
-        {#each filteredFolders as folder (folder.id)}
-          <button
-            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
-                 hover:bg-md3-primary-container/20
-                 border-b border-md3-outline/50
-                 transition-colors select-none"
-            onclick={() => handleFolderClick(folder)}
-            oncontextmenu={(e) => showFolderContextMenu(e, folder)}
-          >
-          {#if selectMode}
-            <span
-              class="self-center {selectedFolderIds.has(folder.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
-              aria-hidden="true"
-            >
-              <Icon name={selectedFolderIds.has(folder.id) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
-            </span>
-          {:else}
-            <span class="self-center text-md3-primary-emphasis">
-              <Icon name="folder" size="20px" />
-            </span>
-          {/if}
-          <span class="text-sm font-medium text-md3-primary-emphasis truncate">
-            {folder.name}
-          </span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">—</span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatDate(folder.created_time)}
-          </span>
-          </button>
-        {/each}
-
-        <!-- Documents / Files -->
-        {#each filteredDocuments as doc (doc.id)}
-          <button
-            class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left
-                 hover:bg-md3-surface-container-high/30
-                 border-b border-md3-outline/50 last:border-b-0
-                 transition-colors select-none"
-            onclick={() => handleDocumentClick(doc)}
-            oncontextmenu={(e) => showDocumentContextMenu(e, doc)}
-          >
-          {#if selectMode}
-            <span
-              class="self-center {selectedDocumentIds.has(doc.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
-              aria-hidden="true"
-            >
-              <Icon name={selectedDocumentIds.has(doc.id) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
-            </span>
-          {:else}
-            <span class="self-center text-md3-on-surface-variant">
-              <Icon name="filePresent" size="20px" />
-            </span>
-          {/if}
-          <span class="text-sm text-md3-on-surface truncate">
-            {doc.title}
-          </span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatBytes(doc.size)}
-          </span>
-          <span class="text-xs text-md3-on-surface-variant text-right self-center">
-            {formatDate(doc.last_modified)}
-          </span>
-          </button>
-        {/each}
-      </div>
-    </div>
-  {/if}
+  <FileTable
+    {loading}
+    folders={filteredFolders}
+    documents={filteredDocuments}
+    {canGoToParent}
+    {selectMode}
+    {selectedFolderIds}
+    {selectedDocumentIds}
+    {sortTitle}
+    {sortIcon}
+    onSort={setSort}
+    onGoToParent={handleGoToParent}
+    onFolderClick={handleFolderClick}
+    onDocumentClick={handleDocumentClick}
+    onFolderContextMenu={showFolderContextMenu}
+    onDocumentContextMenu={showDocumentContextMenu}
+  />
 </div>
 
 <style>
