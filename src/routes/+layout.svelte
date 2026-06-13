@@ -37,6 +37,7 @@
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
 
   let { children }: { children: Snippet } = $props();
+  let lastRecordedActivityAt = 0;
   initNavigationHistory();
 
   // Routes that don't require any connection/auth.
@@ -189,6 +190,19 @@
     return () => removeBackButtonListener?.();
   });
 
+  onMount(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        appLockStore.lockForBackground();
+      } else {
+        appLockStore.recordActivity();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  });
+
   // Periodic auth status polling (every 30s).
   $effect(() => {
     const interval = setInterval(async () => {
@@ -218,9 +232,23 @@
   function preventDefaultContextMenu(event: MouseEvent) {
     event.preventDefault();
   }
+
+  function recordUserActivity() {
+    const now = Date.now();
+    if (now - lastRecordedActivityAt < 1000) return;
+    lastRecordedActivityAt = now;
+    appLockStore.recordActivity();
+  }
 </script>
 
-<svelte:window oncontextmenu={preventDefaultContextMenu} />
+<svelte:window
+  oncontextmenu={preventDefaultContextMenu}
+  onmousemove={recordUserActivity}
+  onmousedown={recordUserActivity}
+  onkeydown={recordUserActivity}
+  ontouchstart={recordUserActivity}
+  onwheel={recordUserActivity}
+/>
 
 <!--
   Root layout wrapper — the gradient background is set on <body> via app.css.

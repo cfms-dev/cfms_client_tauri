@@ -16,7 +16,7 @@
 
   const pinLength = getRequiredPinLength();
 
-  let busy = $state<'enable' | 'pin' | 'pin-remove' | 'platform' | 'platform-remove' | null>(null);
+  let busy = $state<'enable' | 'timed-lock' | 'pin' | 'pin-remove' | 'platform' | 'platform-remove' | null>(null);
   let error = $state<string | null>(null);
   let pinSetupOpen = $state(false);
   let pinSetupStep = $state<'new' | 'confirm'>('new');
@@ -34,6 +34,13 @@
     pinSetupStep === 'new' ? $t('appLock.settings.newPin') : $t('appLock.settings.confirmPin'),
   );
   const platformCredentialName = $derived(authStore.displayName ?? 'CFMS user');
+  const timedLockOptions = $derived([
+    { value: 60_000, label: $t('appLock.settings.timeout1m') },
+    { value: 5 * 60_000, label: $t('appLock.settings.timeout5m') },
+    { value: 30 * 60_000, label: $t('appLock.settings.timeout30m') },
+    { value: 60 * 60_000, label: $t('appLock.settings.timeout1h') },
+    { value: 2 * 60 * 60_000, label: $t('appLock.settings.timeout2h') },
+  ]);
 
   $effect(() => {
     if (!error) return;
@@ -63,6 +70,23 @@
     } finally {
       busy = null;
     }
+  }
+
+  async function setTimedLock(enabled: boolean, timeoutMs = appLockStore.settings.timedLockMs) {
+    busy = 'timed-lock';
+    try {
+      await appLockStore.setTimedLock(enabled, timeoutMs);
+      notificationStore.success($t('appLock.settings.saved'));
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = null;
+    }
+  }
+
+  function handleTimedLockTimeoutChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    void setTimedLock(appLockStore.settings.timedLockEnabled, Number(target.value));
   }
 
   async function removePin() {
@@ -233,6 +257,40 @@
           onChange={setEnabled}
         />
       </div>
+    </section>
+
+    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+            {$t('appLock.settings.timedLockTitle')}
+          </h2>
+          <p class="mt-1 text-xs text-md3-on-surface-variant">
+            {$t('appLock.settings.timedLockDescription')}
+          </p>
+        </div>
+        <MdSwitch
+          checked={appLockStore.settings.timedLockEnabled}
+          disabled={!appLockStore.canLock || busy !== null}
+          ariaLabel={$t('appLock.settings.timedLockTitle')}
+          onChange={(enabled) => setTimedLock(enabled)}
+        />
+      </div>
+
+      <label class="mt-4 block space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+        {$t('appLock.settings.timedLockTimeout')}
+        <select
+          class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
+                 px-3 py-2 text-md3-on-surface disabled:opacity-60"
+          value={appLockStore.settings.timedLockMs}
+          disabled={!appLockStore.settings.timedLockEnabled || busy !== null}
+          onchange={handleTimedLockTimeoutChange}
+        >
+          {#each timedLockOptions as option}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </select>
+      </label>
     </section>
 
     <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">

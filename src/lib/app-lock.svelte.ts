@@ -4,6 +4,7 @@ import { getSetting, loadUserPreference, saveUserPreference, setSetting } from '
 const SETTINGS_KEY = 'app_lock_settings_v1';
 const PIN_ITERATIONS = 180_000;
 const PIN_LENGTH = 4;
+const DEFAULT_TIMED_LOCK_MS = 5 * 60 * 1000;
 
 export type AppLockMethod = 'pin' | 'platform';
 
@@ -25,6 +26,8 @@ export interface AppLockSettings {
   enabled: boolean;
   pin: PinRecord | null;
   platformCredentials: PlatformCredentialRecord[];
+  timedLockEnabled: boolean;
+  timedLockMs: number;
   updatedAt: number;
 }
 
@@ -33,6 +36,8 @@ const defaultSettings = (): AppLockSettings => ({
   enabled: false,
   pin: null,
   platformCredentials: [],
+  timedLockEnabled: false,
+  timedLockMs: DEFAULT_TIMED_LOCK_MS,
   updatedAt: Date.now(),
 });
 
@@ -43,6 +48,7 @@ class AppLockStoreImpl {
   platformAvailable = $state(false);
   busy = $state(false);
   private scopeKey: string | null = null;
+  private idleTimer: number | null = null;
 
   get pinLength() {
     return this.settings.pin?.length ?? PIN_LENGTH;
@@ -87,6 +93,7 @@ class AppLockStoreImpl {
           this.initialized = true;
           await this.persist();
           await clearLegacySettings();
+          this.rescheduleTimedLock();
           return;
         }
       }
@@ -94,10 +101,12 @@ class AppLockStoreImpl {
       this.settings = appLockSettings;
       this.scopeKey = scopeKey;
       this.initialized = true;
+      this.rescheduleTimedLock();
     } catch {
       this.settings = defaultSettings();
       this.scopeKey = null;
       this.initialized = false;
+      this.clearTimedLockTimer();
     }
   }
 
@@ -116,6 +125,7 @@ class AppLockStoreImpl {
       updatedAt: Date.now(),
     };
     await this.persist();
+    this.rescheduleTimedLock();
   }
 
   async setPin(pin: string) {
@@ -134,6 +144,7 @@ class AppLockStoreImpl {
       updatedAt: Date.now(),
     };
     await this.persist();
+    this.rescheduleTimedLock();
   }
 
   async removePin() {
@@ -144,6 +155,7 @@ class AppLockStoreImpl {
       updatedAt: Date.now(),
     };
     await this.persist();
+    this.rescheduleTimedLock();
   }
 
   async verifyPin(pin: string) {
@@ -202,6 +214,7 @@ class AppLockStoreImpl {
       updatedAt: Date.now(),
     };
     await this.persist();
+    this.rescheduleTimedLock();
   }
 
   async removePlatformCredential(id: string) {
@@ -213,6 +226,7 @@ class AppLockStoreImpl {
       updatedAt: Date.now(),
     };
     await this.persist();
+    this.rescheduleTimedLock();
   }
 
   async verifyPlatformCredential() {
@@ -236,11 +250,34 @@ class AppLockStoreImpl {
   }
 
   lock() {
-    if (this.canLock) this.locked = true;
+    if (!this.canLock) return;
+    this.locked = true;
+    this.clearTimedLockTimer();
   }
 
   unlock() {
     this.locked = false;
+    this.rescheduleTimedLock();
+  }
+
+  recordActivity() {
+    if (this.locked) return;
+    this.rescheduleTimedLock();
+  }
+
+  lockForBackground() {
+    if (this.settings.timedLockEnabled) this.lock();
+  }
+
+  async setTimedLock(enabled: boolean, timeoutMs: number) {
+    this.settings = {
+      ...this.settings,
+      timedLockEnabled: enabled,
+      timedLockMs: normalizeTimedLockMs(timeoutMs),
+      updatedAt: Date.now(),
+    };
+    await this.persist();
+    this.rescheduleTimedLock();
   }
 
   resetForSignedOut() {
@@ -248,6 +285,7 @@ class AppLockStoreImpl {
     this.initialized = false;
     this.locked = false;
     this.scopeKey = null;
+    this.clearTimedLockTimer();
   }
 
   async persist() {
@@ -256,6 +294,21 @@ class AppLockStoreImpl {
       ...preferences,
       app_lock: this.settings,
     });
+  }
+
+  private rescheduleTimedLock() {
+    this.clearTimedLockTimer();
+    if (!browser || this.locked || !this.canLock || !this.settings.timedLockEnabled) return;
+
+    this.idleTimer = window.setTimeout(() => {
+      this.lock();
+    }, normalizeTimedLockMs(this.settings.timedLockMs));
+  }
+
+  private clearTimedLockTimer() {
+    if (!this.idleTimer) return;
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
   }
 }
 
@@ -313,6 +366,8 @@ function parseSettingsValue(value: unknown): AppLockSettings {
     platformCredentials: Array.isArray(parsed.platformCredentials)
       ? parsed.platformCredentials.filter(isPlatformCredentialRecord)
       : [],
+    timedLockEnabled: Boolean(parsed.timedLockEnabled),
+    timedLockMs: normalizeTimedLockMs(parsed.timedLockMs),
     updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
   };
 }
@@ -320,7 +375,9 @@ function parseSettingsValue(value: unknown): AppLockSettings {
 function isDefaultSettings(settings: AppLockSettings) {
   return !settings.enabled
     && settings.pin === null
-    && settings.platformCredentials.length === 0;
+    && settings.platformCredentials.length === 0
+    && !settings.timedLockEnabled
+    && settings.timedLockMs === DEFAULT_TIMED_LOCK_MS;
 }
 
 function isPinRecord(value: unknown): value is PinRecord {
@@ -346,6 +403,13 @@ function validatePin(pin: string) {
   if (!new RegExp(`^\\d{${PIN_LENGTH}}$`).test(pin)) {
     throw new Error(`PIN must be ${PIN_LENGTH} digits.`);
   }
+}
+
+function normalizeTimedLockMs(value: unknown) {
+  const allowed = [60_000, 5 * 60_000, 30 * 60_000, 60 * 60_000, 2 * 60 * 60_000];
+  return typeof value === 'number' && allowed.includes(value)
+    ? value
+    : DEFAULT_TIMED_LOCK_MS;
 }
 
 async function isPlatformAuthenticatorAvailable() {
