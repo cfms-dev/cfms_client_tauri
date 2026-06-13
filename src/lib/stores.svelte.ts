@@ -274,6 +274,10 @@ export const downloadStore = new DownloadStoreImpl();
 // Upload store
 // ---------------------------------------------------------------------------
 
+const DEFAULT_TASK_CONCURRENCY = 3;
+const MIN_TASK_CONCURRENCY = 1;
+const MAX_TASK_CONCURRENCY = 8;
+
 class UploadStoreImpl {
   tasks = $state<Map<string, UploadTaskDto>>(new Map());
   maxConcurrent = $state(DEFAULT_TASK_CONCURRENCY);
@@ -565,10 +569,6 @@ export const uploadStore = new UploadStoreImpl();
 function formatStoreError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
-
-const DEFAULT_TASK_CONCURRENCY = 3;
-const MIN_TASK_CONCURRENCY = 1;
-const MAX_TASK_CONCURRENCY = 8;
 
 function normalizeTaskConcurrency(value: number | null | undefined) {
   if (!Number.isFinite(value)) return DEFAULT_TASK_CONCURRENCY;
