@@ -11,9 +11,10 @@
 
   import type { Snippet } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { authStore, serverStateStore, downloadStore, uploadStore, chromeStore, notificationStore } from '$lib/stores.svelte';
-  import { setLockdown } from '$lib/api';
+  import { clearAuthSession, disconnect, setLockdown } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
@@ -22,6 +23,9 @@
 
   let { children }: { children: Snippet } = $props();
   let lockdownBusy = $state(false);
+  let accountMenuOpen = $state(false);
+  let accountActionBusy = $state(false);
+  let viewportWidth = $state(0);
 
   // Routes that use the tab bar (show the bottom navigation).
   const TAB_ROUTES = ['/home/overview', '/home/files', '/home/tasks', '/home/more'];
@@ -38,6 +42,7 @@
   const activeTaskCount = $derived(downloadStore.activeTasks.length + uploadStore.activeTasks.length);
   const tabPadding = $derived(showTabBar ? 112 + chromeStore.snackbarStackHeight : 0);
   const snackbarLift = $derived(chromeStore.snackbarStackHeight);
+  const lockdownNavLift = $derived(showTabBar && viewportWidth > 0 && viewportWidth <= 640 ? 86 : 0);
 
   interface TabDef {
     href: string;
@@ -74,7 +79,50 @@
       lockdownBusy = false;
     }
   }
+
+  function closeAccountMenu() {
+    accountMenuOpen = false;
+  }
+
+  function toggleAccountMenu(event: MouseEvent) {
+    event.stopPropagation();
+    accountMenuOpen = !accountMenuOpen;
+  }
+
+  async function handleLogout() {
+    if (accountActionBusy) return;
+    accountActionBusy = true;
+    try {
+      await clearAuthSession();
+      authStore.clear();
+      await goto('/login', { replaceState: true });
+    } catch (err) {
+      notificationStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      accountActionBusy = false;
+      accountMenuOpen = false;
+    }
+  }
+
+  async function handleDisconnect() {
+    if (accountActionBusy) return;
+    accountActionBusy = true;
+    try {
+      await disconnect();
+      await clearAuthSession();
+      authStore.clear();
+      serverStateStore.clear();
+      await goto('/connect', { replaceState: true });
+    } catch (err) {
+      notificationStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      accountActionBusy = false;
+      accountMenuOpen = false;
+    }
+  }
 </script>
+
+<svelte:window bind:innerWidth={viewportWidth} onclick={closeAccountMenu} onkeydown={(event) => { if (event.key === 'Escape') closeAccountMenu(); }} />
 
 <div class="relative flex h-full min-h-0 flex-col">
   <!-- Top bar -->
@@ -94,14 +142,61 @@
 
     <div class="relative z-20 ml-auto flex items-center gap-3">
       {#if authStore.isLoggedIn}
-        <span class="text-xs text-md3-on-surface-variant">
-          {authStore.nickname ?? authStore.username}
-        </span>
-        {#if serverStateStore.connected}
-          <span class="w-2 h-2 bg-md3-success rounded-full" title={$t('common.connected')}></span>
-        {:else}
-          <span class="w-2 h-2 bg-md3-error rounded-full" title={$t('common.disconnected')}></span>
-        {/if}
+        <div class="relative">
+          <button
+            type="button"
+            class="account-trigger inline-flex max-w-[15rem] items-center gap-2 rounded-full px-2.5 py-1.5 text-xs text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+            aria-label={$t('common.accountMenu')}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            onclick={toggleAccountMenu}
+          >
+            <span
+              class={`h-2 w-2 rounded-full ${serverStateStore.connected ? 'bg-md3-success' : 'bg-md3-error'}`}
+              title={serverStateStore.connected ? $t('common.connected') : $t('common.disconnected')}
+            ></span>
+            <span class="min-w-0 truncate">
+              {authStore.nickname ?? authStore.username}
+            </span>
+            <Icon name="expandMore" size="16px" />
+          </button>
+
+          {#if accountMenuOpen}
+            <div
+              class="account-menu absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-48 overflow-hidden rounded-lg border border-md3-outline/70 bg-md3-surface-container/95 py-1 shadow-2xl backdrop-blur-xl"
+              role="menu"
+              tabindex="-1"
+              in:flyScale={{ y: -6, duration: 180 }}
+              onclick={(event) => event.stopPropagation()}
+              onkeydown={(event) => event.stopPropagation()}
+            >
+              <div class="border-b border-md3-outline/50 px-3 py-2">
+                <p class="truncate text-sm font-medium text-md3-on-surface">{authStore.nickname ?? authStore.username}</p>
+                <p class="truncate text-xs text-md3-on-surface-variant">{authStore.username}</p>
+              </div>
+              <button
+                type="button"
+                class="account-menu-item"
+                role="menuitem"
+                disabled={accountActionBusy}
+                onclick={handleLogout}
+              >
+                <Icon name="logout" size="18px" />
+                <span>{$t('lockdown.logout')}</span>
+              </button>
+              <button
+                type="button"
+                class="account-menu-item"
+                role="menuitem"
+                disabled={accountActionBusy}
+                onclick={handleDisconnect}
+              >
+                <Icon name="connect" size="18px" />
+                <span>{$t('lockdown.disconnect')}</span>
+              </button>
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
   </header>
@@ -137,7 +232,7 @@
       title={serverStateStore.lockdown ? $t('lockdown.disableAction') : $t('lockdown.enableAction')}
       class="lockdown-fab fixed right-5 z-50 inline-flex h-14 w-14 items-center justify-center rounded-2xl p-0 shadow-2xl transition-all disabled:opacity-60"
       class:lockdown-fab--active={serverStateStore.lockdown}
-      style={`--lockdown-snackbar-lift: ${snackbarLift}px;`}
+      style={`--lockdown-snackbar-lift: ${snackbarLift}px; --lockdown-nav-lift: ${lockdownNavLift}px;`}
       onclick={toggleLockdown}
       disabled={lockdownBusy}
       in:flyScale={{ y: 14, duration: 260 }}
@@ -167,6 +262,29 @@
       0 1px 0 rgba(255, 255, 255, 0.22) inset;
   }
 
+  .account-menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.8rem;
+    color: var(--color-md3-on-surface);
+    font-size: 0.875rem;
+    text-align: left;
+    transition:
+      background-color 160ms var(--motion-easing-standard),
+      color 160ms var(--motion-easing-standard);
+  }
+
+  .account-menu-item:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-md3-primary-container) 45%, transparent);
+    color: var(--color-md3-primary-emphasis);
+  }
+
+  .account-menu-item:disabled {
+    opacity: 0.5;
+  }
+
   .lockdown-fab:hover:not(:disabled) {
     transform: translateY(-2px);
   }
@@ -180,7 +298,7 @@
 
   @media (max-width: 640px) {
     .lockdown-fab {
-      bottom: calc(1.25rem + var(--safe-area-bottom, 0px) + var(--lockdown-snackbar-lift, 0px));
+      bottom: calc(1.25rem + var(--safe-area-bottom, 0px) + var(--lockdown-snackbar-lift, 0px) + var(--lockdown-nav-lift, 0px));
     }
   }
 
@@ -189,29 +307,29 @@
     position: absolute;
     inset: 0;
     z-index: 0;
-    background-color: rgb(220 38 38 / 1);
+    background-color: rgb(220 38 38 / 0);
     animation: lockdown-topbar-pulse 3s linear infinite;
   }
 
   @keyframes lockdown-topbar-pulse {
     0% {
-      background-color: rgb(220 38 38 / 1);
+      background-color: rgb(220 38 38 / 0);
     }
 
-    3.33% {
+    46.67% {
       background-color: rgb(220 38 38 / 0);
     }
 
     50% {
-      background-color: rgb(220 38 38 / 0);
+      background-color: rgb(220 38 38 / 1);
     }
 
-    53.33% {
+    96.67% {
       background-color: rgb(220 38 38 / 1);
     }
 
     100% {
-      background-color: rgb(220 38 38 / 1);
+      background-color: rgb(220 38 38 / 0);
     }
   }
 
@@ -220,6 +338,10 @@
     .home-topbar--lockdown::before {
       transition: none !important;
       animation: none !important;
+    }
+
+    .home-topbar--lockdown::before {
+      background-color: rgb(220 38 38 / 1);
     }
   }
 </style>

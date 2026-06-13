@@ -72,6 +72,11 @@
       0 1px 24px rgba(79, 70, 229, 0.10) inset;
   }
 
+  .modal-backdrop {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
   .modal-light {
     pointer-events: none;
     position: absolute;
@@ -85,15 +90,17 @@
 
   @media (prefers-reduced-motion: no-preference) {
     .modal-backdrop {
-      animation: modal-backdrop-focus 260ms cubic-bezier(0.2, 0, 0, 1);
+      animation: modal-backdrop-focus 260ms cubic-bezier(0.2, 0, 0, 1) both;
     }
   }
 
   @keyframes modal-backdrop-focus {
     from {
+      -webkit-backdrop-filter: blur(0);
       backdrop-filter: blur(0);
     }
     to {
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
     }
   }

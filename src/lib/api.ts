@@ -827,6 +827,12 @@ export async function selectUploadDirectory(): Promise<SelectedUploadDirectory> 
   return invoke("select_upload_directory");
 }
 
+export async function classifyUploadPath(
+  path: string,
+): Promise<"file" | "directory"> {
+  return invoke("classify_upload_path", { path });
+}
+
 export async function pauseUpload(uploadId: string): Promise<boolean> {
   return invoke("pause_upload", { uploadId });
 }
@@ -1164,6 +1170,7 @@ export interface UserPreference {
   theme: string;
   favourites: Favourites;
   recent_visits: RecentVisitPreferenceRecord[];
+  record_recent_visits: boolean;
   use_external_storage: boolean;
   external_storage_path: string;
 }

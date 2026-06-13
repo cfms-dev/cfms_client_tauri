@@ -10,11 +10,13 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
   import {
     listDirectory,
     loadUserPreference,
+    classifyUploadPath,
     getDocument,
     getRevision,
     createDirectory,
@@ -156,6 +158,8 @@
     totalBytes: number;
     progress: number;
   } | null>(null);
+  let dragUploadActive = $state(false);
+  let dragUploadDepth = $state(0);
   let searchDialog = $state<{
     open: boolean;
     query: string;
@@ -1173,6 +1177,122 @@
     );
   }
 
+  async function handleDroppedUploadPaths(paths: string[]) {
+    const uniquePaths = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
+    if (uniquePaths.length === 0) return;
+
+    const targetFolderId = currentFolderId;
+    let queued = 0;
+    let unsupported = 0;
+
+    for (const path of uniquePaths) {
+      const kind = await droppedUploadKind(path);
+      if (kind === 'directory') {
+        scheduleUpload(
+          path,
+          (uploadId, uploadName) => uploadDirectory(
+            targetFolderId,
+            path,
+            uploadId,
+            'overwrite',
+            uploadName,
+          ),
+        );
+        queued += 1;
+      } else if (kind === 'file') {
+        scheduleUpload(
+          path,
+          (uploadId, uploadName) => uploadDocumentFile(
+            targetFolderId,
+            path,
+            uploadId,
+            'overwrite',
+            uploadName,
+          ),
+        );
+        queued += 1;
+      } else {
+        unsupported += 1;
+      }
+    }
+
+    if (queued > 0) {
+      notificationStore.info($t('files.uploadQueued', { values: { count: queued } }));
+    }
+    if (unsupported > 0) {
+      notificationStore.warning($t('files.dropUnsupported'));
+    }
+  }
+
+  async function droppedUploadKind(path: string): Promise<'file' | 'directory' | null> {
+    if (isAndroidTreeUri(path)) return 'directory';
+    if (path.startsWith('content://')) return 'file';
+
+    try {
+      return await classifyUploadPath(path);
+    } catch (err) {
+      error = formatError(err);
+      return null;
+    }
+  }
+
+  function isAndroidTreeUri(path: string) {
+    return path.startsWith('content://') && path.includes('/tree/');
+  }
+
+  function handleNativeDragEnter() {
+    dragUploadActive = true;
+  }
+
+  function handleNativeDragLeave() {
+    dragUploadDepth = 0;
+    dragUploadActive = false;
+  }
+
+  function handleHtmlDragEnter(event: DragEvent) {
+    if (!hasFileDrag(event)) return;
+    event.preventDefault();
+    dragUploadDepth += 1;
+    dragUploadActive = true;
+  }
+
+  function handleHtmlDragOver(event: DragEvent) {
+    if (!hasFileDrag(event)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    dragUploadActive = true;
+  }
+
+  function handleHtmlDragLeave(event: DragEvent) {
+    if (!hasFileDrag(event)) return;
+    dragUploadDepth = Math.max(0, dragUploadDepth - 1);
+    if (dragUploadDepth === 0) dragUploadActive = false;
+  }
+
+  async function handleHtmlDrop(event: DragEvent) {
+    if (!hasFileDrag(event)) return;
+    event.preventDefault();
+    dragUploadDepth = 0;
+    dragUploadActive = false;
+
+    const paths = droppedFilePaths(event);
+    if (paths.length === 0) {
+      notificationStore.warning($t('files.dropUnsupported'));
+      return;
+    }
+    await handleDroppedUploadPaths(paths);
+  }
+
+  function hasFileDrag(event: DragEvent) {
+    return Array.from(event.dataTransfer?.types ?? []).includes('Files');
+  }
+
+  function droppedFilePaths(event: DragEvent) {
+    return Array.from(event.dataTransfer?.files ?? [])
+      .map((file) => (file as File & { path?: string }).path ?? '')
+      .filter(Boolean);
+  }
+
   async function selectAndroidUploadFolderAfterPickerError(err: unknown) {
     const message = formatError(err);
     if (isPickerCancel(message)) {
@@ -1524,6 +1644,7 @@
 
   onMount(() => {
     let unlisten: UnlistenFn | null = null;
+    let unlistenDragDrop: UnlistenFn | null = null;
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -1535,6 +1656,21 @@
     }).then((fn) => {
       unlisten = fn;
     });
+    getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === 'enter' || event.payload.type === 'over') {
+        handleNativeDragEnter();
+      } else if (event.payload.type === 'drop') {
+        dragUploadDepth = 0;
+        dragUploadActive = false;
+        void handleDroppedUploadPaths(event.payload.paths);
+      } else {
+        handleNativeDragLeave();
+      }
+    }).then((fn) => {
+      unlistenDragDrop = fn;
+    }).catch(() => {
+      /* HTML5 drag/drop remains as a best-effort fallback. */
+    });
     const initialFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
     const initialName = page.url.searchParams.get('name');
     if (initialFolder) {
@@ -1545,6 +1681,7 @@
     reloadUserPreference();
     return () => {
       if (unlisten) unlisten();
+      if (unlistenDragDrop) unlistenDragDrop();
     };
   });
 
@@ -1554,7 +1691,31 @@
   const filteredDocuments = $derived.by(() => sortedDocuments(documents));
 </script>
 
-<div class="p-6 space-y-4">
+<div
+  class="files-page relative p-6 space-y-4"
+  role="region"
+  aria-label={$t('files.title')}
+  ondragenter={handleHtmlDragEnter}
+  ondragover={handleHtmlDragOver}
+  ondragleave={handleHtmlDragLeave}
+  ondrop={handleHtmlDrop}
+>
+  {#if dragUploadActive}
+    <div class="drop-upload-overlay pointer-events-none absolute inset-3 z-30 grid place-items-center border border-dashed border-md3-primary bg-md3-surface/72 text-center backdrop-blur-md">
+      <div class="grid gap-2 px-6 py-5">
+        <span class="text-md3-primary-emphasis">
+          <Icon name="uploadFile" size="36px" />
+        </span>
+        <p class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+          {$t('files.dropUpload')}
+        </p>
+        <p class="text-xs text-md3-on-surface-variant">
+          {$t('files.dropUploadHint')}
+        </p>
+      </div>
+    </div>
+  {/if}
+
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
     {$t('files.title')}
   </h1>
@@ -1812,6 +1973,29 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .drop-upload-overlay {
+    animation: drop-upload-in 180ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  @keyframes drop-upload-in {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drop-upload-overlay {
+      animation: none;
+    }
+  }
+</style>
 
 <ContextMenu
   open={contextMenu.open}

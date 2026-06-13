@@ -32,35 +32,37 @@
 
 <style>
   .lockdown-banner {
-    background-color: rgb(220 38 38 / 1);
+    padding-top: calc(0.625rem + var(--safe-area-top, 0px));
+    background-color: rgb(220 38 38 / 0);
     animation: lockdown-banner-pulse 3s linear infinite;
   }
 
   @keyframes lockdown-banner-pulse {
     0% {
-      background-color: rgb(220 38 38 / 1);
+      background-color: rgb(220 38 38 / 0);
     }
 
-    3.33% {
+    46.67% {
       background-color: rgb(220 38 38 / 0);
     }
 
     50% {
-      background-color: rgb(220 38 38 / 0);
+      background-color: rgb(220 38 38 / 1);
     }
 
-    53.33% {
+    96.67% {
       background-color: rgb(220 38 38 / 1);
     }
 
     100% {
-      background-color: rgb(220 38 38 / 1);
+      background-color: rgb(220 38 38 / 0);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .lockdown-banner {
       animation: none;
+      background-color: rgb(220 38 38 / 1);
     }
   }
 </style>

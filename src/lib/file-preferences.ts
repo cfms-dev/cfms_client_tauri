@@ -29,7 +29,7 @@ export interface FilePreferenceScope {
 }
 
 const RECENT_VISITS_KEY_PREFIX = 'cfms.recentVisits.v2';
-const MAX_RECENT_VISITS = 12;
+const MAX_RECENT_VISITS = 10;
 
 export function documentToRecord(
   document: Pick<ServerDocumentEntry, 'id' | 'title'>,
@@ -63,6 +63,11 @@ export async function loadRecentVisits(scope: FilePreferenceScope): Promise<Rece
   if (!hasFilePreferenceScope(scope)) return [];
 
   const preferences = await loadUserPreference();
+  if (!shouldRecordRecentVisits(preferences)) {
+    clearLegacyRecentVisits(scope);
+    return [];
+  }
+
   let records = recentRecordsFromPreference(preferences);
   if (records.length === 0) {
     const migrated = getLegacyRecentVisits(scope);
@@ -85,6 +90,11 @@ export async function rememberVisit(
   assertFilePreferenceScope(scope);
 
   const preferences = await loadUserPreference();
+  if (!shouldRecordRecentVisits(preferences)) {
+    clearLegacyRecentVisits(scope);
+    return [];
+  }
+
   const existing = recentRecordsFromPreference(preferences);
   const next: RecentFileRecord = {
     ...record,
@@ -270,6 +280,10 @@ function normalizeFavourites(value: Favourites | null | undefined): Favourites {
     files: { ...(value?.files ?? {}) },
     directories: { ...(value?.directories ?? {}) },
   };
+}
+
+export function shouldRecordRecentVisits(preferences: Pick<UserPreference, 'record_recent_visits'> | null | undefined) {
+  return preferences?.record_recent_visits !== false;
 }
 
 function isRecentFileRecord(value: unknown): value is RecentFileRecord {

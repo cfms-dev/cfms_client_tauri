@@ -368,6 +368,7 @@ pub fn run() {
             commands::upload_document_file,
             commands::upload_directory,
             commands::select_upload_directory,
+            commands::classify_upload_path,
             commands::pause_upload,
             commands::resume_upload,
             commands::cancel_upload,

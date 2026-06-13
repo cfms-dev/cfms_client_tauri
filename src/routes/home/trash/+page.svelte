@@ -15,6 +15,7 @@
   import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   type TrashKind = 'directory' | 'document';
@@ -25,11 +26,22 @@
   let documents = $state<DeletedDocumentEntry[]>([]);
   let loading = $state(false);
   let busyItemId = $state<string | null>(null);
+  let batchBusy = $state(false);
+  let selectMode = $state(false);
+  let selectedFolderIds = $state<Set<string>>(new Set());
+  let selectedDocumentIds = $state<Set<string>>(new Set());
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
 
   const canRestore = $derived(authStore.permissions.includes('restore'));
   const canPurge = $derived(authStore.permissions.includes('purge'));
+  const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
+  const totalVisibleSelectable = $derived(folders.length + documents.length);
+  const allVisibleSelected = $derived(
+    totalVisibleSelectable > 0
+      && folders.every((folder) => selectedFolderIds.has(folder.id))
+      && documents.every((document) => selectedDocumentIds.has(document.id)),
+  );
 
   const items = $derived([
     ...folders.map((item) => ({
@@ -72,6 +84,8 @@
       const data = await listDeletedItems(normalized);
       folders = data.folders;
       documents = data.documents;
+      selectedFolderIds = new Set();
+      selectedDocumentIds = new Set();
     } catch (err) {
       error = formatError(err);
       folders = [];
@@ -83,8 +97,8 @@
 
   async function handleRestore(kind: TrashKind, id: string, name: string) {
     const nextName = await dialogStore.prompt({
-      title: 'Restore',
-      message: 'Restore with name (leave blank to keep original):',
+      title: $t('trash.restore'),
+      message: $t('trash.restorePrompt'),
       defaultValue: name,
       confirmLabel: $t('common.save'),
       cancelLabel: $t('common.cancel'),
@@ -100,7 +114,7 @@
       } else {
         await restoreDirectory(id, trimmed && trimmed !== name ? trimmed : null);
       }
-      status = kind === 'document' ? 'Document restored successfully.' : 'Directory restored successfully.';
+      status = kind === 'document' ? $t('trash.restoreDocumentSuccess') : $t('trash.restoreDirectorySuccess');
       await loadItems(currentFolderId);
     } catch (err) {
       error = formatError(err);
@@ -112,7 +126,7 @@
   async function handlePurge(kind: TrashKind, id: string, name: string) {
     const confirmed = await dialogStore.confirm({
       title: $t('common.delete'),
-      message: `Permanently delete "${name}"? This action cannot be undone.`,
+      message: $t('trash.purgeConfirm', { values: { name } }),
       confirmLabel: $t('common.delete'),
       cancelLabel: $t('common.cancel'),
       danger: true,
@@ -127,7 +141,7 @@
       } else {
         await purgeDirectory(id);
       }
-      status = kind === 'document' ? 'Document permanently deleted.' : 'Directory permanently deleted.';
+      status = kind === 'document' ? $t('trash.purgeDocumentSuccess') : $t('trash.purgeDirectorySuccess');
       await loadItems(currentFolderId);
     } catch (err) {
       error = formatError(err);
@@ -148,6 +162,110 @@
 
   function formatError(err: unknown) {
     return err instanceof Error ? err.message : String(err);
+  }
+
+  function toggleSelectFolder(id: string) {
+    const next = new Set(selectedFolderIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedFolderIds = next;
+  }
+
+  function toggleSelectDocument(id: string) {
+    const next = new Set(selectedDocumentIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedDocumentIds = next;
+  }
+
+  function clearSelection() {
+    selectedFolderIds = new Set();
+    selectedDocumentIds = new Set();
+    selectMode = false;
+  }
+
+  function deselectAll() {
+    selectedFolderIds = new Set();
+    selectedDocumentIds = new Set();
+  }
+
+  function selectAllVisible() {
+    selectedFolderIds = new Set(folders.map((folder) => folder.id));
+    selectedDocumentIds = new Set(documents.map((document) => document.id));
+  }
+
+  function toggleAllVisibleSelection() {
+    if (allVisibleSelected) {
+      deselectAll();
+    } else {
+      selectAllVisible();
+    }
+  }
+
+  function toggleSelectMode() {
+    selectMode = !selectMode;
+    if (!selectMode) clearSelection();
+  }
+
+  function isSelected(item: { kind: TrashKind; id: string }) {
+    return item.kind === 'directory'
+      ? selectedFolderIds.has(item.id)
+      : selectedDocumentIds.has(item.id);
+  }
+
+  async function handleRestoreSelected() {
+    if (totalSelected === 0 || batchBusy) return;
+    batchBusy = true;
+    error = null;
+    let restored = 0;
+    try {
+      for (const id of selectedFolderIds) {
+        await restoreDirectory(id, null);
+        restored += 1;
+      }
+      for (const id of selectedDocumentIds) {
+        await restoreDocument(id, null);
+        restored += 1;
+      }
+      status = $t('trash.batchRestoreSuccess', { values: { count: restored } });
+      clearSelection();
+      await loadItems(currentFolderId);
+    } catch (err) {
+      error = formatError(err);
+    } finally {
+      batchBusy = false;
+    }
+  }
+
+  async function handlePurgeSelected() {
+    if (totalSelected === 0 || batchBusy) return;
+    const confirmed = await dialogStore.confirm({
+      title: $t('common.delete'),
+      message: $t('trash.purgeSelectedConfirm', { values: { count: totalSelected } }),
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    batchBusy = true;
+    error = null;
+    let purged = 0;
+    try {
+      for (const id of selectedFolderIds) {
+        await purgeDirectory(id);
+        purged += 1;
+      }
+      for (const id of selectedDocumentIds) {
+        await purgeDocument(id);
+        purged += 1;
+      }
+      status = $t('trash.batchPurgeSuccess', { values: { count: purged } });
+      clearSelection();
+      await loadItems(currentFolderId);
+    } catch (err) {
+      error = formatError(err);
+    } finally {
+      batchBusy = false;
+    }
   }
 </script>
 
@@ -183,6 +301,56 @@
     </button>
   </div>
 
+  <div class="flex flex-wrap items-center gap-1.5">
+    <IconButton
+      icon="checklist"
+      label={$t('files.select')}
+      active={selectMode}
+      onclick={toggleSelectMode}
+    />
+    {#if selectMode}
+      <div class="flex items-center gap-2 bg-md3-primary-container/30 rounded-xl
+                  border border-md3-primary/20 px-3 py-2">
+        <span class="text-xs text-md3-on-surface-variant">
+          {$t('trash.selected', { values: { count: totalSelected } })}
+        </span>
+        <IconButton
+          icon={allVisibleSelected ? 'clearAll' : 'selectAll'}
+          label={allVisibleSelected ? $t('files.selectNone') : $t('files.selectAll')}
+          active={allVisibleSelected}
+          disabled={totalVisibleSelectable === 0}
+          onclick={toggleAllVisibleSelection}
+          class="!h-8 !w-8"
+          size={17}
+        />
+        <IconButton
+          icon="restoreFromTrash"
+          label={$t('trash.restoreSelected')}
+          disabled={totalSelected === 0 || batchBusy || !canRestore}
+          onclick={handleRestoreSelected}
+          class="!h-8 !w-8"
+          size={17}
+        />
+        <IconButton
+          icon="deleteForever"
+          label={$t('trash.purgeSelected')}
+          tone="danger"
+          disabled={totalSelected === 0 || batchBusy || !canPurge}
+          onclick={handlePurgeSelected}
+          class="!h-8 !w-8"
+          size={17}
+        />
+        <IconButton
+          icon="close"
+          label={$t('common.clear')}
+          onclick={clearSelection}
+          class="!h-8 !w-8"
+          size={17}
+        />
+      </div>
+    {/if}
+  </div>
+
   <form
     class="flex flex-wrap items-end gap-2 bg-md3-surface-container/70 backdrop-blur-sm
            border border-md3-outline rounded-xl p-4"
@@ -192,7 +360,7 @@
     }}
   >
     <label class="flex-1 min-w-56 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-      Folder ID
+      {$t('trash.folderId')}
       <input
         class="mt-1 w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                px-3 py-2 text-md3-on-surface disabled:opacity-60"
@@ -211,14 +379,14 @@
       disabled={loading}
     >
       <Icon name="search" size="18px" />
-      Load
+      {$t('trash.load')}
     </button>
   </form>
 
   {#if !canRestore && !canPurge}
     <div class="bg-md3-surface-container/70 border border-md3-outline
                 text-md3-on-surface-variant text-sm rounded-xl p-3">
-      You can view deleted items, but your account does not have restore or purge permission.
+      {$t('trash.noPermission')}
     </div>
   {/if}
 
@@ -235,9 +403,9 @@
                   text-md3-on-surface-variant uppercase tracking-wider
                   border-b border-md3-outline">
         <span></span>
-        <span>Name</span>
-        <span class="text-right">Created</span>
-        <span class="text-right">Actions</span>
+        <span>{$t('trash.name')}</span>
+        <span class="text-right">{$t('trash.created')}</span>
+        <span class="text-right">{$t('trash.actions')}</span>
       </div>
 
       {#if items.length === 0}
@@ -253,13 +421,25 @@
         {#each items as item (item.kind + item.id)}
           <div
             class="grid grid-cols-[auto_1fr_180px_auto] gap-3 px-4 py-2.5
-                   border-b border-md3-outline/50 last:border-b-0 items-center"
+                   border-b border-md3-outline/50 last:border-b-0 items-center text-left transition-colors
+                   hover:bg-md3-surface-container-high/30"
           >
-            <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
-              <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
-            </span>
+            {#if selectMode}
+              <button
+                type="button"
+                class="self-center text-left {isSelected(item) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+                aria-label={isSelected(item) ? $t('files.selectNone') : $t('files.selectAll')}
+                onclick={() => item.kind === 'directory' ? toggleSelectFolder(item.id) : toggleSelectDocument(item.id)}
+              >
+                <Icon name={isSelected(item) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
+              </button>
+            {:else}
+              <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
+              </span>
+            {/if}
             <div class="min-w-0">
-              <p class="text-sm text-md3-on-surface truncate line-through decoration-md3-on-surface-variant/60">
+              <p class="text-sm text-md3-on-surface-variant truncate line-through decoration-md3-error/90 decoration-2">
                 {item.name}
               </p>
               <p class="text-xs text-md3-on-surface-variant truncate">ID: {item.id}</p>
@@ -272,8 +452,8 @@
                 class="p-1.5 rounded-full text-md3-on-surface-variant
                        hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
                        disabled:opacity-40 transition-colors"
-                title="Restore"
-                onclick={() => handleRestore(item.kind, item.id, item.name)}
+                title={$t('trash.restore')}
+                onclick={(event) => { event.stopPropagation(); handleRestore(item.kind, item.id, item.name); }}
                 disabled={!canRestore || busyItemId === item.id}
               >
                 <Icon name="restoreFromTrash" size="18px" />
@@ -282,8 +462,8 @@
                 class="p-1.5 rounded-full text-md3-error
                        hover:bg-md3-error-container/40 disabled:opacity-40
                        transition-colors"
-                title="Permanently delete"
-                onclick={() => handlePurge(item.kind, item.id, item.name)}
+                title={$t('trash.purge')}
+                onclick={(event) => { event.stopPropagation(); handlePurge(item.kind, item.id, item.name); }}
                 disabled={!canPurge || busyItemId === item.id}
               >
                 <Icon name="deleteForever" size="18px" />

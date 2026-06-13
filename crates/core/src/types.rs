@@ -346,6 +346,10 @@ pub struct UserPreference {
     #[serde(default)]
     pub recent_visits: Vec<RecentFileRecord>,
 
+    /// Whether file and directory opens should be recorded in recent visits.
+    #[serde(default = "default_record_recent_visits")]
+    pub record_recent_visits: bool,
+
     /// Whether to use an external storage location for downloads.
     #[serde(default)]
     pub use_external_storage: bool,
@@ -362,6 +366,7 @@ impl Default for UserPreference {
             theme: default_theme(),
             favourites: Favourites::default(),
             recent_visits: Vec::new(),
+            record_recent_visits: default_record_recent_visits(),
             use_external_storage: false,
             external_storage_path: String::new(),
         }
@@ -370,6 +375,10 @@ impl Default for UserPreference {
 
 fn default_theme() -> String {
     "light".to_string()
+}
+
+fn default_record_recent_visits() -> bool {
+    true
 }
 
 /// Bookmarked files and directories.

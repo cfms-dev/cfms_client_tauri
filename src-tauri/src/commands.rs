@@ -1761,6 +1761,21 @@ pub async fn select_upload_directory<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn classify_upload_path(path: String) -> Result<String, String> {
+    let metadata = tokio::fs::metadata(&path)
+        .await
+        .map_err(|e| format!("Failed to inspect upload path: {e}"))?;
+
+    if metadata.is_dir() {
+        Ok("directory".to_string())
+    } else if metadata.is_file() {
+        Ok("file".to_string())
+    } else {
+        Err("Dropped path is not a regular file or directory.".to_string())
+    }
+}
+
+#[tauri::command]
 pub async fn pause_upload(
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,

@@ -74,7 +74,7 @@
       {emptyLabel}
     </p>
   {:else}
-    <div class="grid gap-1.5 px-4 pb-3 pt-3">
+    <div class="blueprint-record-list grid gap-1.5 px-4 pb-3 pt-3">
       {#each records as item, index (recordKey(item))}
         {@const unavailable = isUnavailable(item)}
         <div
@@ -115,6 +115,12 @@
 <style>
   .blueprint-panel {
     position: relative;
+  }
+
+  .blueprint-record-list {
+    max-height: min(42vh, 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .blueprint-panel-icon {
