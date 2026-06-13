@@ -286,14 +286,25 @@
     code: string,
     isRecoveryCode: boolean,
   ): Promise<boolean> {
+    let authResult;
+
     try {
-      const authResult = await login(username, pendingPassword, code);
+      authResult = await login(username, pendingPassword, code);
 
       if (authResult.requires_2fa) {
         // Still requires 2FA — shouldn't happen, but handle gracefully.
         return false;
       }
+    } catch (e) {
+      // Let the dialog handle the verification error display.
+      return false;
+    }
 
+    // 2FA is accepted. Close the modal before post-login loading begins so it
+    // doesn't cover the loading screen.
+    show2faDialog = false;
+
+    try {
       // Success — animate the loading phases.
       busy = true;
       loadingPhase = loadingPhases[0];
@@ -308,14 +319,13 @@
       password = "";
       pendingPassword = "";
 
-      // Close dialog and navigate.
-      show2faDialog = false;
+      // Navigate to home.
       goto("/home/overview");
 
       return true;
     } catch (e) {
-      // Let the dialog handle the error display.
-      return false;
+      notificationStore.error(formatError(e));
+      return true;
     } finally {
       busy = false;
       loadingPhase = "";
