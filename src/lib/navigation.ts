@@ -1,5 +1,12 @@
 import { afterNavigate, goto } from '$app/navigation';
 import { invoke } from '@tauri-apps/api/core';
+import {
+  getRootBackButtonBehavior,
+  type RootBackButtonBehavior,
+} from '$lib/api/settings';
+import { moveAppToBackground } from '$lib/api/mobile';
+
+export type { RootBackButtonBehavior } from '$lib/api/settings';
 
 const HOME_ROOT_ROUTES = new Set([
   '/home/overview',
@@ -18,6 +25,10 @@ const HOME_SECONDARY_PARENT_ROUTES = new Map([
 const routeHistory: string[] = [];
 let skipNextRecord: { from: string; to: string } | null = null;
 let initialized = false;
+
+interface NavigateUpOptions {
+  rootBackButtonBehavior?: RootBackButtonBehavior;
+}
 
 export function initNavigationHistory(): void {
   if (typeof window === 'undefined') return;
@@ -77,13 +88,24 @@ export function parentRouteFor(pathname: string): string | null {
   return parent && parent !== path ? parent : null;
 }
 
-export async function navigateUp(pathname: string): Promise<void> {
+export async function navigateUp(pathname: string, options: NavigateUpOptions = {}): Promise<void> {
   const path = normalizePath(pathname);
   const parent = parentRouteFor(path);
   if (parent) {
     const target = takePreviousRoute(path) ?? normalizePath(parent);
     skipNextRecord = { from: path, to: target };
     await goto(target);
+    return;
+  }
+
+  if ((options.rootBackButtonBehavior ?? await getRootBackButtonBehavior()) === 'background') {
+    try {
+      await moveAppToBackground();
+      return;
+    } catch {
+      // Desktop and unsupported mobile targets do not expose Android task backgrounding.
+    }
+    await exitApp();
     return;
   }
 

@@ -24,6 +24,8 @@
   const entries: SettingsEntry[] = [
     { labelKey: 'settings.language.title', descriptionKey: 'settings.language.description',
       icon: 'language', href: '/home/settings/language' },
+    { labelKey: 'settings.behavior.title', descriptionKey: 'settings.behavior.description',
+      icon: 'touchApp', href: '/home/settings/behavior' },
     { labelKey: 'settings.connection.title', descriptionKey: 'settings.connection.description',
       icon: 'connect', href: '/home/settings/connection' },
     { labelKey: 'settings.storage.title', descriptionKey: 'settings.storage.description',

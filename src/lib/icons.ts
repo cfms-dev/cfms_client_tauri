@@ -125,6 +125,7 @@ export const ICONS = {
   approvalDelegation: 'approval_delegation',
   qrCode:         'qr_code_2',
   browserUpdated: 'browser_updated',
+  touchApp:       'touch_app',
 
   // ---- Misc UI ----
   sidebarToggle:  'menu',

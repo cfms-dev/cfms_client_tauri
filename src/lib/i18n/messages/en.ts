@@ -668,6 +668,18 @@ export const en = {
       english: 'English',
       chinese: 'Simplified Chinese',
     },
+    behavior: {
+      title: 'Interaction',
+      description: 'Mobile back button and app lifecycle',
+      rootBackTitle: 'Back button on root pages',
+      rootBackHint: 'Choose what happens when the mobile device back button reaches a root page.',
+      rootBackBackground: 'Move to background',
+      rootBackBackgroundHint: 'Keep the app running and return to the launcher or previous app.',
+      rootBackExit: 'Exit app',
+      rootBackExitHint: 'Terminate the current app process.',
+      saved: 'Interaction settings saved.',
+      save: 'Save Interaction',
+    },
     connection: {
       title: 'Connection',
       description: 'Proxy, TLS and network settings',

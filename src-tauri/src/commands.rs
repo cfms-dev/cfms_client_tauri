@@ -28,7 +28,7 @@ use tauri_plugin_updater::UpdaterExt;
 #[cfg(target_os = "android")]
 use crate::AndroidUploadFileImporter;
 #[cfg(target_os = "android")]
-use crate::{AndroidApkInstaller, AndroidFileOpener, AndroidPasskey};
+use crate::{AndroidApkInstaller, AndroidAppLifecycle, AndroidFileOpener, AndroidPasskey};
 use crate::{AppHandleState, UploadInterruption};
 
 const UPDATE_RELEASES_API: &str =
@@ -43,6 +43,7 @@ include!(concat!(env!("OUT_DIR"), "/bundled_ca.rs"));
 include!("commands/types.rs");
 include!("commands/health.rs");
 include!("commands/passkeys.rs");
+include!("commands/mobile.rs");
 include!("commands/updates.rs");
 include!("commands/downloads.rs");
 include!("commands/documents.rs");

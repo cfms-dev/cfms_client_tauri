@@ -2,6 +2,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings, FileEntry } from './types';
 
+export type RootBackButtonBehavior = 'background' | 'exit';
+
+export const ROOT_BACK_BUTTON_BEHAVIOR_KEY = 'root_back_button_behavior';
+export const DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR: RootBackButtonBehavior = 'background';
+
 /** Scan a local directory recursively. */
 export async function scanDirectory(
   path: string,
@@ -22,6 +27,26 @@ export async function getSetting(key: string): Promise<string | null> {
 /** Write a user setting. */
 export async function setSetting(key: string, value: string): Promise<void> {
   return invoke("set_setting", { key, value });
+}
+
+/** Load the configured behavior for pressing Android back on a root page. */
+export async function getRootBackButtonBehavior(): Promise<RootBackButtonBehavior> {
+  try {
+    return normalizeRootBackButtonBehavior(await getSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY));
+  } catch {
+    return DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
+  }
+}
+
+/** Persist the configured behavior for pressing Android back on a root page. */
+export async function setRootBackButtonBehavior(behavior: RootBackButtonBehavior): Promise<void> {
+  return setSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY, behavior);
+}
+
+export function normalizeRootBackButtonBehavior(
+  value: string | null | undefined,
+): RootBackButtonBehavior {
+  return value === 'exit' ? 'exit' : DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
 }
 
 /** Get the active backend locale. */

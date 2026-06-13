@@ -177,9 +177,18 @@
 
   onMount(() => {
     let removeBackButtonListener: (() => void) | null = null;
+    let handlingBackButton = false;
 
     onBackButtonPress(() => {
-      void navigateUp(page.url.pathname);
+      void (async () => {
+        if (handlingBackButton) return;
+        handlingBackButton = true;
+        try {
+          await navigateUp(page.url.pathname);
+        } finally {
+          handlingBackButton = false;
+        }
+      })();
     })
       .then((listener) => {
         removeBackButtonListener = () => {

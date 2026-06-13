@@ -663,6 +663,18 @@ export const zh_CN = {
       english: 'English',
       chinese: '简体中文',
     },
+    behavior: {
+      title: '交互行为',
+      description: '移动端返回键与应用生命周期',
+      rootBackTitle: '根页面返回键',
+      rootBackHint: '当移动端设备返回键已经退到根页面时，选择应用接下来的行为。',
+      rootBackBackground: '进入后台',
+      rootBackBackgroundHint: '保持应用运行，并回到系统桌面或上一个应用。',
+      rootBackExit: '退出应用',
+      rootBackExitHint: '结束当前应用进程。',
+      saved: '交互行为设置已保存。',
+      save: '保存交互行为',
+    },
     connection: {
       title: '连接',
       description: '代理、TLS 与网络设置',
