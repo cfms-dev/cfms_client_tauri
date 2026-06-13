@@ -9,21 +9,28 @@
   } from '$lib/app-lock.svelte';
   import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
+  import AppPinPad from '$lib/components/AppPinPad.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
 
   const pinLength = getRequiredPinLength();
 
-  let pin = $state('');
-  let confirmPin = $state('');
   let busy = $state<'enable' | 'pin' | 'pin-remove' | 'platform' | 'platform-remove' | null>(null);
   let error = $state<string | null>(null);
+  let pinSetupOpen = $state(false);
+  let pinSetupStep = $state<'new' | 'confirm'>('new');
+  let pinSetupEntry = $state('');
+  let pendingPin = $state('');
+  let pinSetupShake = $state(false);
+  let pinSetupMessage = $state<string | null>(null);
 
   const methodCount = $derived((appLockStore.hasPin ? 1 : 0) + appLockStore.settings.platformCredentials.length);
   const canEnable = $derived(appLockStore.hasAnyMethod && !busy);
-  const canSavePin = $derived(pin.length === pinLength && confirmPin.length === pinLength && !busy);
   const platformStatus = $derived(
     appLockStore.platformAvailable ? $t('appLock.settings.available') : $t('appLock.settings.unavailable'),
+  );
+  const pinSetupTitle = $derived(
+    pinSetupStep === 'new' ? $t('appLock.settings.newPin') : $t('appLock.settings.confirmPin'),
   );
 
   $effect(() => {
@@ -39,31 +46,16 @@
     await appLockStore.refreshPlatformAvailability();
   });
 
+  $effect(() => {
+    if (!pinSetupOpen || pinSetupEntry.length !== pinLength || busy !== null) return;
+    void advancePinSetup();
+  });
+
   async function setEnabled(enabled: boolean) {
     busy = 'enable';
     try {
       await appLockStore.setEnabled(enabled);
       notificationStore.success($t('appLock.settings.saved'));
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      busy = null;
-    }
-  }
-
-  async function savePin() {
-    if (!canSavePin) return;
-    if (pin !== confirmPin) {
-      error = $t('appLock.settings.pinMismatch');
-      return;
-    }
-
-    busy = 'pin';
-    try {
-      await appLockStore.setPin(pin);
-      pin = '';
-      confirmPin = '';
-      notificationStore.success($t('appLock.settings.pinSaved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -111,18 +103,87 @@
     }
   }
 
-  function sanitizePinInput(event: Event, target: 'pin' | 'confirm') {
-    const input = event.currentTarget as HTMLInputElement;
-    const next = input.value.replace(/\D/gu, '').slice(0, pinLength);
-    input.value = next;
-    if (target === 'pin') pin = next;
-    else confirmPin = next;
-  }
-
   function formatDate(value: number) {
     return new Date(value).toLocaleString();
   }
+
+  function openPinSetup() {
+    if (busy !== null) return;
+    pinSetupOpen = true;
+    pinSetupStep = 'new';
+    pinSetupEntry = '';
+    pendingPin = '';
+    pinSetupMessage = null;
+    pinSetupShake = false;
+  }
+
+  function closePinSetup(force = false) {
+    if (busy === 'pin' && !force) return;
+    pinSetupOpen = false;
+    pinSetupEntry = '';
+    pendingPin = '';
+    pinSetupMessage = null;
+    pinSetupShake = false;
+  }
+
+  async function advancePinSetup() {
+    const entry = pinSetupEntry;
+    if (pinSetupStep === 'new') {
+      pendingPin = entry;
+      pinSetupEntry = '';
+      pinSetupStep = 'confirm';
+      pinSetupMessage = null;
+      return;
+    }
+
+    if (entry !== pendingPin) {
+      pinSetupEntry = '';
+      pendingPin = '';
+      pinSetupStep = 'new';
+      pinSetupMessage = $t('appLock.settings.pinMismatch');
+      triggerPinSetupShake();
+      return;
+    }
+
+      busy = 'pin';
+    try {
+      await appLockStore.setPin(entry);
+      closePinSetup(true);
+      notificationStore.success($t('appLock.settings.pinSaved'));
+    } catch (err) {
+      pinSetupEntry = '';
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = null;
+    }
+  }
+
+  function triggerPinSetupShake() {
+    pinSetupShake = false;
+    requestAnimationFrame(() => {
+      pinSetupShake = true;
+      window.setTimeout(() => {
+        pinSetupShake = false;
+      }, 360);
+    });
+  }
+
+  function handlePinSetupKeydown(event: KeyboardEvent) {
+    if (!pinSetupOpen) return;
+    if (/^\d$/u.test(event.key)) {
+      event.preventDefault();
+      if (busy === null && pinSetupEntry.length < pinLength) pinSetupEntry += event.key;
+    } else if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault();
+      if (busy === null) pinSetupEntry = pinSetupEntry.slice(0, -1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closePinSetup();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handlePinSetupKeydown} />
 
 <div class="mx-auto max-w-2xl space-y-4 p-6">
   <button
@@ -190,40 +251,11 @@
         {/if}
       </div>
 
-      <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <label class="space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          {$t('appLock.settings.newPin')}
-          <input
-            class="app-lock-input"
-            type="password"
-            inputmode="numeric"
-            autocomplete="new-password"
-            maxlength={pinLength}
-            value={pin}
-            oninput={(event) => sanitizePinInput(event, 'pin')}
-            disabled={busy !== null}
-          />
-        </label>
-        <label class="space-y-1.5 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          {$t('appLock.settings.confirmPin')}
-          <input
-            class="app-lock-input"
-            type="password"
-            inputmode="numeric"
-            autocomplete="new-password"
-            maxlength={pinLength}
-            value={confirmPin}
-            oninput={(event) => sanitizePinInput(event, 'confirm')}
-            disabled={busy !== null}
-          />
-        </label>
-      </div>
-
       <div class="mt-4 flex flex-wrap gap-2">
         <button
           class="app-lock-action app-lock-action--primary"
-          onclick={savePin}
-          disabled={!canSavePin}
+          onclick={openPinSetup}
+          disabled={busy !== null}
         >
           <Icon name="pin" size="18px" />
           {appLockStore.hasPin ? $t('appLock.settings.changePin') : $t('appLock.settings.setPin')}
@@ -313,28 +345,55 @@
   {/if}
 </div>
 
+{#if pinSetupOpen}
+  <div
+    class="pin-setup-backdrop fixed inset-0 z-[70] flex items-center justify-center overflow-auto px-5 py-8"
+    role="presentation"
+    onclick={() => closePinSetup()}
+  >
+    <div
+      class="pin-setup-panel flex w-[520px] max-w-full flex-col items-center text-center text-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label={pinSetupTitle}
+      tabindex="-1"
+      onclick={(event) => event.stopPropagation()}
+      onkeydown={(event) => event.stopPropagation()}
+    >
+      <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
+        <Icon name="pin" size="48px" />
+      </div>
+      <h2 class="text-3xl font-light" style="font-family: var(--font-md3-sans);">
+        {pinSetupTitle}
+      </h2>
+      <p class="mt-4 min-h-6 text-base text-white/82">
+        {pinSetupMessage ?? (pinSetupStep === 'new'
+          ? $t('appLock.settings.enterNewPin')
+          : $t('appLock.settings.enterConfirmPin'))}
+      </p>
+
+      <AppPinPad
+        class="mt-7"
+        bind:value={pinSetupEntry}
+        length={pinLength}
+        disabled={busy !== null}
+        shake={pinSetupShake}
+        deleteLabel={$t('common.delete')}
+      />
+
+      <button
+        type="button"
+        class="pin-setup-cancel mt-6"
+        onclick={() => closePinSetup()}
+        disabled={busy === 'pin'}
+      >
+        {$t('common.cancel')}
+      </button>
+    </div>
+  </div>
+{/if}
+
 <style>
-  .app-lock-input {
-    display: block;
-    inline-size: 100%;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--color-md3-surface-container-high) 78%, transparent);
-    color: var(--color-md3-on-surface);
-    padding: 0.7rem 0.85rem;
-    font-size: 1rem;
-    letter-spacing: 0.18em;
-    transition:
-      border-color var(--motion-duration-short4) var(--motion-easing-standard),
-      box-shadow var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .app-lock-input:focus {
-    border-color: var(--color-md3-primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-md3-primary) 18%, transparent);
-    outline: none;
-  }
-
   .app-lock-action {
     display: inline-flex;
     min-block-size: 40px;
@@ -373,5 +432,59 @@
   .app-lock-action--danger {
     border-color: color-mix(in srgb, var(--color-md3-error) 55%, transparent);
     color: var(--color-md3-error);
+  }
+
+  .pin-setup-backdrop {
+    background:
+      linear-gradient(145deg, rgba(14, 19, 50, 0.94), rgba(43, 16, 55, 0.95) 58%, rgba(30, 20, 39, 0.95));
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .pin-setup-panel {
+    animation: pin-setup-enter 280ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .pin-setup-cancel {
+    min-block-size: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 0.5rem 1.2rem;
+    font-size: 0.875rem;
+    font-weight: 650;
+    transition:
+      background-color 160ms var(--motion-easing-standard),
+      opacity 160ms var(--motion-easing-standard);
+  }
+
+  .pin-setup-cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .pin-setup-cancel:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  @keyframes pin-setup-enter {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+      filter: blur(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pin-setup-panel {
+      animation: none !important;
+    }
   }
 </style>
