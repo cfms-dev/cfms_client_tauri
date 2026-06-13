@@ -1,6 +1,6 @@
 {
   "name": "cfms-client-tauri",
-  "version": "0.1.0",
+  "version": "0.20.0",
   "description": "",
   "type": "module",
   "scripts": {
@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "app:version": "node scripts/client-version.mjs",
+    "app:version:show": "node scripts/client-version.mjs show",
+    "app:version:check": "node scripts/client-version.mjs check"
   },
   "license": "MIT",
   "dependencies": {

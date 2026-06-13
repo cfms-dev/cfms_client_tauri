@@ -71,12 +71,29 @@ No additional secrets are required beyond the Tauri updater keys.
 
 ### 1. Prepare the version
 
-Update the version in `tauri.conf.json`:
+Use the version helper to update all client build metadata together:
 
-```json
-{
-  "version": "0.16.0"
-}
+```bash
+pnpm app:version set 0.16.0
+pnpm app:version:check
+```
+
+For routine increments, use:
+
+```bash
+pnpm app:version bump patch
+pnpm app:version bump minor
+pnpm app:version bump major
+```
+
+The helper keeps `package.json`, `Cargo.toml`, `Cargo.lock`,
+`src-tauri/tauri.conf.json`, iOS `Info.plist`, and local generated Android
+version metadata in sync when that generated Android file exists. It also
+derives the default mobile build number from the semantic version, for example
+`0.16.0` becomes `16000`. To override it:
+
+```bash
+pnpm app:version set 0.16.0 --build-number 16001
 ```
 
 ### 2. Create and push a tag
@@ -104,18 +121,18 @@ To trigger a release manually:
 
 ```bash
 # Prerequisites: Node.js 22+, Rust stable
-npm ci
-cargo tauri dev        # Development mode with hot-reload
-cargo tauri build      # Production build
+pnpm install
+pnpm tauri dev         # Development mode with hot-reload
+pnpm tauri build       # Production build
 ```
 
 ### Android
 
 ```bash
 # Prerequisites: Android Studio, Android SDK 36, NDK
-cargo tauri android init    # Generate Android project (if not already generated)
-cargo tauri android dev     # Development build on connected device
-cargo tauri android build   # Release APK/AAB
+pnpm tauri android init     # Generate Android project (if not already generated)
+pnpm tauri android dev      # Development build on connected device
+pnpm tauri android build    # Release APK/AAB
 ```
 
 ### iOS
@@ -123,14 +140,14 @@ cargo tauri android build   # Release APK/AAB
 ```bash
 # Prerequisites: macOS, Xcode 16+
 # Generate the iOS project first:
-cargo tauri ios init
+pnpm tauri ios init
 # Then open the Xcode project:
-cargo tauri ios dev
+pnpm tauri ios dev
 # Or build for distribution:
-cargo tauri ios build
+pnpm tauri ios build
 ```
 
-> **Note:** iOS project generation (`cargo tauri ios init`) requires macOS.
+> **Note:** iOS project generation (`pnpm tauri ios init`) requires macOS.
 > The `gen/ios/` directory contains pre-configured `Info.plist` and entitlements
 > files that are merged into the generated project.
 
