@@ -20,7 +20,7 @@ open class BuildTask @Inject constructor(
 
     @TaskAction
     fun assemble() {
-        val executable = """npm""";
+        val executable = """pnpm""";
         try {
             runTauriCli(executable)
         } catch (e: Exception) {
@@ -52,7 +52,7 @@ open class BuildTask @Inject constructor(
         val rootDirRel = rootDirRel ?: throw GradleException("rootDirRel cannot be null")
         val target = target ?: throw GradleException("target cannot be null")
         val release = release ?: throw GradleException("release cannot be null")
-        val args = listOf("run", "--", "tauri", "android", "android-studio-script");
+        val args = listOf("run", "tauri", "android", "android-studio-script");
 
         execOperations.exec {
             workingDir(File(project.projectDir, rootDirRel))
