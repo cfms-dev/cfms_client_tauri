@@ -3,4 +3,4 @@
 3. DO NOT start a Vite dev server or something else by yourself, since it's hard to shutdown them.
 4. When not specified, use Material Design in your UI design strategy.
 5. Throughout the implementation of these features, it is crucial to maintain maximum reusability, maintainability, and organization of the code. Unify disorganized code to avoid inconsistent behavior. Maintain a visually appealing interface; if possible, incorporate sophisticated animations. Given the large number of tasks, plan ahead before execution.
-6. Before running a Gradle compilation to verify the code's correctness, ensure that TUN agent mode is enabled on your host machine. If it's not enabled or you cannot confirm this, do not attempt to compile to avoid network timeout errors.
+6. Before running a Gradle compilation to verify the code's correctness, ensure that TUN proxy mode is enabled on your host machine. If it's not enabled or you cannot confirm this, do not attempt to compile to avoid network timeout errors.
