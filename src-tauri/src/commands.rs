@@ -733,7 +733,7 @@ async fn install_android_app_update<R: tauri::Runtime>(
         return Err("No pending Android update is available. Check for updates first.".to_string());
     };
 
-    let update_dir = state.app_data_dir.join("updates");
+    let update_dir = android_update_cache_dir(&app)?;
     tokio::fs::create_dir_all(&update_dir)
         .await
         .map_err(|e| format!("Failed to create update directory: {e}"))?;
@@ -757,6 +757,19 @@ async fn install_android_app_update<R: tauri::Runtime>(
     *pending = None;
 
     Ok(())
+}
+
+#[cfg(target_os = "android")]
+fn android_update_cache_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<std::path::PathBuf, String> {
+    // Keep APK handoff files under Android cache; file_paths.xml exposes
+    // this via <cache-path>, while app_data_dir may live outside FileProvider.
+    Ok(app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| format!("Failed to resolve update cache directory: {e}"))?
+        .join("updates"))
 }
 
 #[cfg(target_os = "android")]
