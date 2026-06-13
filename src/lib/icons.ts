@@ -48,6 +48,7 @@ export const ICONS = {
   rule:          'rule',
   menu:          'menu',
   moreVert:      'more_vert',
+  check:         'check',
   checkBox:      'check_box',
   checkBoxBlank: 'check_box_outline_blank',
   radioChecked:  'radio_button_checked',
@@ -121,6 +122,7 @@ export const ICONS = {
   storage:        'storage',
   security:       'security',
   verifiedUser:   'verified_user',
+  approvalDelegation: 'approval_delegation',
   qrCode:         'qr_code_2',
   browserUpdated: 'browser_updated',
 

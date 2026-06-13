@@ -7,6 +7,7 @@
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
   import { fade } from 'svelte/transition';
+  import { onDestroy } from 'svelte';
   import { flyScale } from '$lib/motion/transitions';
   import Icon from './Icon.svelte';
   import ProgressRing from './ProgressRing.svelte';
@@ -27,7 +28,9 @@
   let useRecoveryCode = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
+  let pulseIndex = $state<number | null>(null);
   let codeInput: HTMLInputElement | null = $state(null);
+  let pulseTimer: ReturnType<typeof setTimeout> | null = null;
 
   const description = $derived(
     useRecoveryCode
@@ -51,10 +54,13 @@
     useRecoveryCode = !useRecoveryCode;
     code = '';
     error = null;
+    pulseIndex = null;
     queueMicrotask(() => codeInput?.focus());
   }
 
   async function handleVerify() {
+    if (busy) return;
+
     const trimmed = code.trim();
     if (!trimmed) {
       error = useRecoveryCode
@@ -74,6 +80,7 @@
       const success = await onVerify(trimmed, useRecoveryCode);
       if (!success) {
         code = '';
+        pulseIndex = null;
         error = useRecoveryCode
           ? $t('dialog.twoFactor.invalidRecovery')
           : $t('dialog.twoFactor.invalidCode');
@@ -97,15 +104,61 @@
     return value.replace(/[^0-9]/g, '');
   }
 
+  function pulseCodeCell(previous: string, next: string) {
+    if (useRecoveryCode || previous === next) return;
+
+    const lengthDelta = next.length - previous.length;
+    if (lengthDelta === 0) return;
+
+    const changedIndex = lengthDelta > 0 ? next.length - 1 : previous.length - 1;
+    if (changedIndex < 0 || changedIndex >= 6) return;
+
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseIndex = null;
+
+    requestAnimationFrame(() => {
+      pulseIndex = changedIndex;
+      pulseTimer = setTimeout(() => {
+        pulseIndex = null;
+        pulseTimer = null;
+      }, 180);
+    });
+  }
+
+  function moveTotpCaretToEnd(target = codeInput) {
+    if (useRecoveryCode || !target) return;
+
+    const end = target.value.length;
+    target.setSelectionRange(end, end);
+  }
+
+  function onTotpKeydown(e: KeyboardEvent) {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      moveTotpCaretToEnd(e.currentTarget as HTMLInputElement);
+    }
+  }
+
   function onInput(e: Event) {
     const target = e.target as HTMLInputElement;
+    const previous = code;
     const filtered = filterInput(target.value);
     if (filtered !== target.value) {
       target.value = filtered;
     }
+    pulseCodeCell(previous, filtered);
     code = filtered;
+    moveTotpCaretToEnd(target);
     if (error) error = null;
+
+    if (!useRecoveryCode && !busy && previous.length < 6 && filtered.length === 6) {
+      void handleVerify();
+    }
   }
+
+  onDestroy(() => {
+    if (pulseTimer) clearTimeout(pulseTimer);
+  });
 </script>
 
 <div
@@ -115,7 +168,7 @@
   onclick={handleCancel}
 >
   <div
-    class="twofa-panel relative w-full max-w-[560px] overflow-hidden rounded-[28px] border border-white/12 bg-md3-surface-container shadow-2xl"
+    class="twofa-panel relative w-full max-w-[560px] overflow-hidden rounded-[24px] border border-md3-outline/40 bg-md3-surface-container"
     role="dialog"
     aria-modal="true"
     aria-label={$t('dialog.twoFactor.title')}
@@ -132,8 +185,6 @@
         handleVerify();
       }}
     >
-      <span class="twofa-glow" aria-hidden="true"></span>
-
       <button
         type="button"
         class="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full text-md3-on-surface-variant transition-all hover:bg-white/10 hover:text-md3-on-surface disabled:opacity-50"
@@ -145,19 +196,11 @@
       </button>
 
       <div class="relative px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-9">
-      <div class="mx-auto mb-6 grid h-24 w-24 place-items-center rounded-[30px] bg-md3-primary/12 text-md3-primary-emphasis shadow-inner">
-        <div class="relative">
-          <Icon name="verifiedUser" size="66px" />
-          <span class="twofa-badge absolute -bottom-1 -right-2 grid h-9 w-9 place-items-center rounded-2xl bg-md3-primary text-md3-on-primary shadow-lg">
-            <Icon name={useRecoveryCode ? 'password' : 'pin'} size="21px" />
-          </span>
-        </div>
+      <div class="twofa-icon mx-auto mb-6 grid h-20 w-20 place-items-center text-md3-primary-emphasis">
+        <Icon name="approvalDelegation" size="64px" />
       </div>
 
       <div class="mx-auto max-w-[430px] text-center">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-md3-primary-emphasis" style="font-family: var(--font-md3-sans);">
-          {method.toUpperCase()}
-        </p>
         <h2 class="text-2xl font-bold text-md3-on-surface sm:text-[28px]" style="font-family: var(--font-md3-sans);">
           {$t('dialog.twoFactor.title')}
         </h2>
@@ -205,12 +248,19 @@
               maxlength={inputMaxLength}
               value={code}
               oninput={onInput}
+              onkeydown={onTotpKeydown}
+              onfocus={(e) => moveTotpCaretToEnd(e.currentTarget)}
+              onclick={(e) => moveTotpCaretToEnd(e.currentTarget)}
               disabled={busy}
               autocomplete="one-time-code"
               autofocus
             />
             {#each codeCells as digit, index}
-              <span class="code-cell" class:code-cell-active={code.length === index}>
+              <span
+                class="code-cell"
+                class:code-cell-active={code.length === index}
+                class:code-cell-pulse={pulseIndex === index}
+              >
                 {digit}
               </span>
             {/each}
@@ -257,7 +307,7 @@
               <ProgressRing size={16} strokeWidth={2.4} label={$t('common.verifying')} />
               {$t('common.verifying')}
             {:else}
-              <Icon name="verified" size="18px" />
+              <Icon name="check" size="18px" />
               {$t('dialog.twoFactor.verify')}
             {/if}
           </button>
@@ -271,33 +321,19 @@
 <style>
   .twofa-backdrop {
     background:
-      radial-gradient(circle at 50% 46%, rgba(143, 180, 255, 0.20), transparent 34rem),
-      rgba(2, 6, 23, 0.58);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+      radial-gradient(circle at 50% 46%, rgba(143, 180, 255, 0.12), transparent 34rem),
+      rgba(2, 6, 23, 0.54);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
 
   .twofa-panel {
-    background:
-      linear-gradient(145deg, rgba(31, 41, 55, 0.98), rgba(17, 24, 39, 0.98)),
-      var(--color-md3-surface-container);
-    box-shadow:
-      0 30px 90px rgba(0, 0, 0, 0.44),
-      0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    background: var(--color-md3-surface-container);
+    box-shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
   }
 
-  .twofa-glow {
-    pointer-events: none;
-    position: absolute;
-    inset: -28% -18% auto;
-    height: 18rem;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(79, 70, 229, 0.30), transparent 60%),
-      radial-gradient(circle at 18% 26%, rgba(45, 212, 191, 0.10), transparent 36%);
-  }
-
-  .twofa-badge {
-    animation: badge-pop var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate) both;
+  .twofa-icon {
+    animation: icon-rise var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate) both;
   }
 
   .code-input {
@@ -333,7 +369,6 @@
   .code-cell-active {
     border-color: var(--color-md3-primary-emphasis);
     color: var(--color-md3-primary-emphasis);
-    transform: translateY(-2px);
   }
 
   .code-entry:focus-within .code-cell-active,
@@ -345,19 +380,34 @@
     border-color: rgba(248, 113, 113, 0.70);
   }
 
-  @keyframes badge-pop {
+  .code-cell-pulse {
+    animation: code-line-pulse 180ms var(--motion-easing-emphasized-decelerate);
+  }
+
+  @keyframes icon-rise {
     from {
       opacity: 0;
-      transform: translate3d(0, 6px, 0) scale(0.82);
+      transform: translate3d(0, 4px, 0);
     }
     to {
       opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes code-line-pulse {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    45% {
+      transform: translateY(-2px);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .twofa-badge {
+    .twofa-icon,
+    .code-cell-pulse {
       animation: none !important;
     }
 
