@@ -763,15 +763,18 @@ dependencies = [
 name = "cfms-transport"
 version = "0.17.0"
 dependencies = [
+ "base64ct",
  "cfms-core",
  "dashmap",
  "futures-util",
  "rustls",
  "rustls-pemfile",
  "tokio",
+ "tokio-rustls",
  "tokio-socks",
  "tokio-tungstenite",
  "tracing",
+ "url",
  "webpki-roots 0.26.11",
 ]
 

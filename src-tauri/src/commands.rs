@@ -329,7 +329,8 @@ impl ConnectionSettingsDto {
             return Ok(None);
         };
 
-        normalize_socks5_proxy(&raw)
+        normalize_proxy_url(&raw, self.proxy_default_scheme(), "CFMS connections")
+            .map(|proxy_url| proxy_url.map(|url| url.to_string()))
     }
 
     fn update_proxy_url(&self) -> Result<Option<url::Url>, String> {
@@ -338,13 +339,15 @@ impl ConnectionSettingsDto {
             return Ok(None);
         };
 
-        let default_scheme = if self.follow_system_proxy {
+        normalize_proxy_url(&raw, self.proxy_default_scheme(), "update checks")
+    }
+
+    fn proxy_default_scheme(&self) -> &'static str {
+        if self.follow_system_proxy {
             "http"
         } else {
             "socks5h"
-        };
-
-        normalize_update_proxy(&raw, default_scheme)
+        }
     }
 
     fn configured_proxy_setting(&self) -> Option<String> {
@@ -2550,7 +2553,11 @@ pub async fn set_connection_settings(
     settings: ConnectionSettingsDto,
 ) -> Result<(), String> {
     if settings.enable_proxy && !settings.follow_system_proxy {
-        normalize_socks5_proxy(settings.custom_proxy.trim())?;
+        normalize_proxy_url(
+            settings.custom_proxy.trim(),
+            settings.proxy_default_scheme(),
+            "CFMS connections",
+        )?;
     }
     let proxy_setting = settings.proxy_setting_value();
 
@@ -3664,38 +3671,11 @@ fn platform_system_proxy_setting() -> Option<String> {
     None
 }
 
-fn normalize_socks5_proxy(raw: &str) -> Result<Option<String>, String> {
-    let selected = match select_proxy_rule(raw, &["socks"]) {
-        Some(value) => value,
-        None if raw.contains('=') => return Ok(None),
-        None => raw.trim().to_string(),
-    };
-    let trimmed = selected.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-
-    let without_scheme = trimmed
-        .strip_prefix("socks5h://")
-        .or_else(|| trimmed.strip_prefix("socks5://"))
-        .unwrap_or(trimmed)
-        .trim_end_matches('/');
-
-    if trimmed.contains("://")
-        && !trimmed.starts_with("socks5://")
-        && !trimmed.starts_with("socks5h://")
-    {
-        return Err("Only SOCKS5 proxy URLs are supported for CFMS connections.".to_string());
-    }
-
-    if !without_scheme.contains(':') {
-        return Err("Proxy must include host and port, e.g. socks5h://127.0.0.1:1080.".to_string());
-    }
-
-    Ok(Some(without_scheme.to_string()))
-}
-
-fn normalize_update_proxy(raw: &str, default_scheme: &str) -> Result<Option<url::Url>, String> {
+fn normalize_proxy_url(
+    raw: &str,
+    default_scheme: &str,
+    context: &str,
+) -> Result<Option<url::Url>, String> {
     let selected = select_proxy_rule(raw, &["socks", "https", "http"])
         .unwrap_or_else(|| raw.trim().to_string());
     let trimmed = selected.trim().trim_end_matches('/');
@@ -3704,18 +3684,28 @@ fn normalize_update_proxy(raw: &str, default_scheme: &str) -> Result<Option<url:
     }
 
     let proxy_url = if trimmed.contains("://") {
-        url::Url::parse(trimmed).map_err(|e| format!("Invalid updater proxy URL: {e}"))?
+        url::Url::parse(trimmed).map_err(|e| format!("Invalid proxy URL for {context}: {e}"))?
     } else {
         let scheme = proxy_rule_scheme(raw).unwrap_or(default_scheme);
         url::Url::parse(&format!("{scheme}://{trimmed}"))
-            .map_err(|e| format!("Invalid updater proxy URL: {e}"))?
+            .map_err(|e| format!("Invalid proxy URL for {context}: {e}"))?
     };
 
     match proxy_url.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Ok(Some(proxy_url)),
-        _ => Err(
-            "Only HTTP, HTTPS and SOCKS proxy URLs are supported for update checks.".to_string(),
-        ),
+        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => {
+            if proxy_url.host_str().is_none() {
+                return Err(format!("Proxy URL for {context} must include a host."));
+            }
+            if proxy_url.port_or_known_default().is_none() {
+                return Err(format!(
+                    "Proxy URL for {context} must include a port, e.g. socks5h://127.0.0.1:1080.",
+                ));
+            }
+            Ok(Some(proxy_url))
+        }
+        _ => Err(format!(
+            "Only HTTP, HTTPS and SOCKS proxy URLs are supported for {context}.",
+        )),
     }
 }
 

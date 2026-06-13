@@ -6,7 +6,7 @@
 //! - [`frame`] — multiplexed frame protocol (encode/decode).
 //! - [`stream`] — virtual stream abstraction over a shared connection.
 //! - [`connector`] — high-level [`Connection`] API (connect, create stream, accept stream).
-//! - [`proxy`] — SOCKS5 proxy support.
+//! - [`proxy`] — HTTP(S) CONNECT and SOCKS proxy support.
 //!
 //! # Architecture
 //!

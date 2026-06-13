@@ -12,6 +12,7 @@
   import AppPinPad from '$lib/components/AppPinPad.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
 
   const pinLength = getRequiredPinLength();
 
@@ -146,7 +147,7 @@
       return;
     }
 
-      busy = 'pin';
+    busy = 'pin';
     try {
       await appLockStore.setPin(entry);
       closePinSetup(true);
@@ -348,51 +349,53 @@
 
 {#if pinSetupOpen}
   <div
-    class="pin-setup-backdrop fixed inset-0 z-[70] flex items-center justify-center overflow-auto px-5 py-8"
+    class="pin-setup-backdrop fixed inset-0 z-[70] flex items-center justify-center overflow-auto px-5 py-10"
     role="presentation"
     onclick={() => closePinSetup()}
   >
-    <div
-      class="pin-setup-panel flex w-[520px] max-w-full flex-col items-center text-center text-white"
-      role="dialog"
-      aria-modal="true"
-      aria-label={pinSetupTitle}
-      tabindex="-1"
-      onclick={(event) => event.stopPropagation()}
-      onkeydown={(event) => event.stopPropagation()}
-    >
-      <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
-        <Icon name="password" size="48px" />
-      </div>
-      <h2 class="text-3xl font-light" style="font-family: var(--font-md3-sans);">
-        {pinSetupTitle}
-      </h2>
-      <p class="mt-4 min-h-6 text-base text-white/82">
-        {pinSetupMessage ?? (pinSetupStep === 'new'
-          ? $t('appLock.settings.enterNewPin')
-          : $t('appLock.settings.enterConfirmPin'))}
-      </p>
-
-      <AppPinPad
-        class="mt-7"
-        bind:value={pinSetupEntry}
-        length={pinLength}
-        density="compact"
-        disabled={busy !== null}
-        shake={pinSetupShake}
-        deleteLabel={$t('common.delete')}
-      />
-
-      <button
-        type="button"
-        class="pin-setup-cancel mt-6"
-        onclick={() => closePinSetup()}
-        disabled={busy === 'pin'}
+    <ViewportScaleFrame inlinePadding={40} blockPadding={136}>
+      <div
+        class="pin-setup-panel flex w-[520px] max-w-full flex-col items-center text-center text-white"
+        role="dialog"
+        aria-modal="true"
+        aria-label={pinSetupTitle}
+        tabindex="-1"
+        onclick={(event) => event.stopPropagation()}
+        onkeydown={(event) => event.stopPropagation()}
       >
-        <Icon name="arrowBack" size="18px" />
-        {$t('common.cancel')}
-      </button>
-    </div>
+        <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
+          <Icon name="password" size="48px" />
+        </div>
+        <h2 class="text-3xl font-light" style="font-family: var(--font-md3-sans);">
+          {pinSetupTitle}
+        </h2>
+        <p class="mt-4 min-h-6 text-base text-white/82">
+          {pinSetupMessage ?? (pinSetupStep === 'new'
+            ? $t('appLock.settings.enterNewPin')
+            : $t('appLock.settings.enterConfirmPin'))}
+        </p>
+
+        <AppPinPad
+          class="mt-7"
+          bind:value={pinSetupEntry}
+          length={pinLength}
+          density="compact"
+          disabled={busy !== null}
+          shake={pinSetupShake}
+          deleteLabel={$t('common.delete')}
+        />
+
+        <button
+          type="button"
+          class="pin-setup-cancel mt-6"
+          onclick={() => closePinSetup()}
+          disabled={busy === 'pin'}
+        >
+          <Icon name="arrowBack" size="18px" />
+          {$t('common.cancel')}
+        </button>
+      </div>
+    </ViewportScaleFrame>
   </div>
 {/if}
 
@@ -439,8 +442,8 @@
 
   .pin-setup-backdrop {
     min-block-size: 100dvh;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 1.25rem);
-    padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+    padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
     padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
@@ -450,7 +453,6 @@
   }
 
   .pin-setup-panel {
-    max-block-size: calc(100dvh - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 2.5rem);
     animation: pin-setup-enter 280ms var(--motion-easing-emphasized-decelerate) both;
   }
 

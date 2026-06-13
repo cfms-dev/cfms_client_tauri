@@ -283,7 +283,7 @@ function normalizeFavourites(value: Favourites | null | undefined): Favourites {
 }
 
 export function shouldRecordRecentVisits(preferences: Pick<UserPreference, 'record_recent_visits'> | null | undefined) {
-  return preferences?.record_recent_visits !== false;
+  return preferences?.record_recent_visits === true;
 }
 
 function isRecentFileRecord(value: unknown): value is RecentFileRecord {

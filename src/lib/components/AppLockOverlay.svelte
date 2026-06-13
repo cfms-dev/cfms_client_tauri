@@ -3,11 +3,12 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { appLockStore } from '$lib/app-lock.svelte';
-  import { clearAuthSession, disconnect } from '$lib/api';
+  import { disconnect, logout } from '$lib/api';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import AppPinPad from '$lib/components/AppPinPad.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
 
   let pin = $state('');
   let busy = $state(false);
@@ -16,10 +17,6 @@
   let lockoutUntil = $state(0);
   let now = $state(Date.now());
   let shake = $state(false);
-  let viewportWidth = $state(0);
-  let viewportHeight = $state(0);
-  let contentWidth = $state(520);
-  let contentHeight = $state(780);
   let countdownTimer: number | null = null;
 
   const maxAttempts = 5;
@@ -33,17 +30,6 @@
       ? $t('appLock.unlock.pinTitle')
       : $t('appLock.unlock.title'),
   );
-  const contentScale = $derived.by(() => {
-    if (viewportWidth <= 0 || viewportHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) return 1;
-    const inlineScale = (viewportWidth - 40) / contentWidth;
-    const blockScale = (viewportHeight - 64) / contentHeight;
-    return Math.min(1, Math.max(0.1, Math.min(inlineScale, blockScale)));
-  });
-  const scaledFrameStyle = $derived(
-    `width: ${Math.ceil(contentWidth * contentScale)}px; height: ${Math.ceil(contentHeight * contentScale)}px;`,
-  );
-  const scaledSurfaceStyle = $derived(`transform: scale(${contentScale});`);
-
   $effect(() => {
     if (!appLockStore.locked) {
       resetEntry();
@@ -153,20 +139,42 @@
 
   async function forceDisconnect() {
     status = $t('appLock.unlock.tooManyAttempts');
+    await logoutAndDisconnect($t('appLock.unlock.disconnected'), 'error');
+  }
+
+  async function logoutAndDisconnect(
+    message = $t('appLock.unlock.logoutAndDisconnected'),
+    tone: 'info' | 'error' = 'info',
+  ) {
+    if (busy && tone === 'info') return;
+    busy = true;
+    status = $t('appLock.unlock.signingOut');
+    let errorMessage: string | null = null;
+
+    try {
+      await logout();
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : String(err);
+    }
+
     try {
       await disconnect();
-    } catch {
-      /* best effort */
+    } catch (err) {
+      errorMessage ??= err instanceof Error ? err.message : String(err);
     }
-    try {
-      await clearAuthSession();
-    } catch {
-      /* best effort */
-    }
+
     authStore.clear();
     serverStateStore.clear();
     appLockStore.unlock();
-    notificationStore.error($t('appLock.unlock.disconnected'), 7000);
+
+    if (errorMessage) {
+      notificationStore.error(errorMessage);
+    } else if (tone === 'error') {
+      notificationStore.error(message, 7000);
+    } else {
+      notificationStore.info(message, 5000);
+    }
+
     await goto('/connect', { replaceState: true });
   }
 
@@ -190,82 +198,88 @@
   }
 </script>
 
-<svelte:window bind:innerWidth={viewportWidth} bind:innerHeight={viewportHeight} onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if appLockStore.locked}
   <div
-    class="app-lock-overlay fixed inset-0 z-[90] flex min-h-full items-center justify-center overflow-auto px-5 py-8 text-white"
+    class="app-lock-overlay fixed inset-0 z-[90] flex min-h-full items-center justify-center overflow-auto px-5 py-10 text-white"
     role="dialog"
     aria-modal="true"
     aria-label={unlockTitle}
     transition:fade|global={{ duration: 180 }}
   >
-    <div class="app-lock-frame" style={scaledFrameStyle}>
-      <div class="app-lock-scale-surface" style={scaledSurfaceStyle}>
-        <div
-          class="app-lock-content flex flex-col items-center text-center"
-          bind:clientWidth={contentWidth}
-          bind:clientHeight={contentHeight}
-        >
-          <div class="mb-8 rounded-[2rem] bg-white/12 p-5 shadow-2xl shadow-black/20">
-            <Icon name="lock" size="64px" />
-          </div>
+    <ViewportScaleFrame inlinePadding={40} blockPadding={136}>
+      <div class="app-lock-content flex flex-col items-center text-center">
+        <div class="mb-8 rounded-[2rem] bg-white/12 p-5 shadow-2xl shadow-black/20">
+          <Icon name="lock" size="64px" />
+        </div>
 
-          <h2 class="text-3xl font-light tracking-normal sm:text-4xl" style="font-family: var(--font-md3-sans);">
-            {unlockTitle}
-          </h2>
+        <h2 class="text-3xl font-light tracking-normal sm:text-4xl" style="font-family: var(--font-md3-sans);">
+          {unlockTitle}
+        </h2>
 
-          <div class="mt-7 min-h-7 text-lg text-white/88">
-            {#if lockedOutMs > 0}
-              {formatLockout(lockedOutMs)}
-            {:else if status}
-              {status}
-            {:else if appLockStore.hasPin}
-              {$t('appLock.unlock.enterPin')}
-            {:else}
-              {$t('appLock.unlock.usePlatform')}
-            {/if}
-          </div>
-
-          {#if appLockStore.hasPlatformCredential}
-            <button
-              type="button"
-              class="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/18 bg-white/12 px-5 text-sm font-semibold text-white shadow-lg shadow-black/10 transition-all hover:bg-white/18 disabled:opacity-45"
-              style="font-family: var(--font-md3-sans);"
-              onclick={verifyPlatform}
-              disabled={!canUsePlatform}
-            >
-              {#if busy && status === $t('appLock.unlock.platformPrompt')}
-                <ProgressRing size={18} strokeWidth={2.5} label={$t('common.verifying')} />
-              {:else}
-                <Icon name="fingerprint" size="20px" />
-              {/if}
-              {$t('appLock.unlock.platformButton')}
-            </button>
-          {/if}
-
-          {#if appLockStore.hasPin}
-            <AppPinPad
-              class="mt-8"
-              bind:value={pin}
-              length={appLockStore.pinLength}
-              density="compact"
-              disabled={!canUsePin}
-              {shake}
-              deleteLabel={$t('common.delete')}
-            />
+        <div class="mt-7 min-h-7 text-lg text-white/88">
+          {#if lockedOutMs > 0}
+            {formatLockout(lockedOutMs)}
+          {:else if status}
+            {status}
+          {:else if appLockStore.hasPin}
+            {$t('appLock.unlock.enterPin')}
+          {:else}
+            {$t('appLock.unlock.usePlatform')}
           {/if}
         </div>
+
+        {#if appLockStore.hasPlatformCredential}
+          <button
+            type="button"
+            class="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/18 bg-white/12 px-5 text-sm font-semibold text-white shadow-lg shadow-black/10 transition-all hover:bg-white/18 disabled:opacity-45"
+            style="font-family: var(--font-md3-sans);"
+            onclick={verifyPlatform}
+            disabled={!canUsePlatform}
+          >
+            {#if busy && status === $t('appLock.unlock.platformPrompt')}
+              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.verifying')} />
+            {:else}
+              <Icon name="fingerprint" size="20px" />
+            {/if}
+            {$t('appLock.unlock.platformButton')}
+          </button>
+        {/if}
+
+        {#if appLockStore.hasPin}
+          <AppPinPad
+            class="mt-8"
+            bind:value={pin}
+            length={appLockStore.pinLength}
+            density="compact"
+            disabled={!canUsePin}
+            {shake}
+            deleteLabel={$t('common.delete')}
+          />
+        {/if}
+
+        <div class="app-lock-flat-actions mt-7">
+          <button
+            type="button"
+            class="app-lock-flat-button"
+            onclick={() => logoutAndDisconnect()}
+            disabled={busy}
+          >
+            <Icon name="logout" size="20px" />
+            {$t('appLock.unlock.logoutAndDisconnect')}
+          </button>
+        </div>
       </div>
-    </div>
+    </ViewportScaleFrame>
   </div>
 {/if}
 
 <style>
   .app-lock-overlay {
     min-block-size: 100dvh;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 1.25rem);
-    padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+    padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
     padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
@@ -275,22 +289,45 @@
     backdrop-filter: blur(20px);
   }
 
-  .app-lock-frame {
-    position: relative;
-    flex: 0 0 auto;
-  }
-
-  .app-lock-scale-surface {
-    position: absolute;
-    inset-block-start: 0;
-    inset-inline-start: 0;
-    transform-origin: 0 0;
-  }
-
   .app-lock-content {
     inline-size: 520px;
-    max-block-size: calc(100dvh - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 2.5rem);
     animation: app-lock-enter 360ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .app-lock-flat-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .app-lock-flat-button {
+    display: inline-flex;
+    min-block-size: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.88);
+    padding: 0.55rem 1rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    transition:
+      background-color 160ms var(--motion-easing-standard),
+      color 160ms var(--motion-easing-standard),
+      opacity 160ms var(--motion-easing-standard);
+  }
+
+  .app-lock-flat-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  .app-lock-flat-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
   }
 
   @keyframes app-lock-enter {

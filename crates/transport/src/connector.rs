@@ -15,7 +15,6 @@ use cfms_core::Result;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config};
@@ -31,8 +30,8 @@ use crate::stream::Stream;
 type WsStream = WebSocketStream<MaybeTlsStream<MaybeProxyStream>>;
 
 enum MaybeProxyStream {
-    Direct(TcpStream),
-    Socks5(tokio_socks::tcp::Socks5Stream<TcpStream>),
+    Direct(tokio::net::TcpStream),
+    Proxied(crate::proxy::ProxyStream),
 }
 
 impl AsyncRead for MaybeProxyStream {
@@ -43,7 +42,7 @@ impl AsyncRead for MaybeProxyStream {
     ) -> Poll<std::io::Result<()>> {
         match &mut *self {
             Self::Direct(stream) => Pin::new(stream).poll_read(cx, buf),
-            Self::Socks5(stream) => Pin::new(stream).poll_read(cx, buf),
+            Self::Proxied(stream) => Pin::new(stream).poll_read(cx, buf),
         }
     }
 }
@@ -56,21 +55,21 @@ impl AsyncWrite for MaybeProxyStream {
     ) -> Poll<std::io::Result<usize>> {
         match &mut *self {
             Self::Direct(stream) => Pin::new(stream).poll_write(cx, data),
-            Self::Socks5(stream) => Pin::new(stream).poll_write(cx, data),
+            Self::Proxied(stream) => Pin::new(stream).poll_write(cx, data),
         }
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut *self {
             Self::Direct(stream) => Pin::new(stream).poll_flush(cx),
-            Self::Socks5(stream) => Pin::new(stream).poll_flush(cx),
+            Self::Proxied(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut *self {
             Self::Direct(stream) => Pin::new(stream).poll_shutdown(cx),
-            Self::Socks5(stream) => Pin::new(stream).poll_shutdown(cx),
+            Self::Proxied(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
 }
@@ -126,8 +125,9 @@ impl Connection {
     /// - `url`: WebSocket URL (e.g. `"wss://cfms.example.com/ws"`).
     /// - `tls`: Pre-configured TLS [`rustls::ClientConfig`] loaded from the
     ///   local CA certificate store.
-    /// - `proxy`: Optional SOCKS5 proxy address.  When `Some`, a raw TCP
-    ///   connection is established through the proxy first.
+    /// - `proxy`: Optional proxy URL. HTTP(S), SOCKS4/4a, and SOCKS5/5h are
+    ///   supported. When `Some`, a raw tunnel is established through the proxy
+    ///   first.
     pub async fn connect(
         url: &str,
         tls: rustls::ClientConfig,
@@ -135,16 +135,15 @@ impl Connection {
         force_ipv4: bool,
     ) -> Result<Self> {
         if let Some(proxy_addr) = proxy {
-            // Extract host and port from the URL for SOCKS5.
             let (host, port) = parse_ws_url(url)?;
 
-            let tcp_stream = crate::proxy::socks5_connect(proxy_addr, &host, port).await?;
-            let transport = MaybeProxyStream::Socks5(tcp_stream);
+            let proxy_stream = crate::proxy::connect_proxy(proxy_addr, &host, port).await?;
+            let transport = MaybeProxyStream::Proxied(proxy_stream);
             return Self::connect_over_stream(url, tls, transport).await;
         }
 
         let (host, port) = parse_ws_url(url)?;
-        let tcp_stream = connect_tcp(&host, port, force_ipv4).await?;
+        let tcp_stream = crate::proxy::connect_tcp(&host, port, force_ipv4).await?;
         Self::connect_over_stream(url, tls, MaybeProxyStream::Direct(tcp_stream)).await
     }
 
@@ -367,40 +366,6 @@ fn parse_ws_url(url: &str) -> Result<(String, u16)> {
             Ok((authority.to_string(), port))
         }
     }
-}
-
-fn format_host_port(host: &str, port: u16) -> String {
-    if host.contains(':') && !host.starts_with('[') {
-        format!("[{host}]:{port}")
-    } else {
-        format!("{host}:{port}")
-    }
-}
-
-async fn connect_tcp(host: &str, port: u16, force_ipv4: bool) -> Result<TcpStream> {
-    if !force_ipv4 {
-        return TcpStream::connect(format_host_port(host, port))
-            .await
-            .map_err(|e| cfms_core::Error::Connection(format!("TCP connect failed: {e}")));
-    }
-
-    let addrs = tokio::net::lookup_host(format_host_port(host, port))
-        .await
-        .map_err(|e| cfms_core::Error::Connection(format!("DNS lookup failed: {e}")))?;
-
-    let mut last_error = None;
-    for addr in addrs.filter(|addr| addr.is_ipv4()) {
-        match TcpStream::connect(addr).await {
-            Ok(stream) => return Ok(stream),
-            Err(err) => last_error = Some(err),
-        }
-    }
-
-    Err(cfms_core::Error::Connection(
-        last_error
-            .map(|err| format!("IPv4 TCP connect failed: {err}"))
-            .unwrap_or_else(|| format!("no IPv4 address found for {host}")),
-    ))
 }
 
 impl std::fmt::Debug for Connection {

@@ -15,7 +15,7 @@
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
   let saving = $state(false);
-  let recordRecentVisits = $state(true);
+  let recordRecentVisits = $state(false);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
 
@@ -34,7 +34,7 @@
   onMount(async () => {
     try {
       preferences = await loadUserPreference();
-      recordRecentVisits = preferences.record_recent_visits !== false;
+      recordRecentVisits = preferences.record_recent_visits === true;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

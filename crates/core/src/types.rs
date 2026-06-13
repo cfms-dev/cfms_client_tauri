@@ -384,7 +384,7 @@ fn default_theme() -> String {
 }
 
 fn default_record_recent_visits() -> bool {
-    true
+    false
 }
 
 /// Bookmarked files and directories.
