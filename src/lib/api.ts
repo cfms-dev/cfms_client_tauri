@@ -1187,6 +1187,12 @@ export interface UserPreference {
   use_external_storage: boolean;
   external_storage_path: string;
   app_lock?: unknown;
+  task_concurrency: TaskConcurrencyPreference;
+}
+
+export interface TaskConcurrencyPreference {
+  max_downloads: number;
+  max_uploads: number;
 }
 
 export interface Favourites {

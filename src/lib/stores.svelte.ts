@@ -3,7 +3,7 @@
 // All application state lives here as `$state` runes.  Components import
 // these and use them directly — no legacy Svelte stores needed.
 
-import { cancelUpload, getSetting, pauseUpload, resumeUpload, setSetting } from "./api";
+import { cancelUpload, getSetting, loadUserPreference, pauseUpload, resumeUpload, setSetting } from "./api";
 import type {
   DownloadTaskDto,
   DownloadTaskStatus,
@@ -276,9 +276,28 @@ export const downloadStore = new DownloadStoreImpl();
 
 class UploadStoreImpl {
   tasks = $state<Map<string, UploadTaskDto>>(new Map());
+  maxConcurrent = $state(DEFAULT_TASK_CONCURRENCY);
   private runners = new Map<string, (uploadId: string) => Promise<unknown>>();
   private completionCallbacks = new Map<string, () => Promise<void> | void>();
+  private activeRunners = new Set<string>();
   private processing = false;
+  private concurrencyScopeKey: string | null = null;
+
+  async initConcurrency(scopeKey: string) {
+    if (this.concurrencyScopeKey === scopeKey) return;
+    this.concurrencyScopeKey = scopeKey;
+    try {
+      const preferences = await loadUserPreference();
+      this.configureConcurrency(preferences.task_concurrency?.max_uploads);
+    } catch {
+      this.configureConcurrency(DEFAULT_TASK_CONCURRENCY);
+    }
+  }
+
+  configureConcurrency(value: number | null | undefined) {
+    this.maxConcurrent = normalizeTaskConcurrency(value);
+    void this.processQueue();
+  }
 
   addQueued(
     uploadId: string,
@@ -353,52 +372,75 @@ class UploadStoreImpl {
 
     try {
       while (true) {
-        const next = [...this.tasks.values()]
+        const slots = this.maxConcurrent - this.activeRunners.size;
+        if (slots <= 0) break;
+
+        const nextTasks = [...this.tasks.values()]
           .sort((a, b) => a.created_at - b.created_at)
-          .find((task) => task.status === "pending" && this.runners.has(task.upload_id));
-        if (!next) break;
+          .filter((task) =>
+            task.status === "pending"
+            && this.runners.has(task.upload_id)
+            && !this.activeRunners.has(task.upload_id)
+          )
+          .slice(0, slots);
+        if (nextTasks.length === 0) break;
 
-        this.tasks.set(next.upload_id, {
-          ...next,
-          status: "uploading",
-          message: next.message ?? "Preparing upload",
-          error: null,
-          completed_at: null,
-        });
-        this.tasks = new Map(this.tasks);
-
-        try {
-          await this.runners.get(next.upload_id)?.(next.upload_id);
-          const current = this.tasks.get(next.upload_id);
-          if (current && current.status === "uploading") {
-            this.tasks.set(next.upload_id, {
-              ...current,
-              status: "completed",
-              progress: 1,
-              current_bytes: current.total_bytes || current.current_bytes || 1,
-              total_bytes: current.total_bytes || current.current_bytes || 1,
-              message: "Upload completed",
-              completed_at: Math.floor(Date.now() / 1000),
-            });
-            this.tasks = new Map(this.tasks);
-          }
-
-          const after = this.completionCallbacks.get(next.upload_id);
-          const finished = this.tasks.get(next.upload_id);
-          if (after && finished && ["completed", "skipped"].includes(finished.status)) {
-            await after();
-          }
-        } catch (err) {
-          const current = this.tasks.get(next.upload_id);
-          if (!current || ["paused", "cancelled", "failed"].includes(current.status)) {
-            continue;
-          }
-          this.markFailed(next.upload_id, formatStoreError(err));
+        for (const task of nextTasks) {
+          this.startRunner(task);
         }
       }
     } finally {
       this.processing = false;
     }
+  }
+
+  private startRunner(task: UploadTaskDto) {
+    const runner = this.runners.get(task.upload_id);
+    if (!runner || this.activeRunners.has(task.upload_id)) return;
+
+    this.activeRunners.add(task.upload_id);
+    this.tasks.set(task.upload_id, {
+      ...task,
+      status: "uploading",
+      message: task.message ?? "Preparing upload",
+      error: null,
+      completed_at: null,
+    });
+    this.tasks = new Map(this.tasks);
+
+    void (async () => {
+      try {
+        await runner(task.upload_id);
+        const current = this.tasks.get(task.upload_id);
+        if (current && current.status === "uploading") {
+          this.tasks.set(task.upload_id, {
+            ...current,
+            status: "completed",
+            progress: 1,
+            current_bytes: current.total_bytes || current.current_bytes || 1,
+            total_bytes: current.total_bytes || current.current_bytes || 1,
+            message: "Upload completed",
+            completed_at: Math.floor(Date.now() / 1000),
+          });
+          this.tasks = new Map(this.tasks);
+        }
+
+        const after = this.completionCallbacks.get(task.upload_id);
+        const finished = this.tasks.get(task.upload_id);
+        if (after && finished && ["completed", "skipped"].includes(finished.status)) {
+          await after();
+        }
+      } catch (err) {
+        const current = this.tasks.get(task.upload_id);
+        if (!current || ["paused", "cancelled", "failed"].includes(current.status)) {
+          return;
+        }
+        this.markFailed(task.upload_id, formatStoreError(err));
+      } finally {
+        this.activeRunners.delete(task.upload_id);
+        void this.processQueue();
+      }
+    })();
   }
 
   applyProgress(event: UploadProgressEvent) {
@@ -522,6 +564,18 @@ export const uploadStore = new UploadStoreImpl();
 
 function formatStoreError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+const DEFAULT_TASK_CONCURRENCY = 3;
+const MIN_TASK_CONCURRENCY = 1;
+const MAX_TASK_CONCURRENCY = 8;
+
+function normalizeTaskConcurrency(value: number | null | undefined) {
+  if (!Number.isFinite(value)) return DEFAULT_TASK_CONCURRENCY;
+  return Math.min(
+    MAX_TASK_CONCURRENCY,
+    Math.max(MIN_TASK_CONCURRENCY, Math.trunc(value ?? DEFAULT_TASK_CONCURRENCY)),
+  );
 }
 
 // ---------------------------------------------------------------------------

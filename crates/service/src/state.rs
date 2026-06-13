@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 use tokio::sync::{Mutex, RwLock, broadcast};
 use zeroize::Zeroizing;
@@ -74,6 +74,9 @@ pub struct AppState {
     /// Whether the server has activated lockdown mode.
     pub app_lockdown: AtomicBool,
 
+    /// Runtime download queue concurrency, mirrored from user preferences.
+    pub download_max_concurrent: AtomicUsize,
+
     /// Whether a 2FA verification is pending during login.
     /// When true, the user has submitted credentials but hasn't completed
     /// 2FA yet — `token` holds a placeholder and `is_logged_in` helpers
@@ -120,6 +123,7 @@ impl AppState {
             client_key_path: RwLock::new(None),
             reconnect_lock: Mutex::new(()),
             app_lockdown: AtomicBool::new(false),
+            download_max_concurrent: AtomicUsize::new(cfms_core::DEFAULT_TASK_CONCURRENCY as usize),
             pending_2fa: AtomicBool::new(false),
             event_tx,
         })

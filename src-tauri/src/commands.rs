@@ -4143,12 +4143,15 @@ pub async fn load_user_preference(
     };
 
     let app_data_dir = state.app_data_dir.clone();
-    let pref = tokio::task::spawn_blocking(move || {
+    let mut pref = tokio::task::spawn_blocking(move || {
         cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, dek.as_deref())
             .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Preference load task failed: {e}"))??;
+
+    pref.task_concurrency = pref.task_concurrency.normalized();
+    sync_runtime_preferences(&state, &pref);
 
     serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))
 }
@@ -4178,8 +4181,10 @@ pub async fn save_user_preference(
     .ok_or_else(|| "No server address".to_string())?;
 
     let server_hash = cfms_core::get_server_hash(&server_addr);
-    let preferences: UserPreference =
+    let mut preferences: UserPreference =
         serde_json::from_value(preferences).map_err(|e| format!("Invalid preference data: {e}"))?;
+    preferences.task_concurrency = preferences.task_concurrency.normalized();
+    sync_runtime_preferences(&state, &preferences);
 
     let dek = {
         let d = state.inner.dek.read().await;
@@ -4199,6 +4204,13 @@ pub async fn save_user_preference(
     })
     .await
     .map_err(|e| format!("Preference save task failed: {e}"))?
+}
+
+fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference) {
+    state.inner.download_max_concurrent.store(
+        preferences.task_concurrency.max_downloads as usize,
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }
 
 // ---------------------------------------------------------------------------

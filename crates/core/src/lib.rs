@@ -17,9 +17,10 @@ pub mod types;
 // `cfms_core::Error` instead of `cfms_core::error::Error`.
 pub use error::{Error, Result};
 pub use types::{
-    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, Favourites, FileEntry,
-    FileMetadata, ListDirectoryResponse, Response, ServerDirectoryEntry, ServerDocumentEntry,
-    ServerInfo, ServiceEvent, ServiceStatusInfo, UploadProgress, UserPreference,
+    DEFAULT_TASK_CONCURRENCY, DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus,
+    Favourites, FileEntry, FileMetadata, ListDirectoryResponse, MAX_TASK_CONCURRENCY,
+    MIN_TASK_CONCURRENCY, Response, ServerDirectoryEntry, ServerDocumentEntry, ServerInfo,
+    ServiceEvent, ServiceStatusInfo, TaskConcurrencyPreference, UploadProgress, UserPreference,
 };
 
 // ---------------------------------------------------------------------------

@@ -363,6 +363,10 @@ pub struct UserPreference {
     /// platform credential metadata are encrypted with the user preference DEK.
     #[serde(default)]
     pub app_lock: serde_json::Value,
+
+    /// Per-user task scheduling limits for upload/download queues.
+    #[serde(default)]
+    pub task_concurrency: TaskConcurrencyPreference,
 }
 
 impl Default for UserPreference {
@@ -375,6 +379,7 @@ impl Default for UserPreference {
             use_external_storage: false,
             external_storage_path: String::new(),
             app_lock: serde_json::Value::Null,
+            task_concurrency: TaskConcurrencyPreference::default(),
         }
     }
 }
@@ -385,6 +390,46 @@ fn default_theme() -> String {
 
 fn default_record_recent_visits() -> bool {
     false
+}
+
+pub const MIN_TASK_CONCURRENCY: u8 = 1;
+pub const DEFAULT_TASK_CONCURRENCY: u8 = 3;
+pub const MAX_TASK_CONCURRENCY: u8 = 8;
+
+/// Upload/download concurrency limits stored in user preferences.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct TaskConcurrencyPreference {
+    #[serde(default = "default_task_concurrency")]
+    pub max_downloads: u8,
+
+    #[serde(default = "default_task_concurrency")]
+    pub max_uploads: u8,
+}
+
+impl Default for TaskConcurrencyPreference {
+    fn default() -> Self {
+        Self {
+            max_downloads: DEFAULT_TASK_CONCURRENCY,
+            max_uploads: DEFAULT_TASK_CONCURRENCY,
+        }
+    }
+}
+
+impl TaskConcurrencyPreference {
+    pub fn normalized(self) -> Self {
+        Self {
+            max_downloads: normalize_task_concurrency(self.max_downloads),
+            max_uploads: normalize_task_concurrency(self.max_uploads),
+        }
+    }
+}
+
+pub fn normalize_task_concurrency(value: u8) -> u8 {
+    value.clamp(MIN_TASK_CONCURRENCY, MAX_TASK_CONCURRENCY)
+}
+
+fn default_task_concurrency() -> u8 {
+    DEFAULT_TASK_CONCURRENCY
 }
 
 /// Bookmarked files and directories.

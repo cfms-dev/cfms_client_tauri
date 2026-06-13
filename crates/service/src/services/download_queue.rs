@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -13,9 +14,6 @@ use crate::state::AppState;
 
 /// Queue check interval.
 pub const INTERVAL: Duration = Duration::from_secs(1);
-
-/// Maximum concurrent downloads.
-const MAX_CONCURRENT: usize = 3;
 
 /// Statuses that count toward the navigation badge (non-terminal, actively
 /// queued/running).  Mirrors `_ACTIVE_BADGE_STATUSES` in the Python reference.
@@ -518,14 +516,18 @@ async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry
         tracing::debug!("Promoted {promoted} scheduled tasks to pending");
     }
 
+    let max_concurrent = state.download_max_concurrent.load(Ordering::Relaxed).clamp(
+        cfms_core::MIN_TASK_CONCURRENCY as usize,
+        cfms_core::MAX_TASK_CONCURRENCY as usize,
+    );
     let active_count = active.count();
-    if active_count >= MAX_CONCURRENT {
+    if active_count >= max_concurrent {
         return;
     }
 
     let pending = queue.pending_tasks();
 
-    let slots = MAX_CONCURRENT - active_count;
+    let slots = max_concurrent - active_count;
     for task in pending.into_iter().take(slots) {
         if task.status == DownloadTaskStatus::Cancelled {
             continue;

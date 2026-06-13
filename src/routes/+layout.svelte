@@ -27,6 +27,7 @@
     serverStateStore,
     serviceStatusStore,
     disclaimerStore,
+    uploadStore,
   } from "$lib/stores.svelte";
   import { appLockStore } from "$lib/app-lock.svelte";
   import { clearAuthSession, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
@@ -167,6 +168,7 @@
     if (!authStore.isLoggedIn || !authStore.username) return;
     const scopeKey = `${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`;
     void appLockStore.init(scopeKey);
+    void uploadStore.initConcurrency(scopeKey);
   });
 
   onMount(() => {
