@@ -13,7 +13,7 @@ const SETTINGS_KEY = 'app_lock_settings_v1';
 const PIN_ITERATIONS = 180_000;
 const PIN_LENGTH = 4;
 const DEFAULT_TIMED_LOCK_MS = 5 * 60 * 1000;
-const ANDROID_PASSKEY_RP_ID = 'cfms-client-tauri.crpteam.club';
+const ANDROID_PASSKEY_RP_ID = 'cfms-dev.github.io';
 
 export type AppLockMethod = 'pin' | 'platform';
 

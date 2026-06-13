@@ -2,6 +2,6 @@
     <string name="app_name">cfms-client-tauri</string>
     <string name="main_activity_title">cfms-client-tauri</string>
     <string name="asset_statements" translatable="false">[{
-        \"include\": \"https://cfms-client-tauri.crpteam.club/.well-known/assetlinks.json\"
+        \"include\": \"https://cfms-dev.github.io/.well-known/assetlinks.json\"
     }]</string>
 </resources>
