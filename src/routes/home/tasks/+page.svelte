@@ -41,8 +41,8 @@
     { key: 'cancelled', label: $t('tasks.cancelled'), count: currentTaskCount('cancelled') },
   ]);
 
-  const filteredDownloads = $derived(filterDownloadTasks([...downloadStore.tasks.values()], filter));
-  const filteredUploads = $derived(filterUploadTasks(uploadStore.allTasks, filter));
+  const filteredDownloads = $derived(sortTasksForDisplay(filterDownloadTasks([...downloadStore.tasks.values()], filter), isRunningDownload));
+  const filteredUploads = $derived(sortTasksForDisplay(filterUploadTasks(uploadStore.allTasks, filter), isRunningUpload));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
   const visibleTaskCount = $derived(activeTab === 'downloads' ? filteredDownloads.length : filteredUploads.length);
   const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
@@ -103,6 +103,29 @@
     if (nextFilter === 'active') return task.status === 'uploading';
     if (nextFilter === 'completed') return task.status === 'completed' || task.status === 'skipped';
     return task.status === nextFilter;
+  }
+
+  function sortTasksForDisplay<T>(tasks: T[], isRunning: (task: T) => boolean): T[] {
+    const running: T[] = [];
+    const rest: T[] = [];
+
+    for (const task of tasks) {
+      if (isRunning(task)) {
+        running.push(task);
+      } else {
+        rest.push(task);
+      }
+    }
+
+    return [...running, ...rest];
+  }
+
+  function isRunningDownload(task: DownloadTaskDto) {
+    return ['downloading', 'decrypting', 'verifying'].includes(task.status);
+  }
+
+  function isRunningUpload(task: UploadTaskDto) {
+    return task.status === 'uploading';
   }
 
   async function handleClearCompleted() {

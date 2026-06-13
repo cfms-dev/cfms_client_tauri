@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getDirectoryInfo, getDocument } from '$lib/api';
+  import { getDirectoryInfo, getDocument, loadUserPreference } from '$lib/api';
   import Icon from '$lib/components/Icon.svelte';
   import HomeRecordPanel from '$lib/components/HomeRecordPanel.svelte';
   import {
@@ -13,6 +13,7 @@
     rememberVisit,
     removeRecentVisit,
     setFavoriteRecord,
+    shouldRecordRecentVisits,
     type FilePreferenceScope,
     type FileRecord,
     type RecentFileRecord,
@@ -29,15 +30,19 @@
   let favorites = $state<FileRecord[]>([]);
   let loadingFavorites = $state(true);
   let openingId = $state<string | null>(null);
+  let recordRecentVisits = $state(true);
 
   onMount(async () => {
     const scope = currentFilePreferenceScope();
     try {
+      const preferences = await loadUserPreference();
+      recordRecentVisits = shouldRecordRecentVisits(preferences);
       recent = await loadRecentVisits(scope);
       favorites = await loadFavoriteRecords(scope);
     } catch {
       recent = [];
       favorites = [];
+      recordRecentVisits = true;
     } finally {
       loadingFavorites = false;
     }
@@ -150,7 +155,7 @@
       title={$t('home.recent')}
       icon="history"
       records={recent}
-      emptyLabel={$t('home.noRecent')}
+      emptyLabel={recordRecentVisits ? $t('home.noRecent') : $t('home.recentRecordingDisabled')}
       loadingLabel={$t('common.loadingEllipsis')}
       clearLabel={$t('home.clearRecent')}
       removeLabel={$t('home.removeShortcut')}
