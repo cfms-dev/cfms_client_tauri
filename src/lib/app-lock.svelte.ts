@@ -79,6 +79,10 @@ class AppLockStoreImpl {
     return this.settings.enabled && this.hasAnyMethod;
   }
 
+  get canUseRootBackBackground() {
+    return this.canLock && this.settings.timedLockEnabled;
+  }
+
   get methods(): AppLockMethod[] {
     const methods: AppLockMethod[] = [];
     if (this.hasPin) methods.push('pin');

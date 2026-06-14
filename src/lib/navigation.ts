@@ -1,10 +1,11 @@
 import { afterNavigate, goto } from '$app/navigation';
-import { invoke } from '@tauri-apps/api/core';
 import {
   getRootBackButtonBehavior,
   type RootBackButtonBehavior,
 } from '$lib/api/settings';
-import { moveAppToBackground } from '$lib/api/mobile';
+import { moveAppToBackground, exitAppAfterLauncherTransition } from '$lib/api/mobile';
+import { appLockStore } from '$lib/app-lock.svelte';
+import { authStore } from '$lib/stores.svelte';
 
 export type { RootBackButtonBehavior } from '$lib/api/settings';
 
@@ -28,6 +29,7 @@ let initialized = false;
 
 interface NavigateUpOptions {
   rootBackButtonBehavior?: RootBackButtonBehavior;
+  onBackgroundUnavailable?: () => void;
 }
 
 export function initNavigationHistory(): void {
@@ -99,6 +101,16 @@ export async function navigateUp(pathname: string, options: NavigateUpOptions = 
   }
 
   if ((options.rootBackButtonBehavior ?? await getRootBackButtonBehavior()) === 'background') {
+    if (!authStore.isLoggedIn) {
+      await exitApp();
+      return;
+    }
+
+    if (!appLockStore.canUseRootBackBackground) {
+      options.onBackgroundUnavailable?.();
+      return;
+    }
+
     try {
       await moveAppToBackground();
       return;
@@ -114,7 +126,7 @@ export async function navigateUp(pathname: string, options: NavigateUpOptions = 
 
 async function exitApp(): Promise<void> {
   try {
-    await invoke('plugin:app|exit');
+    await exitAppAfterLauncherTransition();
     return;
   } catch {
     const { exit } = await import('@tauri-apps/plugin-process');

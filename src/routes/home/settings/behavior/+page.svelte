@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -7,8 +8,9 @@
     setRootBackButtonBehavior,
     type RootBackButtonBehavior,
   } from '$lib/api';
+  import { appLockStore } from '$lib/app-lock.svelte';
   import { navigateUp } from '$lib/navigation';
-  import { notificationStore } from '$lib/stores.svelte';
+  import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdRadio from '$lib/components/MdRadio.svelte';
 
@@ -25,10 +27,13 @@
     },
   ];
 
-  let behavior = $state<RootBackButtonBehavior>('background');
+  let behavior = $state<RootBackButtonBehavior>('exit');
   let loading = $state(true);
   let saving = $state(false);
   let error = $state<string | null>(null);
+
+  const canUseBackgroundBehavior = $derived(appLockStore.canUseRootBackBackground);
+  const backgroundBehaviorUnavailable = $derived(!canUseBackgroundBehavior);
 
   $effect(() => {
     if (!error) return;
@@ -37,8 +42,20 @@
   });
 
   onMount(async () => {
+    if (!authStore.isLoggedIn) {
+      await goto('/home/settings', { replaceState: true });
+      return;
+    }
+
     try {
-      behavior = await getRootBackButtonBehavior();
+      if (authStore.username) {
+        await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+      }
+
+      const savedBehavior = await getRootBackButtonBehavior();
+      behavior = savedBehavior === 'background' && !appLockStore.canUseRootBackBackground
+        ? 'exit'
+        : savedBehavior;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -46,7 +63,17 @@
     }
   });
 
+  $effect(() => {
+    if (behavior === 'background' && !canUseBackgroundBehavior) {
+      behavior = 'exit';
+    }
+  });
+
   async function saveBehavior() {
+    if (behavior === 'background' && !canUseBackgroundBehavior) {
+      return;
+    }
+
     saving = true;
     error = null;
     try {
@@ -61,6 +88,10 @@
 
   function selectBehavior(nextBehavior: RootBackButtonBehavior) {
     if (loading || saving) return;
+    if (nextBehavior === 'background' && !canUseBackgroundBehavior) {
+      return;
+    }
+
     behavior = nextBehavior;
   }
 
@@ -69,8 +100,13 @@
     event.preventDefault();
     selectBehavior(nextBehavior);
   }
+
+  function isOptionUnavailable(value: RootBackButtonBehavior) {
+    return value === 'background' && backgroundBehaviorUnavailable;
+  }
 </script>
 
+{#if authStore.isLoggedIn}
 <div class="p-6 space-y-4 max-w-lg mx-auto">
   <button
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
@@ -110,6 +146,7 @@
 
       <div class="space-y-2" role="radiogroup" aria-label={$t('settings.behavior.rootBackTitle')}>
         {#each behaviorOptions as option}
+          {@const optionUnavailable = isOptionUnavailable(option.value)}
           <div
             class="flex w-full items-start gap-3 px-3 py-2.5 rounded-lg text-left
                    text-sm text-md3-on-surface border transition-all outline-none
@@ -118,17 +155,18 @@
                    {behavior === option.value
                      ? 'border-md3-primary bg-md3-primary-container/15'
                      : 'border-md3-outline/50 bg-md3-surface-container-high/40'}
-                   {loading || saving ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}"
+                   {loading || saving || optionUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}"
             style="font-family: var(--font-md3-sans);"
             role="radio"
             aria-checked={behavior === option.value}
-            tabindex={loading || saving ? -1 : 0}
+            aria-disabled={optionUnavailable}
+            tabindex={loading || saving || optionUnavailable ? -1 : 0}
             onclick={() => selectBehavior(option.value)}
             onkeydown={(event) => handleOptionKeydown(event, option.value)}
           >
             <MdRadio
               checked={behavior === option.value}
-              disabled={loading || saving}
+              disabled={loading || saving || optionUnavailable}
               ariaLabel={$t(option.labelKey)}
               class="mt-0.5 shrink-0"
               onSelect={() => selectBehavior(option.value)}
@@ -157,3 +195,4 @@
     </button>
   </div>
 </div>
+{/if}

@@ -327,6 +327,7 @@ pub fn run() {
             commands::android_create_passkey,
             commands::android_get_passkey,
             commands::move_app_to_background,
+            commands::exit_app_after_launcher_transition,
             commands::check_app_update,
             commands::install_app_update,
             commands::add_download,

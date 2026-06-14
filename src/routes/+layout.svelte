@@ -17,6 +17,7 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
+  import { _ as t } from "svelte-i18n";
   import { onBackButtonPress } from "@tauri-apps/api/app";
   import { initEventListeners } from "$lib/events";
   import { initI18n } from "$lib/i18n";
@@ -28,6 +29,7 @@
     serviceStatusStore,
     disclaimerStore,
     uploadStore,
+    notificationStore,
   } from "$lib/stores.svelte";
   import { appLockStore } from "$lib/app-lock.svelte";
   import { clearAuthSession, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
@@ -184,7 +186,11 @@
         if (handlingBackButton) return;
         handlingBackButton = true;
         try {
-          await navigateUp(page.url.pathname);
+          await navigateUp(page.url.pathname, {
+            onBackgroundUnavailable: () => {
+              notificationStore.warning($t('settings.behavior.rootBackBackgroundUnavailable'), 5000);
+            },
+          });
         } finally {
           handlingBackButton = false;
         }

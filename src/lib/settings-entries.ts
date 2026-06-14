@@ -29,7 +29,8 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     descriptionKey: 'settings.behavior.description',
     icon: 'touchApp',
     href: '/home/settings/behavior',
-    platformScope: 'mobile',
+    requiresAuth: true,
+    // platformScope: 'mobile',
   },
   {
     labelKey: 'settings.connection.title',

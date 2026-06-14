@@ -5,7 +5,7 @@ import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings
 export type RootBackButtonBehavior = 'background' | 'exit';
 
 export const ROOT_BACK_BUTTON_BEHAVIOR_KEY = 'root_back_button_behavior';
-export const DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR: RootBackButtonBehavior = 'background';
+export const DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR: RootBackButtonBehavior = 'exit';
 
 /** Scan a local directory recursively. */
 export async function scanDirectory(
@@ -46,7 +46,7 @@ export async function setRootBackButtonBehavior(behavior: RootBackButtonBehavior
 export function normalizeRootBackButtonBehavior(
   value: string | null | undefined,
 ): RootBackButtonBehavior {
-  return value === 'exit' ? 'exit' : DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
+  return value === 'background' ? 'background' : DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
 }
 
 /** Get the active backend locale. */

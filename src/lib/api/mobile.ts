@@ -5,3 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 export async function moveAppToBackground(): Promise<void> {
   return invoke("move_app_to_background");
 }
+
+/** Move to the launcher first on Android, then terminate after the transition. */
+export async function exitAppAfterLauncherTransition(): Promise<void> {
+  return invoke("exit_app_after_launcher_transition");
+}
