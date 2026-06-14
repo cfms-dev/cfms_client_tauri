@@ -4,15 +4,17 @@
   let {
     content,
     compact = false,
+    font = 'sans',
   }: {
     content: string | null | undefined;
     compact?: boolean;
+    font?: 'sans' | 'serif';
   } = $props();
 
   const renderedContent = $derived(renderMarkdown(content));
 </script>
 
-<div class="markdown-view" class:compact>
+<div class="markdown-view" class:compact class:serif={font === 'serif'}>
   {@html renderedContent}
 </div>
 
@@ -32,13 +34,17 @@
     line-height: 1.55;
   }
 
+  .markdown-view.serif {
+    font-family: var(--font-md3-serif);
+  }
+
   .markdown-view :global(:where(h1, h2, h3, h4, h5, h6, p, ul, ol, pre, blockquote, table, hr)) {
     margin: 0;
   }
 
   .markdown-view :global(:where(h1, h2, h3, h4, h5, h6)) {
     color: var(--color-md3-on-surface);
-    font-family: var(--font-md3-sans);
+    font-family: inherit;
     font-weight: 800;
     letter-spacing: 0;
   }

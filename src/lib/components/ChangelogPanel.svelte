@@ -45,7 +45,7 @@
             </div>
             <time datetime={entry.date ?? undefined}>{entryDate(entry)}</time>
           </div>
-          <MarkdownView content={entry.content} compact />
+          <MarkdownView content={entry.content} compact font="serif" />
         </div>
       </article>
     {/each}
@@ -76,7 +76,7 @@
   h2,
   h3 {
     color: var(--color-md3-on-surface);
-    font-family: var(--font-md3-sans);
+    font-family: var(--font-md3-serif);
     font-weight: 800;
     letter-spacing: 0;
   }
@@ -154,12 +154,13 @@
   .version {
     display: inline-flex;
     color: var(--color-md3-primary-emphasis);
-    font: 700 0.75rem var(--font-md3-mono);
+    font: 700 0.75rem var(--font-md3-serif);
   }
 
   time {
     flex: none;
     color: var(--color-md3-on-surface-variant);
+    font-family: var(--font-md3-serif);
     font-size: 0.75rem;
   }
 
@@ -173,7 +174,7 @@
     border-radius: 6px;
     padding: 0 0.65rem;
     color: var(--color-md3-primary-emphasis);
-    font: 700 0.8125rem var(--font-md3-sans);
+    font: 700 0.8125rem var(--font-md3-serif);
     transition: background-color var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
