@@ -10,39 +10,10 @@
   import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
   import { navigateUp } from '$lib/navigation';
+  import { getVisibleSettingsEntries } from '$lib/settings-entries';
   import Icon from '$lib/components/Icon.svelte';
-  import type { IconName } from '$lib/icons';
 
-  interface SettingsEntry {
-    labelKey: string;
-    descriptionKey: string;
-    icon: IconName;
-    href: string;
-    requiresAuth?: boolean;
-  }
-
-  const entries: SettingsEntry[] = [
-    { labelKey: 'settings.language.title', descriptionKey: 'settings.language.description',
-      icon: 'language', href: '/home/settings/language' },
-    { labelKey: 'settings.behavior.title', descriptionKey: 'settings.behavior.description',
-      icon: 'touchApp', href: '/home/settings/behavior' },
-    { labelKey: 'settings.connection.title', descriptionKey: 'settings.connection.description',
-      icon: 'connect', href: '/home/settings/connection' },
-    { labelKey: 'settings.storage.title', descriptionKey: 'settings.storage.description',
-      icon: 'storage', href: '/home/settings/storage', requiresAuth: true },
-    { labelKey: 'settings.activity.title', descriptionKey: 'settings.activity.description',
-      icon: 'history', href: '/home/settings/activity', requiresAuth: true },
-    { labelKey: 'settings.tasks.title', descriptionKey: 'settings.tasks.description',
-      icon: 'tasks', href: '/home/settings/tasks', requiresAuth: true },
-    { labelKey: 'appLock.settings.title', descriptionKey: 'appLock.settings.description',
-      icon: 'lockPerson', href: '/home/settings/app-lock', requiresAuth: true },
-    { labelKey: 'settings.updates.title', descriptionKey: 'settings.updates.description',
-      icon: 'browserUpdated', href: '/home/settings/updates' },
-    { labelKey: 'settings.twofa.title', descriptionKey: 'settings.twofa.description',
-      icon: 'verifiedUser', href: '/home/settings/twofa', requiresAuth: true },
-  ];
-
-  const visibleEntries = $derived(entries.filter((entry) => !entry.requiresAuth || authStore.isLoggedIn));
+  const visibleEntries = $derived(getVisibleSettingsEntries({ isLoggedIn: authStore.isLoggedIn }));
 
   function goBack() {
     void navigateUp(page.url.pathname);
