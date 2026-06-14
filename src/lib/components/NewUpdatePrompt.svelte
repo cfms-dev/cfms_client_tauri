@@ -1,14 +1,10 @@
 <script lang="ts">
   import { browser } from '$app/environment';
+  import { goto } from '$app/navigation';
   import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
   import { appUpdateState } from '$lib/app-update-state.svelte';
-  import {
-    formatBytes,
-    installAppUpdate,
-    relaunchApp,
-    type UpdateProgressSnapshot,
-  } from '$lib/updater';
+  import type { UpdateNotificationCopy } from '$lib/update-notifications';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import { flyScale } from '$lib/motion/transitions';
   import { openExternalUrl } from '$lib/open-external';
@@ -21,38 +17,8 @@
   let promptedVersion = $state<string | null>(browser ? localStorage.getItem(promptedVersionKey) : null);
   let visible = $state(false);
   let activeVersion = $state<string | null>(null);
-  let installing = $state(false);
-  let installed = $state(false);
-  let progress = $state<UpdateProgressSnapshot>({
-    phase: 'idle',
-    downloadedBytes: 0,
-    totalBytes: null,
-    progress: null,
-  });
 
   const update = $derived(appUpdateState.update);
-  const progressPercent = $derived(
-    progress.progress === null ? null : Math.round(progress.progress * 1000) / 10,
-  );
-  const progressLabel = $derived.by(() => {
-    if (progress.phase === 'installing') return $t('settings.updates.installing');
-    if (progress.phase === 'finished') return $t('settings.updates.installed');
-    if (progress.totalBytes) {
-      return $t('settings.updates.downloadProgress', {
-        values: {
-          percent: progressPercent?.toFixed(1) ?? '0.0',
-          current: formatBytes(progress.downloadedBytes),
-          total: formatBytes(progress.totalBytes),
-        },
-      });
-    }
-    if (progress.downloadedBytes > 0) {
-      return $t('settings.updates.downloadedBytes', {
-        values: { current: formatBytes(progress.downloadedBytes) },
-      });
-    }
-    return $t('settings.updates.preparingDownload');
-  });
   const installButtonLabel = $derived(
     update?.installMode === 'android-apk'
       ? $t('settings.updates.downloadAndOpenInstaller')
@@ -72,8 +38,6 @@
     activeVersion = update.version;
     promptedVersion = update.version;
     localStorage.setItem(promptedVersionKey, update.version);
-    installed = false;
-    progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
     visible = true;
   });
 
@@ -82,30 +46,16 @@
   }
 
   async function installUpdate() {
-    if (!update || installing) return;
-    installing = true;
-    installed = false;
-    progress = { phase: 'downloading', downloadedBytes: 0, totalBytes: null, progress: null };
+    if (!update || appUpdateState.installing) return;
+    visible = false;
 
     try {
-      await installAppUpdate((snapshot) => {
-        progress = snapshot;
-      });
-      installed = true;
-      notificationStore.success(installCompleteMessage);
+      await goto('/home/about');
+      await appUpdateState.install(createUpdateNotificationCopy());
     } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
-      progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
-    } finally {
-      installing = false;
-    }
-  }
-
-  async function restartNow() {
-    try {
-      await relaunchApp();
-    } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
+      if (!appUpdateState.installError) {
+        notificationStore.error(err instanceof Error ? err.message : String(err));
+      }
     }
   }
 
@@ -158,6 +108,17 @@
     if (lower.includes('rc')) return 2;
     return 0;
   }
+
+  function createUpdateNotificationCopy(): UpdateNotificationCopy {
+    return {
+      title: $t('about.softwareUpdate'),
+      preparingDownload: $t('settings.updates.preparingDownload'),
+      installing: $t('settings.updates.installing'),
+      installed: installCompleteMessage,
+      downloadProgress: (values) => $t('settings.updates.downloadProgress', { values }),
+      downloadedBytes: (values) => $t('settings.updates.downloadedBytes', { values }),
+    };
+  }
 </script>
 
 {#if visible && update}
@@ -192,46 +153,22 @@
         </section>
       {/if}
 
-      {#if installing || progress.phase !== 'idle'}
-        <div class="progress-block">
-          <div class="progress-track" aria-label={progressLabel}>
-            <div
-              class="progress-fill {progress.progress === null && progress.phase === 'downloading' ? 'animate-progress-stripe' : ''}"
-              style="width: {progress.progress === null ? 0 : progress.progress * 100}%;"
-            ></div>
-          </div>
-          <div class="progress-label">
-            <span>{progressLabel}</span>
-            {#if progressPercent !== null}
-              <span>{progressPercent.toFixed(1)}%</span>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
       <div class="actions">
-        {#if installed && update.installMode !== 'android-apk'}
-          <button type="button" class="primary-action" onclick={restartNow}>
-            <Icon name="refresh" size="20px" />
-            {$t('settings.updates.restartNow')}
-          </button>
-        {:else}
-          <button type="button" class="primary-action" onclick={installUpdate} disabled={installing}>
-            {#if installing}
-              <ProgressRing size={20} strokeWidth={2.6} label={$t('settings.updates.installing')} />
-            {:else}
-              <Icon name="download" size="20px" />
-            {/if}
-            {installButtonLabel}
-          </button>
-        {/if}
+        <button type="button" class="primary-action" onclick={installUpdate} disabled={appUpdateState.installing}>
+          {#if appUpdateState.installing}
+            <ProgressRing size={20} strokeWidth={2.6} label={$t('settings.updates.installing')} />
+          {:else}
+            <Icon name="download" size="20px" />
+          {/if}
+          {installButtonLabel}
+        </button>
 
-        <button type="button" class="tonal-action" onclick={openReleasePage} disabled={installing}>
+        <button type="button" class="tonal-action" onclick={openReleasePage} disabled={appUpdateState.installing}>
           <Icon name="openInNew" size="20px" />
           {$t('settings.updates.openRelease')}
         </button>
 
-        <button type="button" class="text-action" onclick={closePrompt} disabled={installing}>
+        <button type="button" class="text-action" onclick={closePrompt} disabled={appUpdateState.installing}>
           {$t('settings.updates.notNow')}
         </button>
       </div>
@@ -335,34 +272,6 @@
     background: rgba(248, 250, 252, 0.72);
   }
 
-  .progress-block {
-    width: min(520px, 100%);
-    display: grid;
-    gap: 0.55rem;
-  }
-
-  .progress-track {
-    height: 0.32rem;
-    overflow: hidden;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--color-md3-outline) 55%, transparent);
-  }
-
-  .progress-fill {
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--color-md3-primary-emphasis), var(--color-md3-success));
-    transition: width var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate);
-  }
-
-  .progress-label {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 0.75rem;
-  }
-
   .actions {
     display: flex;
     flex-wrap: wrap;
@@ -406,7 +315,7 @@
   }
 
   .primary-action:hover:not(:disabled),
-  .tonal-action:hover,
+  .tonal-action:hover:not(:disabled),
   .text-action:hover:not(:disabled) {
     transform: translateY(-1px);
   }
