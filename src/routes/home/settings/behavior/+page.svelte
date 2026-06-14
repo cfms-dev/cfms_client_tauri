@@ -144,6 +144,31 @@
         </p>
       </div>
 
+      {#if backgroundBehaviorUnavailable}
+        <div
+          class="flex flex-wrap items-center gap-3 rounded-lg border border-md3-outline/70
+                 bg-md3-surface-container-high/55 px-3 py-3 text-sm text-md3-on-surface"
+        >
+          <span class="shrink-0 text-md3-primary-emphasis">
+            <Icon name="warningAmber" size="20px" />
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block font-medium">{$t('settings.behavior.rootBackRequirementTitle')}</span>
+            <span class="block text-xs text-md3-on-surface-variant mt-0.5">
+              {$t('settings.behavior.rootBackRequirementHint')}
+            </span>
+          </span>
+          <a
+            class="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold
+                   text-md3-primary transition-colors hover:bg-md3-primary-container/30"
+            href="/home/settings/app-lock"
+          >
+            <Icon name="lockPerson" size="16px" />
+            {$t('settings.behavior.openAppLock')}
+          </a>
+        </div>
+      {/if}
+
       <div class="space-y-2" role="radiogroup" aria-label={$t('settings.behavior.rootBackTitle')}>
         {#each behaviorOptions as option}
           {@const optionUnavailable = isOptionUnavailable(option.value)}

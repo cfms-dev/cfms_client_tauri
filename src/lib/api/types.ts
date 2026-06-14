@@ -415,6 +415,7 @@ export interface UserPreference {
   use_external_storage: boolean;
   external_storage_path: string;
   app_lock?: unknown;
+  root_back_button_behavior?: "background" | "exit" | null;
   task_concurrency: TaskConcurrencyPreference;
 }
 

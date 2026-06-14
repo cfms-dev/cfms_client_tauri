@@ -364,6 +364,10 @@ pub struct UserPreference {
     #[serde(default)]
     pub app_lock: serde_json::Value,
 
+    /// Per-user Android root back-button behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_back_button_behavior: Option<String>,
+
     /// Per-user task scheduling limits for upload/download queues.
     #[serde(default)]
     pub task_concurrency: TaskConcurrencyPreference,
@@ -379,6 +383,7 @@ impl Default for UserPreference {
             use_external_storage: false,
             external_storage_path: String::new(),
             app_lock: serde_json::Value::Null,
+            root_back_button_behavior: None,
             task_concurrency: TaskConcurrencyPreference::default(),
         }
     }

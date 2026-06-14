@@ -1,6 +1,7 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
 import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings, FileEntry } from './types';
+import { loadUserPreference, saveUserPreference } from './preferences';
 
 export type RootBackButtonBehavior = 'background' | 'exit';
 
@@ -32,7 +33,19 @@ export async function setSetting(key: string, value: string): Promise<void> {
 /** Load the configured behavior for pressing Android back on a root page. */
 export async function getRootBackButtonBehavior(): Promise<RootBackButtonBehavior> {
   try {
-    return normalizeRootBackButtonBehavior(await getSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY));
+    const preferences = await loadUserPreference();
+    if (preferences.root_back_button_behavior != null) {
+      return normalizeRootBackButtonBehavior(preferences.root_back_button_behavior);
+    }
+
+    const migratedBehavior = normalizeRootBackButtonBehavior(
+      await getSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY),
+    );
+    await saveUserPreference({
+      ...preferences,
+      root_back_button_behavior: migratedBehavior,
+    });
+    return migratedBehavior;
   } catch {
     return DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
   }
@@ -40,7 +53,11 @@ export async function getRootBackButtonBehavior(): Promise<RootBackButtonBehavio
 
 /** Persist the configured behavior for pressing Android back on a root page. */
 export async function setRootBackButtonBehavior(behavior: RootBackButtonBehavior): Promise<void> {
-  return setSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY, behavior);
+  const preferences = await loadUserPreference();
+  await saveUserPreference({
+    ...preferences,
+    root_back_button_behavior: behavior,
+  });
 }
 
 export function normalizeRootBackButtonBehavior(
