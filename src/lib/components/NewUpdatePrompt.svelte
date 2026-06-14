@@ -5,9 +5,9 @@
   import { _ as t } from 'svelte-i18n';
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import type { UpdateNotificationCopy } from '$lib/update-notifications';
+  import { openUrl } from '@tauri-apps/plugin-opener';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import { flyScale } from '$lib/motion/transitions';
-  import { openExternalUrl } from '$lib/open-external';
   import Icon from '$lib/components/Icon.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -62,7 +62,7 @@
   async function openReleasePage() {
     if (!update?.releaseUrl) return;
     try {
-      await openExternalUrl(update.releaseUrl);
+      await openUrl(update.releaseUrl);
     } catch (err) {
       notificationStore.error(err instanceof Error ? err.message : String(err));
     }
