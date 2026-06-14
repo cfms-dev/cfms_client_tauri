@@ -5,7 +5,6 @@ import { loadUserPreference, saveUserPreference } from './preferences';
 
 export type RootBackButtonBehavior = 'background' | 'exit';
 
-export const ROOT_BACK_BUTTON_BEHAVIOR_KEY = 'root_back_button_behavior';
 export const DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR: RootBackButtonBehavior = 'exit';
 
 /** Scan a local directory recursively. */
@@ -34,18 +33,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function getRootBackButtonBehavior(): Promise<RootBackButtonBehavior> {
   try {
     const preferences = await loadUserPreference();
-    if (preferences.root_back_button_behavior != null) {
-      return normalizeRootBackButtonBehavior(preferences.root_back_button_behavior);
-    }
-
-    const migratedBehavior = normalizeRootBackButtonBehavior(
-      await getSetting(ROOT_BACK_BUTTON_BEHAVIOR_KEY),
-    );
-    await saveUserPreference({
-      ...preferences,
-      root_back_button_behavior: migratedBehavior,
-    });
-    return migratedBehavior;
+    return normalizeRootBackButtonBehavior(preferences.root_back_button_behavior);
   } catch {
     return DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
   }
