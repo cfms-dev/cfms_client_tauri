@@ -337,6 +337,14 @@ pub async fn clear_auth_session(state: tauri::State<'_, AppHandleState>) -> Resu
 }
 
 /// Request process termination from the native side.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quit_application<R: Runtime>(app_handle: tauri::AppHandle<R>) -> Result<(), String> {
+    exit_app_after_launcher_transition(app_handle).await
+}
+
+/// Request process termination from the native side.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn quit_application(app_handle: tauri::AppHandle) {
     app_handle.exit(0);

@@ -12,13 +12,12 @@ pub async fn move_app_to_background<R: Runtime>(app: tauri::AppHandle<R>) -> Res
 pub async fn exit_app_after_launcher_transition<R: Runtime>(
     app: tauri::AppHandle<R>,
 ) -> Result<(), String> {
-    if let Err(err) = move_android_task_to_background(&app) {
+    if let Err(err) = move_android_task_to_background_and_wait_for_stop(&app) {
         tracing::warn!("Failed to move app to background before exit: {err}");
         app.exit(0);
         return Ok(());
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(650)).await;
     app.exit(0);
     Ok(())
 }
@@ -42,6 +41,17 @@ fn move_android_task_to_background<R: Runtime>(app: &tauri::AppHandle<R>) -> Res
     lifecycle
         .handle
         .run_mobile_plugin::<()>("moveTaskToBack", serde_json::json!({}))
+        .map_err(|e| format!("Failed to move app to background: {e}"))
+}
+
+#[cfg(target_os = "android")]
+fn move_android_task_to_background_and_wait_for_stop<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<(), String> {
+    let lifecycle = app.state::<AndroidAppLifecycle<R>>();
+    lifecycle
+        .handle
+        .run_mobile_plugin::<()>("moveTaskToBackAndWaitForStop", serde_json::json!({}))
         .map_err(|e| format!("Failed to move app to background: {e}"))
 }
 
