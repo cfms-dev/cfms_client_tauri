@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { authenticate, checkStatus, type AuthOptions } from '@tauri-apps/plugin-biometric';
 import {
   createAndroidPasskey,
   getAndroidPasskey,
@@ -8,6 +9,7 @@ import {
   saveUserPreference,
   setSetting,
 } from './api';
+import { isMobilePlatform } from './platform';
 
 const SETTINGS_KEY = 'app_lock_settings_v1';
 const PIN_ITERATIONS = 180_000;
@@ -15,7 +17,15 @@ const PIN_LENGTH = 4;
 const DEFAULT_TIMED_LOCK_MS = 5 * 60 * 1000;
 const ANDROID_PASSKEY_RP_ID = 'cfms-dev.github.io';
 
-export type AppLockMethod = 'pin' | 'platform';
+export type AppLockMethod = 'pin' | 'biometric' | 'platform';
+
+export interface BiometricPromptLabels {
+  reason: string;
+  title: string;
+  subtitle: string;
+  cancelTitle: string;
+  fallbackTitle: string;
+}
 
 export interface PlatformCredentialRecord {
   id: string;
@@ -34,6 +44,7 @@ export interface AppLockSettings {
   version: 1;
   enabled: boolean;
   pin: PinRecord | null;
+  biometricEnabled: boolean;
   platformCredentials: PlatformCredentialRecord[];
   timedLockEnabled: boolean;
   timedLockMs: number;
@@ -44,6 +55,7 @@ const defaultSettings = (): AppLockSettings => ({
   version: 1,
   enabled: false,
   pin: null,
+  biometricEnabled: false,
   platformCredentials: [],
   timedLockEnabled: false,
   timedLockMs: DEFAULT_TIMED_LOCK_MS,
@@ -55,6 +67,7 @@ class AppLockStoreImpl {
   initialized = $state(false);
   locked = $state(false);
   pinSetupActive = $state(false);
+  biometricAvailable = $state(false);
   platformAvailable = $state(false);
   busy = $state(false);
   private scopeKey: string | null = null;
@@ -72,8 +85,12 @@ class AppLockStoreImpl {
     return this.settings.platformCredentials.length > 0;
   }
 
+  get hasBiometric() {
+    return this.settings.biometricEnabled;
+  }
+
   get hasAnyMethod() {
-    return this.hasPin || this.hasPlatformCredential;
+    return this.hasPin || this.hasBiometric || this.hasPlatformCredential;
   }
 
   get canLock() {
@@ -87,12 +104,14 @@ class AppLockStoreImpl {
   get methods(): AppLockMethod[] {
     const methods: AppLockMethod[] = [];
     if (this.hasPin) methods.push('pin');
+    if (this.hasBiometric) methods.push('biometric');
     if (this.hasPlatformCredential) methods.push('platform');
     return methods;
   }
 
   async init(scopeKey: string) {
     if (this.initialized && this.scopeKey === scopeKey) return;
+    await this.refreshBiometricAvailability();
     await this.refreshPlatformAvailability();
 
     try {
@@ -128,6 +147,10 @@ class AppLockStoreImpl {
     this.platformAvailable = await isPlatformAuthenticatorAvailable();
   }
 
+  async refreshBiometricAvailability() {
+    this.biometricAvailable = await isBiometricAuthenticatorAvailable();
+  }
+
   async setEnabled(enabled: boolean) {
     if (enabled && !this.hasAnyMethod) {
       throw new Error('Set up at least one unlock method first.');
@@ -161,10 +184,27 @@ class AppLockStoreImpl {
     this.rescheduleTimedLock();
   }
 
+  async setBiometricEnabled(enabled: boolean) {
+    if (enabled && !this.biometricAvailable) {
+      throw new Error('Biometric unlock is not available on this device.');
+    }
+
+    this.settings = {
+      ...this.settings,
+      enabled: enabled ? true : (this.hasPin || this.hasPlatformCredential ? this.settings.enabled : false),
+      biometricEnabled: enabled,
+      updatedAt: Date.now(),
+    };
+    await this.persist();
+    this.rescheduleTimedLock();
+  }
+
   async removePin() {
     this.settings = {
       ...this.settings,
-      enabled: this.settings.platformCredentials.length > 0 ? this.settings.enabled : false,
+      enabled: this.settings.biometricEnabled || this.settings.platformCredentials.length > 0
+        ? this.settings.enabled
+        : false,
       pin: null,
       updatedAt: Date.now(),
     };
@@ -264,7 +304,9 @@ class AppLockStoreImpl {
     const nextCredentials = this.settings.platformCredentials.filter((item) => item.id !== id);
     this.settings = {
       ...this.settings,
-      enabled: this.settings.pin || nextCredentials.length > 0 ? this.settings.enabled : false,
+      enabled: this.settings.pin || this.settings.biometricEnabled || nextCredentials.length > 0
+        ? this.settings.enabled
+        : false,
       platformCredentials: nextCredentials,
       updatedAt: Date.now(),
     };
@@ -304,6 +346,21 @@ class AppLockStoreImpl {
     });
 
     return Boolean(credential && credential.type === 'public-key');
+  }
+
+  async verifyBiometric(labels: BiometricPromptLabels) {
+    if (!this.hasBiometric || !this.biometricAvailable) return false;
+
+    const options: AuthOptions = {
+      allowDeviceCredential: false,
+      cancelTitle: labels.cancelTitle,
+      fallbackTitle: labels.fallbackTitle,
+      title: labels.title,
+      subtitle: labels.subtitle,
+      confirmationRequired: false,
+    };
+    await authenticate(labels.reason, options);
+    return true;
   }
 
   lock() {
@@ -390,13 +447,15 @@ export function getRequiredPinLength() {
 
 export function isCredentialOperationCancelled(err: unknown) {
   if (!err || typeof err !== 'object') return false;
-  const candidate = err as { name?: unknown; message?: unknown };
+  const candidate = err as { errorCode?: unknown; name?: unknown; message?: unknown };
+  const errorCode = typeof candidate.errorCode === 'string' ? candidate.errorCode : '';
   const name = typeof candidate.name === 'string' ? candidate.name : '';
   const message = typeof candidate.message === 'string' ? candidate.message : '';
 
-  return name === 'NotAllowedError'
+  return /cancel|userFallback/i.test(errorCode)
+    || name === 'NotAllowedError'
     || name === 'AbortError'
-    || /timed out|not allowed|cancel/i.test(message);
+    || /timed out|not allowed|cancel|userFallback/i.test(message);
 }
 
 async function loadLegacySettings() {
@@ -433,6 +492,7 @@ function parseSettingsValue(value: unknown): AppLockSettings {
     version: 1,
     enabled: Boolean(parsed.enabled),
     pin: isPinRecord(parsed.pin) ? parsed.pin : null,
+    biometricEnabled: Boolean(parsed.biometricEnabled),
     platformCredentials: Array.isArray(parsed.platformCredentials)
       ? parsed.platformCredentials.filter(isPlatformCredentialRecord)
       : [],
@@ -445,6 +505,7 @@ function parseSettingsValue(value: unknown): AppLockSettings {
 function isDefaultSettings(settings: AppLockSettings) {
   return !settings.enabled
     && settings.pin === null
+    && !settings.biometricEnabled
     && settings.platformCredentials.length === 0
     && !settings.timedLockEnabled
     && settings.timedLockMs === DEFAULT_TIMED_LOCK_MS;
@@ -495,6 +556,15 @@ async function isPlatformAuthenticatorAvailable() {
   if (!browser || !window.PublicKeyCredential) return false;
   try {
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
+}
+
+async function isBiometricAuthenticatorAvailable() {
+  if (!browser || !isMobilePlatform()) return false;
+  try {
+    return (await checkStatus()).isAvailable;
   } catch {
     return false;
   }

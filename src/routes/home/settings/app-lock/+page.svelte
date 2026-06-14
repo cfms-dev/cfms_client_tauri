@@ -14,10 +14,22 @@
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
   import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
   import { flyScale } from '$lib/motion/transitions';
+  import { isMobilePlatform } from '$lib/platform';
 
   const pinLength = getRequiredPinLength();
+  const isMobile = isMobilePlatform();
 
-  let busy = $state<'enable' | 'timed-lock' | 'pin' | 'pin-remove' | 'platform' | 'platform-remove' | null>(null);
+  let busy = $state<
+    | 'enable'
+    | 'timed-lock'
+    | 'pin'
+    | 'pin-remove'
+    | 'biometric'
+    | 'biometric-refresh'
+    | 'platform'
+    | 'platform-remove'
+    | null
+  >(null);
   let error = $state<string | null>(null);
   let pinSetupOpen = $state(false);
   let pinSetupStep = $state<'new' | 'confirm'>('new');
@@ -26,8 +38,15 @@
   let pinSetupShake = $state(false);
   let pinSetupMessage = $state<string | null>(null);
 
-  const methodCount = $derived((appLockStore.hasPin ? 1 : 0) + appLockStore.settings.platformCredentials.length);
+  const methodCount = $derived(
+    (appLockStore.hasPin ? 1 : 0)
+    + (appLockStore.hasBiometric ? 1 : 0)
+    + (appLockStore.hasPlatformCredential ? 1 : 0),
+  );
   const canEnable = $derived(appLockStore.hasAnyMethod && !busy);
+  const biometricStatus = $derived(
+    appLockStore.biometricAvailable ? $t('appLock.settings.available') : $t('appLock.settings.unavailable'),
+  );
   const platformStatus = $derived(
     appLockStore.platformAvailable ? $t('appLock.settings.available') : $t('appLock.settings.unavailable'),
   );
@@ -52,6 +71,9 @@
   onMount(async () => {
     if (authStore.isLoggedIn && authStore.username) {
       await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+    }
+    if (isMobile) {
+      await appLockStore.refreshBiometricAvailability();
     }
     await appLockStore.refreshPlatformAvailability();
   });
@@ -113,6 +135,30 @@
       notificationStore.success($t('appLock.settings.pinRemoved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = null;
+    }
+  }
+
+  async function setBiometricEnabled(enabled: boolean) {
+    busy = 'biometric';
+    try {
+      if (enabled) {
+        await appLockStore.refreshBiometricAvailability();
+      }
+      await appLockStore.setBiometricEnabled(enabled);
+      notificationStore.success($t('appLock.settings.saved'));
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = null;
+    }
+  }
+
+  async function refreshBiometricAvailability() {
+    busy = 'biometric-refresh';
+    try {
+      await appLockStore.refreshBiometricAvailability();
     } finally {
       busy = null;
     }
@@ -297,6 +343,50 @@
       </label>
     </section>
 
+    {#if isMobile}
+      <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+              {$t('appLock.settings.biometricTitle')}
+            </h2>
+            <p class="mt-1 text-xs text-md3-on-surface-variant">
+              {$t('appLock.settings.biometricDescription')}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <span
+              class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium"
+              class:bg-md3-primary-container={appLockStore.biometricAvailable}
+              class:text-md3-on-primary-container={appLockStore.biometricAvailable}
+              class:bg-md3-surface-container-high={!appLockStore.biometricAvailable}
+              class:text-md3-on-surface-variant={!appLockStore.biometricAvailable}
+            >
+              <Icon name={appLockStore.biometricAvailable ? 'verified' : 'warningAmber'} size="16px" />
+              {biometricStatus}
+            </span>
+            <MdSwitch
+              checked={appLockStore.settings.biometricEnabled}
+              disabled={!appLockStore.biometricAvailable || busy !== null}
+              ariaLabel={$t('appLock.settings.biometricTitle')}
+              onChange={setBiometricEnabled}
+            />
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            class="app-lock-action"
+            onclick={refreshBiometricAvailability}
+            disabled={busy !== null}
+          >
+            <Icon name="refresh" size="18px" />
+            {$t('common.refresh')}
+          </button>
+        </div>
+      </section>
+    {/if}
+
     <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
@@ -364,7 +454,7 @@
           {#each appLockStore.settings.platformCredentials as credential}
             <div class="flex items-center gap-3 bg-md3-surface-container-high/35 px-3 py-2.5">
               <span class="text-md3-primary-emphasis">
-                <Icon name="fingerprint" size="22px" />
+                <Icon name="passkey" size="22px" />
               </span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium text-md3-on-surface">
@@ -393,7 +483,7 @@
           onclick={addPlatformCredential}
           disabled={!appLockStore.platformAvailable || busy !== null}
         >
-          <Icon name="fingerprint" size="18px" />
+          <Icon name="passkey" size="18px" />
           {$t('appLock.settings.addPlatform')}
         </button>
         <button

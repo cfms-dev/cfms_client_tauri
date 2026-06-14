@@ -13,6 +13,7 @@
   let pin = $state('');
   let busy = $state(false);
   let status = $state<string | null>(null);
+  let verificationMethod = $state<'biometric' | 'platform' | null>(null);
   let failedAttempts = $state(0);
   let lockoutUntil = $state(0);
   let now = $state(Date.now());
@@ -24,9 +25,14 @@
   const lockoutMs = 30_000;
   const lockedOutMs = $derived(Math.max(0, lockoutUntil - now));
   const canUsePin = $derived(appLockStore.hasPin && lockedOutMs <= 0 && !busy);
+  const canUseBiometric = $derived(
+    appLockStore.hasBiometric && appLockStore.biometricAvailable && !busy && lockedOutMs <= 0,
+  );
   const canUsePlatform = $derived(appLockStore.hasPlatformCredential && !busy && lockedOutMs <= 0);
+  const hasSecondaryUnlocks = $derived(appLockStore.hasBiometric || appLockStore.hasPlatformCredential);
+  const compactSecondaryUnlocks = $derived(appLockStore.hasBiometric && appLockStore.hasPlatformCredential);
   const unlockTitle = $derived(
-    appLockStore.hasPin && !appLockStore.hasPlatformCredential
+    appLockStore.hasPin && !hasSecondaryUnlocks
       ? $t('appLock.unlock.pinTitle')
       : $t('appLock.unlock.title'),
   );
@@ -57,6 +63,7 @@
   function resetEntry() {
     pin = '';
     busy = false;
+    verificationMethod = null;
     status = null;
     failedAttempts = 0;
     lockoutUntil = 0;
@@ -102,9 +109,41 @@
     }
   }
 
+  async function verifyBiometric() {
+    if (!canUseBiometric) return;
+    busy = true;
+    verificationMethod = 'biometric';
+    status = $t('appLock.unlock.biometricPrompt');
+    try {
+      if (await appLockStore.verifyBiometric({
+        reason: $t('appLock.unlock.biometricReason'),
+        title: $t('appLock.unlock.biometricTitle'),
+        subtitle: $t('appLock.unlock.biometricSubtitle'),
+        cancelTitle: $t('common.cancel'),
+        fallbackTitle: $t('appLock.unlock.biometricFallback'),
+      })) {
+        appLockStore.unlock();
+        resetEntry();
+        return;
+      }
+      await handleFailedAttempt();
+    } catch (err) {
+      if (isCredentialOperationCancelled(err)) {
+        status = null;
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        status = message || $t('appLock.unlock.biometricCancelled');
+      }
+    } finally {
+      busy = false;
+      verificationMethod = null;
+    }
+  }
+
   async function verifyPlatform() {
     if (!canUsePlatform) return;
     busy = true;
+    verificationMethod = 'platform';
     status = $t('appLock.unlock.platformPrompt');
     try {
       if (await appLockStore.verifyPlatformCredential()) {
@@ -122,6 +161,7 @@
       }
     } finally {
       busy = false;
+      verificationMethod = null;
     }
   }
 
@@ -138,7 +178,7 @@
     if (failedAttempts >= temporaryLockoutAttempts) {
       lockoutUntil = Date.now() + lockoutMs;
     }
-    status = $t('appLock.unlock.invalidPin');
+    status = $t('appLock.unlock.invalidVerification');
   }
 
   async function forceDisconnect() {
@@ -190,9 +230,13 @@
     } else if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault();
       deleteDigit();
-    } else if (event.key === 'Enter' && appLockStore.hasPlatformCredential) {
+    } else if (event.key === 'Enter' && hasSecondaryUnlocks) {
       event.preventDefault();
-      void verifyPlatform();
+      if (canUseBiometric) {
+        void verifyBiometric();
+      } else {
+        void verifyPlatform();
+      }
     }
   }
 
@@ -230,25 +274,54 @@
           {:else if appLockStore.hasPin}
             {$t('appLock.unlock.enterPin')}
           {:else}
-            {$t('appLock.unlock.usePlatform')}
+            {$t('appLock.unlock.useConfiguredMethod')}
           {/if}
         </div>
 
-        {#if appLockStore.hasPlatformCredential}
-          <button
-            type="button"
-            class="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/18 bg-white/12 px-5 text-sm font-semibold text-white shadow-lg shadow-black/10 transition-all hover:bg-white/18 disabled:opacity-45"
-            style="font-family: var(--font-md3-sans);"
-            onclick={verifyPlatform}
-            disabled={!canUsePlatform}
-          >
-            {#if busy && status === $t('appLock.unlock.platformPrompt')}
-              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.verifying')} />
-            {:else}
-              <Icon name="fingerprint" size="20px" />
+        {#if hasSecondaryUnlocks}
+          <div class:app-lock-auth-actions={true} class:app-lock-auth-actions--compact={compactSecondaryUnlocks}>
+            {#if appLockStore.hasBiometric}
+              <button
+                type="button"
+                class={compactSecondaryUnlocks ? 'app-lock-icon-button' : 'app-lock-auth-button'}
+                style="font-family: var(--font-md3-sans);"
+                aria-label={$t('appLock.unlock.biometricButton')}
+                title={$t('appLock.unlock.biometricButton')}
+                onclick={verifyBiometric}
+                disabled={!canUseBiometric}
+              >
+                {#if verificationMethod === 'biometric'}
+                  <ProgressRing size={18} strokeWidth={2.5} label={$t('common.verifying')} />
+                {:else}
+                  <Icon name="fingerprint" size={compactSecondaryUnlocks ? '22px' : '20px'} />
+                {/if}
+                {#if !compactSecondaryUnlocks}
+                  <span>{$t('appLock.unlock.biometricButton')}</span>
+                {/if}
+              </button>
             {/if}
-            {$t('appLock.unlock.platformButton')}
-          </button>
+
+            {#if appLockStore.hasPlatformCredential}
+              <button
+                type="button"
+                class={compactSecondaryUnlocks ? 'app-lock-icon-button' : 'app-lock-auth-button'}
+                style="font-family: var(--font-md3-sans);"
+                aria-label={$t('appLock.unlock.platformButton')}
+                title={$t('appLock.unlock.platformButton')}
+                onclick={verifyPlatform}
+                disabled={!canUsePlatform}
+              >
+                {#if verificationMethod === 'platform'}
+                  <ProgressRing size={18} strokeWidth={2.5} label={$t('common.verifying')} />
+                {:else}
+                  <Icon name="passkey" size={compactSecondaryUnlocks ? '22px' : '20px'} />
+                {/if}
+                {#if !compactSecondaryUnlocks}
+                  <span>{$t('appLock.unlock.platformButton')}</span>
+                {/if}
+              </button>
+            {/if}
+          </div>
         {/if}
 
         {#if appLockStore.hasPin}
@@ -296,6 +369,57 @@
   .app-lock-content {
     inline-size: 520px;
     animation: app-lock-enter 360ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .app-lock-auth-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.7rem;
+    margin-top: 1.25rem;
+  }
+
+  .app-lock-auth-button,
+  .app-lock-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+    transition:
+      background-color 160ms var(--motion-easing-standard),
+      transform 160ms var(--motion-easing-emphasized-decelerate),
+      opacity 160ms var(--motion-easing-standard);
+  }
+
+  .app-lock-auth-button {
+    min-block-size: 44px;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    padding: 0.55rem 1.15rem;
+    font-size: 0.875rem;
+    font-weight: 650;
+  }
+
+  .app-lock-icon-button {
+    inline-size: 48px;
+    block-size: 48px;
+    border-radius: 9999px;
+    padding: 0;
+  }
+
+  .app-lock-auth-button:hover:not(:disabled),
+  .app-lock-icon-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(-1px);
+  }
+
+  .app-lock-auth-button:disabled,
+  .app-lock-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+    transform: none;
   }
 
   .app-lock-flat-actions {

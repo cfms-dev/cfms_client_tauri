@@ -165,6 +165,7 @@ pub fn run() {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     tauri::Builder::default()
+        .plugin(biometric_plugin())
         .plugin(tauri_plugin_os::init())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -463,6 +464,16 @@ fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_pl
 #[cfg(any(target_os = "android", target_os = "ios"))]
 fn updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("updater-noop").build()
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn biometric_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri_plugin_biometric::init()
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn biometric_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("biometric-noop").build()
 }
 
 #[cfg(target_os = "android")]

@@ -49,6 +49,9 @@ tauri-plugin-os = "2"
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-biometric = "2"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

@@ -24,6 +24,7 @@ export const ICONS = {
   accountCircle: 'account_circle',
   pin:           'pin',
   fingerprint:   'fingerprint',
+  passkey:       'passkey',
 
   // ---- Actions ----
   delete:        'delete',
