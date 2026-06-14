@@ -100,15 +100,24 @@ export const en = {
     title: 'Disclaimer',
     intro: 'Please read and accept the disclaimer before using the application.',
     paragraph1:
-      'This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement.',
+      'Welcome to the Confidential File Management System (CFMS). This system is designed for the online distribution of confidential documents, aiming to help system administrators quickly build a user-friendly application ecosystem that closely meets their needs.',
     paragraph2:
-      'In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.',
+      'Please note that while this system is designed to minimize unauthorized access, it cannot prevent information leaks caused by authorized users. Files will be decrypted locally on the client device and will remain decrypted regardless of whether they are being accessed. Improper configuration could allow other applications installed on the same device to gain access to these files, potentially causing significant information leaks. Preventing such issues is your responsibility.',
     paragraph3:
-      'This application connects to remote servers over encrypted WebSocket (WSS) connections. You are responsible for ensuring that you have proper authorization to access any server you connect to.',
-    paragraph4:
-      'All cryptographic operations are performed locally using industry-standard algorithms (AES-256-GCM, PBKDF2-HMAC-SHA256). The application does not transmit plaintext credentials or encryption keys over the network.',
+      'For the reasons stated above, please exercise extreme caution before connecting to and logging into the target server to ensure information security and confidentiality.',
+    bullet1: 'Do not launch this application in public places.',
+    bullet2:
+      'Do not launch this application and connect to the server in the presence of others who are unaware of the confidential information you are accessing.',
+    bullet3:
+      'Unless otherwise permitted, do not distribute confidential information obtained from this application in any other non-confidential manner.',
+    bullet4:
+      'Do not launch this application on unprotected devices, meaning devices without any measures in place to prevent unauthorized access, and use it to obtain any confidential information.',
+    bullet5:
+      'Do not disclose the existence and purpose of this application to anyone who is unaware of the confidential information you wish to access.',
+    bullet6:
+      'Regularly check the application security settings to ensure all security-related configurations are up to date. Also, strive to update to the latest stable version promptly, as these may contain fixes for security vulnerabilities.',
     responsibility:
-      'You are solely responsible for your use of this application and compliance with applicable laws and regulations.',
+      'You are solely responsible for any unintended disclosure of confidential information resulting from improper use of this application.',
     accept: 'Accept',
     rejectAndQuit: 'Reject and Quit',
   },
