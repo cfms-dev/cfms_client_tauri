@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.26.1
+**Released on:** 2026-06-15
+
+**Title:** Bugfix
+
+### Fixed
+- Fixed an issue that caused the app to fail to compile for Android.
+
+--- 
+
 ## v0.26.0
 **Released on:** 2026-06-15
 
