@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { getLocale } from '$lib/api';
   import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/i18n';
-  import { navigateUp } from '$lib/navigation';
+  import { createAutoSave } from '$lib/settings-autosave.svelte';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
   const languages: Array<{ value: AppLocale; labelKey: string }> = [
     { value: 'zh_CN', labelKey: 'settings.language.chinese' },
@@ -15,9 +15,16 @@
 
   let language = $state<AppLocale>('zh_CN');
   let loading = $state(true);
-  let saving = $state(false);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
+  const autoSave = createAutoSave({
+    onError: (message) => {
+      error = message;
+    },
+    onSuccess: () => {
+      status = $t('settings.language.saved');
+    },
+  });
 
   const selectedLanguageLabel = $derived(
     $t(languages.find((item) => item.value === language)?.labelKey ?? 'settings.language.chinese'),
@@ -45,34 +52,27 @@
     }
   });
 
-  async function saveLanguage() {
-    saving = true;
+  function selectLanguage(nextLanguage: AppLocale) {
+    if (loading || nextLanguage === language) return;
+    language = nextLanguage;
     error = null;
-    try {
-      language = await setAppLocale(language);
-      status = $t('settings.language.saved');
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      saving = false;
-    }
+    void autoSave.run(async () => {
+      language = await setAppLocale(nextLanguage);
+    });
+  }
+
+  function resetLanguage() {
+    selectLanguage('zh_CN');
   }
 </script>
 
 <div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.language.title')}
-  </h1>
+  <SettingsPageHeader
+    title={$t('settings.language.title')}
+    icon="language"
+    resetDisabled={loading}
+    onReset={resetLanguage}
+  />
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">
@@ -93,8 +93,8 @@
                  bg-md3-surface-container-high/40 text-sm text-md3-on-surface
                  border border-md3-outline/50 transition-colors hover:bg-md3-primary-container/15 disabled:cursor-not-allowed disabled:opacity-60"
           style="font-family: var(--font-md3-sans);"
-          disabled={loading || saving}
-          onclick={() => (language = option.value)}
+          disabled={loading}
+          onclick={() => selectLanguage(option.value)}
         >
           <span
             class="{language === option.value ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
@@ -110,18 +110,5 @@
     <p class="text-xs text-md3-on-surface-variant">
       {$t('settings.language.restart')}
     </p>
-
-    <button
-      class="px-4 py-2 rounded-full font-medium text-sm
-             bg-md3-primary-container text-md3-on-primary-container
-             hover:brightness-110 disabled:opacity-50 transition-all
-             flex items-center gap-2"
-      style="font-family: var(--font-md3-sans);"
-      onclick={saveLanguage}
-      disabled={loading || saving}
-    >
-      <Icon name="done" size="18px" />
-      {saving ? $t('common.saving') : $t('settings.language.save')}
-    </button>
   </div>
 </div>

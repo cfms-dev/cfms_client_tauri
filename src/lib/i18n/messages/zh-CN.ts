@@ -722,7 +722,7 @@ export const zh_CN = {
       caUpdateErrors: '证书更新完成，但存在错误：{errors}',
       save: '保存连接设置',
       saved: '连接设置已保存。',
-      resetStatus: '连接设置已在本地重置，保存后生效。',
+      resetStatus: '连接设置已重置为默认值。',
     },
     storage: {
       title: '存储',

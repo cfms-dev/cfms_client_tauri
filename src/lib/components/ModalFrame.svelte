@@ -33,7 +33,7 @@
     onclick={onClose}
   >
     <div
-      class={`modal-panel relative w-full ${maxWidth} overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container shadow-2xl`}
+      class={`modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container shadow-2xl`}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -43,7 +43,7 @@
       onkeydown={handleKeydown}
     >
       <span class="modal-light" aria-hidden="true"></span>
-      <div class="relative flex items-center justify-between border-b border-md3-outline px-5 py-4">
+      <div class="relative flex shrink-0 items-center justify-between border-b border-md3-outline px-5 py-4">
         <h3 class="min-w-0 truncate text-base font-semibold text-md3-on-surface">{title}</h3>
         <button
           class="rounded-full p-1 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high hover:text-md3-on-surface"
@@ -53,7 +53,7 @@
           <Icon name="close" size="20px" />
         </button>
       </div>
-      <div class="relative">
+      <div class="relative min-h-0 overflow-auto">
         {@render children()}
       </div>
     </div>

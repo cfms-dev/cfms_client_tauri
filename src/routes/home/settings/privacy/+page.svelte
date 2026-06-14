@@ -1,18 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { screenProtectionStore } from '$lib/screen-protection.svelte';
-  import { navigateUp } from '$lib/navigation';
+  import { createAutoSave } from '$lib/settings-autosave.svelte';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
   let loading = $state(true);
-  let saving = $state(false);
   let screenshotProtectionEnabled = $state(true);
   let error = $state<string | null>(null);
+  const autoSave = createAutoSave({
+    onError: (message) => {
+      error = message;
+    },
+    onSuccess: () => notificationStore.success($t('settings.privacy.saved')),
+  });
 
   $effect(() => {
     if (!error) return;
@@ -38,45 +43,28 @@
     }
   });
 
-  async function savePrivacyPreference() {
-    saving = true;
+  function applyScreenshotProtection(enabled: boolean) {
+    screenshotProtectionEnabled = enabled;
     error = null;
-    try {
-      await screenProtectionStore.setUserEnabled(screenshotProtectionEnabled);
-      notificationStore.success($t('settings.privacy.saved'));
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      saving = false;
-    }
+    void autoSave.run(async () => {
+      await screenProtectionStore.setUserEnabled(enabled);
+    });
+  }
+
+  function resetPrivacyPreference() {
+    applyScreenshotProtection(true);
   }
 </script>
 
 {#if authStore.isLoggedIn}
   <div class="p-6 space-y-4 max-w-lg mx-auto">
-    <button
-      class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-             hover:text-md3-on-surface transition-colors"
-      style="font-family: var(--font-md3-sans);"
-      onclick={() => navigateUp(page.url.pathname)}
-    >
-      <Icon name="arrowBack" size="18px" />
-      {$t('common.back')}
-    </button>
-
-    <div class="flex items-center gap-3">
-      <span class="rounded-2xl bg-md3-primary-container p-3 text-md3-on-primary-container">
-        <Icon name="privacy" size="28px" />
-      </span>
-      <div class="min-w-0">
-        <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-          {$t('settings.privacy.title')}
-        </h1>
-        <p class="text-xs text-md3-on-surface-variant">
-          {$t('settings.privacy.description')}
-        </p>
-      </div>
-    </div>
+    <SettingsPageHeader
+      title={$t('settings.privacy.title')}
+      description={$t('settings.privacy.description')}
+      icon="privacy"
+      resetDisabled={loading}
+      onReset={resetPrivacyPreference}
+    />
 
     <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
       <section class="space-y-4">
@@ -91,11 +79,9 @@
           </div>
           <MdSwitch
             checked={screenshotProtectionEnabled}
-            disabled={loading || saving}
+            disabled={loading}
             ariaLabel={$t('settings.privacy.screenshotProtection')}
-            onChange={(enabled) => {
-              screenshotProtectionEnabled = enabled;
-            }}
+            onChange={applyScreenshotProtection}
           />
         </div>
 
@@ -111,18 +97,6 @@
           </p>
         </div>
       </section>
-
-      <button
-        class="mt-5 flex items-center gap-2 rounded-full bg-md3-primary-container px-4 py-2
-               text-sm font-medium text-md3-on-primary-container transition-all
-               hover:brightness-110 disabled:opacity-50"
-        style="font-family: var(--font-md3-sans);"
-        onclick={savePrivacyPreference}
-        disabled={loading || saving}
-      >
-        <Icon name="done" size="18px" />
-        {saving ? $t('common.saving') : $t('settings.privacy.save')}
-      </button>
     </div>
   </div>
 {/if}

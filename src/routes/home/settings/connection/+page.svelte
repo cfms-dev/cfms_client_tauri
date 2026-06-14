@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     getCaCertificateStatus,
@@ -11,10 +10,11 @@
     type CaCertificateUpdateResult,
     type ConnectionSettings,
   } from '$lib/api';
-  import { navigateUp } from '$lib/navigation';
+  import { createAutoSave } from '$lib/settings-autosave.svelte';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
   const defaultConfig: ConnectionSettings = {
     enable_proxy: false,
@@ -32,9 +32,16 @@
   let caUpdating = $state(false);
   let caResult = $state<string | null>(null);
   let loading = $state(true);
-  let saving = $state(false);
   let status = $state<string | null>(null);
   let error = $state<string | null>(null);
+  const autoSave = createAutoSave({
+    onError: (message) => {
+      error = message;
+    },
+    onSuccess: () => {
+      status = $t('settings.connection.saved');
+    },
+  });
 
   const showCustomProxy = $derived(config.enable_proxy && !config.follow_system_proxy);
 
@@ -65,42 +72,40 @@
     }
   });
 
-  async function saveConnection() {
-    saving = true;
+  function normalizeConnectionSettings(settings: ConnectionSettings): ConnectionSettings {
+    return {
+      ...settings,
+      custom_proxy: settings.custom_proxy.trim(),
+      client_cert_path: settings.client_cert_path.trim(),
+      client_key_path: settings.client_key_path.trim(),
+      recent_connection_addresses: settings.remember_connection_addresses
+        ? settings.recent_connection_addresses
+        : [],
+    };
+  }
+
+  function applyConnection(nextConfig: ConnectionSettings) {
+    config = nextConfig;
     error = null;
-    try {
-      const payload: ConnectionSettings = {
-        ...config,
-        custom_proxy: config.custom_proxy.trim(),
-        client_cert_path: config.client_cert_path.trim(),
-        client_key_path: config.client_key_path.trim(),
-        recent_connection_addresses: config.remember_connection_addresses
-          ? config.recent_connection_addresses
-          : [],
-      };
+    void autoSave.run(async () => {
+      const payload = normalizeConnectionSettings(nextConfig);
       await setConnectionSettings(payload);
       config = payload;
-      status = $t('settings.connection.saved');
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      saving = false;
-    }
+    });
   }
 
   function resetConnection() {
-    config = { ...defaultConfig };
     caResult = null;
-    status = $t('settings.connection.resetStatus');
     error = null;
+    applyConnection({ ...defaultConfig });
   }
 
   function setRememberConnectionAddresses(enabled: boolean) {
-    config = {
+    applyConnection({
       ...config,
       remember_connection_addresses: enabled,
       recent_connection_addresses: enabled ? config.recent_connection_addresses : [],
-    };
+    });
   }
 
   function formatLastChecked(timestamp: number | null | undefined) {
@@ -141,19 +146,12 @@
 </script>
 
 <div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.connection.title')}
-  </h1>
+  <SettingsPageHeader
+    title={$t('settings.connection.title')}
+    icon="connect"
+    resetDisabled={loading}
+    onReset={resetConnection}
+  />
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-5">
@@ -165,18 +163,20 @@
       <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.enableProxy')}
         <MdSwitch
-          bind:checked={config.enable_proxy}
-          disabled={loading || saving}
+          checked={config.enable_proxy}
+          disabled={loading}
           ariaLabel={$t('settings.connection.enableProxy')}
+          onChange={(enabled) => applyConnection({ ...config, enable_proxy: enabled })}
         />
       </div>
 
       <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.followSystemProxy')}
         <MdSwitch
-          bind:checked={config.follow_system_proxy}
-          disabled={loading || saving || !config.enable_proxy}
+          checked={config.follow_system_proxy}
+          disabled={loading || !config.enable_proxy}
           ariaLabel={$t('settings.connection.followSystemProxy')}
+          onChange={(enabled) => applyConnection({ ...config, follow_system_proxy: enabled })}
         />
       </div>
 
@@ -187,9 +187,10 @@
             class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                    px-3 py-2 text-md3-on-surface"
             type="text"
-            bind:value={config.custom_proxy}
+            value={config.custom_proxy}
+            oninput={(event) => applyConnection({ ...config, custom_proxy: event.currentTarget.value })}
             placeholder={$t('settings.connection.customProxyHint')}
-            disabled={loading || saving}
+            disabled={loading}
           />
         </label>
       {/if}
@@ -197,9 +198,10 @@
       <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.forceIpv4')}
         <MdSwitch
-          bind:checked={config.force_ipv4}
-          disabled={loading || saving}
+          checked={config.force_ipv4}
+          disabled={loading}
           ariaLabel={$t('settings.connection.forceIpv4')}
+          onChange={(enabled) => applyConnection({ ...config, force_ipv4: enabled })}
         />
       </div>
     </section>
@@ -217,8 +219,8 @@
       <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.rememberAddresses')}
         <MdSwitch
-          bind:checked={config.remember_connection_addresses}
-          disabled={loading || saving}
+          checked={config.remember_connection_addresses}
+          disabled={loading}
           ariaLabel={$t('settings.connection.rememberAddresses')}
           onChange={setRememberConnectionAddresses}
         />
@@ -241,8 +243,9 @@
           class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                  px-3 py-2 text-md3-on-surface"
           type="text"
-          bind:value={config.client_cert_path}
-          disabled={loading || saving}
+          value={config.client_cert_path}
+          oninput={(event) => applyConnection({ ...config, client_cert_path: event.currentTarget.value })}
+          disabled={loading}
         />
       </label>
 
@@ -252,8 +255,9 @@
           class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
                  px-3 py-2 text-md3-on-surface"
           type="text"
-          bind:value={config.client_key_path}
-          disabled={loading || saving}
+          value={config.client_key_path}
+          oninput={(event) => applyConnection({ ...config, client_key_path: event.currentTarget.value })}
+          disabled={loading}
         />
       </label>
     </section>
@@ -285,7 +289,7 @@
                hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
         style="font-family: var(--font-md3-sans);"
         onclick={updateCertificates}
-        disabled={loading || saving || caUpdating}
+        disabled={loading || caUpdating}
       >
         <Icon name="refresh" size="18px" />
         {caUpdating ? $t('common.checking') : $t('settings.connection.caUpdateNow')}
@@ -296,28 +300,5 @@
       {/if}
     </section>
 
-    <div class="flex flex-wrap gap-2">
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-primary-container text-md3-on-primary-container
-               hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        onclick={saveConnection}
-        disabled={loading || saving}
-      >
-        <Icon name="done" size="18px" />
-        {saving ? $t('common.saving') : $t('settings.connection.save')}
-      </button>
-      <button
-        class="px-4 py-2 rounded-full font-medium text-sm
-               bg-md3-surface-container-high text-md3-on-surface
-               hover:brightness-110 disabled:opacity-50 transition-all"
-        style="font-family: var(--font-md3-sans);"
-        onclick={resetConnection}
-        disabled={loading || saving}
-      >
-        {$t('common.reset')}
-      </button>
-    </div>
   </div>
 </div>

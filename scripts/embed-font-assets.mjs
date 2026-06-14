@@ -110,6 +110,13 @@ async function localizeCss({ name, url, localFamily }) {
     );
   }
 
+  if (name === "material-symbols-outlined" && localFamily) {
+    localizedCss = localizedCss.replace(
+      `.material-symbols-outlined {\n  font-family: '${localFamily}';`,
+      `.material-symbols-outlined {\n  font-family: 'Material Symbols Outlined', '${localFamily}';`,
+    );
+  }
+
   return localizedCss.trim();
 }
 
@@ -155,6 +162,7 @@ const specs = [
   },
   {
     name: "material-symbols-outlined",
+    localFamily: "CFMS Material Symbols Outlined",
     url: googleFontsUrl({
       family: "Material Symbols Outlined:opsz,wght,FILL,GRAD@24,400,0,0",
       display: "block",

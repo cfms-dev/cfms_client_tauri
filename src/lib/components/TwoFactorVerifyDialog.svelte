@@ -185,13 +185,13 @@
 </script>
 
 <div
-  class="twofa-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+  class="twofa-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-auto p-4 sm:p-6"
   role="presentation"
   transition:fade|global={{ duration: 180 }}
   onclick={handleCancel}
 >
   <div
-    class="twofa-panel relative w-full max-w-[560px] overflow-hidden rounded-[24px] border border-md3-outline/40 bg-md3-surface-container"
+    class="twofa-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-[560px] overflow-auto rounded-[24px] border border-md3-outline/40 bg-md3-surface-container"
     role="dialog"
     aria-modal="true"
     aria-label={$t('dialog.twoFactor.title')}

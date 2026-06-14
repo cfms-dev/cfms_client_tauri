@@ -346,6 +346,13 @@ class AppLockStoreImpl {
     this.clearTimedLockTimer();
   }
 
+  async resetToDefaults() {
+    this.settings = defaultSettings();
+    this.locked = false;
+    await this.persist();
+    this.rescheduleTimedLock();
+  }
+
   setPinSetupActive(active: boolean) {
     this.pinSetupActive = active;
   }

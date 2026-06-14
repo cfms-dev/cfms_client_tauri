@@ -1,18 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
+    DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR,
     getRootBackButtonBehavior,
     setRootBackButtonBehavior,
     type RootBackButtonBehavior,
   } from '$lib/api';
   import { appLockStore } from '$lib/app-lock.svelte';
-  import { navigateUp } from '$lib/navigation';
+  import { createAutoSave } from '$lib/settings-autosave.svelte';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdRadio from '$lib/components/MdRadio.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
   const behaviorOptions: Array<{ value: RootBackButtonBehavior; labelKey: string; descriptionKey: string }> = [
     {
@@ -29,8 +30,13 @@
 
   let behavior = $state<RootBackButtonBehavior>('exit');
   let loading = $state(true);
-  let saving = $state(false);
   let error = $state<string | null>(null);
+  const autoSave = createAutoSave({
+    onError: (message) => {
+      error = message;
+    },
+    onSuccess: () => notificationStore.success($t('settings.behavior.saved')),
+  });
 
   const canUseBackgroundBehavior = $derived(appLockStore.canUseRootBackBackground);
   const backgroundBehaviorUnavailable = $derived(!canUseBackgroundBehavior);
@@ -56,6 +62,9 @@
       behavior = savedBehavior === 'background' && !appLockStore.canUseRootBackBackground
         ? 'exit'
         : savedBehavior;
+      if (savedBehavior !== behavior) {
+        await setRootBackButtonBehavior(behavior);
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -65,40 +74,31 @@
 
   $effect(() => {
     if (behavior === 'background' && !canUseBackgroundBehavior) {
-      behavior = 'exit';
+      applyBehavior('exit');
     }
   });
 
-  async function saveBehavior() {
-    if (behavior === 'background' && !canUseBackgroundBehavior) {
-      return;
-    }
-
-    saving = true;
-    error = null;
-    try {
-      await setRootBackButtonBehavior(behavior);
-      notificationStore.success($t('settings.behavior.saved'));
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      saving = false;
-    }
-  }
-
-  function selectBehavior(nextBehavior: RootBackButtonBehavior) {
-    if (loading || saving) return;
+  function applyBehavior(nextBehavior: RootBackButtonBehavior) {
+    if (loading || nextBehavior === behavior) return;
     if (nextBehavior === 'background' && !canUseBackgroundBehavior) {
       return;
     }
 
     behavior = nextBehavior;
+    error = null;
+    void autoSave.run(async () => {
+      await setRootBackButtonBehavior(nextBehavior);
+    });
+  }
+
+  function resetBehavior() {
+    applyBehavior(DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR);
   }
 
   function handleOptionKeydown(event: KeyboardEvent, nextBehavior: RootBackButtonBehavior) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    selectBehavior(nextBehavior);
+    applyBehavior(nextBehavior);
   }
 
   function isOptionUnavailable(value: RootBackButtonBehavior) {
@@ -108,29 +108,13 @@
 
 {#if authStore.isLoggedIn}
 <div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <div class="flex items-center gap-3">
-    <span class="rounded-2xl bg-md3-primary-container p-3 text-md3-on-primary-container">
-      <Icon name="touchApp" size="28px" />
-    </span>
-    <div class="min-w-0">
-      <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('settings.behavior.title')}
-      </h1>
-      <p class="text-xs text-md3-on-surface-variant">
-        {$t('settings.behavior.description')}
-      </p>
-    </div>
-  </div>
+  <SettingsPageHeader
+    title={$t('settings.behavior.title')}
+    description={$t('settings.behavior.description')}
+    icon="touchApp"
+    resetDisabled={loading}
+    onReset={resetBehavior}
+  />
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-5">
@@ -180,21 +164,21 @@
                    {behavior === option.value
                      ? 'border-md3-primary bg-md3-primary-container/15'
                      : 'border-md3-outline/50 bg-md3-surface-container-high/40'}
-                   {loading || saving || optionUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}"
+                   {loading || optionUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}"
             style="font-family: var(--font-md3-sans);"
             role="radio"
             aria-checked={behavior === option.value}
             aria-disabled={optionUnavailable}
-            tabindex={loading || saving || optionUnavailable ? -1 : 0}
-            onclick={() => selectBehavior(option.value)}
+            tabindex={loading || optionUnavailable ? -1 : 0}
+            onclick={() => applyBehavior(option.value)}
             onkeydown={(event) => handleOptionKeydown(event, option.value)}
           >
             <MdRadio
               checked={behavior === option.value}
-              disabled={loading || saving || optionUnavailable}
+              disabled={loading || optionUnavailable}
               ariaLabel={$t(option.labelKey)}
               class="mt-0.5 shrink-0"
-              onSelect={() => selectBehavior(option.value)}
+              onSelect={() => applyBehavior(option.value)}
             />
             <span class="min-w-0">
               <span class="block font-medium">{$t(option.labelKey)}</span>
@@ -206,18 +190,6 @@
         {/each}
       </div>
     </section>
-
-    <button
-      class="px-4 py-2 rounded-full font-medium text-sm
-             bg-md3-primary-container text-md3-on-primary-container
-             hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-      style="font-family: var(--font-md3-sans);"
-      onclick={saveBehavior}
-      disabled={loading || saving}
-    >
-      <Icon name="done" size="18px" />
-      {saving ? $t('common.saving') : $t('settings.behavior.save')}
-    </button>
   </div>
 </div>
 {/if}

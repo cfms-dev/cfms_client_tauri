@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     cancelTwoFactorSetup,
@@ -12,9 +11,9 @@
     type TwoFactorSetup,
     type TwoFactorStatus,
   } from '$lib/api';
-  import { navigateUp } from '$lib/navigation';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
   let authReady = $state(false);
   let twofa = $state<TwoFactorStatus | null>(null);
@@ -166,19 +165,10 @@
 </script>
 
 <div class="p-6 space-y-4 max-w-lg mx-auto">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.twofa.title')}
-  </h1>
+  <SettingsPageHeader
+    title={$t('settings.twofa.title')}
+    icon="security"
+  />
 
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5 space-y-4">

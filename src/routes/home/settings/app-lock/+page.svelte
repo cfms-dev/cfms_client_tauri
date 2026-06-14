@@ -1,18 +1,17 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { onDestroy, onMount } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     appLockStore,
     getRequiredPinLength,
     isCredentialOperationCancelled,
   } from '$lib/app-lock.svelte';
-  import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import AppPinPad from '$lib/components/AppPinPad.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
   import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
   import { flyScale } from '$lib/motion/transitions';
 
@@ -93,6 +92,18 @@
   function handleTimedLockTimeoutChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     void setTimedLock(appLockStore.settings.timedLockEnabled, Number(target.value));
+  }
+
+  async function resetAppLock() {
+    busy = 'enable';
+    try {
+      await appLockStore.resetToDefaults();
+      notificationStore.success($t('appLock.settings.saved'));
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = null;
+    }
   }
 
   async function removePin() {
@@ -220,28 +231,13 @@
 <svelte:window onkeydown={handlePinSetupKeydown} />
 
 <div class="mx-auto max-w-2xl space-y-4 p-6">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant transition-colors hover:text-md3-on-surface"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
-  <div class="flex items-center gap-3">
-    <span class="rounded-2xl bg-md3-primary-container p-3 text-md3-on-primary-container">
-      <Icon name="lockPerson" size="28px" />
-    </span>
-    <div class="min-w-0">
-      <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('appLock.settings.title')}
-      </h1>
-      <p class="text-xs text-md3-on-surface-variant">
-        {$t('appLock.settings.description')}
-      </p>
-    </div>
-  </div>
+  <SettingsPageHeader
+    title={$t('appLock.settings.title')}
+    description={$t('appLock.settings.description')}
+    icon="lockPerson"
+    resetDisabled={busy !== null}
+    onReset={resetAppLock}
+  />
 
   {#if !authStore.isLoggedIn}
     <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 text-sm text-md3-on-surface-variant">

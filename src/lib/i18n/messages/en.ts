@@ -727,7 +727,7 @@ export const en = {
       caUpdateErrors: 'Certificate update completed with errors: {errors}',
       save: 'Save Connection',
       saved: 'Connection settings saved.',
-      resetStatus: 'Connection settings reset locally. Save to apply.',
+      resetStatus: 'Connection settings reset to defaults.',
     },
     storage: {
       title: 'Storage',

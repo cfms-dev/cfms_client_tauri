@@ -966,8 +966,8 @@
   >
     <div class="p-5 space-y-3">
       {#each detailRows as row}
-        <div class="grid grid-cols-[140px_1fr] gap-3 text-sm">
-          <span class="text-md3-on-surface-variant">{row.label}</span>
+        <div class="grid grid-cols-1 gap-1 text-sm sm:grid-cols-[140px_1fr] sm:gap-3">
+          <span class="min-w-0 text-md3-on-surface-variant">{row.label}</span>
           <span class="text-md3-on-surface break-words">{row.value || '-'}</span>
         </div>
       {/each}

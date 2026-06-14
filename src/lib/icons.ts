@@ -55,6 +55,7 @@ export const ICONS = {
   radioChecked:  'radio_button_checked',
   radioUnchecked:'radio_button_unchecked',
   playlistRemove:'playlist_remove',
+  restartAlt:    'restart_alt',
 
   // ---- Download status ----
   checkCircle:   'check_circle',
