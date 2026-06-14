@@ -59,9 +59,10 @@
         type="button"
         onclick={onReset}
         disabled={resetDisabled}
+        title={resetLabel ?? $t('common.reset')}
+        aria-label={resetLabel ?? $t('common.reset')}
       >
-        <Icon name="restartAlt" size="18px" />
-        <span>{resetLabel ?? $t('common.reset')}</span>
+        <Icon name="resetSettings" size="20px" />
       </button>
     {/if}
   </div>
@@ -70,18 +71,15 @@
 <style>
   .settings-reset-button {
     display: inline-flex;
-    min-block-size: 36px;
+    inline-size: 40px;
+    block-size: 40px;
     flex: none;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
     border-radius: 9999px;
-    background: var(--color-md3-surface-container-high);
-    color: var(--color-md3-on-surface);
-    padding: 0 0.85rem;
-    font-family: var(--font-md3-sans);
-    font-size: 0.8125rem;
-    font-weight: 650;
+    background: transparent;
+    color: var(--color-md3-on-surface-variant);
+    padding: 0;
     transition:
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
       color var(--motion-duration-short4) var(--motion-easing-standard),
@@ -90,23 +88,13 @@
   }
 
   .settings-reset-button:hover:not(:disabled) {
-    background: var(--color-md3-surface-container-highest);
+    background: color-mix(in srgb, var(--color-md3-on-surface) 10%, transparent);
+    color: var(--color-md3-on-surface);
     transform: translateY(-1px);
   }
 
   .settings-reset-button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
-  }
-
-  @media (max-width: 420px) {
-    .settings-reset-button span {
-      display: none;
-    }
-
-    .settings-reset-button {
-      inline-size: 36px;
-      padding: 0;
-    }
   }
 </style>
