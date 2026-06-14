@@ -41,7 +41,7 @@ markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 
 export function renderMarkdown(markdownSource: string | null | undefined): string {
   if (!markdownSource?.trim()) return '';
-  return sanitizeMarkdownHtml(markdown.render(markdownSource));
+  return sanitizeMarkdownHtml(markdown.render(stripMarkdownComments(markdownSource)));
 }
 
 export function markdownInlineToText(value: string): string {
@@ -62,4 +62,8 @@ function collectTokenText(tokens: Token[]): string {
 function sanitizeMarkdownHtml(html: string): string {
   if (!browser) return html;
   return DOMPurify.sanitize(html, markdownSanitizeConfig);
+}
+
+function stripMarkdownComments(value: string): string {
+  return value.replace(/<!--[\s\S]*?-->/gu, '').trim();
 }

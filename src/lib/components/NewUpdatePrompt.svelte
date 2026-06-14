@@ -11,6 +11,7 @@
   } from '$lib/updater';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import { flyScale } from '$lib/motion/transitions';
+  import { openExternalUrl } from '$lib/open-external';
   import Icon from '$lib/components/Icon.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -108,6 +109,15 @@
     }
   }
 
+  async function openReleasePage() {
+    if (!update?.releaseUrl) return;
+    try {
+      await openExternalUrl(update.releaseUrl);
+    } catch (err) {
+      notificationStore.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   function formatReleaseDate(value?: string | null): string {
     if (!value) return $t('common.unknown');
     const date = new Date(value);
@@ -178,7 +188,7 @@
 
       {#if update.body}
         <section class="notes" aria-label={$t('updatesPrompt.releaseNotes')}>
-          <MarkdownView content={update.body} />
+          <MarkdownView content={update.body} font="serif" />
         </section>
       {/if}
 
@@ -216,10 +226,10 @@
           </button>
         {/if}
 
-        <a class="tonal-action" href={update.releaseUrl} target="_blank" rel="noreferrer">
+        <button type="button" class="tonal-action" onclick={openReleasePage} disabled={installing}>
           <Icon name="openInNew" size="20px" />
           {$t('settings.updates.openRelease')}
-        </a>
+        </button>
 
         <button type="button" class="text-action" onclick={closePrompt} disabled={installing}>
           {$t('settings.updates.notNow')}
@@ -237,10 +247,10 @@
     padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
-      linear-gradient(145deg, rgba(14, 20, 46, 0.98), rgba(22, 34, 48, 0.98) 54%, rgba(19, 27, 36, 0.98)),
-      radial-gradient(circle at 50% 0%, rgba(143, 180, 255, 0.16), transparent 42%);
-    -webkit-backdrop-filter: blur(22px);
-    backdrop-filter: blur(22px);
+      linear-gradient(145deg, rgba(17, 22, 29, 0.98), rgba(18, 24, 32, 0.98)),
+      var(--color-md3-surface);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
   }
 
   .prompt-content {
@@ -252,17 +262,10 @@
   }
 
   .release-icon {
-    display: grid;
-    place-items: center;
-    width: 6.5rem;
-    height: 6.5rem;
-    border-radius: 2rem;
-    color: var(--color-md3-on-primary-container);
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--color-md3-primary) 76%, #ffffff 10%), var(--color-md3-primary-container));
-    box-shadow:
-      0 22px 60px rgba(0, 0, 0, 0.28),
-      0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+    display: block;
+    width: 5.25rem;
+    height: 5.25rem;
+    color: #b9c5ff;
   }
 
   .copy {
@@ -277,14 +280,14 @@
   }
 
   .eyebrow {
-    color: var(--color-md3-primary-emphasis);
+    color: rgba(185, 197, 255, 0.92);
     font: 800 0.78rem var(--font-md3-sans);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
 
   h2 {
-    color: var(--color-md3-on-surface);
+    color: rgba(248, 250, 252, 0.92);
     font-family: var(--font-md3-sans);
     font-size: clamp(2rem, 6vw, 3.6rem);
     font-weight: 850;
@@ -293,7 +296,7 @@
   }
 
   .subtitle {
-    color: var(--color-md3-on-surface-variant);
+    color: rgba(248, 250, 252, 0.78);
     font: 0.95rem/1.6 var(--font-md3-sans);
   }
 
@@ -301,9 +304,35 @@
     width: min(640px, 100%);
     max-height: min(36vh, 18rem);
     overflow: auto;
-    border-left: 2px solid color-mix(in srgb, var(--color-md3-primary-emphasis) 65%, transparent);
-    padding: 0.2rem 0 0.2rem 1rem;
+    border-block: 1px solid rgba(226, 232, 240, 0.22);
+    padding: 1rem 0.75rem 1rem 0;
     text-align: left;
+    color: rgba(248, 250, 252, 0.78);
+    scrollbar-gutter: stable;
+  }
+
+  .notes :global(.markdown-view) {
+    color: rgba(248, 250, 252, 0.78);
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  .notes :global(.markdown-view :where(h1, h2, h3, h4, h5, h6)) {
+    color: rgba(248, 250, 252, 0.9);
+  }
+
+  .notes :global(.markdown-view li::marker),
+  .notes :global(.markdown-view a) {
+    color: #b9c5ff;
+  }
+
+  .notes::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .notes::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(248, 250, 252, 0.72);
   }
 
   .progress-block {
