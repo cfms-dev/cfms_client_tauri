@@ -10,8 +10,10 @@
   import { _ as t } from 'svelte-i18n';
   import { disclaimerStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { isMobilePlatform } from '$lib/platform';
 
   let busy = $state(false);
+  const isMobile = isMobilePlatform();
 
   const bulletKeys = [
     'disclaimer.bullet1',
@@ -65,9 +67,11 @@
           {$t('disclaimer.accept')}
         </button>
 
-        <button class="reject-button" onclick={() => window.close()} disabled={busy}>
-          {$t('disclaimer.rejectAndQuit')}
-        </button>
+        {#if !isMobile}
+          <button class="reject-button" onclick={() => window.close()} disabled={busy}>
+            {$t('disclaimer.rejectAndQuit')}
+          </button>
+        {/if}
       </div>
     </footer>
   </main>
@@ -75,6 +79,13 @@
 
 <style>
   .disclaimer-screen {
+    --flet-pad: clamp(20px, min(4.65vw, 2.27vh), 32px);
+    --flet-gap: clamp(10px, min(2.33vw, 1.14vh), 16px);
+    --flet-icon: clamp(24px, min(12.56vw, 6.14vh), 82px);
+    --flet-title: clamp(24px, min(5.58vw, 2.73vh), 38px);
+    --flet-body: clamp(14px, min(3.25vw, 1.59vh), 22px);
+    --flet-button-height: clamp(40px, min(9.3vw, 4.55vh), 60px);
+    --flet-button-width: clamp(220px, 18vw, 300px);
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -86,12 +97,11 @@
   .disclaimer-shell {
     display: flex;
     flex-direction: column;
-    width: min(100%, 900px);
+    width: 100%;
     height: 100%;
     min-height: 0;
     margin: 0 auto;
-    padding: clamp(1.75rem, 5.7vw, 3.35rem) clamp(1.5rem, 5.3vw, 3rem)
-      max(clamp(1.55rem, 5.3vw, 3rem), var(--safe-area-bottom));
+    padding: var(--flet-pad) var(--flet-pad) max(var(--flet-pad), var(--safe-area-bottom));
     background: #11161d;
   }
 
@@ -101,43 +111,43 @@
 
   .warning-symbol {
     display: block;
-    width: clamp(3.35rem, 9.7vw, 5.55rem);
-    height: clamp(3.35rem, 9.7vw, 5.55rem);
+    width: var(--flet-icon);
+    height: var(--flet-icon);
     color: #fff04f;
   }
 
   h1 {
-    margin: clamp(2rem, 5.4vw, 3.1rem) 0 0;
+    margin: calc(var(--flet-gap) * 0.55) 0 0;
     color: rgba(248, 250, 252, 0.9);
-    font-size: clamp(2.35rem, 5.4vw, 3.25rem);
+    font-size: var(--flet-title);
     font-weight: 800;
     line-height: 1.15;
     letter-spacing: 0;
   }
 
   .disclaimer-header p {
-    margin: clamp(1.25rem, 3.7vw, 2rem) 0 0;
+    margin: var(--flet-gap) 0 0;
     color: rgba(248, 250, 252, 0.86);
-    font-size: clamp(1.35rem, 3.9vw, 2.25rem);
-    line-height: 1.32;
+    font-size: var(--flet-body);
+    line-height: 1.45;
     letter-spacing: 0;
   }
 
   .divider {
     flex: 0 0 auto;
-    height: 2px;
-    margin: clamp(1.5rem, 4.4vw, 2.8rem) 0;
+    height: 1px;
+    margin: var(--flet-gap) 0;
     background: rgba(226, 232, 240, 0.25);
   }
 
   .disclaimer-copy {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
-    padding-right: clamp(0.35rem, 1vw, 0.7rem);
+    padding-right: calc(var(--flet-gap) * 0.8);
     color: rgba(248, 250, 252, 0.78);
-    font-size: clamp(1.34rem, 3.74vw, 2.25rem);
-    line-height: 1.5;
+    font-size: var(--flet-body);
+    line-height: 1.55;
     letter-spacing: 0;
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
@@ -148,26 +158,27 @@
   }
 
   .disclaimer-copy p {
-    margin: 0 0 clamp(1.25rem, 3.9vw, 2.15rem);
+    margin: 0 0 calc(var(--flet-gap) * 1.4);
   }
 
   .disclaimer-copy p:last-of-type {
-    margin-bottom: clamp(1.15rem, 3.5vw, 2rem);
+    margin-bottom: calc(var(--flet-gap) * 1.4);
   }
 
   .disclaimer-copy ul {
     display: grid;
-    gap: clamp(0.9rem, 3.2vw, 1.8rem);
+    gap: var(--flet-gap);
+    list-style: disc;
     margin: 0;
-    padding: 0 0 0 clamp(1.35rem, 4.4vw, 2.65rem);
+    padding: 0 0 0 calc(var(--flet-body) * 2.2);
   }
 
   .disclaimer-copy li {
-    padding-left: clamp(0.65rem, 2vw, 1.2rem);
+    padding-left: calc(var(--flet-gap) * 0.65);
   }
 
   .disclaimer-copy::-webkit-scrollbar {
-    width: clamp(0.28rem, 1vw, 0.58rem);
+    width: max(4px, calc(var(--flet-gap) * 0.6));
   }
 
   .disclaimer-copy::-webkit-scrollbar-thumb {
@@ -186,7 +197,7 @@
   .disclaimer-footer p {
     margin: 0;
     color: rgba(248, 250, 252, 0.9);
-    font-size: clamp(1.42rem, 3.9vw, 2.25rem);
+    font-size: var(--flet-body);
     font-weight: 800;
     line-height: 1.5;
     letter-spacing: 0;
@@ -194,20 +205,22 @@
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.85rem;
-    margin-top: clamp(1.55rem, 4.8vw, 2.75rem);
+    justify-content: center;
+    margin-top: var(--flet-gap);
   }
 
   .accept-button,
   .reject-button {
     position: relative;
     min-width: 0;
-    min-height: clamp(3.8rem, 10.6vw, 6rem);
+    min-height: var(--flet-button-height);
     border: 0;
     border-radius: 999px;
-    padding: 0 clamp(1.5rem, 4.4vw, 2.5rem);
+    padding: 0 calc(var(--flet-pad) * 1.2);
     font-family: var(--font-md3-serif);
-    font-size: clamp(1.55rem, 4vw, 2.4rem);
+    font-size: var(--flet-body);
     line-height: 1;
     letter-spacing: 0;
     transition:
@@ -217,7 +230,8 @@
   }
 
   .accept-button {
-    flex: 1 1 auto;
+    flex: 0 0 min(100%, var(--flet-button-width));
+    width: min(100%, var(--flet-button-width));
     background: #191e25;
     color: #b9c5ff;
     box-shadow:
@@ -226,7 +240,8 @@
   }
 
   .reject-button {
-    flex: 0 0 auto;
+    flex: 0 0 min(100%, var(--flet-button-width));
+    width: min(100%, var(--flet-button-width));
     background: transparent;
     color: rgba(248, 250, 252, 0.7);
     box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.24);
@@ -250,30 +265,16 @@
   }
 
   @media (max-width: 639px) {
-    .disclaimer-shell {
-      padding-top: clamp(1.5rem, 6.2vw, 2.5rem);
-    }
-
+    .accept-button,
     .reject-button {
-      display: none;
+      flex-basis: 100%;
+      width: 100%;
     }
   }
 
-  @media (max-width: 420px) {
-    h1 {
-      font-size: 2.05rem;
-    }
-
-    .disclaimer-header p,
-    .disclaimer-copy,
-    .disclaimer-footer p {
-      font-size: 1.28rem;
-    }
-
-    .accept-button,
-    .reject-button {
-      min-height: 3.5rem;
-      font-size: 1.35rem;
-    }
+  .warning-symbol :global(.material-symbols-outlined) {
+    width: var(--flet-icon) !important;
+    height: var(--flet-icon) !important;
+    font-size: var(--flet-icon) !important;
   }
 </style>
