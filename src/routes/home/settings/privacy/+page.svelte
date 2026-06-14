@@ -66,7 +66,7 @@
 
     <div class="flex items-center gap-3">
       <span class="rounded-2xl bg-md3-primary-container p-3 text-md3-on-primary-container">
-        <Icon name="privacyTip" size="28px" />
+        <Icon name="privacy" size="28px" />
       </span>
       <div class="min-w-0">
         <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
