@@ -1,5 +1,5 @@
 import changelogMarkdown from '$lib/changelog/CHANGELOG.md?raw';
-import { stripInlineMarkdown } from '$lib/markdown';
+import { markdownInlineToText } from '$lib/markdown';
 
 export interface ChangelogEntry {
   version: string;
@@ -54,13 +54,13 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
 
     const released = line.match(releasedPattern);
     if (released) {
-      current.date = stripInlineMarkdown(released[1]);
+      current.date = markdownInlineToText(released[1]);
       continue;
     }
 
     const title = line.match(titlePattern);
     if (title) {
-      current.title = stripInlineMarkdown(title[1]);
+      current.title = markdownInlineToText(title[1]);
       continue;
     }
 

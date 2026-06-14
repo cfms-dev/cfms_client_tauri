@@ -1,124 +1,65 @@
-export type MarkdownBlock =
-  | { type: 'heading'; depth: number; text: string }
-  | { type: 'paragraph'; text: string }
-  | { type: 'list'; ordered: boolean; items: string[] }
-  | { type: 'code'; language: string | null; code: string };
+import { browser } from '$app/environment';
+import DOMPurify, { type Config } from 'dompurify';
+import MarkdownIt from 'markdown-it';
+import type Token from 'markdown-it/lib/token.mjs';
 
-const headingPattern = /^(#{1,4})\s+(.+)$/;
-const unorderedListPattern = /^\s*[-*+]\s+(.+)$/;
-const orderedListPattern = /^\s*\d+[.)]\s+(.+)$/;
+const markdownSanitizeConfig: Config = {
+  USE_PROFILES: { html: true },
+  ADD_ATTR: ['target', 'rel'],
+  FORBID_ATTR: ['style'],
+};
 
-export function parseMarkdownBlocks(markdown: string | null | undefined): MarkdownBlock[] {
-  if (!markdown?.trim()) return [];
+const markdown = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: false,
+});
 
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
-  const blocks: MarkdownBlock[] = [];
-  let paragraph: string[] = [];
-  let listItems: string[] = [];
-  let listOrdered = false;
-  let codeLines: string[] | null = null;
-  let codeLanguage: string | null = null;
+const defaultLinkOpen =
+  markdown.renderer.rules.link_open ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
 
-  function flushParagraph() {
-    if (!paragraph.length) return;
-    blocks.push({ type: 'paragraph', text: paragraph.join(' ').trim() });
-    paragraph = [];
+markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  const targetIndex = token.attrIndex('target');
+  const relIndex = token.attrIndex('rel');
+
+  if (targetIndex < 0) {
+    token.attrPush(['target', '_blank']);
+  } else {
+    token.attrs![targetIndex] = ['target', '_blank'];
   }
 
-  function flushList() {
-    if (!listItems.length) return;
-    blocks.push({ type: 'list', ordered: listOrdered, items: listItems });
-    listItems = [];
+  if (relIndex < 0) {
+    token.attrPush(['rel', 'noreferrer']);
+  } else {
+    token.attrs![relIndex] = ['rel', 'noreferrer'];
   }
 
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\s+$/u, '');
-    const trimmed = line.trim();
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
 
-    if (codeLines) {
-      if (trimmed.startsWith('```')) {
-        blocks.push({
-          type: 'code',
-          language: codeLanguage,
-          code: codeLines.join('\n'),
-        });
-        codeLines = null;
-        codeLanguage = null;
-      } else {
-        codeLines.push(line);
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith('```')) {
-      flushParagraph();
-      flushList();
-      codeLines = [];
-      codeLanguage = trimmed.slice(3).trim() || null;
-      continue;
-    }
-
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-
-    const heading = trimmed.match(headingPattern);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      blocks.push({
-        type: 'heading',
-        depth: heading[1].length,
-        text: stripInlineMarkdown(heading[2]),
-      });
-      continue;
-    }
-
-    const unorderedList = line.match(unorderedListPattern);
-    const orderedList = line.match(orderedListPattern);
-    if (unorderedList || orderedList) {
-      flushParagraph();
-      const ordered = Boolean(orderedList);
-      if (listItems.length && listOrdered !== ordered) {
-        flushList();
-      }
-      listOrdered = ordered;
-      listItems.push(stripInlineMarkdown((unorderedList ?? orderedList)?.[1] ?? ''));
-      continue;
-    }
-
-    if (listItems.length && /^\s{2,}\S/u.test(line)) {
-      const lastIndex = listItems.length - 1;
-      listItems[lastIndex] = `${listItems[lastIndex]} ${stripInlineMarkdown(trimmed)}`;
-      continue;
-    }
-
-    paragraph.push(stripInlineMarkdown(trimmed));
-  }
-
-  if (codeLines) {
-    blocks.push({
-      type: 'code',
-      language: codeLanguage,
-      code: codeLines.join('\n'),
-    });
-  }
-  flushParagraph();
-  flushList();
-
-  return blocks;
+export function renderMarkdown(markdownSource: string | null | undefined): string {
+  if (!markdownSource?.trim()) return '';
+  return sanitizeMarkdownHtml(markdown.render(markdownSource));
 }
 
-export function stripInlineMarkdown(value: string): string {
-  return value
-    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/gu, '$1')
-    .replace(/`([^`]+)`/gu, '$1')
-    .replace(/\*\*([^*]+)\*\*/gu, '$1')
-    .replace(/__([^_]+)__/gu, '$1')
-    .replace(/\*([^*]+)\*/gu, '$1')
-    .replace(/_([^_]+)_/gu, '$1')
-    .trim();
+export function markdownInlineToText(value: string): string {
+  const tokens = markdown.parseInline(value, {});
+  return collectTokenText(tokens).replace(/\s+/gu, ' ').trim();
+}
+
+function collectTokenText(tokens: Token[]): string {
+  return tokens
+    .map((token) => {
+      if (token.type === 'text' || token.type === 'code_inline') return token.content;
+      if (token.children?.length) return collectTokenText(token.children);
+      return '';
+    })
+    .join('');
+}
+
+function sanitizeMarkdownHtml(html: string): string {
+  if (!browser) return html;
+  return DOMPurify.sanitize(html, markdownSanitizeConfig);
 }
