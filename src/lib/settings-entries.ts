@@ -55,7 +55,7 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
   {
     labelKey: 'settings.privacy.title',
     descriptionKey: 'settings.privacy.description',
-    icon: 'privacyTip',
+    icon: 'privacy',
     href: '/home/settings/privacy',
     requiresAuth: true,
   },

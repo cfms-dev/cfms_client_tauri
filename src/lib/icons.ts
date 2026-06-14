@@ -127,6 +127,7 @@ export const ICONS = {
   qrCode:         'qr_code_2',
   browserUpdated: 'browser_updated',
   touchApp:       'touch_app',
+  privacy:        'privacy',
   privacyTip:     'privacy_tip',
 
   // ---- Misc UI ----
