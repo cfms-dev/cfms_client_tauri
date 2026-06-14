@@ -307,9 +307,10 @@ class AppLockStoreImpl {
   }
 
   lock() {
-    if (!this.canLock) return;
+    if (!this.canLock) return false;
     this.locked = true;
     this.clearTimedLockTimer();
+    return true;
   }
 
   unlock() {
@@ -323,7 +324,7 @@ class AppLockStoreImpl {
   }
 
   lockForBackground() {
-    if (this.settings.timedLockEnabled) this.lock();
+    return this.settings.timedLockEnabled ? this.lock() : false;
   }
 
   async setTimedLock(enabled: boolean, timeoutMs: number) {

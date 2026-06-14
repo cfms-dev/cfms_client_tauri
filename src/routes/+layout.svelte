@@ -226,7 +226,9 @@
   onMount(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        appLockStore.lockForBackground();
+        if (appLockStore.lockForBackground()) {
+          void screenProtectionStore.apply(true);
+        }
       } else {
         appLockStore.recordActivity();
       }
