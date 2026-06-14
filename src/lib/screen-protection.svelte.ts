@@ -1,11 +1,10 @@
 import { browser } from '$app/environment';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { platform, type Platform } from '@tauri-apps/plugin-os';
 import { loadUserPreference, saveUserPreference, setAndroidContentProtected } from '$lib/api';
 import type { UserPreference } from '$lib/api';
-import { getAppPlatform, type AppPlatform } from '$lib/platform';
 
 const DEFAULT_SCREENSHOT_PROTECTION = true;
-const DESKTOP_PLATFORMS = new Set<AppPlatform>(['windows', 'macos', 'linux']);
 
 class ScreenProtectionStoreImpl {
   userEnabled = $state(DEFAULT_SCREENSHOT_PROTECTION);
@@ -75,18 +74,22 @@ function normalizePreference(preferences: UserPreference) {
 }
 
 function isNativeProtectionAvailable() {
-  const platform = getAppPlatform();
-  return platform === 'android' || DESKTOP_PLATFORMS.has(platform);
+  const currentPlatform = platform();
+  return currentPlatform === 'android' || isDesktopPlatform(currentPlatform);
 }
 
 async function setNativeContentProtection(enabled: boolean) {
-  const platform = getAppPlatform();
-  if (platform === 'android') {
+  const currentPlatform = platform();
+  if (currentPlatform === 'android') {
     await setAndroidContentProtected(enabled);
     return;
   }
 
-  if (DESKTOP_PLATFORMS.has(platform)) {
+  if (isDesktopPlatform(currentPlatform)) {
     await getCurrentWindow().setContentProtected(enabled);
   }
+}
+
+function isDesktopPlatform(value: Platform) {
+  return value === 'windows' || value === 'macos' || value === 'linux';
 }
