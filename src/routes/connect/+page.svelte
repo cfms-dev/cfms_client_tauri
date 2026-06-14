@@ -22,6 +22,7 @@
     getServerState,
   } from "$lib/api";
   import { loadAppVersion } from "$lib/app-info";
+  import { appUpdateState } from "$lib/app-update-state.svelte";
   import {
     consumeLoginToConnectTransition,
     markConnectToLoginTransition,
@@ -204,12 +205,19 @@
     </button>
     <button
       type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      class="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
       title={$t('more.about')}
       aria-label={$t('more.about')}
       onclick={goToAbout}
     >
       <Icon name="info" size="18px" />
+      {#if appUpdateState.update}
+        <span
+          class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-md3-error shadow-[0_0_0_3px_rgba(248,113,113,0.18)]"
+          aria-label={$t('settings.updates.available')}
+          title={$t('settings.updates.available')}
+        ></span>
+      {/if}
     </button>
   </div>
 

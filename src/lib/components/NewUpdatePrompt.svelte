@@ -6,7 +6,7 @@
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import type { UpdateNotificationCopy } from '$lib/update-notifications';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { notificationStore } from '$lib/stores.svelte';
   import { flyScale } from '$lib/motion/transitions';
   import Icon from '$lib/components/Icon.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
@@ -31,7 +31,7 @@
   );
 
   $effect(() => {
-    if (!browser || !authStore.isLoggedIn || !update) return;
+    if (!browser || !update) return;
     if (activeVersion === update.version) return;
     if (!isVersionNewerThanPrompted(update.version, promptedVersion)) return;
 

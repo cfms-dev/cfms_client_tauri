@@ -37,6 +37,7 @@
   import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
+  import NewUpdatePrompt from "$lib/components/NewUpdatePrompt.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
 
   let { children }: { children: Snippet } = $props();
@@ -310,5 +311,6 @@
   </div>
   <DialogHost />
   <SnackBarHost />
+  <NewUpdatePrompt />
   <AppLockOverlay />
 </div>
