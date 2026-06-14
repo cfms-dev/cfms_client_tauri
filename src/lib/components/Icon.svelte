@@ -1,7 +1,7 @@
 <script lang="ts">
   // Reusable Material Symbol icon wrapper.
   //
-  // Renders icons using the Material Symbols Outlined font loaded in app.html.
+  // Renders icons using the bundled Material Symbols Outlined subset.
   // The font uses ligatures: each icon name (underscore_separated) is rendered
   // as its corresponding glyph — no network requests at runtime.
   //

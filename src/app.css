@@ -69,9 +69,9 @@
 
   /* ── MD3 Typography ─────────────────────────────────────────────────── */
 
-  --font-md3-sans: "Google Sans", "Google Sans Regular", "Inter", sans-serif;
-  --font-md3-serif: "Source Han Serif SC", "Source Han Serif SC Regular", "Noto Serif SC", serif;
-  --font-md3-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-md3-sans: "CFMS Inter Subset", "CFMS Noto Sans SC Subset", "Noto Sans SC", system-ui, sans-serif;
+  --font-md3-serif: "CFMS Noto Serif SC Subset", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-md3-mono: "CFMS JetBrains Mono Subset", "JetBrains Mono", ui-monospace, monospace;
 }
 
 /* ---------------------------------------------------------------------------
