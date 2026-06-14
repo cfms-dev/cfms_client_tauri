@@ -4,6 +4,22 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.26.0
+**Released on:** 2026-06-15
+
+**Title:** Biometric Verification
+
+### Added
+- Mobile device users now can use biometric verification to unlock app locks.
+
+### Fixed
+- Changed app name on Android to `CFMS Client`.
+
+### Improved
+- Replaced the old self-implementation with a more mature solution.
+
+--- 
+
 ## v0.25.1
 **Released on:** 2026-06-14
 
