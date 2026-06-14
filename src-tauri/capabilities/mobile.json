@@ -6,6 +6,7 @@
   "platforms": ["android", "iOS"],
   "permissions": [
     "notification:default",
+    "os:default",
     "background-service:allow-start",
     "background-service:allow-stop",
     "background-service:allow-is-running",

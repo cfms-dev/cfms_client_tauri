@@ -10,6 +10,7 @@
     "core:window:allow-set-content-protected",
     "log:default",
     "notification:default",
+    "os:default",
     "process:default",
     "updater:default",
     "dialog:allow-open",
