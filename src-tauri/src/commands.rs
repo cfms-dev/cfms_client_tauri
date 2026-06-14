@@ -28,7 +28,10 @@ use tauri_plugin_updater::UpdaterExt;
 #[cfg(target_os = "android")]
 use crate::AndroidUploadFileImporter;
 #[cfg(target_os = "android")]
-use crate::{AndroidApkInstaller, AndroidAppLifecycle, AndroidFileOpener, AndroidPasskey};
+use crate::{
+    AndroidApkInstaller, AndroidAppLifecycle, AndroidFileOpener, AndroidPasskey,
+    AndroidSecureScreen,
+};
 use crate::{AppHandleState, UploadInterruption};
 
 const UPDATE_RELEASES_API: &str =

@@ -151,6 +151,11 @@ pub struct AndroidAppLifecycle<R: Runtime> {
     pub handle: tauri::plugin::PluginHandle<R>,
 }
 
+#[cfg(target_os = "android")]
+pub struct AndroidSecureScreen<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -180,6 +185,7 @@ pub fn run() {
         .plugin(upload_file_importer_plugin())
         .plugin(android_passkey_plugin())
         .plugin(android_app_lifecycle_plugin())
+        .plugin(android_secure_screen_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
             // --- Determine application data directory ---
@@ -328,6 +334,7 @@ pub fn run() {
             commands::android_get_passkey,
             commands::move_app_to_background,
             commands::exit_app_after_launcher_transition,
+            commands::set_android_content_protected,
             commands::check_app_update,
             commands::install_app_update,
             commands::add_download,
@@ -546,4 +553,23 @@ fn android_app_lifecycle_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlug
 #[cfg(not(target_os = "android"))]
 fn android_app_lifecycle_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("android-app-lifecycle-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn android_secure_screen_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("android-secure-screen")
+        .setup(|app, api| {
+            let handle =
+                api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidSecureScreenPlugin")?;
+            app.manage(AndroidSecureScreen { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_secure_screen_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("android-secure-screen-noop").build()
 }

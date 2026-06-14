@@ -128,6 +128,7 @@ mod tests {
         assert_eq!(preferences.theme, "light");
         assert!(preferences.favourites.files.is_empty());
         assert!(preferences.favourites.directories.is_empty());
+        assert!(preferences.screenshot_protection_enabled);
     }
 
     #[test]
@@ -174,6 +175,7 @@ mod tests {
             loaded.favourites.files.get("doc-2").map(String::as_str),
             Some("Plan.md")
         );
+        assert!(loaded.screenshot_protection_enabled);
 
         let raw = std::fs::read(path).unwrap();
         assert!(cfms_crypto::is_encrypted(&raw));

@@ -10,3 +10,8 @@ export async function moveAppToBackground(): Promise<void> {
 export async function exitAppAfterLauncherTransition(): Promise<void> {
   return invoke("exit_app_after_launcher_transition");
 }
+
+/** Toggle Android FLAG_SECURE for screenshot and screen-recording protection. */
+export async function setAndroidContentProtected(enabled: boolean): Promise<void> {
+  return invoke("set_android_content_protected", { enabled });
+}

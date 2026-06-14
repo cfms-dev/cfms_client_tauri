@@ -54,6 +54,7 @@ class AppLockStoreImpl {
   settings = $state<AppLockSettings>(defaultSettings());
   initialized = $state(false);
   locked = $state(false);
+  pinSetupActive = $state(false);
   platformAvailable = $state(false);
   busy = $state(false);
   private scopeKey: string | null = null;
@@ -340,8 +341,13 @@ class AppLockStoreImpl {
     this.settings = defaultSettings();
     this.initialized = false;
     this.locked = false;
+    this.pinSetupActive = false;
     this.scopeKey = null;
     this.clearTimedLockTimer();
+  }
+
+  setPinSetupActive(active: boolean) {
+    this.pinSetupActive = active;
   }
 
   async persist() {

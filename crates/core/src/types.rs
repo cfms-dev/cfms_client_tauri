@@ -368,6 +368,11 @@ pub struct UserPreference {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_back_button_behavior: Option<String>,
 
+    /// Whether the native window should block screenshots and screen recording
+    /// during an authenticated session. Forced sensitive flows ignore this.
+    #[serde(default = "default_screenshot_protection_enabled")]
+    pub screenshot_protection_enabled: bool,
+
     /// Per-user task scheduling limits for upload/download queues.
     #[serde(default)]
     pub task_concurrency: TaskConcurrencyPreference,
@@ -384,6 +389,7 @@ impl Default for UserPreference {
             external_storage_path: String::new(),
             app_lock: serde_json::Value::Null,
             root_back_button_behavior: None,
+            screenshot_protection_enabled: default_screenshot_protection_enabled(),
             task_concurrency: TaskConcurrencyPreference::default(),
         }
     }
@@ -395,6 +401,10 @@ fn default_theme() -> String {
 
 fn default_record_recent_visits() -> bool {
     false
+}
+
+fn default_screenshot_protection_enabled() -> bool {
+    true
 }
 
 pub const MIN_TASK_CONCURRENCY: u8 = 1;

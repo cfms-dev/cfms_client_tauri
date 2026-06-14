@@ -751,6 +751,15 @@ export const en = {
       savedAndCleared: 'Activity settings saved and recent visits cleared.',
       save: 'Save Activity',
     },
+    privacy: {
+      title: 'Privacy',
+      description: 'Screenshot and screen recording protection',
+      screenshotProtection: 'Block screenshots and screen recording',
+      screenshotProtectionHint: 'After sign-in, block system screenshots, screen recording, and recent-task previews by default.',
+      forcedHint: 'The login screen, locked App Lock state, and App Lock PIN setup always keep this protection on.',
+      saved: 'Privacy settings saved.',
+      save: 'Save Privacy',
+    },
     tasks: {
       title: 'Tasks',
       description: 'Upload and download scheduling',

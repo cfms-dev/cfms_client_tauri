@@ -746,6 +746,15 @@ export const zh_CN = {
       savedAndCleared: '活动记录设置已保存，最近访问已清空。',
       save: '保存活动记录设置',
     },
+    privacy: {
+      title: '隐私',
+      description: '截图与屏幕录制保护',
+      screenshotProtection: '防止截图和屏幕录制',
+      screenshotProtectionHint: '登录后默认阻止系统截图、屏幕录制和最近任务预览捕获应用窗口。',
+      forcedHint: '登录界面、应用锁锁定状态和设置应用锁 PIN 时会始终启用此保护，且不可关闭。',
+      saved: '隐私设置已保存。',
+      save: '保存隐私设置',
+    },
     tasks: {
       title: '任务',
       description: '上传和下载调度',

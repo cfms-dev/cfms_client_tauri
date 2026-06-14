@@ -24,6 +24,19 @@ pub async fn exit_app_after_launcher_transition<R: Runtime>(
 }
 
 #[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn set_android_content_protected<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    enabled: bool,
+) -> Result<(), String> {
+    let secure_screen = app.state::<AndroidSecureScreen<R>>();
+    secure_screen
+        .handle
+        .run_mobile_plugin::<()>("setSecureScreen", serde_json::json!({ "enabled": enabled }))
+        .map_err(|e| format!("Failed to update Android screenshot protection: {e}"))
+}
+
+#[cfg(target_os = "android")]
 fn move_android_task_to_background<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let lifecycle = app.state::<AndroidAppLifecycle<R>>();
     lifecycle
@@ -45,6 +58,12 @@ pub async fn exit_app_after_launcher_transition<R: Runtime>(
 ) -> Result<(), String> {
     app.exit(0);
     Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn set_android_content_protected(_enabled: bool) -> Result<(), String> {
+    Err("Android screenshot protection is only available on Android.".to_string())
 }
 
 // ---------------------------------------------------------------------------

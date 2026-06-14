@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -55,6 +55,10 @@
       await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
     }
     await appLockStore.refreshPlatformAvailability();
+  });
+
+  onDestroy(() => {
+    appLockStore.setPinSetupActive(false);
   });
 
   $effect(() => {
@@ -138,6 +142,7 @@
   function openPinSetup() {
     if (busy !== null) return;
     pinSetupOpen = true;
+    appLockStore.setPinSetupActive(true);
     pinSetupStep = 'new';
     pinSetupEntry = '';
     pendingPin = '';
@@ -148,6 +153,7 @@
   function closePinSetup(force = false) {
     if (busy === 'pin' && !force) return;
     pinSetupOpen = false;
+    appLockStore.setPinSetupActive(false);
     pinSetupEntry = '';
     pendingPin = '';
     pinSetupMessage = null;

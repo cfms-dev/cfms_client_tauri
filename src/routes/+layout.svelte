@@ -23,6 +23,7 @@
   import { initI18n } from "$lib/i18n";
   import { initNavigationHistory, navigateUp } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
+  import { screenProtectionStore } from "$lib/screen-protection.svelte";
   import {
     authStore,
     serverStateStore,
@@ -60,6 +61,14 @@
   const showRootLockdownBanner = $derived(
     serverStateStore.lockdown && !page.url.pathname.startsWith(HOME_PREFIX),
   );
+  const forcedScreenProtection = $derived(
+    appLockStore.locked
+      || appLockStore.pinSetupActive
+      || (page.url.pathname === "/login" && serverStateStore.connected && !authStore.isLoggedIn),
+  );
+  const desiredScreenProtection = $derived(
+    forcedScreenProtection || (authStore.isLoggedIn && screenProtectionStore.userEnabled),
+  );
 
   // ---------------------------------------------------------------------------
   // Auth guard — runs reactively whenever the URL or auth state changes.
@@ -69,6 +78,7 @@
 
     if (!authStore.isLoggedIn) {
       appLockStore.resetForSignedOut();
+      screenProtectionStore.resetForSignedOut();
     }
 
     if (
@@ -174,7 +184,12 @@
     if (!authStore.isLoggedIn || !authStore.username) return;
     const scopeKey = `${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`;
     void appLockStore.init(scopeKey);
+    void screenProtectionStore.init(scopeKey);
     void uploadStore.initConcurrency(scopeKey);
+  });
+
+  $effect(() => {
+    void screenProtectionStore.apply(desiredScreenProtection);
   });
 
   onMount(() => {
