@@ -427,6 +427,7 @@ pub fn run() {
             commands::set_user_avatar,
             commands::load_user_preference,
             commands::save_user_preference,
+            commands::discard_user_preference,
             commands::reload_tasks_for_user,
         ])
         .run(tauri::generate_context!())

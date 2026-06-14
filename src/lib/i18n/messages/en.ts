@@ -68,6 +68,7 @@ export const en = {
   login: {
     loadingUserData: 'Loading user data...',
     settingUpEncryption: 'Setting up encryption...',
+    loadingPreferences: 'Loading preferences...',
     downloadingAvatar: 'Downloading avatar...',
     loadingTasks: 'Loading tasks...',
     setupWait: 'Please wait while your session is being set up.',
@@ -664,6 +665,15 @@ export const en = {
       fair: 'Fair',
       good: 'Good',
       strong: 'Strong',
+    },
+    corruptedPreference: {
+      title: 'Configuration Cannot Be Decrypted',
+      body:
+        'The local configuration file is encrypted with a key that is no longer available on the server. The server may have been reset, or the preference key may have changed.',
+      hint:
+        'Delete the unreadable user preferences and continue with the default configuration, or cancel login to keep the file intact.',
+      delete: 'Delete and Continue',
+      cancel: 'Cancel Login',
     },
   },
   settings: {

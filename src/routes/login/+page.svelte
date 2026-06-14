@@ -33,13 +33,17 @@
     downloadAvatar,
     getDownloadTasks,
     reloadTasksForUser,
+    loadUserPreference,
+    discardUserPreference,
     checkCachedAvatar,
     validateFileShortcuts,
+    clearAuthSession,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import CorruptedPreferenceDialog from "$lib/components/CorruptedPreferenceDialog.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
@@ -52,6 +56,8 @@
   let successMessage = $state<string | null>(null);
   let passwordChangeRequired = $state(false);
   let showChangePassword = $state(false);
+  let showCorruptedPreferenceDialog = $state(false);
+  let corruptedPreferenceResolver: ((discard: boolean) => void) | null = null;
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
   let passwordInput: HTMLInputElement | null = $state(null);
@@ -72,6 +78,7 @@
   const loadingPhases = [
     $t('login.loadingUserData'),
     $t('login.settingUpEncryption'),
+    $t('login.loadingPreferences'),
     $t('login.downloadingAvatar'),
     $t('login.loadingTasks'),
   ];
@@ -80,9 +87,7 @@
    *
    *  Mirrors `_complete_login` in the Python reference:
    *  reference/src/include/controllers/login.py */
-  async function runLoadingPhases() {
-    const u = authStore.username!;
-
+  async function runLoadingPhases(user: string): Promise<boolean> {
     // Phase 1: "Loading user data…"
     loadingPhase = loadingPhases[0];
     // Auth data is already stored by the login command.
@@ -93,12 +98,18 @@
     // DEK setup happens backend-side during the login call; brief delay for UX.
     await new Promise((r) => setTimeout(r, 300));
 
-    // Phase 3: "Downloading avatar…"
+    // Phase 3: "Loading preferences…"
     loadingPhase = loadingPhases[2];
+    if (!(await ensureUserPreferencesReadable())) {
+      return false;
+    }
+
+    // Phase 4: "Downloading avatar…"
+    loadingPhase = loadingPhases[3];
     try {
-      const taskData = await getUserAvatar(u);
+      const taskData = await getUserAvatar(user);
       if (taskData) {
-        const path = await downloadAvatar(taskData, u, true);
+        const path = await downloadAvatar(taskData, user, true);
         if (path) {
           authStore.avatarPath = path;
         }
@@ -107,8 +118,8 @@
       // Non-fatal: avatar download failure does not block login.
     }
 
-    // Phase 4: "Loading tasks…"
-    loadingPhase = loadingPhases[3];
+    // Phase 5: "Loading tasks…"
+    loadingPhase = loadingPhases[4];
     try {
       await reloadTasksForUser();
       const tasks = await getDownloadTasks();
@@ -121,6 +132,67 @@
       fileShortcutValidationStore.apply(await validateFileShortcuts());
     } catch {
       // Non-fatal: shortcut validation failure does not block login.
+    }
+
+    return true;
+  }
+
+  async function ensureUserPreferencesReadable(): Promise<boolean> {
+    try {
+      await loadUserPreference();
+      return true;
+    } catch (e) {
+      if (!isUnreadablePreferenceError(e)) {
+        throw e;
+      }
+    }
+
+    const shouldDiscard = await askDiscardUnreadablePreferences();
+    if (!shouldDiscard) {
+      await cancelAuthenticatedSession();
+      return false;
+    }
+
+    await discardUserPreference();
+    await loadUserPreference();
+    return true;
+  }
+
+  function askDiscardUnreadablePreferences(): Promise<boolean> {
+    showCorruptedPreferenceDialog = true;
+    return new Promise((resolve) => {
+      corruptedPreferenceResolver = resolve;
+    });
+  }
+
+  function resolveCorruptedPreferenceDialog(discard: boolean) {
+    showCorruptedPreferenceDialog = false;
+    corruptedPreferenceResolver?.(discard);
+    corruptedPreferenceResolver = null;
+  }
+
+  function isUnreadablePreferenceError(e: unknown): boolean {
+    const message = formatError(e).toLowerCase();
+    return (
+      message.includes('encrypted preference file found but dek is unavailable')
+      || message.includes('failed to decrypt preference file')
+      || message.includes('invalid preference data')
+    );
+  }
+
+  async function cancelAuthenticatedSession() {
+    try {
+      await clearAuthSession();
+    } catch {
+      /* backend may already have cleared auth state */
+    }
+    authStore.clear();
+    password = "";
+    pendingPassword = "";
+    try {
+      serverStateStore.apply(await getServerState());
+    } catch {
+      /* keep the last known connection state */
     }
   }
 
@@ -230,7 +302,7 @@
       // Regular success — animate the loading phases.
       loadingPhase = loadingPhases[0];
       await info("Login successful, running post-login loading phases...");
-      await runLoadingPhases();
+      if (!(await runLoadingPhases(username.trim()))) return;
       await info("Loading phases complete, finalizing auth state...");
 
       authStore.apply(authResult);
@@ -308,7 +380,7 @@
       // Success — animate the loading phases.
       busy = true;
       loadingPhase = loadingPhases[0];
-      await runLoadingPhases();
+      if (!(await runLoadingPhases(username.trim()))) return true;
 
       authStore.apply(authResult);
 
@@ -625,6 +697,13 @@
     onVerify={handle2faVerify}
     onCancel={handle2faCancel}
     method={authStore.twofaMethod}
+  />
+{/if}
+
+{#if showCorruptedPreferenceDialog}
+  <CorruptedPreferenceDialog
+    onDelete={() => resolveCorruptedPreferenceDialog(true)}
+    onCancel={() => resolveCorruptedPreferenceDialog(false)}
   />
 {/if}
 

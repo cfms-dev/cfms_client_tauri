@@ -18,6 +18,21 @@ pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf 
     dir(app_data).join(format!("{server_hash}_{username}.json"))
 }
 
+/// Delete the persisted preference file for a user, if one exists.
+pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
+    let path = file_path(app_data, server_hash, username);
+    if !path.exists() {
+        return Ok(());
+    }
+
+    std::fs::remove_file(&path).map_err(|e| {
+        cfms_core::Error::Other(format!(
+            "Failed to delete preference file {}: {e}",
+            path.display()
+        ))
+    })
+}
+
 /// Load preferences for a user, returning defaults when the file is absent.
 pub fn load(
     app_data: &Path,
@@ -179,5 +194,63 @@ mod tests {
 
         let raw = std::fs::read(path).unwrap();
         assert!(cfms_crypto::is_encrypted(&raw));
+    }
+
+    #[test]
+    fn encrypted_preferences_require_dek() {
+        let temp = tempfile::tempdir().unwrap();
+        let preferences = UserPreference::default();
+
+        save(
+            temp.path(),
+            SERVER_HASH,
+            USERNAME,
+            Some(&dek()),
+            &preferences,
+        )
+        .unwrap();
+
+        let result = load(temp.path(), SERVER_HASH, USERNAME, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn wrong_dek_fails_to_load_preferences() {
+        let temp = tempfile::tempdir().unwrap();
+        let preferences = UserPreference::default();
+        let wrong_dek = [9; cfms_core::constants::KEY_LEN];
+
+        save(
+            temp.path(),
+            SERVER_HASH,
+            USERNAME,
+            Some(&dek()),
+            &preferences,
+        )
+        .unwrap();
+
+        let result = load(temp.path(), SERVER_HASH, USERNAME, Some(&wrong_dek));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn discard_removes_preference_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let preferences = UserPreference::default();
+        let path = file_path(temp.path(), SERVER_HASH, USERNAME);
+
+        save(
+            temp.path(),
+            SERVER_HASH,
+            USERNAME,
+            Some(&dek()),
+            &preferences,
+        )
+        .unwrap();
+        assert!(path.exists());
+
+        discard(temp.path(), SERVER_HASH, USERNAME).unwrap();
+        assert!(!path.exists());
+        assert!(discard(temp.path(), SERVER_HASH, USERNAME).is_ok());
     }
 }

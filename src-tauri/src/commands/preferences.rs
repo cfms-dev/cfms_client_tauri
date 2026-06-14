@@ -97,6 +97,37 @@ pub async fn save_user_preference(
     .map_err(|e| format!("Preference save task failed: {e}"))?
 }
 
+/// Delete the current user's local preference file.
+///
+/// Used when an encrypted preference file can no longer be decrypted because
+/// the server-side DEK was reset, lost, or replaced.
+#[tauri::command]
+pub async fn discard_user_preference(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<(), String> {
+    let username = {
+        let u = state.inner.username.read().await;
+        u.clone()
+    }
+    .ok_or_else(|| "Not logged in".to_string())?;
+
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let app_data_dir = state.app_data_dir.clone();
+
+    tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Preference discard task failed: {e}"))?
+}
+
 fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference) {
     state.inner.download_max_concurrent.store(
         preferences.task_concurrency.max_downloads as usize,

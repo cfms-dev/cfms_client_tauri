@@ -14,6 +14,11 @@ export async function saveUserPreference(
   return invoke("save_user_preference", { preferences });
 }
 
+/** Delete the current user's local preference file. */
+export async function discardUserPreference(): Promise<void> {
+  return invoke("discard_user_preference");
+}
+
 // ---------------------------------------------------------------------------
 
 /** Reload download tasks for the current user from the encrypted persistence file.

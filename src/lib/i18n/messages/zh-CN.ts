@@ -68,6 +68,7 @@ export const zh_CN = {
   login: {
     loadingUserData: '正在加载用户数据...',
     settingUpEncryption: '正在设置加密...',
+    loadingPreferences: '正在加载偏好设置...',
     downloadingAvatar: '正在下载头像...',
     loadingTasks: '正在加载任务...',
     setupWait: '请稍候，正在准备你的会话。',
@@ -659,6 +660,15 @@ export const zh_CN = {
       fair: '一般',
       good: '良好',
       strong: '强',
+    },
+    corruptedPreference: {
+      title: '配置无法解密',
+      body:
+        '本地配置文件使用的加密密钥已无法从服务器获取。服务器可能已被重置，或用户偏好密钥已经改变。',
+      hint:
+        '你可以删除无法读取的用户偏好并使用默认配置继续登录，或取消登录以保留该文件。',
+      delete: '删除并继续',
+      cancel: '取消登录',
     },
   },
   settings: {
