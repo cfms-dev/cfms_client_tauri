@@ -2,6 +2,19 @@
 
 This file is the product changelog shown inside the app. Keep entries newest first.
 
+--- 
+
+## v0.25.1
+**Released on:** 2026-06-14
+
+**Title:** Bugfix
+
+### Improved
+- The new update notification interface no longer requires user login.
+
+### Fixed
+- Replaced the incorrectly generated app icon.
+
 ---
 
 ## v0.23.0
