@@ -6,6 +6,7 @@
   import { loadAppVersion } from '$lib/app-info';
   import { navigateUp } from '$lib/navigation';
   import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
+  import ChangelogPanel from '$lib/components/ChangelogPanel.svelte';
   import Icon from '$lib/components/Icon.svelte';
 
   let protoVer = $state(0);
@@ -58,6 +59,8 @@
   </section>
 
   <AppUpdateChecker />
+
+  <ChangelogPanel />
 </div>
 
 <style>

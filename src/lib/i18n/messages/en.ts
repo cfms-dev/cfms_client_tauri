@@ -477,6 +477,17 @@ export const en = {
     latestVersion: 'Already on the latest version.',
     checkForUpdates: 'Check for Updates',
   },
+  changelog: {
+    title: 'Changelog',
+    description: 'Review the important changes in recent client versions.',
+    showAll: 'Show all',
+    showLess: 'Show less',
+  },
+  updatesPrompt: {
+    title: 'A New Version Is Available',
+    subtitle: '{version} was released on {date}',
+    releaseNotes: 'Release notes',
+  },
   trash: {
     title: 'Recycle Bin',
     empty: 'Recycle bin is empty',
@@ -798,6 +809,7 @@ export const en = {
       latest: 'You are on the latest version.',
       save: 'Save Channel',
       check: 'Check for Updates',
+      notNow: 'Not now',
     },
     twofa: {
       title: 'Two-Factor Auth',

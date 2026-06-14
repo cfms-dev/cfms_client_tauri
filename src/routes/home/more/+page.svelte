@@ -9,6 +9,7 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { appUpdateState } from '$lib/app-update-state.svelte';
   import {
     changePassword,
     downloadAvatar,
@@ -42,6 +43,7 @@
     href?: string;
     /** Or run this action on click (takes precedence over href). */
     action?: () => void;
+    badge?: boolean;
     hidden?: boolean;
   }
 
@@ -55,7 +57,7 @@
     { label: $t('more.management'), description: $t('more.managementDescription'),
       icon: 'adminPanelSettings', href: '/home/manage', hidden: !isAdmin },
     { label: $t('more.about'), description: $t('more.aboutDescription'),
-      icon: 'info', href: '/home/about' },
+      icon: 'info', href: '/home/about', badge: appUpdateState.update !== null },
   ]);
 
   const visibleMenuEntries = $derived(menuEntries.filter((e) => !e.hidden));
@@ -144,7 +146,14 @@
             {entry.description}
           </p>
         </div>
-        <span class="ml-auto text-md3-on-surface-variant">
+        <span class="ml-auto flex items-center gap-2 text-md3-on-surface-variant">
+          {#if entry.badge}
+            <span
+              class="h-2.5 w-2.5 rounded-full bg-md3-error shadow-[0_0_0_3px_rgba(248,113,113,0.18)]"
+              aria-label={$t('settings.updates.available')}
+              title={$t('settings.updates.available')}
+            ></span>
+          {/if}
           <Icon name="breadcrumbSep" size="20px" />
         </span>
       </button>

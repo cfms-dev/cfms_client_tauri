@@ -22,6 +22,7 @@
   import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import TabBar from '$lib/components/TabBar.svelte';
+  import NewUpdatePrompt from '$lib/components/NewUpdatePrompt.svelte';
   import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
   import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
@@ -295,6 +296,8 @@
   {#if showTabBar}
     <TabBar {tabs} />
   {/if}
+
+  <NewUpdatePrompt />
 
   {#if showTabBar && canApplyLockdown}
     <button

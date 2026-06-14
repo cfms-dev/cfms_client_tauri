@@ -12,6 +12,7 @@
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import MarkdownView from '$lib/components/MarkdownView.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   let appVersion = $state('');
@@ -177,7 +178,9 @@
         <span>{formatReleaseDate(appUpdateState.update.date)}</span>
       </div>
       {#if appUpdateState.update.body}
-        <pre>{appUpdateState.update.body}</pre>
+        <div class="release-notes">
+          <MarkdownView content={appUpdateState.update.body} compact />
+        </div>
       {/if}
       <a href={appUpdateState.update.releaseUrl} target="_blank" rel="noreferrer">
         {$t('settings.updates.openRelease')}
@@ -304,16 +307,12 @@
     white-space: nowrap;
   }
 
-  pre {
+  .release-notes {
     max-height: 10rem;
     overflow: auto;
     margin: 0;
     padding-left: 0.75rem;
     border-left: 2px solid color-mix(in srgb, var(--color-md3-primary-emphasis) 58%, transparent);
-    color: var(--color-md3-on-surface-variant);
-    font: 0.8125rem/1.55 var(--font-md3-sans);
-    white-space: pre-wrap;
-    word-break: break-word;
   }
 
   a {

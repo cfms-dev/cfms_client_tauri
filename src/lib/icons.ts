@@ -49,6 +49,7 @@ export const ICONS = {
   menu:          'menu',
   moreVert:      'more_vert',
   check:         'check',
+  newReleases:   'new_releases',
   checkBox:      'check_box',
   checkBoxBlank: 'check_box_outline_blank',
   radioChecked:  'radio_button_checked',

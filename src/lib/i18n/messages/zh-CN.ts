@@ -475,6 +475,17 @@ export const zh_CN = {
     latestVersion: '已是最新版本。',
     checkForUpdates: '检查更新',
   },
+  changelog: {
+    title: '更新日志',
+    description: '查看此客户端最近版本的主要变化。',
+    showAll: '查看全部',
+    showLess: '收起',
+  },
+  updatesPrompt: {
+    title: '有新版本可用',
+    subtitle: '{version} 已发布于 {date}',
+    releaseNotes: '发布说明',
+  },
   trash: {
     title: '回收站',
     empty: '回收站为空',
@@ -792,6 +803,7 @@ export const zh_CN = {
       latest: '当前已是最新版本。',
       save: '保存通道',
       check: '检查更新',
+      notNow: '稍后再说',
     },
     twofa: {
       title: '二步验证',
