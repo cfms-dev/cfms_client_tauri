@@ -67,6 +67,26 @@ pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf 
         .join(format!("{server_hash}_{username}.json"))
 }
 
+/// Return whether a persisted task file exists for a user.
+pub fn exists(app_data: &Path, server_hash: &str, username: &str) -> bool {
+    file_path(app_data, server_hash, username).exists()
+}
+
+/// Delete the persisted task file for a user, if one exists.
+pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
+    let path = file_path(app_data, server_hash, username);
+    if !path.exists() {
+        return Ok(());
+    }
+
+    std::fs::remove_file(&path).map_err(|e| {
+        cfms_core::Error::Other(format!(
+            "Failed to delete task file {}: {e}",
+            path.display()
+        ))
+    })
+}
+
 /// Load the task list from the encrypted JSON persistence file.
 ///
 /// # Returns
@@ -278,5 +298,34 @@ fn status_from_str(s: &str) -> DownloadTaskStatus {
         "cancelled" => DownloadTaskStatus::Cancelled,
         "scheduled" => DownloadTaskStatus::Scheduled,
         _ => DownloadTaskStatus::Pending,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SERVER_HASH: &str = "server";
+    const USERNAME: &str = "alice";
+
+    #[test]
+    fn discard_missing_task_file_is_ok() {
+        let temp = tempfile::tempdir().unwrap();
+
+        assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
+        discard(temp.path(), SERVER_HASH, USERNAME).unwrap();
+    }
+
+    #[test]
+    fn discard_removes_task_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = file_path(temp.path(), SERVER_HASH, USERNAME);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"stale encrypted task state").unwrap();
+
+        assert!(exists(temp.path(), SERVER_HASH, USERNAME));
+        discard(temp.path(), SERVER_HASH, USERNAME).unwrap();
+        assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
+        assert!(!path.exists());
     }
 }

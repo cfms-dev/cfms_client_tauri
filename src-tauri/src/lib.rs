@@ -431,6 +431,7 @@ pub fn run() {
             commands::load_user_preference,
             commands::save_user_preference,
             commands::discard_user_preference,
+            commands::reset_preference_dek,
             commands::reload_tasks_for_user,
         ])
         .run(tauri::generate_context!())

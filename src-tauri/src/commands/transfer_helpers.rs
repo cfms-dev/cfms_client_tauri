@@ -736,6 +736,7 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
     let permissions = inner.permissions.read().await.clone();
     let groups = inner.groups.read().await.clone();
     let has_server_preference_dek = inner.server_preference_dek.read().await.is_some();
+    let has_preference_dek = inner.dek.read().await.is_some();
 
     let mut status = serde_json::json!({
         "username": username,
@@ -746,6 +747,7 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
         "groups": groups,
         "avatar_path": inner.avatar_path.read().await.clone(),
         "has_server_preference_dek": has_server_preference_dek,
+        "has_preference_dek": has_preference_dek,
     });
 
     if pending_2fa {

@@ -17,6 +17,11 @@ pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf 
     dir(app_data).join(format!("{server_hash}_{username}.json"))
 }
 
+/// Return whether a persisted preference file exists for a user.
+pub fn exists(app_data: &Path, server_hash: &str, username: &str) -> bool {
+    file_path(app_data, server_hash, username).exists()
+}
+
 /// Delete the persisted preference file for a user, if one exists.
 pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
     let path = file_path(app_data, server_hash, username);
@@ -126,6 +131,8 @@ mod tests {
     #[test]
     fn missing_file_returns_default_preferences() {
         let temp = tempfile::tempdir().unwrap();
+        assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
+
         let preferences = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek())).unwrap();
 
         assert_eq!(preferences.theme, "light");
@@ -238,9 +245,11 @@ mod tests {
             &preferences,
         )
         .unwrap();
+        assert!(exists(temp.path(), SERVER_HASH, USERNAME));
         assert!(path.exists());
 
         discard(temp.path(), SERVER_HASH, USERNAME).unwrap();
+        assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
         assert!(!path.exists());
         assert!(discard(temp.path(), SERVER_HASH, USERNAME).is_ok());
     }

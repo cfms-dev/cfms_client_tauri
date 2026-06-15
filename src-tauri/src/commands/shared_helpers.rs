@@ -150,6 +150,44 @@ async fn rewrap_and_upload_preference_dek(
     Ok(encrypted)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DekSetupStatus {
+    Ready,
+    RecoveryRequired,
+}
+
+fn extract_preference_dek_content(login_data: &serde_json::Value) -> Result<Option<&str>, String> {
+    match login_data.get("preference_dek") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(preference_dek) => preference_dek
+            .get("key_content")
+            .and_then(|key_content| key_content.as_str())
+            .filter(|key_content| !key_content.trim().is_empty())
+            .map(Some)
+            .ok_or_else(|| "preference_dek missing key_content".to_string()),
+    }
+}
+
+async fn install_fresh_preference_dek(
+    inner: &cfms_service::state::AppState,
+    password: &str,
+    username: &str,
+    token: &str,
+    conn: &cfms_transport::Connection,
+) -> Result<(), String> {
+    let new_dek = dek::generate_dek();
+    let encrypted =
+        rewrap_and_upload_preference_dek(conn, *new_dek, password, username, token).await?;
+
+    {
+        let mut d = inner.dek.write().await;
+        *d = Some(new_dek);
+    }
+    remember_server_preference_dek(inner, Some(encrypted)).await;
+
+    Ok(())
+}
+
 /// Set up the Data Encryption Key after a successful login.
 ///
 /// Mirrors [`_setup_dek`] from the Python reference implementation:
@@ -160,8 +198,9 @@ async fn rewrap_and_upload_preference_dek(
 ///    server's keyring (`upload_user_key`), and register it as the
 ///    preference DEK (`set_user_preference_dek`).
 ///
-/// Failures are logged but **not** propagated — DEK setup is best-effort;
-/// the user can still log in without encrypted configuration support.
+/// If the server-side DEK is missing or unusable while local encrypted state
+/// exists, the session is allowed to continue only so the frontend can ask the
+/// user to recover or discard that local state.
 async fn setup_dek(
     inner: &cfms_service::state::AppState,
     login_data: &serde_json::Value,
@@ -169,47 +208,96 @@ async fn setup_dek(
     username: &str,
     token: &str,
     conn: &cfms_transport::Connection,
-) {
+) -> Result<DekSetupStatus, String> {
     if password.is_empty() {
-        return;
+        return Err("Cannot set up preference encryption without a password".to_string());
     }
 
-    let result: Result<(), String> = async {
-        if let Some(preference_dek) = login_data.get("preference_dek") {
-            // --- Server already has an encrypted DEK — decrypt it. ---
-            let key_content = preference_dek["key_content"]
-                .as_str()
-                .ok_or_else(|| "preference_dek missing key_content".to_string())?;
+    {
+        let mut d = inner.dek.write().await;
+        *d = None;
+    }
 
-            remember_server_preference_dek(inner, Some(key_content.to_string())).await;
-            let decrypted = decrypt_preference_dek(key_content, password).await?;
-
-            let mut d = inner.dek.write().await;
-            *d = Some(decrypted);
-        } else {
+    let key_content = match extract_preference_dek_content(login_data) {
+        Ok(content) => content,
+        Err(error) => {
             remember_server_preference_dek(inner, None).await;
-
-            // --- First login with keyring support — generate and upload. ---
-            let new_dek = dek::generate_dek();
-            let _encrypted = rewrap_and_upload_preference_dek(
-                conn,
-                *new_dek,
-                password,
-                username,
-                token,
-            )
-            .await?;
-
-            // Store the DEK in memory.
-            let mut d = inner.dek.write().await;
-            *d = Some(new_dek);
+            return Err(error);
         }
-        Ok(())
-    }
-    .await;
+    };
 
-    if let Err(e) = result {
-        // Non-fatal: encryption is best-effort; login still succeeds.
-        tracing::warn!("DEK setup failed (config will not be encrypted this session): {e}");
+    if let Some(key_content) = key_content {
+        remember_server_preference_dek(inner, Some(key_content.to_string())).await;
+        let decrypted = decrypt_preference_dek(key_content, password).await?;
+
+        let mut d = inner.dek.write().await;
+        *d = Some(decrypted);
+        return Ok(DekSetupStatus::Ready);
     }
+
+    remember_server_preference_dek(inner, None).await;
+    install_fresh_preference_dek(inner, password, username, token, conn).await?;
+    Ok(DekSetupStatus::Ready)
+}
+
+async fn setup_dek_for_login(
+    inner: &cfms_service::state::AppState,
+    login_data: &serde_json::Value,
+    password: &str,
+    username: &str,
+    token: &str,
+    conn: &cfms_transport::Connection,
+    has_local_encrypted_state: bool,
+) -> Result<DekSetupStatus, String> {
+    if has_local_encrypted_state && matches!(extract_preference_dek_content(login_data), Ok(None)) {
+        {
+            let mut d = inner.dek.write().await;
+            *d = None;
+        }
+        remember_server_preference_dek(inner, None).await;
+        tracing::warn!(
+            "Preference DEK is missing on the server while encrypted local state exists"
+        );
+        return Ok(DekSetupStatus::RecoveryRequired);
+    }
+
+    match setup_dek(inner, login_data, password, username, token, conn).await {
+        Ok(status) => Ok(status),
+        Err(error) => {
+            let server_dek = extract_preference_dek_content(login_data).ok().flatten();
+            if has_local_encrypted_state {
+                if let Some(key_content) = server_dek {
+                    remember_server_preference_dek(inner, Some(key_content.to_string())).await;
+                }
+                tracing::warn!(
+                    "Preference DEK setup needs user recovery before encrypted local state can be used: {error}"
+                );
+                return Ok(DekSetupStatus::RecoveryRequired);
+            }
+
+            tracing::warn!(
+                "Preference DEK setup failed with no local encrypted state; replacing server DEK: {error}"
+            );
+            install_fresh_preference_dek(inner, password, username, token, conn).await?;
+            Ok(DekSetupStatus::Ready)
+        }
+    }
+}
+
+async fn ensure_preference_dek(
+    inner: &cfms_service::state::AppState,
+    password: &str,
+    username: &str,
+    token: &str,
+    conn: &cfms_transport::Connection,
+) -> Result<(), String> {
+    if inner.dek.read().await.is_some() {
+        return Ok(());
+    }
+
+    if password.is_empty() {
+        return Err("Cannot create a preference DEK without the current password".to_string());
+    }
+
+    install_fresh_preference_dek(inner, password, username, token, conn).await
 }

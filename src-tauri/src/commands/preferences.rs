@@ -31,11 +31,12 @@ pub async fn load_user_preference(
     let dek = {
         let d = state.inner.dek.read().await;
         d.clone()
-    };
+    }
+    .ok_or_else(|| "Preference DEK is unavailable; user preferences cannot be loaded".to_string())?;
 
     let app_data_dir = state.app_data_dir.clone();
     let mut pref = tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, dek.as_deref())
+        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, Some(&*dek))
             .map_err(|e| e.to_string())
     })
     .await
@@ -125,6 +126,54 @@ pub async fn discard_user_preference(
     })
     .await
     .map_err(|e| format!("Preference discard task failed: {e}"))?
+}
+
+/// Reset the current session's preference DEK after the user discards local
+/// encrypted state that could not be decrypted.
+#[tauri::command]
+pub async fn reset_preference_dek(
+    state: tauri::State<'_, AppHandleState>,
+    current_password: String,
+) -> Result<(), String> {
+    if state.inner.dek.read().await.is_some() {
+        return Ok(());
+    }
+
+    let (conn, username, token) = get_connection_auth(&state).await?;
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+    let app_data_dir = state.app_data_dir.clone();
+
+    ensure_preference_dek(
+        &state.inner,
+        &current_password,
+        &username,
+        &token,
+        &conn,
+    )
+    .await?;
+
+    tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
+            .and_then(|_| {
+                cfms_service::services::task_persistence::discard(
+                    &app_data_dir,
+                    &server_hash,
+                    &username,
+                )
+            })
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("Preference DEK reset cleanup task failed: {e}"))??;
+
+    state.tasks.clear();
+    Ok(())
 }
 
 fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference) {

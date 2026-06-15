@@ -19,6 +19,11 @@ export async function discardUserPreference(): Promise<void> {
   return invoke("discard_user_preference");
 }
 
+/** Create a fresh preference DEK when the current session cannot decrypt the old one. */
+export async function resetPreferenceDek(currentPassword: string): Promise<void> {
+  return invoke("reset_preference_dek", { currentPassword });
+}
+
 // ---------------------------------------------------------------------------
 
 /** Reload download tasks for the current user from the encrypted persistence file.

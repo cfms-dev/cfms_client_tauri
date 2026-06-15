@@ -36,6 +36,7 @@
     reloadTasksForUser,
     loadUserPreference,
     discardUserPreference,
+    resetPreferenceDek,
     checkCachedAvatar,
     validateFileShortcuts,
     clearAuthSession,
@@ -170,6 +171,7 @@
     }
 
     await discardUserPreference();
+    await resetPreferenceDek(currentPassword);
     await loadUserPreference();
     return true;
   }
@@ -202,6 +204,7 @@
     const message = formatError(e).toLowerCase();
     return (
       message.includes('encrypted preference file found but dek is unavailable')
+      || message.includes('preference dek is unavailable')
       || message.includes('failed to decrypt preference file')
       || (message.includes('preference file') && message.includes('is not encrypted'))
       || message.includes('invalid preference data')

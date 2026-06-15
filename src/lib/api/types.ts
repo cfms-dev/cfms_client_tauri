@@ -315,6 +315,8 @@ export interface AuthStatus {
   avatar_path?: string | null;
   /** True when the current login response included a server-side encrypted preference DEK. */
   has_server_preference_dek?: boolean;
+  /** True when this client session has a usable decrypted preference DEK. */
+  has_preference_dek?: boolean;
   /** When true, the server requires 2FA verification before completing login. */
   requires_2fa?: boolean;
   /** The 2FA method requested by the server (e.g. "totp"). */
