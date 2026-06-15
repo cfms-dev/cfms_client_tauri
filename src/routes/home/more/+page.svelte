@@ -12,6 +12,7 @@
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import {
     changePassword,
+    clearAuthSession,
     downloadAvatar,
     getUserAvatar,
     setUserAvatar,
@@ -33,7 +34,6 @@
   let showChangePassword = $state(false);
   let showAvatarPicker = $state(false);
   let savingAvatar = $state(false);
-  let successMsg = $state<string | null>(null);
 
   interface MenuEntry {
     label: string;
@@ -49,7 +49,7 @@
 
   const menuEntries = $derived<MenuEntry[]>([
     { label: $t('login.changePassword'), description: $t('more.changePasswordDescription'),
-      icon: 'password', action: () => { successMsg = null; showChangePassword = true; } },
+      icon: 'password', action: () => { showChangePassword = true; } },
     { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
     { label: $t('files.trash'), description: $t('more.trashDescription'),
@@ -73,7 +73,10 @@
     if (!username) throw $t('more.notSignedInError');
     await changePassword(username, oldPassword, newPassword);
     showChangePassword = false;
-    successMsg = $t('more.passwordChanged');
+    await clearAuthSession();
+    authStore.clear();
+    notificationStore.success($t('more.passwordChanged'));
+    await goto('/login', { replaceState: true });
   }
 
   async function handleSelectAvatar(document: ServerDocumentEntry) {
@@ -110,17 +113,6 @@
       onAvatarClick={() => (showAvatarPicker = true)}
     />
   </div>
-
-  <!-- Success banner (e.g. after a password change). -->
-  {#if successMsg}
-    <div
-      class="bg-md3-primary/15 border border-md3-primary/30
-             text-md3-on-surface text-sm rounded-xl p-3 flex items-start gap-2"
-    >
-      <span class="shrink-0 mt-0.5 text-md3-primary-emphasis"><Icon name="checkCircle" size="16px" /></span>
-      <span>{successMsg}</span>
-    </div>
-  {/if}
 
   <!-- Menu entries -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
