@@ -9,7 +9,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const files = {
   packageJson: "package.json",
-  packageLock: "package-lock.json",
   cargoWorkspace: "Cargo.toml",
   cargoLock: "Cargo.lock",
   tauriConfig: "src-tauri/tauri.conf.json",
@@ -156,22 +155,6 @@ function updatePackageJson(version, dryRun) {
   const pkg = readJson(files.packageJson);
   pkg.version = version;
   writeJson(files.packageJson, pkg, dryRun);
-}
-
-function updatePackageLock(version, dryRun) {
-  if (!exists(files.packageLock)) {
-    return false;
-  }
-
-  const lock = readJson(files.packageLock);
-  if (lock.version !== undefined) {
-    lock.version = version;
-  }
-  if (lock.packages?.[""]?.version !== undefined) {
-    lock.packages[""].version = version;
-  }
-  writeJson(files.packageLock, lock, dryRun);
-  return true;
 }
 
 function readTauriVersion() {
@@ -410,24 +393,6 @@ function collectVersions() {
     { target: files.tauriConfig, field: "version", value: readTauriVersion() },
   ];
 
-  if (exists(files.packageLock)) {
-    const lock = readJson(files.packageLock);
-    if (lock.version !== undefined) {
-      versions.push({
-        target: files.packageLock,
-        field: "version",
-        value: lock.version,
-      });
-    }
-    if (lock.packages?.[""]?.version !== undefined) {
-      versions.push({
-        target: files.packageLock,
-        field: 'packages[""].version',
-        value: lock.packages[""].version,
-      });
-    }
-  }
-
   for (const entry of readCargoLockVersions()) {
     versions.push({
       target: files.cargoLock,
@@ -523,7 +488,6 @@ function setVersion(version, flags) {
   }
 
   updatePackageJson(normalized, dryRun);
-  updatePackageLock(normalized, dryRun);
   updateWorkspaceCargoToml(normalized, dryRun);
   updateCargoLock(normalized, dryRun);
   updateTauriConfig(normalized, dryRun);

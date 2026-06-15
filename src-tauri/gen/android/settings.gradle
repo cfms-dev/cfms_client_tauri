@@ -4,3 +4,36 @@ plugins {
 include ':app'
 
 apply from: 'tauri.settings.gradle'
+
+def patchAgp9BuiltInKotlin = { descriptor ->
+    def buildFile = new File(descriptor.projectDir, 'build.gradle.kts')
+    if (!buildFile.isFile()) {
+        return
+    }
+
+    def original = buildFile.getText('UTF-8')
+    def patched = original
+        .replaceAll(/(?m)^\s*id\("org\.jetbrains\.kotlin\.android"\)\s*\r?\n/, '')
+        .replaceAll(
+            /(?s)\n\s*kotlinOptions\s*\{\s*jvmTarget\s*=\s*"1\.8"\s*\}/,
+            '''
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
+    }'''
+        )
+
+    if (patched != original) {
+        buildFile.write(patched, 'UTF-8')
+    }
+
+    def consumerRules = new File(descriptor.projectDir, 'consumer-rules.pro')
+    if (patched.contains('consumerProguardFiles("consumer-rules.pro")') && !consumerRules.isFile()) {
+        consumerRules.write('# AGP 9 requires declared consumer ProGuard files to exist.\n', 'UTF-8')
+    }
+}
+
+rootProject.children.findAll { it.name != 'app' }.each { descriptor ->
+    patchAgp9BuiltInKotlin(descriptor)
+}

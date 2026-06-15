@@ -17,4 +17,5 @@ key.properties
 keystore.properties
 
 /.tauri
+/.kotlin
 /tauri.settings.gradle

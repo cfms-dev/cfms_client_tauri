@@ -22,6 +22,7 @@ target
 
 .DS_Store
 node_modules
+package-lock.json
 /build
 /.svelte-kit
 /package
