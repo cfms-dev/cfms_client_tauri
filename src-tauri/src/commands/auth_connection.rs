@@ -11,9 +11,9 @@
 ///   `twofa_token`.
 /// - Reject the login (any other code) — an error is returned.
 ///
-/// The Data Encryption Key (DEK) is set up after successful
-/// authentication — either decrypted from the server-returned
-/// `preference_dek` or generated fresh and uploaded (first login).
+/// The Data Encryption Key (DEK) metadata is captured after successful
+/// authentication, but password-dependent DEK work is deferred to the
+/// post-login encryption setup phase so the login form can transition quickly.
 #[tauri::command]
 pub async fn login(
     state: tauri::State<'_, AppHandleState>,
@@ -129,63 +129,22 @@ pub async fn login(
                 .pending_2fa
                 .store(false, std::sync::atomic::Ordering::SeqCst);
 
-            let server_addr = {
-                let a = state.inner.server_address.read().await;
-                a.clone().unwrap_or_default()
-            };
-            let server_hash = cfms_core::get_server_hash(&server_addr);
-            let has_local_encrypted_state =
-                cfms_service::user_preferences::exists(&state.app_data_dir, &server_hash, &username)
-                    || cfms_service::services::task_persistence::exists(
-                        &state.app_data_dir,
-                        &server_hash,
-                        &username,
-                    );
-
-            // Set up the Data Encryption Key. A fully authenticated session
-            // must have a usable DEK unless it is deliberately paused in the
-            // preference recovery/delete flow.
-            let dek_status = match setup_dek_for_login(
-                &state.inner,
-                data,
-                &password,
-                &username,
-                &token,
-                &conn,
-                has_local_encrypted_state,
-            )
-            .await
             {
-                Ok(status) => status,
+                let mut d = state.inner.dek.write().await;
+                *d = None;
+            }
+            let server_preference_dek = match extract_preference_dek_content(data) {
+                Ok(content) => content.map(ToOwned::to_owned),
                 Err(error) => {
-                    clear_auth_state(&state).await;
-                    return Err(format!(
-                        "Login succeeded, but preference encryption setup failed: {error}"
-                    ));
+                    tracing::warn!("Login response contained an unusable preference DEK: {error}");
+                    None
                 }
             };
+            remember_server_preference_dek(&state.inner, server_preference_dek).await;
+            state.tasks.clear();
 
-            // Load download tasks for this user.
-            // This must happen AFTER DEK setup — the task file is encrypted
-            // and requires the DEK to decrypt.
-            if dek_status == DekSetupStatus::Ready {
-                let dek = {
-                    let d = state.inner.dek.read().await;
-                    d.clone()
-                };
-                if let Err(e) = state.tasks.load_for_user(
-                    &state.app_data_dir,
-                    &server_hash,
-                    &username,
-                    dek.as_deref(),
-                ) {
-                    tracing::warn!("Failed to load download tasks after login: {e}");
-                }
-            } else {
-                state.tasks.clear();
-            }
-
-            let status = build_auth_status(&state.inner).await;
+            let mut status = build_auth_status(&state.inner).await;
+            status["needs_preference_dek_setup"] = serde_json::Value::Bool(true);
             Ok(status)
         }
 

@@ -153,6 +153,7 @@ async fn rewrap_and_upload_preference_dek(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DekSetupStatus {
     Ready,
+    ResetRequired,
     RecoveryRequired,
 }
 
@@ -194,20 +195,16 @@ async fn install_fresh_preference_dek(
 ///
 /// 1. If the server returned a `preference_dek`, decrypt its `key_content`
 ///    with the password-derived KEK to recover the DEK.
-/// 2. Otherwise, generate a new random DEK, encrypt it, upload it to the
-///    server's keyring (`upload_user_key`), and register it as the
-///    preference DEK (`set_user_preference_dek`).
+/// 2. Otherwise, report that the loading flow should generate and upload a
+///    fresh DEK during its encryption setup phase.
 ///
 /// If the server-side DEK is missing or unusable while local encrypted state
 /// exists, the session is allowed to continue only so the frontend can ask the
 /// user to recover or discard that local state.
 async fn setup_dek(
     inner: &cfms_service::state::AppState,
-    login_data: &serde_json::Value,
+    encrypted_dek: Option<String>,
     password: &str,
-    username: &str,
-    token: &str,
-    conn: &cfms_transport::Connection,
 ) -> Result<DekSetupStatus, String> {
     if password.is_empty() {
         return Err("Cannot set up preference encryption without a password".to_string());
@@ -218,17 +215,9 @@ async fn setup_dek(
         *d = None;
     }
 
-    let key_content = match extract_preference_dek_content(login_data) {
-        Ok(content) => content,
-        Err(error) => {
-            remember_server_preference_dek(inner, None).await;
-            return Err(error);
-        }
-    };
-
-    if let Some(key_content) = key_content {
-        remember_server_preference_dek(inner, Some(key_content.to_string())).await;
-        let decrypted = decrypt_preference_dek(key_content, password).await?;
+    if let Some(encrypted_dek) = encrypted_dek {
+        remember_server_preference_dek(inner, Some(encrypted_dek.clone())).await;
+        let decrypted = decrypt_preference_dek(&encrypted_dek, password).await?;
 
         let mut d = inner.dek.write().await;
         *d = Some(decrypted);
@@ -236,39 +225,38 @@ async fn setup_dek(
     }
 
     remember_server_preference_dek(inner, None).await;
-    install_fresh_preference_dek(inner, password, username, token, conn).await?;
-    Ok(DekSetupStatus::Ready)
+    Ok(DekSetupStatus::ResetRequired)
 }
 
-async fn setup_dek_for_login(
+async fn setup_preference_dek_for_loading(
     inner: &cfms_service::state::AppState,
-    login_data: &serde_json::Value,
     password: &str,
     username: &str,
     token: &str,
     conn: &cfms_transport::Connection,
     has_local_encrypted_state: bool,
 ) -> Result<DekSetupStatus, String> {
-    if has_local_encrypted_state && matches!(extract_preference_dek_content(login_data), Ok(None)) {
+    let server_dek = inner.server_preference_dek.read().await.clone();
+    if has_local_encrypted_state && server_dek.is_none() {
         {
             let mut d = inner.dek.write().await;
             *d = None;
         }
-        remember_server_preference_dek(inner, None).await;
         tracing::warn!(
             "Preference DEK is missing on the server while encrypted local state exists"
         );
         return Ok(DekSetupStatus::RecoveryRequired);
     }
 
-    match setup_dek(inner, login_data, password, username, token, conn).await {
-        Ok(status) => Ok(status),
+    match setup_dek(inner, server_dek, password).await {
+        Ok(DekSetupStatus::Ready) => Ok(DekSetupStatus::Ready),
+        Ok(DekSetupStatus::ResetRequired) => {
+            install_fresh_preference_dek(inner, password, username, token, conn).await?;
+            Ok(DekSetupStatus::Ready)
+        }
+        Ok(DekSetupStatus::RecoveryRequired) => Ok(DekSetupStatus::RecoveryRequired),
         Err(error) => {
-            let server_dek = extract_preference_dek_content(login_data).ok().flatten();
             if has_local_encrypted_state {
-                if let Some(key_content) = server_dek {
-                    remember_server_preference_dek(inner, Some(key_content.to_string())).await;
-                }
                 tracing::warn!(
                     "Preference DEK setup needs user recovery before encrypted local state can be used: {error}"
                 );
@@ -276,7 +264,7 @@ async fn setup_dek_for_login(
             }
 
             tracing::warn!(
-                "Preference DEK setup failed with no local encrypted state; replacing server DEK: {error}"
+                "Preference DEK setup failed with no local encrypted state; replacing server DEK during loading: {error}"
             );
             install_fresh_preference_dek(inner, password, username, token, conn).await?;
             Ok(DekSetupStatus::Ready)

@@ -35,6 +35,7 @@
     getDownloadTasks,
     reloadTasksForUser,
     loadUserPreference,
+    setupPreferenceDek,
     discardUserPreference,
     resetPreferenceDek,
     checkCachedAvatar,
@@ -97,6 +98,7 @@
     user: string,
     currentPassword: string,
     recoveryAvailable: boolean,
+    runPreferenceDekSetup: boolean,
   ): Promise<boolean> {
     // Phase 1: "Loading user data…"
     loadingPhase = loadingPhases[0];
@@ -105,7 +107,9 @@
 
     // Phase 2: "Setting up encryption…"
     loadingPhase = loadingPhases[1];
-    // DEK setup happens backend-side during the login call; brief delay for UX.
+    if (runPreferenceDekSetup) {
+      await setupPreferenceDek(currentPassword);
+    }
     await new Promise((r) => setTimeout(r, 300));
 
     // Phase 3: "Loading preferences…"
@@ -405,6 +409,7 @@
         username.trim(),
         password,
         authResult.has_server_preference_dek === true,
+        authResult.needs_preference_dek_setup === true,
       ))) return;
       await info("Loading phases complete, finalizing auth state...");
 
@@ -480,6 +485,7 @@
         username.trim(),
         pendingPassword,
         authResult.has_server_preference_dek === true,
+        authResult.needs_preference_dek_setup === true,
       ))) return true;
 
       await finalizeAuthenticatedLogin(authResult);

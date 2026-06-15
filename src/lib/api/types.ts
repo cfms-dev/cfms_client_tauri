@@ -317,6 +317,8 @@ export interface AuthStatus {
   has_server_preference_dek?: boolean;
   /** True when this client session has a usable decrypted preference DEK. */
   has_preference_dek?: boolean;
+  /** True when the post-login encryption setup phase should run DEK setup. */
+  needs_preference_dek_setup?: boolean;
   /** When true, the server requires 2FA verification before completing login. */
   requires_2fa?: boolean;
   /** The 2FA method requested by the server (e.g. "totp"). */

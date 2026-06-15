@@ -97,6 +97,52 @@ pub async fn save_user_preference(
     .map_err(|e| format!("Preference save task failed: {e}"))?
 }
 
+/// Set up preference encryption during the post-login loading flow.
+///
+/// This performs all DEK work that depends on the login password: decrypting
+/// an existing server DEK, creating and uploading a fresh DEK when there is no
+/// recoverable local encrypted state, or reporting that user recovery/deletion
+/// is required.
+#[tauri::command]
+pub async fn setup_preference_dek(
+    state: tauri::State<'_, AppHandleState>,
+    current_password: String,
+) -> Result<serde_json::Value, String> {
+    let (conn, username, token) = get_connection_auth(&state).await?;
+    let server_addr = {
+        let a = state.inner.server_address.read().await;
+        a.clone()
+    }
+    .ok_or_else(|| "No server address".to_string())?;
+    let server_hash = cfms_core::get_server_hash(&server_addr);
+
+    let has_local_encrypted_state =
+        cfms_service::user_preferences::exists(&state.app_data_dir, &server_hash, &username)
+            || cfms_service::services::task_persistence::exists(
+                &state.app_data_dir,
+                &server_hash,
+                &username,
+            );
+
+    let status = setup_preference_dek_for_loading(
+        &state.inner,
+        &current_password,
+        &username,
+        &token,
+        &conn,
+        has_local_encrypted_state,
+    )
+    .await?;
+
+    let status = match status {
+        DekSetupStatus::Ready => "ready",
+        DekSetupStatus::RecoveryRequired => "recovery_required",
+        DekSetupStatus::ResetRequired => "reset_required",
+    };
+
+    Ok(serde_json::json!({ "status": status }))
+}
+
 /// Delete the current user's local preference file.
 ///
 /// Used when an encrypted preference file can no longer be decrypted because

@@ -2,6 +2,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { UserPreference } from './types';
 
+export interface PreferenceDekSetupResult {
+  status: 'ready' | 'recovery_required' | 'reset_required';
+}
+
 /** Load the current user's preferences from the encrypted local file. */
 export async function loadUserPreference(): Promise<UserPreference> {
   return invoke("load_user_preference");
@@ -12,6 +16,13 @@ export async function saveUserPreference(
   preferences: UserPreference,
 ): Promise<void> {
   return invoke("save_user_preference", { preferences });
+}
+
+/** Set up preference encryption during the post-login loading flow. */
+export async function setupPreferenceDek(
+  currentPassword: string,
+): Promise<PreferenceDekSetupResult> {
+  return invoke("setup_preference_dek", { currentPassword });
 }
 
 /** Delete the current user's local preference file. */
