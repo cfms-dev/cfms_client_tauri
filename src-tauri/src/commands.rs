@@ -30,7 +30,7 @@ use crate::AndroidUploadFileImporter;
 #[cfg(target_os = "android")]
 use crate::{
     AndroidApkInstaller, AndroidAppLifecycle, AndroidFileOpener, AndroidPasskey,
-    AndroidSecureScreen,
+    AndroidSecureScreen, AndroidUpdateNotification,
 };
 use crate::{AppHandleState, UploadInterruption};
 

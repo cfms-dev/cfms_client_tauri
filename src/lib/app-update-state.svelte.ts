@@ -126,6 +126,7 @@ class AppUpdateState {
     } catch (err) {
       this.installError = err instanceof Error ? err.message : String(err);
       this.progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
+      updateNotificationReporter.dismiss();
       throw err;
     } finally {
       this.installing = false;
@@ -139,7 +140,7 @@ class AppUpdateState {
     this.installError = null;
     this.progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
     this.pendingInstall = null;
-    updateNotificationReporter.reset();
+    updateNotificationReporter.dismiss();
   }
 }
 

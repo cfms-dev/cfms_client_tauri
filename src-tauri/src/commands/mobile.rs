@@ -36,6 +36,42 @@ pub async fn set_android_content_protected<R: Runtime>(
 }
 
 #[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn show_android_update_notification<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    title: String,
+    body: String,
+    ongoing: bool,
+    show_progress: bool,
+) -> Result<(), String> {
+    let update_notification = app.state::<AndroidUpdateNotification<R>>();
+    update_notification
+        .handle
+        .run_mobile_plugin::<()>(
+            "show",
+            serde_json::json!({
+                "title": title,
+                "body": body,
+                "ongoing": ongoing,
+                "showProgress": show_progress,
+            }),
+        )
+        .map_err(|e| format!("Failed to show Android update notification: {e}"))
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn cancel_android_update_notification<R: Runtime>(
+    app: tauri::AppHandle<R>,
+) -> Result<(), String> {
+    let update_notification = app.state::<AndroidUpdateNotification<R>>();
+    update_notification
+        .handle
+        .run_mobile_plugin::<()>("cancel", serde_json::json!({}))
+        .map_err(|e| format!("Failed to cancel Android update notification: {e}"))
+}
+
+#[cfg(target_os = "android")]
 fn move_android_task_to_background<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let lifecycle = app.state::<AndroidAppLifecycle<R>>();
     lifecycle
@@ -74,6 +110,23 @@ pub async fn exit_app_after_launcher_transition<R: Runtime>(
 #[tauri::command]
 pub async fn set_android_content_protected(_enabled: bool) -> Result<(), String> {
     Err("Android screenshot protection is only available on Android.".to_string())
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn show_android_update_notification(
+    _title: String,
+    _body: String,
+    _ongoing: bool,
+    _show_progress: bool,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn cancel_android_update_notification() -> Result<(), String> {
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
