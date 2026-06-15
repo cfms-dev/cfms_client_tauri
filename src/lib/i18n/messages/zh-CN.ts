@@ -477,7 +477,7 @@ export const zh_CN = {
     title: '关于 CFMS Client',
     productName: '机密文件管理系统',
     version: '版本',
-    protocol: '协议',
+    protocol: '协议版本',
     copyright: '版权',
     license: '许可证',
     technicalDetails: '技术详情',

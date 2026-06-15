@@ -45,7 +45,7 @@
       </div>
       <div>
         <dt>{$t('about.protocol')}</dt>
-        <dd>v{protoVer || '...'}</dd>
+        <dd>{protoVer || '...'}</dd>
       </div>
       <div>
         <dt>{$t('about.copyright')}</dt>

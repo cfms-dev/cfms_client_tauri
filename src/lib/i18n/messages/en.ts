@@ -482,7 +482,7 @@ export const en = {
     title: 'About CFMS Client',
     productName: 'Confidential File Management System',
     version: 'Version',
-    protocol: 'Protocol',
+    protocol: 'Protocol Version',
     copyright: 'Copyright',
     license: 'License',
     technicalDetails: 'Technical Details',
