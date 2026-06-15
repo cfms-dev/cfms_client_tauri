@@ -40,6 +40,10 @@ pub struct AppState {
     /// Data Encryption Key (256-bit AES key).  Never persisted to disk;
     /// lives only in memory and is zeroized on drop.
     pub dek: RwLock<Option<Zeroizing<[u8; 32]>>>,
+    /// Encrypted preference DEK returned by the server during this login.
+    /// Kept only in memory so the user can recover from an administrator
+    /// password reset by supplying the old password that wraps this DEK.
+    pub server_preference_dek: RwLock<Option<String>>,
 
     // --- Avatar ---
     /// Local filesystem path to the cached user avatar image.
@@ -110,6 +114,7 @@ impl AppState {
             permissions: RwLock::new(Vec::new()),
             groups: RwLock::new(Vec::new()),
             dek: RwLock::new(None),
+            server_preference_dek: RwLock::new(None),
             avatar_path: RwLock::new(None),
             conn: RwLock::new(None),
             server_address: RwLock::new(None),

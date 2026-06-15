@@ -639,6 +639,7 @@ async fn clear_auth_state(state: &AppHandleState) {
         let mut p = state.inner.permissions.write().await;
         let mut g = state.inner.groups.write().await;
         let mut d = state.inner.dek.write().await;
+        let mut spd = state.inner.server_preference_dek.write().await;
         let mut a = state.inner.avatar_path.write().await;
         *u = None;
         *t = None;
@@ -647,6 +648,7 @@ async fn clear_auth_state(state: &AppHandleState) {
         p.clear();
         g.clear();
         *d = None;
+        *spd = None;
         *a = None;
     }
 
@@ -733,6 +735,7 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
     };
     let permissions = inner.permissions.read().await.clone();
     let groups = inner.groups.read().await.clone();
+    let has_server_preference_dek = inner.server_preference_dek.read().await.is_some();
 
     let mut status = serde_json::json!({
         "username": username,
@@ -742,6 +745,7 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
         "permissions": permissions,
         "groups": groups,
         "avatar_path": inner.avatar_path.read().await.clone(),
+        "has_server_preference_dek": has_server_preference_dek,
     });
 
     if pending_2fa {

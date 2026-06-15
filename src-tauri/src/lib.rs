@@ -360,6 +360,7 @@ pub fn run() {
             commands::update_ca_certificates,
             commands::login,
             commands::change_password,
+            commands::recover_preference_dek,
             commands::logout,
             commands::clear_auth_session,
             commands::quit_application,

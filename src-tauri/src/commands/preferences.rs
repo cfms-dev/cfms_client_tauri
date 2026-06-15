@@ -8,7 +8,7 @@
 /// Handles three cases:
 /// 1. File doesn't exist → returns default `UserPreference`.
 /// 2. File is encrypted → decrypts with DEK; returns error if decryption fails.
-/// 3. File is plain JSON → parses it; migrates to encrypted if DEK is available.
+/// 3. File is not encrypted → returns an error; plaintext preferences are not supported.
 ///
 /// Mirrors [`load_user_preference`] in the Python reference.
 #[tauri::command]
@@ -49,9 +49,8 @@ pub async fn load_user_preference(
 
 /// Save the user preference file to disk.
 ///
-/// Writes the preference encrypted with the DEK when available.  When the DEK
-/// is `None`, the file is only written if it doesn't already exist in
-/// encrypted form (to prevent data loss and security downgrade).
+/// Writes the preference encrypted with the DEK.  Saving without a DEK is an
+/// error because local preference files must never be persisted as plaintext.
 ///
 /// Mirrors [`save_user_preference`] in the Python reference.
 #[tauri::command]

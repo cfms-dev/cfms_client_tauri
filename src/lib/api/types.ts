@@ -313,6 +313,8 @@ export interface AuthStatus {
   groups: string[];
   /** Local filesystem path to the cached user avatar. */
   avatar_path?: string | null;
+  /** True when the current login response included a server-side encrypted preference DEK. */
+  has_server_preference_dek?: boolean;
   /** When true, the server requires 2FA verification before completing login. */
   requires_2fa?: boolean;
   /** The 2FA method requested by the server (e.g. "totp"). */

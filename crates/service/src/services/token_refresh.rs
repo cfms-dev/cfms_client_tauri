@@ -138,6 +138,7 @@ async fn clear_auth(state: &AppState) {
     let mut permissions = state.permissions.write().await;
     let mut groups = state.groups.write().await;
     let mut dek = state.dek.write().await;
+    let mut server_preference_dek = state.server_preference_dek.write().await;
     let mut avatar_path = state.avatar_path.write().await;
     *username = None;
     *token = None;
@@ -146,6 +147,7 @@ async fn clear_auth(state: &AppState) {
     permissions.clear();
     groups.clear();
     *dek = None;
+    *server_preference_dek = None;
     *avatar_path = None;
     state
         .pending_2fa

@@ -1,8 +1,7 @@
 //! Per-user preference file persistence.
 //!
-//! Preferences are scoped by server and username, and are encrypted with the
-//! in-memory DEK when one is available. Plain JSON is accepted as a legacy
-//! format and migrated to encrypted storage on the next successful load/save.
+//! Preferences are scoped by server and username, and are always encrypted
+//! with the in-memory DEK before being written to disk.
 
 use std::path::{Path, PathBuf};
 
@@ -53,35 +52,32 @@ pub fn load(
         ))
     })?;
 
-    if cfms_crypto::is_encrypted(&raw) {
-        let dek = dek.ok_or_else(|| {
-            cfms_core::Error::Other("Encrypted preference file found but DEK is unavailable".into())
-        })?;
-        let plaintext = cfms_crypto::decrypt_config(&raw, dek).map_err(|e| {
-            cfms_core::Error::Other(format!(
-                "Failed to decrypt preference file {}: {e}",
-                path.display()
-            ))
-        })?;
-        return serde_json::from_slice(&plaintext).map_err(|e| {
-            cfms_core::Error::Other(format!(
-                "Invalid preference data in {}: {e}",
-                path.display()
-            ))
-        });
+    if !cfms_crypto::is_encrypted(&raw) {
+        return Err(cfms_core::Error::Other(format!(
+            "Preference file {} is not encrypted",
+            path.display()
+        )));
     }
 
-    let pref = serde_json::from_slice::<UserPreference>(&raw).unwrap_or_default();
-    if let Some(dek) = dek
-        && let Err(error) = save(app_data, server_hash, username, Some(dek), &pref)
-    {
-        tracing::warn!("Failed to migrate plaintext preference file: {error}");
-    }
+    let dek = dek.ok_or_else(|| {
+        cfms_core::Error::Other("Encrypted preference file found but DEK is unavailable".into())
+    })?;
+    let plaintext = cfms_crypto::decrypt_config(&raw, dek).map_err(|e| {
+        cfms_core::Error::Other(format!(
+            "Failed to decrypt preference file {}: {e}",
+            path.display()
+        ))
+    })?;
 
-    Ok(pref)
+    serde_json::from_slice(&plaintext).map_err(|e| {
+        cfms_core::Error::Other(format!(
+            "Invalid preference data in {}: {e}",
+            path.display()
+        ))
+    })
 }
 
-/// Save preferences, encrypting when a DEK is available.
+/// Save preferences encrypted with the user's DEK.
 pub fn save(
     app_data: &Path,
     server_hash: &str,
@@ -102,19 +98,11 @@ pub fn save(
     let plaintext = serde_json::to_vec(preferences)
         .map_err(|e| cfms_core::Error::Other(format!("Failed to serialize preferences: {e}")))?;
 
-    let bytes = if let Some(dek) = dek {
-        cfms_crypto::encrypt_config(&plaintext, dek).map_err(|e| {
-            cfms_core::Error::Other(format!("Failed to encrypt preference file: {e}"))
-        })?
-    } else {
-        if path.exists()
-            && let Ok(raw) = std::fs::read(&path)
-            && cfms_crypto::is_encrypted(&raw)
-        {
-            return Ok(());
-        }
-        plaintext
-    };
+    let dek = dek.ok_or_else(|| {
+        cfms_core::Error::Other("Cannot save user preferences without a DEK".into())
+    })?;
+    let bytes = cfms_crypto::encrypt_config(&plaintext, dek)
+        .map_err(|e| cfms_core::Error::Other(format!("Failed to encrypt preference file: {e}")))?;
 
     std::fs::write(&path, bytes).map_err(|e| {
         cfms_core::Error::Other(format!(
@@ -175,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn plaintext_preferences_are_loaded_and_migrated() {
+    fn plaintext_preferences_are_rejected() {
         let temp = tempfile::tempdir().unwrap();
         let path = file_path(temp.path(), SERVER_HASH, USERNAME);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -185,15 +173,8 @@ mod tests {
         )
         .unwrap();
 
-        let loaded = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek())).unwrap();
-        assert_eq!(
-            loaded.favourites.files.get("doc-2").map(String::as_str),
-            Some("Plan.md")
-        );
-        assert!(loaded.screenshot_protection_enabled);
-
-        let raw = std::fs::read(path).unwrap();
-        assert!(cfms_crypto::is_encrypted(&raw));
+        let result = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek()));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -231,6 +212,16 @@ mod tests {
 
         let result = load(temp.path(), SERVER_HASH, USERNAME, Some(&wrong_dek));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn save_without_dek_fails() {
+        let temp = tempfile::tempdir().unwrap();
+        let preferences = UserPreference::default();
+
+        let result = save(temp.path(), SERVER_HASH, USERNAME, None, &preferences);
+        assert!(result.is_err());
+        assert!(!file_path(temp.path(), SERVER_HASH, USERNAME).exists());
     }
 
     #[test]

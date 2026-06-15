@@ -687,10 +687,20 @@ export const en = {
     },
     corruptedPreference: {
       title: 'Configuration Cannot Be Decrypted',
-      body:
-        'The local configuration file is encrypted with a key that is no longer available on the server. The server may have been reset, or the preference key may have changed.',
+      bodyWithDek:
+        'The data encryption key (DEK) used by the user preferences file has been obtained from the server, but the client cannot decrypt it using the current password. This could be because the password was reset by the administrator, or because the DEK was not updated in time when the password was changed due to technical reasons.',
+      bodyWithoutDek:
+        'The data encryption key (DEK) used by the user preference file is not present on the server. This could be because the server has been reset.',
       hint:
         'Delete the unreadable user preferences and continue with the default configuration, or cancel login to keep the file intact.',
+      recoveryHint:
+        'If you know a password that can decrypt this DEK, enter it below to try recovering the key.',
+      recover: 'Recover preference key with an old password',
+      recoveryPassword: 'Password that can decrypt this key',
+      recoveryPlaceholder: 'Enter old password',
+      recoveryRequired: 'Enter the recovery password.',
+      recoverSubmit: 'Recover and Continue',
+      recovering: 'Recovering...',
       delete: 'Delete and Continue',
       cancel: 'Cancel Login',
     },

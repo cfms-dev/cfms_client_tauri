@@ -227,10 +227,20 @@ pub async fn login(
         //
         // The frontend should surface a password-change prompt — we include
         // the server's message so the user knows why.
-        4001 | 4002 => Err(format!(
-            "Password must be changed before login: {}",
-            response.message
-        )),
+        4001 | 4002 => {
+            let server_preference_dek = response
+                .data
+                .get("preference_dek")
+                .and_then(|preference_dek| preference_dek.get("key_content"))
+                .and_then(|key_content| key_content.as_str())
+                .map(ToOwned::to_owned);
+            remember_server_preference_dek(&state.inner, server_preference_dek).await;
+
+            Err(format!(
+                "Password must be changed before login: {}",
+                response.message
+            ))
+        }
 
         // --- Server-side error ---
         other => Err(format!("Login failed: ({}) {}", other, response.message)),
@@ -308,6 +318,69 @@ pub async fn change_password(
     if response.code != 200 {
         return Err(format!("({}) {}", response.code, response.message));
     }
+
+    if let Some(existing_dek) = state.inner.dek.read().await.clone() {
+        let (auth_conn, auth_username, auth_token) = get_connection_auth(&state)
+            .await
+            .map_err(|e| format!("Password changed, but failed to rewrap preference DEK: {e}"))?;
+
+        let encrypted = rewrap_and_upload_preference_dek(
+            &auth_conn,
+            *existing_dek,
+            &new_password,
+            &auth_username,
+            &auth_token,
+        )
+        .await
+        .map_err(|e| format!("Password changed, but failed to rewrap preference DEK: {e}"))?;
+        remember_server_preference_dek(&state.inner, Some(encrypted)).await;
+    }
+
+    Ok(())
+}
+
+/// Recover a server-returned preference DEK with a previous password, then
+/// rewrap it with the current login password and upload it back to the server.
+#[tauri::command]
+pub async fn recover_preference_dek(
+    state: tauri::State<'_, AppHandleState>,
+    recovery_password: String,
+    current_password: String,
+) -> Result<(), String> {
+    if recovery_password.is_empty() {
+        return Err("Recovery password is required".to_string());
+    }
+    if current_password.is_empty() {
+        return Err("Current password is required".to_string());
+    }
+
+    let encrypted_dek = state
+        .inner
+        .server_preference_dek
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "No encrypted preference DEK was returned by the server".to_string())?;
+
+    let recovered_dek = decrypt_preference_dek(&encrypted_dek, &recovery_password)
+        .await
+        .map_err(|_| "Failed to decrypt preference DEK with the supplied password".to_string())?;
+
+    let (conn, username, token) = get_connection_auth(&state).await?;
+    let encrypted_for_current_password = rewrap_and_upload_preference_dek(
+        &conn,
+        *recovered_dek,
+        &current_password,
+        &username,
+        &token,
+    )
+    .await?;
+
+    {
+        let mut dek = state.inner.dek.write().await;
+        *dek = Some(recovered_dek);
+    }
+    remember_server_preference_dek(&state.inner, Some(encrypted_for_current_password)).await;
 
     Ok(())
 }

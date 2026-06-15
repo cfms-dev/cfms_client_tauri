@@ -694,6 +694,7 @@ dependencies = [
  "unic-langid",
  "url",
  "winreg",
+ "zeroize",
 ]
 
 [[package]]

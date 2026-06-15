@@ -77,7 +77,7 @@
   $effect(() => {
     const path = page.url.pathname;
 
-    if (!authStore.isLoggedIn) {
+    if (!authStore.isLoggedIn && !authStore.postLoginPending) {
       appLockStore.resetForSignedOut();
       screenProtectionStore.resetForSignedOut();
     }
@@ -120,6 +120,18 @@
     //    redirect to connect.
     if (!serverStateStore.connected) {
       const hasReconnectTarget = serverStateStore.remoteAddress !== null;
+      if (authStore.postLoginPending) {
+        authStore.clear();
+        appLockStore.resetForSignedOut();
+        void clearAuthSession().catch(() => {
+          /* backend may already be disconnected/cleared */
+        });
+        if (path !== "/connect") {
+          goto("/connect", { replaceState: true });
+        }
+        return;
+      }
+
       if (!hasReconnectTarget && (authStore.isLoggedIn || authStore.isPending2FA)) {
         authStore.clear();
         appLockStore.resetForSignedOut();
@@ -141,7 +153,7 @@
     }
 
     // 5. If fully authenticated and on connect or login, go to home.
-    if (serverStateStore.connected && authStore.isLoggedIn) {
+    if (serverStateStore.connected && authStore.isLoggedIn && !authStore.postLoginPending) {
       if (path === "/connect" || path === "/login") {
         goto("/home/overview", { replaceState: true });
         return;
@@ -260,7 +272,9 @@
           return;
         }
 
-        authStore.apply(await getAuthStatus());
+        if (!authStore.postLoginPending) {
+          authStore.apply(await getAuthStatus());
+        }
       } catch {
         /* ignore */
       }

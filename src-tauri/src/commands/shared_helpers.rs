@@ -46,6 +46,14 @@ async fn send_action_request(
         .map_err(|e| format!("Invalid {action} response: {e}"))
 }
 
+async fn remember_server_preference_dek(
+    inner: &cfms_service::state::AppState,
+    encrypted_dek: Option<String>,
+) {
+    let mut stored = inner.server_preference_dek.write().await;
+    *stored = encrypted_dek;
+}
+
 fn is_transient_connection_error(error: &str) -> bool {
     let lower = error.to_ascii_lowercase();
     lower.contains("connection closed")
@@ -57,6 +65,89 @@ fn is_transient_connection_error(error: &str) -> bool {
         || lower.contains("tcp connect")
         || lower.contains("stream closed")
         || lower.contains("no response")
+}
+
+async fn decrypt_preference_dek(
+    encrypted_dek: &str,
+    password: &str,
+) -> Result<zeroize::Zeroizing<[u8; constants::KEY_LEN]>, String> {
+    let encrypted = encrypted_dek.to_owned();
+    let password = password.to_owned();
+    tokio::task::spawn_blocking(move || {
+        dek::decrypt_dek(&encrypted, &password).map_err(|e| format!("DEK decryption failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("DEK decryption task panicked: {e}"))?
+}
+
+async fn encrypt_preference_dek(
+    dek_bytes: [u8; constants::KEY_LEN],
+    password: &str,
+) -> Result<String, String> {
+    let password = password.to_owned();
+    tokio::task::spawn_blocking(move || {
+        dek::encrypt_dek(&dek_bytes, &password).map_err(|e| format!("DEK encryption failed: {e}"))
+    })
+    .await
+    .map_err(|e| format!("DEK encryption task panicked: {e}"))?
+}
+
+async fn upload_and_select_preference_dek(
+    conn: &cfms_transport::Connection,
+    encrypted_dek: &str,
+    username: &str,
+    token: &str,
+) -> Result<(), String> {
+    let upload_resp = send_action_request(
+        conn,
+        "upload_user_key",
+        serde_json::json!({"content": encrypted_dek, "label": "preference_dek"}),
+        username,
+        token,
+    )
+    .await?;
+
+    if upload_resp.code != 200 {
+        return Err(format!(
+            "upload_user_key returned {}: {}",
+            upload_resp.code, upload_resp.message
+        ));
+    }
+
+    let key_id = upload_resp.data["id"]
+        .as_str()
+        .ok_or_else(|| "upload_user_key response missing id".to_string())?
+        .to_string();
+
+    let set_resp = send_action_request(
+        conn,
+        "set_user_preference_dek",
+        serde_json::json!({"id": key_id}),
+        username,
+        token,
+    )
+    .await?;
+
+    if set_resp.code != 200 {
+        return Err(format!(
+            "set_user_preference_dek returned {}: {}",
+            set_resp.code, set_resp.message
+        ));
+    }
+
+    Ok(())
+}
+
+async fn rewrap_and_upload_preference_dek(
+    conn: &cfms_transport::Connection,
+    dek_bytes: [u8; constants::KEY_LEN],
+    password: &str,
+    username: &str,
+    token: &str,
+) -> Result<String, String> {
+    let encrypted = encrypt_preference_dek(dek_bytes, password).await?;
+    upload_and_select_preference_dek(conn, &encrypted, username, token).await?;
+    Ok(encrypted)
 }
 
 /// Set up the Data Encryption Key after a successful login.
@@ -90,69 +181,24 @@ async fn setup_dek(
                 .as_str()
                 .ok_or_else(|| "preference_dek missing key_content".to_string())?;
 
-            let decrypted = {
-                let kc = key_content.to_owned();
-                let pw = password.to_owned();
-                tokio::task::spawn_blocking(move || {
-                    dek::decrypt_dek(&kc, &pw).map_err(|e| format!("DEK decryption failed: {e}"))
-                })
-                .await
-                .map_err(|e| format!("DEK decryption task panicked: {e}"))?
-            }?;
+            remember_server_preference_dek(inner, Some(key_content.to_string())).await;
+            let decrypted = decrypt_preference_dek(key_content, password).await?;
 
             let mut d = inner.dek.write().await;
             *d = Some(decrypted);
         } else {
+            remember_server_preference_dek(inner, None).await;
+
             // --- First login with keyring support — generate and upload. ---
             let new_dek = dek::generate_dek();
-            let encrypted = {
-                let pw = password.to_owned();
-                let dk = *new_dek; // copy out of Zeroizing
-                tokio::task::spawn_blocking(move || {
-                    dek::encrypt_dek(&dk, &pw).map_err(|e| format!("DEK encryption failed: {e}"))
-                })
-                .await
-                .map_err(|e| format!("DEK encryption task panicked: {e}"))?
-            }?;
-
-            // Upload the encrypted DEK to the server's keyring.
-            let upload_resp = send_action_request(
+            let _encrypted = rewrap_and_upload_preference_dek(
                 conn,
-                "upload_user_key",
-                serde_json::json!({"content": encrypted, "label": "preference_dek"}),
+                *new_dek,
+                password,
                 username,
                 token,
             )
             .await?;
-
-            if upload_resp.code != 200 {
-                return Err(format!(
-                    "upload_user_key returned {}: {}",
-                    upload_resp.code, upload_resp.message
-                ));
-            }
-
-            let key_id = upload_resp.data["id"]
-                .as_str()
-                .ok_or_else(|| "upload_user_key response missing id".to_string())?
-                .to_string();
-
-            // Register it as the preference DEK for future logins.
-            let set_resp = send_action_request(
-                conn,
-                "set_user_preference_dek",
-                serde_json::json!({"id": key_id}),
-                username,
-                token,
-            )
-            .await?;
-
-            if set_resp.code != 200 {
-                return Err(format!(
-                    "set_user_preference_dek returned {}: {}",
-                    set_resp.code, set_resp.message
-                ));
-            }
 
             // Store the DEK in memory.
             let mut d = inner.dek.write().await;

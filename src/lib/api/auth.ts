@@ -31,6 +31,15 @@ export async function changePassword(
   return invoke("change_password", { username, oldPassword, newPassword });
 }
 
+/** Recover a server-returned encrypted preference DEK with a previous password,
+ * then rewrap it with the password used for the current login session. */
+export async function recoverPreferenceDek(
+  recoveryPassword: string,
+  currentPassword: string,
+): Promise<void> {
+  return invoke("recover_preference_dek", { recoveryPassword, currentPassword });
+}
+
 /** Log out — clears auth state and closes the connection. */
 export async function logout(): Promise<void> {
   return invoke("logout");

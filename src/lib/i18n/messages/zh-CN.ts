@@ -679,10 +679,20 @@ export const zh_CN = {
     },
     corruptedPreference: {
       title: '配置无法解密',
-      body:
-        '本地配置文件使用的加密密钥已无法从服务器获取。服务器可能已被重置，或用户偏好密钥已经改变。',
+      bodyWithDek:
+        '已从服务器取得由用户偏好文件使用的数据加密密钥（DEK），但客户端无法使用当前密码解密它。这可能是因为密码曾由管理员重设，亦或者是 DEK 因技术原因未在密码修改时被及时更新。',
+      bodyWithoutDek:
+        '服务器上不存在由用户偏好文件使用的数据加密密钥（DEK）。这可能是因为服务器已被重置。',
       hint:
-        '你可以删除无法读取的用户偏好并使用默认配置继续登录，或取消登录以保留该文件。',
+        '您可以用默认配置覆盖无法解密的用户偏好文件以继续登录，或取消登录以保留该文件。',
+      recoveryHint:
+        '如果您知道可以用来解密该 DEK 的密码，可以在下方键入以尝试恢复。',
+      recover: '使用原密码恢复偏好密钥',
+      recoveryPassword: '可解密该密钥的密码',
+      recoveryPlaceholder: '输入旧密码',
+      recoveryRequired: '请输入用于恢复的密码。',
+      recoverSubmit: '恢复并继续',
+      recovering: '正在恢复...',
       delete: '删除并继续',
       cancel: '取消登录',
     },

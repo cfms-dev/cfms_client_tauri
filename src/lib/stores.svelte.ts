@@ -82,6 +82,10 @@ class AuthStoreImpl {
   requires2fa = $state(false);
   twofaMethod = $state<string>('totp');
 
+  // True while the login page is still running post-login initialization
+  // such as preference recovery prompts and task/avatar loading.
+  postLoginPending = $state(false);
+
   /** Returns true if the user is authenticated and has a token. */
   get isLoggedIn() {
     return this.hasToken && this.username !== null;
@@ -114,6 +118,14 @@ class AuthStoreImpl {
     this.twofaMethod = s['2fa_method'] ?? 'totp';
   }
 
+  beginPostLogin() {
+    this.postLoginPending = true;
+  }
+
+  finishPostLogin() {
+    this.postLoginPending = false;
+  }
+
   /** Clear all auth state (used on logout / token expiry).
    *
    *  Server state must be cleared separately via `serverStateStore.clear()` if
@@ -128,6 +140,7 @@ class AuthStoreImpl {
     this.avatarPath = null;
     this.requires2fa = false;
     this.twofaMethod = 'totp';
+    this.postLoginPending = false;
   }
 }
 

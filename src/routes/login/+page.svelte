@@ -25,6 +25,7 @@
   import {
     login,
     changePassword,
+    recoverPreferenceDek,
     disconnect,
     logout,
     getAuthStatus,
@@ -38,6 +39,7 @@
     checkCachedAvatar,
     validateFileShortcuts,
     clearAuthSession,
+    type AuthStatus,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -57,7 +59,10 @@
   let passwordChangeRequired = $state(false);
   let showChangePassword = $state(false);
   let showCorruptedPreferenceDialog = $state(false);
-  let corruptedPreferenceResolver: ((discard: boolean) => void) | null = null;
+  type UnreadablePreferenceDecision = 'cancel' | 'delete' | 'recovered';
+  let corruptedPreferenceResolver: ((decision: UnreadablePreferenceDecision) => void) | null = null;
+  let corruptedPreferenceRecoveryAvailable = $state(false);
+  let corruptedPreferenceCurrentPassword = $state("");
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
   let passwordInput: HTMLInputElement | null = $state(null);
@@ -87,7 +92,11 @@
    *
    *  Mirrors `_complete_login` in the Python reference:
    *  reference/src/include/controllers/login.py */
-  async function runLoadingPhases(user: string): Promise<boolean> {
+  async function runLoadingPhases(
+    user: string,
+    currentPassword: string,
+    recoveryAvailable: boolean,
+  ): Promise<boolean> {
     // Phase 1: "Loading user data…"
     loadingPhase = loadingPhases[0];
     // Auth data is already stored by the login command.
@@ -100,7 +109,7 @@
 
     // Phase 3: "Loading preferences…"
     loadingPhase = loadingPhases[2];
-    if (!(await ensureUserPreferencesReadable())) {
+    if (!(await ensureUserPreferencesReadable(currentPassword, recoveryAvailable))) {
       return false;
     }
 
@@ -137,7 +146,10 @@
     return true;
   }
 
-  async function ensureUserPreferencesReadable(): Promise<boolean> {
+  async function ensureUserPreferencesReadable(
+    currentPassword: string,
+    recoveryAvailable: boolean,
+  ): Promise<boolean> {
     try {
       await loadUserPreference();
       return true;
@@ -147,10 +159,14 @@
       }
     }
 
-    const shouldDiscard = await askDiscardUnreadablePreferences();
-    if (!shouldDiscard) {
+    const decision = await askDiscardUnreadablePreferences(currentPassword, recoveryAvailable);
+    if (decision === 'cancel') {
       await cancelAuthenticatedSession();
       return false;
+    }
+    if (decision === 'recovered') {
+      await loadUserPreference();
+      return true;
     }
 
     await discardUserPreference();
@@ -158,17 +174,28 @@
     return true;
   }
 
-  function askDiscardUnreadablePreferences(): Promise<boolean> {
+  function askDiscardUnreadablePreferences(
+    currentPassword: string,
+    recoveryAvailable: boolean,
+  ): Promise<UnreadablePreferenceDecision> {
+    corruptedPreferenceRecoveryAvailable = recoveryAvailable;
+    corruptedPreferenceCurrentPassword = currentPassword;
     showCorruptedPreferenceDialog = true;
     return new Promise((resolve) => {
       corruptedPreferenceResolver = resolve;
     });
   }
 
-  function resolveCorruptedPreferenceDialog(discard: boolean) {
+  function resolveCorruptedPreferenceDialog(decision: UnreadablePreferenceDecision) {
     showCorruptedPreferenceDialog = false;
-    corruptedPreferenceResolver?.(discard);
+    corruptedPreferenceResolver?.(decision);
     corruptedPreferenceResolver = null;
+    corruptedPreferenceRecoveryAvailable = false;
+    corruptedPreferenceCurrentPassword = "";
+  }
+
+  async function handleRecoverPreferenceDek(recoveryPassword: string): Promise<void> {
+    await recoverPreferenceDek(recoveryPassword, corruptedPreferenceCurrentPassword);
   }
 
   function isUnreadablePreferenceError(e: unknown): boolean {
@@ -176,6 +203,7 @@
     return (
       message.includes('encrypted preference file found but dek is unavailable')
       || message.includes('failed to decrypt preference file')
+      || (message.includes('preference file') && message.includes('is not encrypted'))
       || message.includes('invalid preference data')
     );
   }
@@ -194,6 +222,71 @@
     } catch {
       /* keep the last known connection state */
     }
+  }
+
+  function isConnectionFlowError(e: unknown): boolean {
+    const message = formatError(e).toLowerCase();
+    return (
+      message.includes('not connected')
+      || message.includes('connection closed')
+      || message.includes('connection failed')
+      || message.includes('failed to create stream')
+      || message.includes('failed to send')
+      || message.includes('send failed')
+      || message.includes('stream closed')
+      || message.includes('websocket')
+      || message.includes('tcp connect')
+    );
+  }
+
+  async function returnToConnectAfterPostLoginBlocked(message: string) {
+    try {
+      await disconnect();
+    } catch {
+      try {
+        await clearAuthSession();
+      } catch {
+        /* backend may already be disconnected/cleared */
+      }
+    }
+
+    authStore.clear();
+    serverStateStore.clear();
+    password = "";
+    pendingPassword = "";
+    notificationStore.error(message);
+    markLoginToConnectTransition();
+    await goto("/connect", { replaceState: true });
+  }
+
+  async function handlePostLoginFailure(e: unknown) {
+    const message = formatError(e);
+    if (isConnectionFlowError(e)) {
+      await returnToConnectAfterPostLoginBlocked(message);
+      return;
+    }
+
+    await cancelAuthenticatedSession();
+    notificationStore.error(message);
+  }
+
+  async function finalizeAuthenticatedLogin(authResult: AuthStatus) {
+    const authStatus = await getAuthStatus();
+    const serverState = await getServerState();
+    if (!serverState.connected) {
+      throw new Error("Connection closed during login setup");
+    }
+
+    authStore.apply(authResult);
+    authStore.apply(authStatus);
+    serverStateStore.apply(serverState);
+
+    // Clear password from JS memory.
+    password = "";
+    pendingPassword = "";
+
+    // Navigate to home.
+    await goto("/home/overview");
   }
 
   const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
@@ -243,7 +336,7 @@
 
   // If already logged in, go straight to home.
   onMount(() => {
-    if (authStore.isLoggedIn) {
+    if (authStore.isLoggedIn && !authStore.postLoginPending) {
       goto("/home/overview");
     }
   });
@@ -283,6 +376,7 @@
     busy = true;
     successMessage = null;
     passwordChangeRequired = false;
+    let postLoginStarted = false;
 
     try {
       await info("Attempting login for user: {username}");
@@ -300,23 +394,18 @@
       }
 
       // Regular success — animate the loading phases.
+      authStore.beginPostLogin();
+      postLoginStarted = true;
       loadingPhase = loadingPhases[0];
       await info("Login successful, running post-login loading phases...");
-      if (!(await runLoadingPhases(username.trim()))) return;
+      if (!(await runLoadingPhases(
+        username.trim(),
+        password,
+        authResult.has_server_preference_dek === true,
+      ))) return;
       await info("Loading phases complete, finalizing auth state...");
 
-      authStore.apply(authResult);
-
-      // Refresh full auth status after login.
-      authStore.apply(await getAuthStatus());
-      serverStateStore.apply(await getServerState());
-
-      // Clear password from JS memory.
-      password = "";
-      pendingPassword = "";
-
-      // Navigate to home.
-      goto("/home/overview");
+      await finalizeAuthenticatedLogin(authResult);
     } catch (e) {
       if (isPasswordChangeRequired(e)) {
         // The server requires a password change before login (4001/4002).
@@ -324,12 +413,15 @@
         // in-app, mirroring the reference's PasswdUserDialog flow.
         passwordChangeRequired = true;
         showChangePassword = true;
+      } else if (postLoginStarted) {
+        await handlePostLoginFailure(e);
       } else {
         notificationStore.error(formatError(e));
       }
     } finally {
       busy = false;
       loadingPhase = "";
+      authStore.finishPostLogin();
     }
   }
 
@@ -378,39 +470,32 @@
 
     try {
       // Success — animate the loading phases.
+      authStore.beginPostLogin();
       busy = true;
       loadingPhase = loadingPhases[0];
-      if (!(await runLoadingPhases(username.trim()))) return true;
+      if (!(await runLoadingPhases(
+        username.trim(),
+        pendingPassword,
+        authResult.has_server_preference_dek === true,
+      ))) return true;
 
-      authStore.apply(authResult);
-
-      authStore.apply(await getAuthStatus());
-      serverStateStore.apply(await getServerState());
-
-      // Clear sensitive data.
-      password = "";
-      pendingPassword = "";
-
-      // Navigate to home.
-      goto("/home/overview");
+      await finalizeAuthenticatedLogin(authResult);
 
       return true;
     } catch (e) {
-      notificationStore.error(formatError(e));
+      await handlePostLoginFailure(e);
       return true;
     } finally {
       busy = false;
       loadingPhase = "";
+      authStore.finishPostLogin();
     }
   }
 
   /** Callback from TwoFactorVerifyDialog — user cancelled 2FA. */
   function handle2faCancel() {
     show2faDialog = false;
-    pendingPassword = "";
-    // Clear the partial auth state so the user can try again.
-    // Just clear the 2FA flag and keep them on the login page.
-    authStore.requires2fa = false;
+    void cancelAuthenticatedSession();
   }
 
   async function handleDisconnect() {
@@ -702,8 +787,11 @@
 
 {#if showCorruptedPreferenceDialog}
   <CorruptedPreferenceDialog
-    onDelete={() => resolveCorruptedPreferenceDialog(true)}
-    onCancel={() => resolveCorruptedPreferenceDialog(false)}
+    recoveryAvailable={corruptedPreferenceRecoveryAvailable}
+    onRecover={handleRecoverPreferenceDek}
+    onRecovered={() => resolveCorruptedPreferenceDialog('recovered')}
+    onDelete={() => resolveCorruptedPreferenceDialog('delete')}
+    onCancel={() => resolveCorruptedPreferenceDialog('cancel')}
   />
 {/if}
 

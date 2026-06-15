@@ -329,9 +329,8 @@ pub struct ListDirectoryResponse {
 
 /// Per-user application preferences, persisted as an encrypted file on disk.
 ///
-/// Mirrors the Python [`UserPreference`] dataclass.  When the DEK is available
-/// the file is encrypted at rest with AES-256-GCM; when the DEK is missing
-/// (e.g. first login before keyring is set up) it falls back to plain JSON.
+/// Mirrors the Python [`UserPreference`] dataclass. The local preference file
+/// is always encrypted at rest with AES-256-GCM and requires the user's DEK.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPreference {
     /// UI theme (`"light"` or `"dark"`).
