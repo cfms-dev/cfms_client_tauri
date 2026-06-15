@@ -156,15 +156,15 @@
       <div class="actions">
         <button type="button" class="primary-action" onclick={installUpdate} disabled={appUpdateState.installing}>
           {#if appUpdateState.installing}
-            <ProgressRing size={20} strokeWidth={2.6} label={$t('settings.updates.installing')} />
+            <ProgressRing size={18} strokeWidth={2.4} label={$t('settings.updates.installing')} />
           {:else}
-            <Icon name="download" size="20px" />
+            <Icon name="download" size="18px" />
           {/if}
           {installButtonLabel}
         </button>
 
         <button type="button" class="tonal-action" onclick={openReleasePage} disabled={appUpdateState.installing}>
-          <Icon name="openInNew" size="20px" />
+          <Icon name="openInNew" size="18px" />
           {$t('settings.updates.openRelease')}
         </button>
 
@@ -179,8 +179,8 @@
 <style>
   .update-prompt {
     min-block-size: 100dvh;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
-    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
+    padding-block-start: calc(var(--safe-area-top, 0px) + 2.5rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2.5rem);
     padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
     background:
@@ -191,23 +191,27 @@
   }
 
   .prompt-content {
-    width: min(720px, 100%);
+    width: min(760px, 100%);
     display: grid;
     justify-items: center;
-    gap: 1.25rem;
+    gap: 1.05rem;
     text-align: center;
+    transform: translateY(-1.75vh);
   }
 
   .release-icon {
-    display: block;
-    width: 5.25rem;
-    height: 5.25rem;
+    display: grid;
+    width: 4.75rem;
+    height: 4.75rem;
+    place-items: center;
     color: #b9c5ff;
+    filter: drop-shadow(0 0.7rem 1.6rem rgba(79, 70, 229, 0.18));
   }
 
   .copy {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.5rem;
+    justify-items: center;
   }
 
   .eyebrow,
@@ -218,7 +222,7 @@
 
   .eyebrow {
     color: rgba(185, 197, 255, 0.92);
-    font: 800 0.78rem var(--font-md3-sans);
+    font: 800 0.82rem/1.25 var(--font-md3-sans);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -226,23 +230,25 @@
   h2 {
     color: rgba(248, 250, 252, 0.92);
     font-family: var(--font-md3-sans);
-    font-size: clamp(2rem, 6vw, 3.6rem);
+    font-size: clamp(2.2rem, 4.4vw, 3rem);
     font-weight: 850;
     letter-spacing: 0;
-    line-height: 1.05;
+    line-height: 1.08;
   }
 
   .subtitle {
     color: rgba(248, 250, 252, 0.78);
-    font: 0.95rem/1.6 var(--font-md3-sans);
+    max-width: 100%;
+    font: 500 1rem/1.55 var(--font-md3-sans);
   }
 
   .notes {
-    width: min(640px, 100%);
-    max-height: min(36vh, 18rem);
+    width: min(720px, 100%);
+    max-height: min(34vh, 18rem);
     overflow: auto;
     border-block: 1px solid rgba(226, 232, 240, 0.22);
-    padding: 1rem 0.75rem 1rem 0;
+    margin-top: 0.15rem;
+    padding: 1rem 0.9rem 1rem 0;
     text-align: left;
     color: rgba(248, 250, 252, 0.78);
     scrollbar-gutter: stable;
@@ -250,12 +256,14 @@
 
   .notes :global(.markdown-view) {
     color: rgba(248, 250, 252, 0.78);
-    font-size: 1rem;
-    line-height: 1.65;
+    font-size: 0.95rem;
+    line-height: 1.7;
   }
 
   .notes :global(.markdown-view :where(h1, h2, h3, h4, h5, h6)) {
     color: rgba(248, 250, 252, 0.9);
+    font-size: 1.05rem;
+    line-height: 1.45;
   }
 
   .notes :global(.markdown-view li::marker),
@@ -276,40 +284,50 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.65rem;
-    padding-top: 0.2rem;
+    gap: 0.75rem;
+    padding-top: 0.3rem;
   }
 
   .primary-action,
   .tonal-action,
   .text-action {
     display: inline-flex;
-    min-height: 2.75rem;
+    min-height: 2.625rem;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
     border-radius: 999px;
-    padding: 0 1rem;
+    padding: 0 1.15rem;
     font-family: var(--font-md3-sans);
     font-size: 0.9rem;
-    font-weight: 800;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
     transition:
       transform var(--motion-duration-short4) var(--motion-easing-standard),
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
       opacity var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
+  .primary-action :global(.material-symbols-outlined),
+  .tonal-action :global(.material-symbols-outlined) {
+    flex: 0 0 auto;
+  }
+
   .primary-action {
+    min-width: 10rem;
     background: var(--color-md3-primary);
     color: var(--color-md3-on-primary);
   }
 
   .tonal-action {
+    min-width: 10.75rem;
     background: color-mix(in srgb, var(--color-md3-primary-container) 74%, transparent);
     color: var(--color-md3-on-primary-container);
   }
 
   .text-action {
+    min-width: 6.5rem;
     background: transparent;
     color: var(--color-md3-on-surface-variant);
   }
@@ -330,8 +348,28 @@
   }
 
   @media (max-width: 640px) {
+    .update-prompt {
+      padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
+      padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
+    }
+
+    .prompt-content {
+      gap: 1rem;
+      transform: none;
+    }
+
+    .release-icon {
+      width: 4.4rem;
+      height: 4.4rem;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 10vw, 2.65rem);
+    }
+
     .actions {
       width: 100%;
+      gap: 0.6rem;
     }
 
     .primary-action,
