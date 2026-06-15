@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.26.3
+**Released on:** 2026-06-15
+
+**Title:** Bugfix
+
+### Fixed
+- Fixed an issue where the Data Encryption Key (DEK) was not re-encrypted when a user changed their password.
+
+--- 
+
 ## v0.26.1
 **Released on:** 2026-06-15
 
