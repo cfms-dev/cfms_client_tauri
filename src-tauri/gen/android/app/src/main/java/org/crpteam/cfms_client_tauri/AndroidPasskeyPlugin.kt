@@ -414,16 +414,8 @@ class AndroidPasskeyPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     private fun fido2CredentialBytesFrom(data: Intent): ByteArray {
-        data.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)?.let { return it }
-        data.getByteArrayExtra(Fido.FIDO2_KEY_RESPONSE_EXTRA)?.let { return it }
-        data.getByteArrayExtra(Fido.FIDO2_KEY_ERROR_EXTRA)?.let {
-            val error = AuthenticatorErrorResponse.deserializeFromBytes(it)
-            throw IllegalStateException(
-                "FIDO2 passkey verification failed: " +
-                    "${error.errorCode}: ${error.errorMessage ?: ""}".trim()
-            )
-        }
-        throw IllegalArgumentException("FIDO2 passkey verification returned no credential extra.")
+        return data.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
+            ?: throw IllegalArgumentException("FIDO2 passkey verification returned no credential extra.")
     }
 
     private fun shouldUseFido2GetFallback(ex: GetCredentialException): Boolean {
