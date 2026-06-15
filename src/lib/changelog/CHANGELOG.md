@@ -4,6 +4,22 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.26.4
+**Released on:** 2026-06-15
+
+**Title:** Bug fixes
+
+This version fixed several issues:
+
+### Fixed
+- Fixed an issue where user preferences could not be saved correctly when the user had no configuration file locally and the DEK on the server could not be decrypted properly.
+- Fixed an issue where persistent notifications in the notification bar behaved incorrectly during update downloads.
+
+### Improved
+- The behavior of the updater when using the proxy function has been adjusted so that it follows the system proxy settings by default, and the adjustment only occurs when the user specifies a custom proxy in the settings.
+
+--- 
+
 ## v0.26.3
 **Released on:** 2026-06-15
 
