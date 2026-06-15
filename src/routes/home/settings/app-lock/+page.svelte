@@ -343,6 +343,46 @@
       </label>
     </section>
 
+    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+            {$t('appLock.settings.pinTitle')}
+          </h2>
+          <p class="mt-1 text-xs text-md3-on-surface-variant">
+            {appLockStore.hasPin ? $t('appLock.settings.pinReady') : $t('appLock.settings.pinDescription')}
+          </p>
+        </div>
+        {#if appLockStore.hasPin}
+          <span class="inline-flex items-center gap-1 rounded-full bg-md3-primary-container px-3 py-1 text-xs font-medium text-md3-on-primary-container">
+            <Icon name="done" size="16px" />
+            {$t('common.enabled')}
+          </span>
+        {/if}
+      </div>
+
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button
+          class="app-lock-action app-lock-action--primary"
+          onclick={openPinSetup}
+          disabled={busy !== null}
+        >
+          <Icon name="pin" size="18px" />
+          {appLockStore.hasPin ? $t('appLock.settings.changePin') : $t('appLock.settings.setPin')}
+        </button>
+        {#if appLockStore.hasPin}
+          <button
+            class="app-lock-action app-lock-action--danger"
+            onclick={removePin}
+            disabled={busy !== null}
+          >
+            <Icon name="delete" size="18px" />
+            {$t('appLock.settings.removePin')}
+          </button>
+        {/if}
+      </div>
+    </section>
+
     {#if isMobile}
       <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
         <div class="flex items-start justify-between gap-4">
@@ -386,46 +426,6 @@
         </div>
       </section>
     {/if}
-
-    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-            {$t('appLock.settings.pinTitle')}
-          </h2>
-          <p class="mt-1 text-xs text-md3-on-surface-variant">
-            {appLockStore.hasPin ? $t('appLock.settings.pinReady') : $t('appLock.settings.pinDescription')}
-          </p>
-        </div>
-        {#if appLockStore.hasPin}
-          <span class="inline-flex items-center gap-1 rounded-full bg-md3-primary-container px-3 py-1 text-xs font-medium text-md3-on-primary-container">
-            <Icon name="done" size="16px" />
-            {$t('common.enabled')}
-          </span>
-        {/if}
-      </div>
-
-      <div class="mt-4 flex flex-wrap gap-2">
-        <button
-          class="app-lock-action app-lock-action--primary"
-          onclick={openPinSetup}
-          disabled={busy !== null}
-        >
-          <Icon name="pin" size="18px" />
-          {appLockStore.hasPin ? $t('appLock.settings.changePin') : $t('appLock.settings.setPin')}
-        </button>
-        {#if appLockStore.hasPin}
-          <button
-            class="app-lock-action app-lock-action--danger"
-            onclick={removePin}
-            disabled={busy !== null}
-          >
-            <Icon name="delete" size="18px" />
-            {$t('appLock.settings.removePin')}
-          </button>
-        {/if}
-      </div>
-    </section>
 
     <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
       <div class="flex flex-wrap items-start justify-between gap-3">
