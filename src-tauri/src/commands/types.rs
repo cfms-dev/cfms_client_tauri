@@ -312,13 +312,13 @@ impl ConnectionSettingsDto {
             .map(|proxy_url| proxy_url.map(|url| url.to_string()))
     }
 
-    fn update_proxy_url(&self) -> Result<Option<url::Url>, String> {
-        let raw = self.configured_proxy_setting();
-        let Some(raw) = raw else {
+    fn updater_proxy_url(&self) -> Result<Option<url::Url>, String> {
+        let configured = self.configured_updater_proxy_setting();
+        let Some((raw, default_scheme)) = configured else {
             return Ok(None);
         };
 
-        normalize_proxy_url(&raw, self.proxy_default_scheme(), "update checks")
+        normalize_proxy_url(&raw, default_scheme, "update checks")
     }
 
     fn proxy_default_scheme(&self) -> &'static str {
@@ -342,6 +342,18 @@ impl ConnectionSettingsDto {
 
         let trimmed = raw.trim();
         (!trimmed.is_empty()).then(|| trimmed.to_string())
+    }
+
+    fn configured_updater_proxy_setting(&self) -> Option<(String, &'static str)> {
+        let (raw, default_scheme) = if !self.enable_proxy || self.follow_system_proxy {
+            (system_proxy_setting(), "http")
+        } else {
+            (Some(self.custom_proxy.trim().to_string()), "socks5h")
+        };
+
+        let raw = raw?;
+        let trimmed = raw.trim();
+        (!trimmed.is_empty()).then(|| (trimmed.to_string(), default_scheme))
     }
 
     fn client_identity_paths(&self) -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {

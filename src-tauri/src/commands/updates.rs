@@ -20,7 +20,7 @@ pub async fn check_app_update(
     channel: Option<String>,
 ) -> Result<Option<AppUpdateMetadata>, String> {
     let channel = UpdateChannel::parse(channel.as_deref());
-    let proxy_url = update_proxy_url(&state)?;
+    let proxy_url = updater_proxy_url(&state)?;
     tracing::info!(
         "Checking for app updates (proxy={})",
         describe_update_proxy(proxy_url.as_ref())
@@ -142,10 +142,7 @@ pub async fn install_app_update<R: tauri::Runtime>(
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
     let _ = &app;
-    let update_proxy = {
-        let settings = ConnectionSettingsDto::load(&state.settings);
-        settings.update_proxy_url()?
-    };
+    let update_proxy = updater_proxy_url(&state)?;
     let update = {
         let mut pending = state
             .pending_update
@@ -188,7 +185,7 @@ async fn check_android_app_update(
     state: tauri::State<'_, AppHandleState>,
     channel: UpdateChannel,
 ) -> Result<Option<AppUpdateMetadata>, String> {
-    let proxy_url = update_proxy_url(&state)?;
+    let proxy_url = updater_proxy_url(&state)?;
     tracing::info!(
         "Checking for Android app updates (proxy={})",
         describe_update_proxy(proxy_url.as_ref())
@@ -245,7 +242,7 @@ async fn install_android_app_update<R: tauri::Runtime>(
     state: tauri::State<'_, AppHandleState>,
     on_event: Channel<AppUpdateDownloadEvent>,
 ) -> Result<(), String> {
-    let proxy_url = update_proxy_url(&state)?;
+    let proxy_url = updater_proxy_url(&state)?;
     tracing::info!(
         "Installing Android app update (proxy={})",
         describe_update_proxy(proxy_url.as_ref())
@@ -556,9 +553,9 @@ async fn find_update_release(
     Ok(candidates.into_iter().map(|(_, release)| release).next())
 }
 
-fn update_proxy_url(state: &tauri::State<'_, AppHandleState>) -> Result<Option<url::Url>, String> {
+fn updater_proxy_url(state: &tauri::State<'_, AppHandleState>) -> Result<Option<url::Url>, String> {
     let settings = ConnectionSettingsDto::load(&state.settings);
-    settings.update_proxy_url()
+    settings.updater_proxy_url()
 }
 
 fn update_http_client(proxy_url: Option<&url::Url>) -> Result<reqwest::Client, String> {
