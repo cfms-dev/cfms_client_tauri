@@ -46,6 +46,7 @@ pub async fn check_app_update(
     };
 
     let manifest_url = manifest_asset.browser_download_url.clone();
+    let release_body = release.body.clone();
     let release_url = release.html_url.clone();
 
     let endpoint =
@@ -72,7 +73,7 @@ pub async fn check_app_update(
         current_version: update.current_version.clone(),
         version: update.version.clone(),
         date: update.date.map(|date| date.to_string()),
-        body: update.body.clone(),
+        body: first_non_empty_update_body(update.body.as_ref(), release_body.as_ref()),
         channel: channel.as_str().to_string(),
         release_url,
         install_mode: "desktop".to_string(),
@@ -609,6 +610,17 @@ fn select_update_manifest_asset(
                 .iter()
                 .find(|asset| asset.name == "latest.json")
         })
+}
+
+#[cfg(not(target_os = "android"))]
+fn first_non_empty_update_body(
+    manifest_body: Option<&String>,
+    release_body: Option<&String>,
+) -> Option<String> {
+    manifest_body
+        .filter(|body| !body.trim().is_empty())
+        .or_else(|| release_body.filter(|body| !body.trim().is_empty()))
+        .cloned()
 }
 
 #[cfg(not(target_os = "android"))]
