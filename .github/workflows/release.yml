@@ -58,7 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.version.outputs.tag }}
           submodules: recursive
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -67,6 +69,9 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: latest
+
+      - name: Ensure changelog entry
+        run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
 
       - run: pnpm install --frozen-lockfile
 
@@ -218,7 +223,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.version.outputs.tag }}
           submodules: recursive
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
@@ -227,6 +234,9 @@ jobs:
       - uses: pnpm/action-setup@v6
         with:
           version: latest
+
+      - name: Ensure changelog entry
+        run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
 
       - name: Install system dependencies
         run: |
@@ -282,7 +292,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.version.outputs.tag }}
           submodules: recursive
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -299,6 +311,9 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           version: latest
+
+      - name: Ensure changelog entry
+        run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -362,6 +377,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ needs.version.outputs.tag }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v6

@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,6 +33,7 @@ Usage:
 Notes:
   - <version> may be prefixed with "v"; files are written without the prefix.
   - --build-number sets both iOS CFBundleVersion and Android versionCode.
+  - Version set/bump also prepares a changelog entry unless --skip-changelog is passed.
   - Local generated Android metadata is synced when src-tauri/gen/android/app/tauri.properties exists.
 `);
   process.exit(exitCode);
@@ -163,13 +165,14 @@ function readTauriVersion() {
 
 function updateTauriConfig(version, dryRun) {
   const text = readText(files.tauriConfig);
-  const updated = text.replace(
-    /^(\s*"version"\s*:\s*")[^"]+(")/m,
-    `$1${version}$2`,
-  );
-  if (updated === text) {
+  const versionPattern = /^(\s*"version"\s*:\s*")[^"]+(")/m;
+  if (!versionPattern.test(text)) {
     throw new Error(`${files.tauriConfig} is missing top-level version`);
   }
+  const updated = text.replace(
+    versionPattern,
+    (_match, prefix, suffix) => `${prefix}${version}${suffix}`,
+  );
   writeText(files.tauriConfig, updated, dryRun);
 }
 
@@ -482,6 +485,7 @@ function setVersion(version, flags) {
     flag(flags, "build-number", versionBuildNumber(normalized)),
   );
   const dryRun = Boolean(flag(flags, "dry-run", false));
+  const skipChangelog = Boolean(flag(flags, "skip-changelog", false));
 
   if (!Number.isInteger(buildNumber) || buildNumber < 1) {
     throw new Error(`Invalid build number: ${buildNumber}`);
@@ -493,11 +497,33 @@ function setVersion(version, flags) {
   updateTauriConfig(normalized, dryRun);
   updateIosInfoPlist(normalized, buildNumber, dryRun);
   updateAndroidTauriProperties(normalized, buildNumber, dryRun);
+  prepareChangelog(normalized, dryRun, skipChangelog);
 
   const action = dryRun ? "Would sync" : "Synced";
   process.stdout.write(
     `${action} client version ${normalized} with build number ${buildNumber}.\n`,
   );
+}
+
+function prepareChangelog(version, dryRun, skipChangelog) {
+  if (skipChangelog) {
+    return;
+  }
+
+  const args = [
+    resolveRepo("scripts/release-notes.mjs"),
+    "changelog",
+    "--version",
+    version,
+  ];
+  if (!dryRun) {
+    args.push("--write");
+  }
+
+  execFileSync(process.execPath, args, {
+    cwd: root,
+    stdio: "inherit",
+  });
 }
 
 function commandSet(positionals, flags) {
