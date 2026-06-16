@@ -4,6 +4,19 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.27.1
+**Released on:** 2026-06-16
+
+**Title:** Bugfix
+
+### Fixed
+- Stopped pushing notifications to the system during updates on desktop to avoid overwhelming the system with too many notifications.
+
+### Improved
+- Optimized the display effects of various UI elements in the management interface.
+
+--- 
+
 ## v0.27.0
 **Released on:** 2026-06-16
 
