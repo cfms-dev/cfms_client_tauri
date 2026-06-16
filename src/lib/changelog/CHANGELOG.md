@@ -4,6 +4,19 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 --- 
 
+## v0.27.0
+**Released on:** 2026-06-16
+
+**Title:** Protocol Version 14
+
+This release introduces support for protocol version 14, allowing users to specify permissions for specific users themselves, rather than forcing them to inherit permissions from user groups.
+
+### Added
+- Added a new feature that allows users to set and view document metadata, including the creator, modifier, and document tags.
+- Added a new user-defined permission settings interface.
+
+--- 
+
 ## v0.26.4
 **Released on:** 2026-06-15
 
