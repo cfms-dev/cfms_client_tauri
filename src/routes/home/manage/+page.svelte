@@ -864,7 +864,7 @@
   }
 </script>
 
-<div class="space-y-4 p-4 sm:p-6">
+<div class="space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]">
   <div bind:this={identityMeasureHost} class="identity-measure-host" aria-hidden="true"></div>
 
   <button
