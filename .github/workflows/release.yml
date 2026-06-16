@@ -360,6 +360,27 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
+
+      - name: Prepare release notes
+        run: |
+          pnpm app:release-notes -- \
+            --version "${{ needs.version.outputs.version }}" \
+            --tag "${{ needs.version.outputs.tag }}" \
+            --repository "${{ github.repository }}" \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --out-dir release-metadata
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -406,6 +427,7 @@ jobs:
           TAG: ${{ needs.version.outputs.tag }}
           VERSION: ${{ needs.version.outputs.version }}
           REPOSITORY: ${{ github.repository }}
+          NOTES_PATH: release-metadata/updater-notes.md
         run: |
           python - <<'PY'
           import json
@@ -418,6 +440,8 @@ jobs:
           repo = os.environ["REPOSITORY"]
           tag = os.environ["TAG"]
           version = os.environ["VERSION"]
+          notes_path = Path(os.environ["NOTES_PATH"])
+          notes = notes_path.read_text(encoding="utf-8").strip() if notes_path.exists() else f"CFMS Client {version}"
 
           def first(pattern: str):
               return next(root.rglob(pattern), None)
@@ -467,7 +491,7 @@ jobs:
 
           manifest = {
               "version": version,
-              "notes": f"CFMS Client {version}",
+              "notes": notes,
               "pub_date": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
               "platforms": platforms,
           }
@@ -483,46 +507,21 @@ jobs:
           echo "After manifest generation:"
           find artifacts -type f -print
           test -f artifacts/latest.json && cat artifacts/latest.json || echo "latest.json NOT FOUND"
+          echo "Release notes:"
+          cat release-metadata/release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: CFMS Client ${{ needs.version.outputs.version }}
-          body: |
-            <!-- channel: ${{ contains(needs.version.outputs.version, 'alpha') && 'alpha' || contains(needs.version.outputs.version, 'beta') && 'beta' || 'stable' }} -->
-
-            ## CFMS Client ${{ needs.version.outputs.version }}
-
-            ### 📦 Downloads
-
-            | Platform | Package |
-            |----------|---------|
-            | Windows  | MSI installer, NSIS installer (signed) |
-            | macOS    | DMG (universal — Apple Silicon + Intel, notarised) |
-            | Linux    | AppImage, deb, rpm |
-            | Android  | APK, AAB |
-
-            ### 🔐 Integrity
-
-            SHA256 checksums are included in `SHA256SUMS.txt`.
-
-            ### ✍️ Signing
-
-            - **Windows**: EV Code Signed
-            - **macOS**: Notarised by Apple
-            - **Linux**: Signed via Tauri updater key
-            - **Android**: Signed via Android keystore
-
-            ---
-            🤖 Built by [GitHub Actions](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          body_path: release-metadata/release-notes.md
           files: |
             artifacts/release-windows-x86_64/**/*
+            artifacts/release-linux-x86_64/**/*
             artifacts/release-android-aarch64-x86_64/**/*
             artifacts/SHA256SUMS.txt
             artifacts/latest.json
           draft: false
           prerelease: ${{ contains(needs.version.outputs.version, '-') }}
-          generate_release_notes: true
+          generate_release_notes: false

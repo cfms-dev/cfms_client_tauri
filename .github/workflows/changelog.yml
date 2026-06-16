@@ -1,0 +1,84 @@
+name: Prepare Changelog
+
+# Generates a changelog entry from commits and can commit it back to the target branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to prepare (e.g. 0.28.0 or v0.28.0)"
+        required: true
+        type: string
+      base_tag:
+        description: "Previous release tag. Leave empty to detect automatically."
+        required: false
+        type: string
+      target_branch:
+        description: "Branch to update"
+        required: true
+        default: main
+        type: string
+      commit_changes:
+        description: "Commit the generated changelog entry"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Generate changelog entry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.target_branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
+
+      - name: Generate changelog entry
+        run: |
+          ARGS=(
+            "--version" "${{ inputs.version }}"
+            "--write"
+            "--out-dir" "release-metadata"
+          )
+
+          if [ -n "${{ inputs.base_tag }}" ]; then
+            ARGS+=("--base-tag" "${{ inputs.base_tag }}")
+          fi
+
+          pnpm app:changelog -- "${ARGS[@]}"
+
+      - name: Show changelog diff
+        run: git diff -- src/lib/changelog/CHANGELOG.md
+
+      - name: Upload generated entry
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-changelog-entry
+          path: release-metadata/changelog-entry.md
+          if-no-files-found: ignore
+
+      - name: Commit changelog update
+        if: ${{ inputs.commit_changes }}
+        run: |
+          if git diff --quiet -- src/lib/changelog/CHANGELOG.md; then
+            echo "No changelog changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/changelog/CHANGELOG.md
+          git commit -m "docs: update changelog for ${{ inputs.version }}"
+          git push origin "HEAD:${{ inputs.target_branch }}"

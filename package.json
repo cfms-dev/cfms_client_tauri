@@ -13,7 +13,10 @@
     "assets:fonts": "node scripts/embed-font-assets.mjs",
     "app:version": "node scripts/client-version.mjs",
     "app:version:show": "node scripts/client-version.mjs show",
-    "app:version:check": "node scripts/client-version.mjs check"
+    "app:version:check": "node scripts/client-version.mjs check",
+    "app:changelog": "node scripts/release-notes.mjs changelog",
+    "app:changelog:check": "node scripts/release-notes.mjs check",
+    "app:release-notes": "node scripts/release-notes.mjs export"
   },
   "license": "MIT",
   "dependencies": {
