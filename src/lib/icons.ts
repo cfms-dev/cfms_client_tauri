@@ -97,6 +97,7 @@ export const ICONS = {
   history:          'history',
   listAlt:          'list_alt',
   uploadFile:       'upload_file',
+  label:            'label',
 
   // ---- Home / More ----
   guardian:     'guardian',

@@ -37,6 +37,13 @@ export async function changeUserGroups(
   return invoke("change_user_groups", { username, groups });
 }
 
+export async function changeUserPermissions(
+  username: string,
+  permissions: string[],
+): Promise<boolean> {
+  return invoke("change_user_permissions", { username, permissions });
+}
+
 export async function resetUserPassword(
   username: string,
   newPassword: string,

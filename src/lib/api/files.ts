@@ -113,6 +113,13 @@ export async function getDocumentInfo(
   return invoke("get_document_info", { documentId });
 }
 
+export async function setDocumentTags(
+  documentId: string,
+  tags: string[],
+): Promise<{ tags?: string[] }> {
+  return invoke("set_document_tags", { documentId, tags });
+}
+
 export async function viewAccessEntries(
   objectType: ServerObjectType,
   objectIdentifier: string,

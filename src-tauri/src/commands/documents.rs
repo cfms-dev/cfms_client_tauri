@@ -166,6 +166,21 @@ pub async fn get_document_info(
     .await
 }
 
+/// Set server-side document metadata tags.
+#[tauri::command]
+pub async fn set_document_tags(
+    state: tauri::State<'_, AppHandleState>,
+    document_id: String,
+    tags: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "set_document_tags",
+        serde_json::json!({ "document_id": document_id, "tags": tags }),
+    )
+    .await
+}
+
 /// Fetch server-side directory properties.
 #[tauri::command]
 pub async fn get_directory_info(

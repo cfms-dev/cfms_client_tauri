@@ -282,7 +282,23 @@
     return () => clearInterval(interval);
   });
 
+  function shouldAllowNativeContextMenu(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    if (target.closest('input, textarea, [contenteditable="true"], .allow-native-context-menu')) {
+      return true;
+    }
+    if (
+      typeof window !== 'undefined'
+      && window.matchMedia('(pointer: coarse)').matches
+      && !target.closest('button, a, select, [role="button"], [role="menu"], [role="menuitem"], .select-none, .no-select')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   function preventDefaultContextMenu(event: MouseEvent) {
+    if (shouldAllowNativeContextMenu(event.target)) return;
     event.preventDefault();
   }
 

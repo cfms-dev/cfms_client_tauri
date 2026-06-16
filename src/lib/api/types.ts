@@ -78,6 +78,12 @@ export interface ServerDocumentEntry {
   last_modified: number | null;
 }
 
+export interface ServerDocumentMetadata {
+  tags: string[];
+  creator?: string | null;
+  last_modified_by?: string | null;
+}
+
 export interface ServerDocumentInfo {
   document_id?: string;
   title?: string;
@@ -86,6 +92,7 @@ export interface ServerDocumentInfo {
   last_modified?: number | null;
   parent_id?: string | null;
   access_rules?: unknown;
+  metadata?: ServerDocumentMetadata;
   info_code?: number | null;
 }
 
@@ -167,7 +174,12 @@ export interface DeletedItemsResponse {
 export interface ManagedUser {
   username: string;
   nickname?: string | null;
+  /** Effective permissions after applying direct user permissions and group inheritance. */
   permissions?: string[];
+  /** Permissions assigned directly to this user. Returned by get_user_info. */
+  own_permissions?: string[];
+  /** Permissions inherited from the user's groups. Returned by get_user_info. */
+  inherited_permissions?: string[];
   groups?: string[];
   created_time?: number | null;
   last_login?: number | null;

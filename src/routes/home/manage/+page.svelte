@@ -6,6 +6,7 @@
     blockUser,
     changeGroupPermissions,
     changeUserGroups,
+    changeUserPermissions,
     createGroup,
     createUser,
     deleteGroup,
@@ -57,6 +58,7 @@
     | { kind: 'create-user' }
     | { kind: 'create-group' }
     | { kind: 'user-groups'; user: ManagedUser }
+    | { kind: 'user-permissions'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
     | { kind: 'block-user'; user: ManagedUser }
     | { kind: 'group-permissions'; group: ManagedGroup }
@@ -124,6 +126,7 @@
   const canViewLogs = $derived(hasAnyPermission('view_audit_logs', 'manage_system'));
   const canBlock = $derived(hasAnyPermission('block', 'manage_system'));
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
+  const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => {
     if (!contextMenu.target) return [];
     if (contextMenu.target.kind === 'user') return getUserContextMenuItems(contextMenu.target.user);
@@ -216,6 +219,14 @@
         icon: 'formatListBulleted',
         onSelect: () => handleEditUserGroups(user),
         disabled,
+      },
+      {
+        id: 'edit-user-permissions',
+        label: $t('manage.editPermissions'),
+        icon: 'adminPanelSettings',
+        onSelect: () => handleEditUserPermissions(user),
+        disabled,
+        hidden: !canSetUserPermissions,
       },
       {
         id: 'reset-user-password',
@@ -357,6 +368,10 @@
     activeDialog = { kind: 'user-groups', user };
   }
 
+  async function handleEditUserPermissions(user: ManagedUser) {
+    activeDialog = { kind: 'user-permissions', user };
+  }
+
   async function handleResetPassword(user: ManagedUser) {
     activeDialog = { kind: 'reset-password', user };
   }
@@ -368,7 +383,9 @@
       detailRows = [
         { label: $t('manage.username'), value: info.username },
         { label: $t('manage.nickname'), value: info.nickname || '-' },
-        { label: $t('manage.permissions'), value: formatList(info.permissions) },
+        { label: $t('manage.effectivePermissions'), value: formatList(info.permissions) },
+        { label: $t('manage.ownPermissions'), value: formatList(info.own_permissions) },
+        { label: $t('manage.inheritedPermissions'), value: formatList(info.inherited_permissions) },
         { label: $t('manage.groups'), value: formatList(info.groups) },
         { label: $t('manage.registered'), value: formatDate(info.created_time) },
         { label: $t('manage.lastLogin'), value: formatDate(info.last_login) },
@@ -460,9 +477,51 @@
     };
   }
 
+  async function loadUserPermissionEditorData(user: ManagedUser): Promise<ListEditorData> {
+    const [allUsers, allGroups, userInfo] = await Promise.all([
+      listUsers(),
+      listGroups().catch(() => [] as ManagedGroup[]),
+      getUserInfo(user.username),
+    ]);
+    users = allUsers;
+    if (allGroups.length > 0) groups = allGroups;
+
+    const permissionSet = new Set<string>();
+    const ownPermissions = userInfo.own_permissions ?? [];
+    const inheritedPermissions = userInfo.inherited_permissions ?? [];
+
+    for (const permission of userInfo.permissions ?? []) permissionSet.add(permission);
+    for (const permission of ownPermissions) permissionSet.add(permission);
+    for (const permission of inheritedPermissions) permissionSet.add(permission);
+    for (const account of allUsers) {
+      for (const permission of account.permissions ?? []) permissionSet.add(permission);
+    }
+    for (const group of allGroups) {
+      for (const permission of group.permissions ?? []) permissionSet.add(permission);
+    }
+
+    return {
+      items: [...permissionSet].sort().map((permission) => ({
+        id: permission,
+        label: permission,
+        meta: inheritedPermissions.includes(permission) && !ownPermissions.includes(permission)
+          ? $t('manage.inheritedPermission')
+          : undefined,
+      })),
+      selected: ownPermissions,
+    };
+  }
+
   async function saveUserGroups(user: ManagedUser, selected: string[]) {
     await changeUserGroups(user.username, selected);
     status = $t('manage.userGroupsUpdated', { values: { username: user.username } });
+    activeDialog = null;
+    await loadUserList();
+  }
+
+  async function saveUserPermissions(user: ManagedUser, selected: string[]) {
+    await changeUserPermissions(user.username, selected);
+    status = $t('manage.userPermissionsUpdated', { values: { username: user.username } });
     activeDialog = null;
     await loadUserList();
   }
@@ -515,6 +574,16 @@
   async function saveActiveUserGroups(selected: string[]) {
     if (activeDialog?.kind !== 'user-groups') return;
     await saveUserGroups(activeDialog.user, selected);
+  }
+
+  async function refreshActiveUserPermissions() {
+    if (activeDialog?.kind !== 'user-permissions') return { items: [], selected: [] };
+    return loadUserPermissionEditorData(activeDialog.user);
+  }
+
+  async function saveActiveUserPermissions(selected: string[]) {
+    if (activeDialog?.kind !== 'user-permissions') return;
+    await saveUserPermissions(activeDialog.user, selected);
   }
 
   async function saveActiveResetPassword(
@@ -721,6 +790,7 @@
                 {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
                 {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                 {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                 {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                 {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                 {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
@@ -732,6 +802,7 @@
                     {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
                     {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                     {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                    {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                     {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                     {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                     {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
@@ -927,6 +998,20 @@
     emptyMessage={$t('manage.noGroups')}
     onRefresh={refreshActiveUserGroups}
     onSave={saveActiveUserGroups}
+    onClose={() => (activeDialog = null)}
+  />
+{:else if activeDialog?.kind === 'user-permissions'}
+  <ManageListEditorDialog
+    title={$t('manage.editUserPermissionsTitle', { values: { username: activeDialog.user.username } })}
+    description={$t('manage.editUserPermissionsDescription')}
+    icon="adminPanelSettings"
+    items={(activeDialog.user.permissions ?? []).map((permission) => ({ id: permission, label: permission }))}
+    selected={activeDialog.user.own_permissions ?? []}
+    allowAdd={true}
+    addPlaceholder={$t('manage.addPermissionPlaceholder')}
+    emptyMessage={$t('manage.noPermissions')}
+    onRefresh={refreshActiveUserPermissions}
+    onSave={saveActiveUserPermissions}
     onClose={() => (activeDialog = null)}
   />
 {:else if activeDialog?.kind === 'reset-password'}

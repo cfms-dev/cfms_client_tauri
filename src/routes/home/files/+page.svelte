@@ -34,6 +34,7 @@
     revokeAccess,
     setAccessRules,
     setCurrentRevision,
+    setDocumentTags,
     searchFiles,
     selectUploadDirectory,
     uploadDirectory,
@@ -59,6 +60,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import MdCheckbox from '$lib/components/MdCheckbox.svelte';
+  import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/components/MoveTargetDialog.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -154,6 +156,11 @@
     documentId: string;
     filename: string;
     entries: RevisionEntry[];
+  } | null>(null);
+  let documentTagsDialog = $state<{
+    documentId: string;
+    title: string;
+    tags: string[];
   } | null>(null);
   let uploadProgress = $state<{
     documentId: string;
@@ -502,6 +509,13 @@
           requiredPermissions: ['set_access_rules'],
           onSelect: () => handleSetAccessRules('document', doc.id, doc.title),
         },
+        {
+          id: 'edit-document-tags',
+          label: $t('files.editTags'),
+          icon: 'label',
+          requiredPermissions: ['view_metadata', 'set_metadata_tags'],
+          onSelect: () => handleEditDocumentTags(doc),
+        },
         { type: 'divider' },
         {
           id: 'upload-document-revision',
@@ -740,9 +754,46 @@
         { label: $t('files.created'), value: formatDate(info.created_time ?? null) },
         { label: $t('files.modified'), value: formatDate(info.last_modified ?? doc.last_modified) },
         { label: $t('files.parentId'), value: info.parent_id ?? '-' },
+        { label: $t('files.creator'), value: info.metadata?.creator ?? '-' },
+        { label: $t('files.lastModifiedBy'), value: info.metadata?.last_modified_by ?? '-' },
+        { label: $t('files.tags'), value: formatList(info.metadata?.tags) },
         { label: $t('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
       ];
     });
+  }
+
+  async function handleEditDocumentTags(doc: ServerDocumentEntry) {
+    await runFileAction(async () => {
+      const info = await getDocumentInfo(doc.id);
+      documentTagsDialog = {
+        documentId: doc.id,
+        title: info.title ?? doc.title,
+        tags: normalizeTags(info.metadata?.tags ?? []),
+      };
+    });
+  }
+
+  async function refreshDocumentTagsEditorData() {
+    if (!documentTagsDialog) return { items: [], selected: [] };
+    const info = await getDocumentInfo(documentTagsDialog.documentId);
+    const tags = normalizeTags(info.metadata?.tags ?? []);
+    documentTagsDialog = {
+      ...documentTagsDialog,
+      title: info.title ?? documentTagsDialog.title,
+      tags,
+    };
+    return {
+      items: tags.map((tag) => ({ id: tag, label: tag })),
+      selected: tags,
+    };
+  }
+
+  async function saveDocumentTags(selected: string[]) {
+    if (!documentTagsDialog) return;
+    const tags = normalizeTags(selected);
+    await setDocumentTags(documentTagsDialog.documentId, tags);
+    status = $t('files.tagsUpdated', { values: { name: documentTagsDialog.title } });
+    documentTagsDialog = null;
   }
 
   async function handleFolderProperties(folder: ServerDirectoryEntry) {
@@ -1352,6 +1403,22 @@
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
+  function normalizeTags(tags: string[]) {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const rawTag of tags) {
+      const tag = rawTag.trim();
+      if (!tag || seen.has(tag)) continue;
+      seen.add(tag);
+      result.push(tag);
+    }
+    return result;
+  }
+
+  function formatList(value: string[] | undefined | null) {
+    return value?.length ? value.join(', ') : $t('common.none');
+  }
+
   function openSearchDialog() {
     searchDialog = {
       ...searchDialog,
@@ -1903,6 +1970,22 @@
       onCancel={() => (accessRulesDialog = null)}
     />
   </ModalFrame>
+{/if}
+
+{#if documentTagsDialog}
+  <ManageListEditorDialog
+    title={$t('files.editTagsFor', { values: { name: documentTagsDialog.title } })}
+    description={$t('files.editTagsDescription')}
+    icon="label"
+    items={documentTagsDialog.tags.map((tag) => ({ id: tag, label: tag }))}
+    selected={documentTagsDialog.tags}
+    allowAdd={true}
+    addPlaceholder={$t('files.addTagPlaceholder')}
+    emptyMessage={$t('files.noTags')}
+    onRefresh={refreshDocumentTagsEditorData}
+    onSave={saveDocumentTags}
+    onClose={() => (documentTagsDialog = null)}
+  />
 {/if}
 
 {#if revisionsDialog}

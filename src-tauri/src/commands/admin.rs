@@ -84,6 +84,20 @@ pub async fn change_user_groups(
 }
 
 #[tauri::command]
+pub async fn change_user_permissions(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+    permissions: Vec<String>,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "change_user_permissions",
+        serde_json::json!({ "username": username, "permissions": permissions }),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn reset_user_password(
     state: tauri::State<'_, AppHandleState>,
     username: String,
