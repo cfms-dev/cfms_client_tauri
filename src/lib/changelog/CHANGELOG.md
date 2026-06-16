@@ -2,6 +2,20 @@
 
 This file is the product changelog shown inside the app. Keep entries newest first.
 
+---
+
+## v0.27.2
+**Released on:** 2026-06-16
+
+**Title:** Enhance app update check with fallback for release notes
+
+### Maintenance
+- Update CI and release workflows for changelog and release notes generation
+- Add changelog generation and validation workflow
+
+### Added
+- Enhance app update check with fallback for release notes
+
 --- 
 
 ## v0.27.1
