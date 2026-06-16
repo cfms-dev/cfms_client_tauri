@@ -1,16 +1,9 @@
 import { browser } from '$app/environment';
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from '@tauri-apps/plugin-notification';
 import { invoke } from '@tauri-apps/api/core';
 import { platform } from '@tauri-apps/plugin-os';
 import { formatBytes, type UpdateProgressSnapshot } from '$lib/updater';
 import { floatingProgressStore } from '$lib/stores.svelte';
 
-const UPDATE_NOTIFICATION_ID = 24001;
-const UPDATE_NOTIFICATION_TAG = 'cfms-app-update-download';
 const UPDATE_PROGRESS_ID = 'app-update:download';
 const SYSTEM_NOTIFICATION_MIN_INTERVAL_MS = 500;
 const UNKNOWN_TOTAL_BUCKET_BYTES = 512 * 1024;
@@ -25,7 +18,6 @@ export interface UpdateNotificationCopy {
 }
 
 class UpdateNotificationReporter {
-  private enabled: boolean | null = null;
   private lastBucket: string | null = null;
   private lastSystemNotificationAt = 0;
   private androidRuntime: boolean | null = null;
@@ -46,56 +38,24 @@ class UpdateNotificationReporter {
     const ongoing = snapshot.phase === 'downloading' || snapshot.phase === 'installing';
     const isAndroid = await this.isAndroidRuntime();
 
-    if (isAndroid) {
-      this.reportFloatingProgress(snapshot, copy.title, body);
-    }
+    this.reportFloatingProgress(snapshot, copy.title, body);
 
     if (!browser) return;
 
     if (!this.shouldReportSystemNotification(snapshot)) return;
+    if (!isAndroid) return;
 
     try {
-      if (isAndroid) {
-        await invoke('show_android_update_notification', {
-          title: copy.title,
-          body,
-          ongoing,
-          showProgress: ongoing,
-        });
-      } else {
-        if (!(await this.ensureEnabled())) return;
-
-        const notificationOptions: ReplacingNotificationOptions = {
-          id: UPDATE_NOTIFICATION_ID,
-          tag: UPDATE_NOTIFICATION_TAG,
-          renotify: false,
-          title: copy.title,
-          body,
-          ongoing,
-          autoCancel: snapshot.phase === 'finished',
-          group: 'app-update',
-        };
-
-        sendNotification(notificationOptions);
-      }
+      await invoke('show_android_update_notification', {
+        title: copy.title,
+        body,
+        ongoing,
+        showProgress: ongoing,
+      });
     } catch {
-      this.enabled = false;
+      // The in-app SnackBar already reflects progress; Android system notification
+      // failures should not interrupt the update flow.
     }
-  }
-
-  private async ensureEnabled() {
-    if (this.enabled !== null) return this.enabled;
-
-    try {
-      this.enabled = await isPermissionGranted();
-      if (!this.enabled) {
-        this.enabled = (await requestPermission()) === 'granted';
-      }
-    } catch {
-      this.enabled = false;
-    }
-
-    return this.enabled;
   }
 
   private bucketFor(snapshot: UpdateProgressSnapshot) {
@@ -191,17 +151,6 @@ class UpdateNotificationReporter {
 
     return copy.preparingDownload;
   }
-}
-
-interface ReplacingNotificationOptions {
-  id: number;
-  title: string;
-  body?: string;
-  tag?: string;
-  renotify?: boolean;
-  ongoing?: boolean;
-  autoCancel?: boolean;
-  group?: string;
 }
 
 export const updateNotificationReporter = new UpdateNotificationReporter();

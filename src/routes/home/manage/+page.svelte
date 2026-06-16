@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -75,6 +75,10 @@
     selected: string[];
   }
 
+  const IDENTITY_COLUMN_MIN_WIDTH = 128;
+  const IDENTITY_COLUMN_MAX_WIDTH = 240;
+  const METADATA_MIN_READABLE_WIDTH = 240;
+
   const tabs: ManageTab[] = [
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
     { key: 'groups', labelKey: 'manage.groups', icon: 'groups' },
@@ -100,6 +104,16 @@
   let blocksDialog = $state<{ username: string; blocks: UserBlock[] } | null>(null);
   let activeDialog = $state<ManageDialogState>(null);
   let expandedActionRow = $state<string | null>(null);
+  let identityMeasureHost = $state<HTMLDivElement | null>(null);
+  let accountListElement = $state<HTMLDivElement | null>(null);
+  let groupListElement = $state<HTMLDivElement | null>(null);
+  let accountIdentityColumnWidth = $state(IDENTITY_COLUMN_MIN_WIDTH);
+  let groupIdentityColumnWidth = $state(IDENTITY_COLUMN_MIN_WIDTH);
+  let hideAccountMetadata = $state(false);
+  let hideGroupMetadata = $state(false);
+  let expandedAuditIds = $state<Set<string>>(new Set());
+  let auditIdLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let suppressAuditIdClick: string | null = null;
   let contextMenu = $state<{
     open: boolean;
     x: number;
@@ -145,12 +159,114 @@
     error = null;
   });
 
+  $effect(() => {
+    users;
+    groups;
+    void updateIdentityColumnWidths();
+  });
+
+  $effect(() => {
+    accountListElement;
+    groupListElement;
+    accountIdentityColumnWidth;
+    groupIdentityColumnWidth;
+    void updateMetadataVisibility();
+  });
+
+  $effect(() => {
+    const elements = [accountListElement, groupListElement].filter(
+      (element): element is HTMLDivElement => element !== null,
+    );
+    if (elements.length === 0 || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      void updateMetadataVisibility();
+    });
+    for (const element of elements) observer.observe(element);
+
+    return () => observer.disconnect();
+  });
+
   onMount(() => {
     if (isAdmin) loadActiveTab();
+    void document.fonts?.ready.then(() => updateIdentityColumnWidths());
   });
 
   function hasAnyPermission(...permissions: string[]) {
     return permissions.some((permission) => authStore.permissions.includes(permission));
+  }
+
+  async function updateIdentityColumnWidths() {
+    await tick();
+    accountIdentityColumnWidth = measureIdentityColumn(
+      users.map((user) => ({
+        primary: user.nickname || user.username,
+        secondary: user.username,
+      })),
+    );
+    groupIdentityColumnWidth = measureIdentityColumn(
+      groups.map((group) => ({
+        primary: group.display_name || group.name,
+        secondary: group.name,
+      })),
+    );
+  }
+
+  async function updateMetadataVisibility() {
+    await tick();
+    hideAccountMetadata = shouldHideMetadata(accountListElement, accountIdentityColumnWidth);
+    hideGroupMetadata = shouldHideMetadata(groupListElement, groupIdentityColumnWidth);
+  }
+
+  function shouldHideMetadata(listElement: HTMLDivElement | null, identityColumnWidth: number) {
+    const row = listElement?.querySelector<HTMLElement>('.manage-list-row');
+    if (!listElement || !row) return false;
+
+    const rowStyle = getComputedStyle(row);
+    const columnGap = parseFloat(rowStyle.columnGap) || 0;
+    const paddingLeft = parseFloat(rowStyle.paddingLeft) || 0;
+    const paddingRight = parseFloat(rowStyle.paddingRight) || 0;
+    const iconWidth =
+      row.querySelector<HTMLElement>('.manage-list-icon')?.getBoundingClientRect().width ?? 0;
+    const actionsWidth =
+      row.querySelector<HTMLElement>('.manage-list-actions')?.scrollWidth
+      || row.querySelector<HTMLElement>('.manage-action-toggle')?.scrollWidth
+      || 0;
+    const metadataWidth =
+      listElement.getBoundingClientRect().width
+      - paddingLeft
+      - paddingRight
+      - iconWidth
+      - identityColumnWidth
+      - actionsWidth
+      - columnGap * 3;
+
+    return metadataWidth < METADATA_MIN_READABLE_WIDTH;
+  }
+
+  function measureIdentityColumn(rows: Array<{ primary: string; secondary: string }>) {
+    if (!identityMeasureHost || rows.length === 0) return IDENTITY_COLUMN_MIN_WIDTH;
+
+    const primaryProbe = document.createElement('span');
+    const secondaryProbe = document.createElement('span');
+    primaryProbe.className = 'text-sm font-medium leading-snug';
+    secondaryProbe.className = 'text-xs leading-relaxed';
+    identityMeasureHost.append(primaryProbe, secondaryProbe);
+
+    let width = IDENTITY_COLUMN_MIN_WIDTH;
+    for (const row of rows) {
+      primaryProbe.textContent = row.primary || '';
+      secondaryProbe.textContent = row.secondary || '';
+      width = Math.max(
+        width,
+        primaryProbe.getBoundingClientRect().width,
+        secondaryProbe.getBoundingClientRect().width,
+      );
+    }
+
+    primaryProbe.remove();
+    secondaryProbe.remove();
+    return Math.min(Math.ceil(width), IDENTITY_COLUMN_MAX_WIDTH);
   }
 
   function setActiveTab(tab: ManageTabKey) {
@@ -161,6 +277,7 @@
   function loadActiveTab() {
     hideContextMenu();
     expandedActionRow = null;
+    expandedAuditIds = new Set();
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
     else loadAuditLogPage(auditOffset);
@@ -331,10 +448,12 @@
       const data = await viewAuditLogs(auditOffset, auditCount);
       auditEntries = data.entries;
       auditTotal = data.total;
+      expandedAuditIds = new Set();
     } catch (err) {
       error = formatError(err);
       auditEntries = [];
       auditTotal = 0;
+      expandedAuditIds = new Set();
     } finally {
       loadingLogs = false;
     }
@@ -661,6 +780,78 @@
     return JSON.stringify(value);
   }
 
+  function isAuditIdExpanded(id: string) {
+    return expandedAuditIds.has(id);
+  }
+
+  function displayAuditId(id: string) {
+    return isAuditIdExpanded(id) || id.length <= 7 ? id : id.slice(0, 7);
+  }
+
+  function toggleAuditId(id: string) {
+    const next = new Set(expandedAuditIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    expandedAuditIds = next;
+  }
+
+  async function copyAuditId(id: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(id);
+      } else {
+        copyTextWithFallback(id);
+      }
+      notificationStore.success($t('manage.auditIdCopied'), 1600);
+    } catch (err) {
+      notificationStore.error($t('manage.auditIdCopyFailed'));
+    }
+  }
+
+  function copyTextWithFallback(text: string) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  }
+
+  function handleAuditIdClick(event: MouseEvent, id: string) {
+    if (suppressAuditIdClick === id) {
+      event.preventDefault();
+      suppressAuditIdClick = null;
+      return;
+    }
+
+    toggleAuditId(id);
+  }
+
+  function handleAuditIdContextMenu(event: MouseEvent, id: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    clearAuditIdLongPress();
+    void copyAuditId(id);
+  }
+
+  function startAuditIdLongPress(id: string) {
+    clearAuditIdLongPress();
+    auditIdLongPressTimer = setTimeout(() => {
+      suppressAuditIdClick = id;
+      auditIdLongPressTimer = null;
+      void copyAuditId(id);
+    }, 550);
+  }
+
+  function clearAuditIdLongPress() {
+    if (!auditIdLongPressTimer) return;
+    clearTimeout(auditIdLongPressTimer);
+    auditIdLongPressTimer = null;
+  }
+
   function formatBlockTarget(block: UserBlock) {
     const targetType = block.target_type ?? 'all';
     if (targetType === 'all') return $t('tasks.all');
@@ -674,6 +865,8 @@
 </script>
 
 <div class="space-y-4 p-4 sm:p-6">
+  <div bind:this={identityMeasureHost} class="identity-measure-host" aria-hidden="true"></div>
+
   <button
     class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
            hover:text-md3-on-surface transition-colors"
@@ -756,62 +949,68 @@
             {$t('manage.noUsers')}
           </p>
         {:else}
-          {#each users as user (user.username)}
-            {@const actionKey = `user:${user.username}`}
-            <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
-                        border-b border-md3-outline/50 last:border-b-0 items-center
-                        hover:bg-md3-primary-container/10 transition-colors"
-                 role="listitem"
-                 oncontextmenu={(event) => showUserContextMenu(event, user)}>
-              <span class="text-md3-primary-emphasis"><Icon name="accountCircle" size="24px" /></span>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-md3-on-surface truncate">
-                  {user.nickname || user.username}
-                </p>
-                <p class="text-xs text-md3-on-surface-variant truncate">
-                  {$t('manage.userSummary', {
-                    values: {
-                      username: user.username,
-                      groups: formatList(user.groups),
-                      lastLogin: formatDate(user.last_login),
-                    },
-                  })}
-                </p>
-              </div>
-              <button
-                class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis sm:hidden"
-                title={$t('tasks.moreActions')}
-                aria-label={$t('tasks.moreActions')}
-                onclick={() => toggleActionRow(actionKey)}
+          <div
+            class="manage-list manage-list--accounts"
+            class:manage-list--metadata-hidden={hideAccountMetadata}
+            bind:this={accountListElement}
+            style={`--manage-identity-width: ${accountIdentityColumnWidth}px;`}
+            role="list"
+          >
+            {#each users as user (user.username)}
+              {@const actionKey = `user:${user.username}`}
+              <div
+                class="manage-list-row"
+                role="listitem"
+                oncontextmenu={(event) => showUserContextMenu(event, user)}
               >
-                <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
-              </button>
-              <div class="hidden flex-wrap justify-end gap-1 sm:flex">
-                {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
-                {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
-                {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
-                {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
-                {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
-                {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
-                {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
-                {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
-              </div>
-              {#if expandedActionRow === actionKey}
-                <div class="col-span-3 -mx-1 mt-1 rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 sm:hidden animate-fade-scale-in">
-                  <div class="flex flex-wrap justify-end gap-1">
-                    {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
-                    {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
-                    {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
-                    {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
-                    {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
-                    {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
-                    {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
-                    {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
-                  </div>
+                <span class="manage-list-icon text-md3-primary-emphasis">
+                  <Icon name="accountCircle" size="24px" />
+                </span>
+                <div class="manage-identity min-w-0">
+                  <p class="truncate text-sm font-medium leading-snug text-md3-on-surface">
+                    {user.nickname || user.username}
+                  </p>
+                  {@render PrimaryMetadataValue(user.username)}
                 </div>
-              {/if}
-            </div>
-          {/each}
+                <div class="metadata-stack">
+                  {@render MetadataLine($t('manage.lastLogin'), formatDate(user.last_login))}
+                  {@render MetadataLine($t('manage.groups'), formatList(user.groups))}
+                </div>
+                <button
+                  class="manage-action-toggle rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis"
+                  title={$t('tasks.moreActions')}
+                  aria-label={$t('tasks.moreActions')}
+                  onclick={() => toggleActionRow(actionKey)}
+                >
+                  <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
+                </button>
+                <div class="manage-list-actions">
+                  {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
+                  {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
+                  {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                  {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
+                  {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                  {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
+                  {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
+                  {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
+                </div>
+                {#if expandedActionRow === actionKey}
+                  <div class="manage-list-expanded rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 animate-fade-scale-in">
+                    <div class="flex flex-wrap justify-end gap-1">
+                      {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
+                      {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
+                      {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                      {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
+                      {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                      {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
+                      {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
+                      {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
         {/if}
       {:else if activeTab === 'groups'}
         <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-md3-outline">
@@ -842,52 +1041,58 @@
             {$t('manage.noGroups')}
           </p>
         {:else}
-          {#each groups as group (group.name)}
-            {@const actionKey = `group:${group.name}`}
-            <div class="grid grid-cols-[auto_1fr_auto] gap-3 px-4 py-3
-                        border-b border-md3-outline/50 last:border-b-0 items-center
-                        hover:bg-md3-primary-container/10 transition-colors"
-                 role="listitem"
-                 oncontextmenu={(event) => showGroupContextMenu(event, group)}>
-              <span class="text-md3-primary-emphasis"><Icon name="groups" size="24px" /></span>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-md3-on-surface truncate">
-                  {group.display_name || group.name}
-                </p>
-                <p class="text-xs text-md3-on-surface-variant truncate">
-                  {$t('manage.groupSummary', {
-                    values: {
-                      name: group.name,
-                      permissions: formatList(group.permissions),
-                      members: formatList(group.members),
-                    },
-                  })}
-                </p>
-              </div>
-              <button
-                class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis sm:hidden"
-                title={$t('tasks.moreActions')}
-                aria-label={$t('tasks.moreActions')}
-                onclick={() => toggleActionRow(actionKey)}
+          <div
+            class="manage-list manage-list--groups"
+            class:manage-list--metadata-hidden={hideGroupMetadata}
+            bind:this={groupListElement}
+            style={`--manage-identity-width: ${groupIdentityColumnWidth}px;`}
+            role="list"
+          >
+            {#each groups as group (group.name)}
+              {@const actionKey = `group:${group.name}`}
+              <div
+                class="manage-list-row"
+                role="listitem"
+                oncontextmenu={(event) => showGroupContextMenu(event, group)}
               >
-                <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
-              </button>
-              <div class="hidden flex-wrap justify-end gap-1 sm:flex">
-                {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
-                {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
-                {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
-              </div>
-              {#if expandedActionRow === actionKey}
-                <div class="col-span-3 -mx-1 mt-1 rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 sm:hidden animate-fade-scale-in">
-                  <div class="flex flex-wrap justify-end gap-1">
-                    {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
-                    {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
-                    {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
-                  </div>
+                <span class="manage-list-icon text-md3-primary-emphasis">
+                  <Icon name="groups" size="24px" />
+                </span>
+                <div class="manage-identity min-w-0">
+                  <p class="truncate text-sm font-medium leading-snug text-md3-on-surface">
+                    {group.display_name || group.name}
+                  </p>
+                  {@render PrimaryMetadataValue(group.name)}
                 </div>
-              {/if}
-            </div>
-          {/each}
+                <div class="metadata-stack">
+                  {@render MetadataLine($t('manage.permissions'), formatList(group.permissions))}
+                  {@render MetadataLine($t('manage.members'), formatList(group.members))}
+                </div>
+                <button
+                  class="manage-action-toggle rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis"
+                  title={$t('tasks.moreActions')}
+                  aria-label={$t('tasks.moreActions')}
+                  onclick={() => toggleActionRow(actionKey)}
+                >
+                  <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
+                </button>
+                <div class="manage-list-actions">
+                  {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
+                  {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
+                  {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
+                </div>
+                {#if expandedActionRow === actionKey}
+                  <div class="manage-list-expanded rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 animate-fade-scale-in">
+                    <div class="flex flex-wrap justify-end gap-1">
+                      {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
+                      {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
+                      {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
         {/if}
       {:else}
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-md3-outline">
@@ -952,7 +1157,30 @@
               <tbody>
                 {#each auditEntries as entry (entry.id)}
                   <tr class="border-t border-md3-outline/50 text-md3-on-surface">
-                    <td class="px-3 py-2 align-top text-xs text-md3-on-surface-variant">{entry.id}</td>
+                    <td class="px-3 py-2 align-top text-md3-on-surface-variant">
+                      <button
+                        class="max-w-36 rounded-md px-1 py-0.5 text-left leading-relaxed transition-colors
+                               hover:bg-md3-primary-container/30 hover:text-md3-primary-emphasis
+                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-md3-primary
+                               sm:max-w-64 {isAuditIdExpanded(entry.id) ? 'break-all text-md3-on-surface' : 'truncate'}"
+                        title={entry.id}
+                        aria-label={isAuditIdExpanded(entry.id)
+                          ? $t('manage.collapseAuditId')
+                          : $t('manage.expandAuditId')}
+                        aria-expanded={isAuditIdExpanded(entry.id)}
+                        onclick={(event) => handleAuditIdClick(event, entry.id)}
+                        oncontextmenu={(event) => handleAuditIdContextMenu(event, entry.id)}
+                        onpointerdown={(event) => {
+                          if (event.pointerType === 'mouse' && event.button !== 0) return;
+                          startAuditIdLongPress(entry.id);
+                        }}
+                        onpointerup={clearAuditIdLongPress}
+                        onpointercancel={clearAuditIdLongPress}
+                        onpointerleave={clearAuditIdLongPress}
+                      >
+                        {displayAuditId(entry.id)}
+                      </button>
+                    </td>
                     <td class="px-3 py-2 align-top">{entry.action}</td>
                     <td class="px-3 py-2 align-top">{entry.username}</td>
                     <td class="px-3 py-2 align-top max-w-52 truncate" title={entry.target}>{entry.target}</td>
@@ -1119,6 +1347,19 @@
   </div>
 {/snippet}
 
+{#snippet PrimaryMetadataValue(value: string)}
+  <p class="min-w-0 truncate text-xs leading-relaxed text-md3-on-surface-variant" title={value}>
+    {value}
+  </p>
+{/snippet}
+
+{#snippet MetadataLine(label: string, value: string)}
+  <div class="grid min-w-0 grid-cols-[6.5rem_1fr] gap-2 text-xs leading-relaxed sm:grid-cols-[7.5rem_1fr]">
+    <span class="text-md3-on-surface-variant/80">{label}</span>
+    <span class="metadata-clamp min-w-0 text-md3-on-surface-variant" title={value}>{value}</span>
+  </div>
+{/snippet}
+
 {#snippet ActionButton(icon: IconName, title: string, onClick: () => void | Promise<void>, disabled = false, danger = false)}
   <button
     class="p-1.5 rounded-full transition-colors disabled:opacity-40
@@ -1132,3 +1373,150 @@
     <Icon name={icon} size="18px" />
   </button>
 {/snippet}
+
+<style>
+  .identity-measure-host {
+    position: absolute;
+    width: max-content;
+    height: 0;
+    overflow: visible;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .manage-list {
+    container-type: inline-size;
+  }
+
+  .manage-list-row {
+    display: grid;
+    grid-template-columns:
+      auto
+      minmax(0, var(--manage-identity-width))
+      minmax(0, 1fr)
+      auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-md3-outline) 50%, transparent);
+    transition: background-color 160ms ease;
+  }
+
+  .manage-list-row:last-child {
+    border-bottom: 0;
+  }
+
+  .manage-list-row:hover {
+    background: color-mix(in srgb, var(--color-md3-primary-container) 10%, transparent);
+  }
+
+  .manage-list-icon {
+    display: inline-flex;
+    grid-column: 1;
+    width: 1.5rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .manage-identity {
+    grid-column: 2;
+  }
+
+  .metadata-stack {
+    display: grid;
+    grid-column: 3;
+    min-width: 0;
+    row-gap: 0.125rem;
+  }
+
+  .manage-list-actions {
+    display: flex;
+    grid-column: 4;
+    min-width: max-content;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.25rem;
+  }
+
+  .manage-action-toggle {
+    display: none;
+    grid-column: 4;
+  }
+
+  .manage-list-expanded {
+    display: none;
+    grid-column: 1 / -1;
+    margin-top: 0.25rem;
+  }
+
+  .metadata-clamp {
+    display: -webkit-box;
+    max-height: 2.75rem;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
+
+  .manage-list--metadata-hidden .manage-list-row {
+    grid-template-columns:
+      auto
+      minmax(0, var(--manage-identity-width))
+      minmax(0, 1fr)
+      auto;
+  }
+
+  .manage-list--metadata-hidden .metadata-stack {
+    display: none;
+  }
+
+  .manage-list--metadata-hidden .manage-list-actions,
+  .manage-list--metadata-hidden .manage-action-toggle {
+    grid-column: 4;
+  }
+
+  @container (max-width: 36rem) {
+    .manage-list-row {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .metadata-stack {
+      display: none;
+    }
+
+    .manage-list-actions,
+    .manage-action-toggle {
+      grid-column: 3;
+    }
+  }
+
+  @container (max-width: 35rem) {
+    .manage-list--accounts .manage-list-actions {
+      display: none;
+    }
+
+    .manage-list--accounts .manage-action-toggle {
+      display: inline-flex;
+    }
+
+    .manage-list--accounts .manage-list-expanded {
+      display: block;
+    }
+  }
+
+  @container (max-width: 25rem) {
+    .manage-list--groups .manage-list-actions {
+      display: none;
+    }
+
+    .manage-list--groups .manage-action-toggle {
+      display: inline-flex;
+    }
+
+    .manage-list--groups .manage-list-expanded {
+      display: block;
+    }
+  }
+</style>
