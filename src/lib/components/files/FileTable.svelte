@@ -94,7 +94,7 @@
 
       {#if canGoToParent}
         <button
-          class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 px-4 py-2.5 text-left text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container/20"
+          class="grid w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-md3-outline/50 px-4 py-2.5 text-left text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container/20"
           class:border-b={folders.length > 0 || documents.length > 0}
           onclick={onGoToParent}
         >
