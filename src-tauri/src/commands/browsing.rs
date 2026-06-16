@@ -46,7 +46,7 @@ pub async fn list_directory(
     }
     .ok_or_else(|| "Not logged in".to_string())?;
 
-    let resp = send_action_request(
+    let resp = send_typed_action_request::<ListDirectoryResponse>(
         &conn,
         "list_directory",
         serde_json::json!({"folder_id": folder_id}),
@@ -59,10 +59,7 @@ pub async fn list_directory(
         return Err(format!("Server returned {}: {}", resp.code, resp.message));
     }
 
-    let data: ListDirectoryResponse = serde_json::from_value(resp.data)
-        .map_err(|e| format!("Invalid list_directory response: {e}"))?;
-
-    Ok(data)
+    Ok(resp.data)
 }
 
 /// Request a document download from the CFMS server.

@@ -81,7 +81,8 @@
   } from '$lib/file-preferences';
   import { formatBytes, formatDate, formatError, formatUnknown, isPickerCancel } from '$lib/files/formatting';
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
-  import { sortDocuments, sortFolders, type SortDirection, type SortField } from '$lib/files/sorting';
+  import { sortFileEntries, type SortDirection, type SortField } from '$lib/files/sorting';
+  import { shouldDeferFileSort, sortFileEntriesAsync } from '$lib/files/sort-worker-client';
   import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
@@ -107,6 +108,7 @@
   let selectedDocumentIds = $state<Set<string>>(new Set());
   let sortField = $state<SortField>('name');
   let sortDirection = $state<SortDirection>('asc');
+  let sortRequestId = 0;
 
   // Context menu state
   let contextMenu = $state<{
@@ -245,6 +247,65 @@
 
   // --- Data loading ---
 
+  function applyDirectoryEntries(
+    nextFolders: ServerDirectoryEntry[],
+    nextDocuments: ServerDocumentEntry[],
+  ) {
+    const requestId = ++sortRequestId;
+    if (shouldDeferFileSort(nextFolders.length, nextDocuments.length)) {
+      folders = nextFolders;
+      documents = nextDocuments;
+      queueDirectorySort(requestId, nextFolders, nextDocuments, true);
+      return;
+    }
+
+    const sorted = sortFileEntries(nextFolders, nextDocuments, sortField, sortDirection);
+    if (requestId !== sortRequestId) return;
+    folders = sorted.folders;
+    documents = sorted.documents;
+  }
+
+  function sortCurrentDirectory(deferUntilPaint = false) {
+    const requestId = ++sortRequestId;
+    queueDirectorySort(requestId, folders, documents, deferUntilPaint);
+  }
+
+  function queueDirectorySort(
+    requestId: number,
+    sourceFolders: ServerDirectoryEntry[],
+    sourceDocuments: ServerDocumentEntry[],
+    deferUntilPaint: boolean,
+  ) {
+    const field = sortField;
+    const direction = sortDirection;
+
+    const performSort = async () => {
+      try {
+        const sorted = await sortFileEntriesAsync(sourceFolders, sourceDocuments, field, direction);
+        if (requestId !== sortRequestId || field !== sortField || direction !== sortDirection) return;
+        folders = sorted.folders;
+        documents = sorted.documents;
+      } catch (err) {
+        console.warn('Background file sort failed; falling back to main-thread sorting.', err);
+        if (requestId !== sortRequestId || field !== sortField || direction !== sortDirection) return;
+        const sorted = sortFileEntries(sourceFolders, sourceDocuments, field, direction);
+        folders = sorted.folders;
+        documents = sorted.documents;
+      }
+    };
+
+    if (deferUntilPaint && typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          void performSort();
+        }, 0);
+      });
+      return;
+    }
+
+    void performSort();
+  }
+
   async function loadDirectory(folderId: string | null, preserveOnError = false): Promise<boolean> {
     loading = true;
     error = null;
@@ -254,8 +315,7 @@
       const normalizedFolderId = normalizeDirectoryId(folderId);
       const resp = await listDirectory(normalizedFolderId);
       currentFolderId = normalizedFolderId;
-      folders = resp.folders;
-      documents = resp.documents;
+      applyDirectoryEntries(resp.folders, resp.documents);
       parentId = normalizeDirectoryId(resp.parent_id);
       return true;
     } catch (e) {
@@ -371,8 +431,8 @@
   }
 
   function selectAllVisible() {
-    selectedFolderIds = new Set(filteredFolders.map((folder) => folder.id));
-    selectedDocumentIds = new Set(filteredDocuments.map((doc) => doc.id));
+    selectedFolderIds = new Set(folders.map((folder) => folder.id));
+    selectedDocumentIds = new Set(documents.map((doc) => doc.id));
   }
 
   function toggleAllVisibleSelection() {
@@ -1495,10 +1555,12 @@
   function setSort(field: SortField) {
     if (sortField === field) {
       sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      sortCurrentDirectory(shouldDeferFileSort(folders.length, documents.length));
       return;
     }
     sortField = field;
     sortDirection = field === 'name' ? 'asc' : 'desc';
+    sortCurrentDirectory(shouldDeferFileSort(folders.length, documents.length));
   }
 
   function sortIcon(field: SortField): IconName {
@@ -1572,10 +1634,6 @@
     };
   });
 
-  // --- Display lists ---
-
-  const filteredFolders = $derived.by(() => sortFolders(folders, sortField, sortDirection));
-  const filteredDocuments = $derived.by(() => sortDocuments(documents, sortField, sortDirection));
 </script>
 
 <div
@@ -1717,8 +1775,8 @@
 
   <FileTable
     {loading}
-    folders={filteredFolders}
-    documents={filteredDocuments}
+    {folders}
+    {documents}
     {canGoToParent}
     {selectMode}
     {selectedFolderIds}

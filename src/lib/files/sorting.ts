@@ -3,10 +3,26 @@ import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
 export type SortField = 'name' | 'size' | 'modified';
 export type SortDirection = 'asc' | 'desc';
 
-interface SortableFileEntry {
-  name: string;
-  size: number;
-  modified: number;
+const fileNameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+export interface SortedFileEntries {
+  folders: ServerDirectoryEntry[];
+  documents: ServerDocumentEntry[];
+}
+
+export function sortFileEntries(
+  folders: ServerDirectoryEntry[],
+  documents: ServerDocumentEntry[],
+  field: SortField,
+  direction: SortDirection,
+): SortedFileEntries {
+  return {
+    folders: sortFolders(folders, field, direction),
+    documents: sortDocuments(documents, field, direction),
+  };
 }
 
 export function sortFolders(
@@ -14,20 +30,8 @@ export function sortFolders(
   field: SortField,
   direction: SortDirection,
 ): ServerDirectoryEntry[] {
-  return [...input].sort((a, b) => compareFileEntries(
-    {
-      name: a.name,
-      size: 0,
-      modified: a.created_time ?? 0,
-    },
-    {
-      name: b.name,
-      size: 0,
-      modified: b.created_time ?? 0,
-    },
-    field,
-    direction,
-  ));
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...input].sort((a, b) => sign * compareFolderEntries(a, b, field));
 }
 
 export function sortDocuments(
@@ -35,34 +39,38 @@ export function sortDocuments(
   field: SortField,
   direction: SortDirection,
 ): ServerDocumentEntry[] {
-  return [...input].sort((a, b) => compareFileEntries(
-    {
-      name: a.title,
-      size: a.size ?? 0,
-      modified: a.last_modified ?? 0,
-    },
-    {
-      name: b.title,
-      size: b.size ?? 0,
-      modified: b.last_modified ?? 0,
-    },
-    field,
-    direction,
-  ));
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...input].sort((a, b) => sign * compareDocumentEntries(a, b, field));
 }
 
-function compareFileEntries(
-  a: SortableFileEntry,
-  b: SortableFileEntry,
+function compareFolderEntries(
+  a: ServerDirectoryEntry,
+  b: ServerDirectoryEntry,
   field: SortField,
-  direction: SortDirection,
 ): number {
-  const sign = direction === 'asc' ? 1 : -1;
   if (field === 'name') {
-    return sign * a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    return compareNames(a.name, b.name);
   }
   if (field === 'size') {
-    return sign * ((a.size - b.size) || a.name.localeCompare(b.name));
+    return compareNames(a.name, b.name);
   }
-  return sign * ((a.modified - b.modified) || a.name.localeCompare(b.name));
+  return ((a.created_time ?? 0) - (b.created_time ?? 0)) || compareNames(a.name, b.name);
+}
+
+function compareDocumentEntries(
+  a: ServerDocumentEntry,
+  b: ServerDocumentEntry,
+  field: SortField,
+): number {
+  if (field === 'name') {
+    return compareNames(a.title, b.title);
+  }
+  if (field === 'size') {
+    return ((a.size ?? 0) - (b.size ?? 0)) || compareNames(a.title, b.title);
+  }
+  return ((a.last_modified ?? 0) - (b.last_modified ?? 0)) || compareNames(a.title, b.title);
+}
+
+function compareNames(a: string, b: string): number {
+  return fileNameCollator.compare(a, b);
 }
