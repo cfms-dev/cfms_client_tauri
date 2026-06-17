@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '$lib/api/core';
 import { platform } from '@tauri-apps/plugin-os';
 import { formatBytes, type UpdateProgressSnapshot } from '$lib/updater';
 import { floatingProgressStore } from '$lib/stores.svelte';

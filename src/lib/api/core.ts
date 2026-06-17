@@ -1,6 +1,29 @@
 // CFMS Client - typed Tauri IPC wrappers.
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+import type { InvokeArgs, InvokeOptions } from '@tauri-apps/api/core';
+import { debugTimingStore, scheduleDebugUiCompletion } from '$lib/debug-timing.svelte';
 import type { AndroidPasskeyAssertion, AndroidPasskeyAvailability, AndroidPasskeyRegistration, FileShortcutValidationResult, ServiceStatusInfo } from './types';
+
+export async function invoke<T>(
+  command: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T> {
+  const requestStartedAt = performance.now();
+
+  try {
+    const result = await tauriInvoke<T>(command, args, options);
+    const responseAt = performance.now();
+    const sequence = debugTimingStore.recordResponse(command, responseAt - requestStartedAt);
+    scheduleDebugUiCompletion(sequence, responseAt);
+    return result;
+  } catch (error) {
+    const responseAt = performance.now();
+    const sequence = debugTimingStore.recordResponse(command, responseAt - requestStartedAt);
+    scheduleDebugUiCompletion(sequence, responseAt);
+    throw error;
+  }
+}
 
 /** Ping the Rust backend. */
 export async function ping(): Promise<string> {

@@ -1,5 +1,5 @@
 // CFMS Client - typed Tauri IPC wrappers.
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './core';
 import type { AuthStatus, ServerInfo, ServerState, TwoFactorSetup, TwoFactorStatus } from './types';
 
 /** Log in with username + password. Derives KEK via PBKDF2 on the Rust side.

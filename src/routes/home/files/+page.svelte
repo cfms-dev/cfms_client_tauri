@@ -69,6 +69,7 @@
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
+  import { debugTimingStore, scheduleDebugUiCompletion } from '$lib/debug-timing.svelte';
   import { normalizeDirectoryId, sameDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
   import {
     directoryToRecord,
@@ -311,9 +312,18 @@
     error = null;
     selectedFolderIds = new Set();
     selectedDocumentIds = new Set();
+    let fileTimingSequence: number | null = null;
+    let responseAt = 0;
     try {
       const normalizedFolderId = normalizeDirectoryId(folderId);
+      const requestStartedAt = performance.now();
       const resp = await listDirectory(normalizedFolderId);
+      responseAt = performance.now();
+      fileTimingSequence = debugTimingStore.recordResponse(
+        'files:list_directory',
+        responseAt - requestStartedAt,
+        { priorityMs: 8000 },
+      );
       currentFolderId = normalizedFolderId;
       applyDirectoryEntries(resp.folders, resp.documents);
       parentId = normalizeDirectoryId(resp.parent_id);
@@ -328,6 +338,7 @@
       return false;
     } finally {
       loading = false;
+      scheduleDebugUiCompletion(fileTimingSequence, responseAt);
     }
   }
 

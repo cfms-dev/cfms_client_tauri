@@ -1,5 +1,5 @@
 // CFMS Client - typed Tauri IPC wrappers.
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './core';
 import type { AccessEntry, AccessEntityType, AccessType, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
 
 /** List a directory on the CFMS server via the active WSS connection.

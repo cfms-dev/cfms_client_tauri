@@ -39,6 +39,7 @@
   import DialogHost from "$lib/components/DialogHost.svelte";
   import NewUpdatePrompt from "$lib/components/NewUpdatePrompt.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
+  import DebugTimingOverlay from "$lib/components/DebugTimingOverlay.svelte";
 
   let { children }: { children: Snippet } = $props();
   let lastRecordedActivityAt = 0;
@@ -343,4 +344,5 @@
   <SnackBarHost />
   <NewUpdatePrompt />
   <AppLockOverlay />
+  <DebugTimingOverlay />
 </div>

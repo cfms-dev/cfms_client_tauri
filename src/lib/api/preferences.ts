@@ -1,5 +1,5 @@
 // CFMS Client - typed Tauri IPC wrappers.
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './core';
 import type { UserPreference } from './types';
 
 export interface PreferenceDekSetupResult {
