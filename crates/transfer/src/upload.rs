@@ -102,17 +102,10 @@ pub async fn send(
     let ready_str =
         String::from_utf8(ready_raw).map_err(|e| cfms_core::Error::Protocol(e.to_string()))?;
 
-    if ready_str == "stop" {
-        return Err(cfms_core::Error::Protocol(
-            "upload rejected by server".into(),
-        ));
-    }
-
-    let chunk_size: usize = ready_str
-        .strip_prefix("ready ")
-        .and_then(|s| s.split_whitespace().next())
-        .and_then(|n| n.parse().ok())
-        .unwrap_or(8192);
+    let Some(chunk_size) = parse_ready_signal(&ready_str, file_size)? else {
+        on_progress(0, file_size);
+        return Ok(());
+    };
 
     // --- Step 4: stream the file ---
     let mut file = tokio::fs::File::open(source).await?;
@@ -141,4 +134,45 @@ pub async fn send(
     })?;
 
     Ok(())
+}
+
+fn parse_ready_signal(ready_str: &str, file_size: u64) -> Result<Option<usize>> {
+    if ready_str == "stop" {
+        return if file_size == 0 {
+            Ok(None)
+        } else {
+            Err(cfms_core::Error::Protocol(
+                "server sent stop for a non-empty upload".into(),
+            ))
+        };
+    }
+
+    Ok(Some(
+        ready_str
+            .strip_prefix("ready ")
+            .and_then(|s| s.split_whitespace().next())
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(8192),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_ready_signal;
+
+    #[test]
+    fn stop_completes_zero_byte_upload() {
+        assert_eq!(parse_ready_signal("stop", 0).unwrap(), None);
+    }
+
+    #[test]
+    fn stop_rejects_non_empty_upload() {
+        let err = parse_ready_signal("stop", 1).unwrap_err().to_string();
+        assert!(err.contains("server sent stop for a non-empty upload"));
+    }
+
+    #[test]
+    fn ready_signal_uses_server_chunk_size() {
+        assert_eq!(parse_ready_signal("ready 16384", 42).unwrap(), Some(16384));
+    }
 }

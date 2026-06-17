@@ -501,6 +501,12 @@ mod tests {
                     "title": "Known size",
                     "size": 4096,
                     "last_modified": 1710000001.0
+                },
+                {
+                    "id": "with-zero-size",
+                    "title": "Zero size",
+                    "size": 0,
+                    "last_modified": 1710000002.0
                 }
             ],
             "parent_id": null
@@ -511,5 +517,6 @@ mod tests {
         assert_eq!(parsed.documents[0].size, None);
         assert_eq!(parsed.documents[1].size, None);
         assert_eq!(parsed.documents[2].size, Some(4096));
+        assert_eq!(parsed.documents[3].size, Some(0));
     }
 }

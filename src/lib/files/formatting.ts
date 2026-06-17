@@ -1,6 +1,6 @@
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return '—';
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return '0';
   const k = 1024;
   const sizes = ['B', 'KiB', 'MiB', 'GiB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));

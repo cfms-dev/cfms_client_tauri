@@ -87,7 +87,7 @@ export interface ServerDocumentMetadata {
 export interface ServerDocumentInfo {
   document_id?: string;
   title?: string;
-  size?: number;
+  size?: number | null;
   created_time?: number | null;
   last_modified?: number | null;
   parent_id?: string | null;
@@ -144,7 +144,7 @@ export interface SearchDocumentEntry {
   name?: string;
   title?: string;
   parent_id?: string | null;
-  size?: number;
+  size?: number | null;
   last_modified?: number | null;
 }
 
