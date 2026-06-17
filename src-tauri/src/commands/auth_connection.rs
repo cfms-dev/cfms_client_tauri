@@ -28,40 +28,8 @@ pub async fn login(
     }
     .ok_or_else(|| "Not connected to a server".to_string())?;
 
-    // --- Build login request payload ---
-    let mut request = serde_json::json!({
-        "action": "login",
-        "data": {
-            "username": &username,
-            "password": &password,
-        },
-    });
-    if let Some(ref token) = twofa_token {
-        request["data"]["2fa_token"] = serde_json::Value::String(token.clone());
-    }
-
-    // --- Send login request over a client stream ---
-    let mut stream = conn
-        .create_stream()
-        .await
-        .map_err(|e| format!("Failed to create stream: {e}"))?;
-
-    let request_bytes =
-        serde_json::to_vec(&request).map_err(|e| format!("Failed to encode login request: {e}"))?;
-
-    stream
-        .send(&conn, request_bytes)
-        .await
-        .map_err(|e| format!("Failed to send login request: {e}"))?;
-
-    // --- Read response ---
-    let response_bytes = stream
-        .recv()
-        .await
-        .ok_or_else(|| "Connection closed before login response".to_string())?;
-
-    let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
-        .map_err(|e| format!("Invalid login response from server: {e}"))?;
+    let response =
+        send_login_request(&conn, &username, &password, twofa_token.as_deref()).await?;
 
     tracing::info!(
         "Login response: code={}, message={}",
@@ -74,74 +42,7 @@ pub async fn login(
         200 => {
             let data = &response.data;
 
-            // Extract token early — needed for the DEK setup calls below.
-            let token = data["token"]
-                .as_str()
-                .ok_or_else(|| "Server did not return a token".to_string())?
-                .to_string();
-
-            // Store auth state from server response.
-            {
-                let mut u = state.inner.username.write().await;
-                *u = Some(username.clone());
-            }
-            {
-                let mut t = state.inner.token.write().await;
-                *t = Some(token.clone());
-            }
-            {
-                let exp = data["exp"].as_i64().unwrap_or(unix_now() + 3600);
-                let mut e = state.inner.token_exp.write().await;
-                *e = Some(exp);
-            }
-            {
-                let nickname = data["nickname"].as_str().unwrap_or(&username).to_string();
-                let mut n = state.inner.nickname.write().await;
-                *n = Some(nickname);
-            }
-            {
-                let perms: Vec<String> = data["permissions"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let mut p = state.inner.permissions.write().await;
-                *p = perms;
-            }
-            {
-                let grps: Vec<String> = data["groups"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v.as_str().map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let mut g = state.inner.groups.write().await;
-                *g = grps;
-            }
-            // Clear any pending 2FA flag.
-            state
-                .inner
-                .pending_2fa
-                .store(false, std::sync::atomic::Ordering::SeqCst);
-
-            {
-                let mut d = state.inner.dek.write().await;
-                *d = None;
-            }
-            let server_preference_dek = match extract_preference_dek_content(data) {
-                Ok(content) => content.map(ToOwned::to_owned),
-                Err(error) => {
-                    tracing::warn!("Login response contained an unusable preference DEK: {error}");
-                    None
-                }
-            };
-            remember_server_preference_dek(&state.inner, server_preference_dek).await;
-            state.tasks.clear();
+            apply_successful_login_response(&state, &username, data, true, true).await?;
 
             let mut status = build_auth_status(&state.inner).await;
             status["needs_preference_dek_setup"] = serde_json::Value::Bool(true);
@@ -233,6 +134,124 @@ pub async fn login(
     }
 }
 
+async fn send_login_request(
+    conn: &cfms_transport::Connection,
+    username: &str,
+    password: &str,
+    twofa_token: Option<&str>,
+) -> Result<cfms_core::Response, String> {
+    let mut request = serde_json::json!({
+        "action": "login",
+        "data": {
+            "username": username,
+            "password": password,
+        },
+    });
+    if let Some(token) = twofa_token {
+        request["data"]["2fa_token"] = serde_json::Value::String(token.to_string());
+    }
+
+    let mut stream = conn
+        .create_stream()
+        .await
+        .map_err(|e| format!("Failed to create stream: {e}"))?;
+
+    let request_bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to encode login request: {e}"))?;
+
+    stream
+        .send(conn, request_bytes)
+        .await
+        .map_err(|e| format!("Failed to send login request: {e}"))?;
+
+    let response_bytes = stream
+        .recv()
+        .await
+        .ok_or_else(|| "Connection closed before login response".to_string())?;
+
+    serde_json::from_slice(&response_bytes)
+        .map_err(|e| format!("Invalid login response from server: {e}"))
+}
+
+async fn apply_successful_login_response(
+    state: &AppHandleState,
+    username: &str,
+    data: &serde_json::Value,
+    clear_dek: bool,
+    clear_tasks: bool,
+) -> Result<String, String> {
+    let token = data["token"]
+        .as_str()
+        .ok_or_else(|| "Server did not return a token".to_string())?
+        .to_string();
+
+    {
+        let mut u = state.inner.username.write().await;
+        *u = Some(username.to_string());
+    }
+    {
+        let mut t = state.inner.token.write().await;
+        *t = Some(token.clone());
+    }
+    {
+        let exp = data["exp"].as_i64().unwrap_or(unix_now() + 3600);
+        let mut e = state.inner.token_exp.write().await;
+        *e = Some(exp);
+    }
+    {
+        let nickname = data["nickname"].as_str().unwrap_or(username).to_string();
+        let mut n = state.inner.nickname.write().await;
+        *n = Some(nickname);
+    }
+    {
+        let perms: Vec<String> = data["permissions"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut p = state.inner.permissions.write().await;
+        *p = perms;
+    }
+    {
+        let grps: Vec<String> = data["groups"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut g = state.inner.groups.write().await;
+        *g = grps;
+    }
+    state
+        .inner
+        .pending_2fa
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+
+    if clear_dek {
+        let mut d = state.inner.dek.write().await;
+        *d = None;
+    }
+
+    let server_preference_dek = match extract_preference_dek_content(data) {
+        Ok(content) => content.map(ToOwned::to_owned),
+        Err(error) => {
+            tracing::warn!("Login response contained an unusable preference DEK: {error}");
+            None
+        }
+    };
+    remember_server_preference_dek(&state.inner, server_preference_dek).await;
+    if clear_tasks {
+        state.tasks.clear();
+    }
+
+    Ok(token)
+}
+
 /// Change a user's password via the server's `set_passwd` action.
 ///
 /// This supports the *self-change* flow used when the server rejects a login
@@ -259,6 +278,30 @@ pub async fn change_password(
         c.clone()
     }
     .ok_or_else(|| "Not connected to a server".to_string())?;
+
+    let mut prepared_dek_rewrap = if let Some(existing_dek) = state.inner.dek.read().await.clone() {
+        match get_connection_auth(&state).await {
+            Ok((auth_conn, auth_username, auth_token))
+                if auth_username == username && auth_token != "pending_2fa" =>
+            {
+                let encrypted = rewrap_and_upload_preference_dek(
+                    &auth_conn,
+                    *existing_dek,
+                    &new_password,
+                    &auth_username,
+                    &auth_token,
+                )
+                .await
+                .map_err(|e| {
+                    format!("Failed to prepare preference DEK rewrap before password change: {e}")
+                })?;
+                Some((existing_dek, encrypted, auth_conn, auth_username, auth_token))
+            }
+            Ok(_) | Err(_) => None,
+        }
+    } else {
+        None
+    };
 
     let request = serde_json::json!({
         "action": "set_passwd",
@@ -302,23 +345,36 @@ pub async fn change_password(
     );
 
     if response.code != 200 {
+        if let Some((dek, _, auth_conn, auth_username, auth_token)) = prepared_dek_rewrap.take() {
+            match rewrap_and_upload_preference_dek(
+                &auth_conn,
+                *dek,
+                &old_password,
+                &auth_username,
+                &auth_token,
+            )
+            .await
+            {
+                Ok(encrypted) => remember_server_preference_dek(&state.inner, Some(encrypted)).await,
+                Err(error) => {
+                    tracing::warn!(
+                        "Failed to roll back prepared preference DEK after password change rejection: {error}"
+                    );
+                    return Err(format!(
+                        "({}) {}; additionally failed to restore the previous preference DEK: {}",
+                        response.code, response.message, error
+                    ));
+                }
+            }
+        }
         return Err(format!("({}) {}", response.code, response.message));
     }
 
-    if let Some(existing_dek) = state.inner.dek.read().await.clone() {
-        let (auth_conn, auth_username, auth_token) = get_connection_auth(&state)
-            .await
-            .map_err(|e| format!("Password changed, but failed to rewrap preference DEK: {e}"))?;
-
-        let encrypted = rewrap_and_upload_preference_dek(
-            &auth_conn,
-            *existing_dek,
-            &new_password,
-            &auth_username,
-            &auth_token,
-        )
-        .await
-        .map_err(|e| format!("Password changed, but failed to rewrap preference DEK: {e}"))?;
+    if let Some((dek, encrypted, _, _, _)) = prepared_dek_rewrap.take() {
+        {
+            let mut stored_dek = state.inner.dek.write().await;
+            *stored_dek = Some(dek);
+        }
         remember_server_preference_dek(&state.inner, Some(encrypted)).await;
     }
 
