@@ -1905,7 +1905,7 @@
             >
               <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
               <span class="min-w-0 truncate text-sm text-md3-on-surface">{document.name ?? document.title}</span>
-              <span class="text-xs text-md3-on-surface-variant">{formatBytes(document.size ?? 0)}</span>
+              <span class="text-xs text-md3-on-surface-variant">{formatBytes(document.size)}</span>
             </button>
           {/each}
         </div>

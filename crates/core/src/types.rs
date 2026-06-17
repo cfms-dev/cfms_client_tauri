@@ -285,9 +285,9 @@ pub struct ServerDocumentEntry {
     pub id: String,
     /// Display title of the document.
     pub title: String,
-    /// File size in bytes.
+    /// File size in bytes, or `None` when the server cannot determine it.
     #[serde(default)]
-    pub size: u64,
+    pub size: Option<u64>,
     /// Last modification timestamp (Unix seconds).
     #[serde(default)]
     pub last_modified: Option<f64>,
@@ -474,4 +474,42 @@ pub struct RecentFileRecord {
     /// Visit timestamp in milliseconds since Unix epoch.
     #[serde(default, alias = "visited_at")]
     pub visited_at: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_directory_preserves_unknown_document_size() {
+        let raw = r#"{
+            "folders": [],
+            "documents": [
+                {
+                    "id": "with-null-size",
+                    "title": "Null size",
+                    "size": null,
+                    "last_modified": null
+                },
+                {
+                    "id": "without-size",
+                    "title": "Missing size",
+                    "last_modified": 1710000000.0
+                },
+                {
+                    "id": "with-size",
+                    "title": "Known size",
+                    "size": 4096,
+                    "last_modified": 1710000001.0
+                }
+            ],
+            "parent_id": null
+        }"#;
+
+        let parsed: ListDirectoryResponse = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(parsed.documents[0].size, None);
+        assert_eq!(parsed.documents[1].size, None);
+        assert_eq!(parsed.documents[2].size, Some(4096));
+    }
 }

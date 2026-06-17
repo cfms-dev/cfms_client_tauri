@@ -74,7 +74,7 @@ export interface ServerDirectoryEntry {
 export interface ServerDocumentEntry {
   id: string;
   title: string;
-  size: number;
+  size: number | null;
   last_modified: number | null;
 }
 
