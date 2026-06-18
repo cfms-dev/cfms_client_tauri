@@ -7,7 +7,6 @@ import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { _ as t } from "svelte-i18n";
 import type { ServiceEvent, UploadProgressEvent } from "./api";
-import { formatPathFilename } from "$lib/path-format";
 import {
   authStore,
   downloadStore,
@@ -46,13 +45,6 @@ export async function initEventListeners(): Promise<void> {
         const { task_id, file_path } = event.data;
         downloadStore.markCompleted(task_id);
         eventLog.push("success", `Download complete: ${file_path}`);
-        const filename = formatPathFilename(file_path);
-        notificationStore.success(translate("downloads.completedOne", { name: filename }), 5000, {
-          groupKey: "download-completed",
-          groupTitle: translate("downloads.completedTitle"),
-          itemText: filename,
-          summaryText: (count) => translate("downloads.completedSummary", { count }),
-        });
         break;
       }
 
