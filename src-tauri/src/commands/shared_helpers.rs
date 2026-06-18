@@ -12,6 +12,19 @@ async fn send_action_request(
     username: &str,
     token: &str,
 ) -> Result<cfms_core::Response, String> {
+    send_typed_action_request(conn, action, data, username, token).await
+}
+
+async fn send_typed_action_request<T>(
+    conn: &cfms_transport::Connection,
+    action: &str,
+    data: serde_json::Value,
+    username: &str,
+    token: &str,
+) -> Result<cfms_core::Response<T>, String>
+where
+    T: serde::de::DeserializeOwned,
+{
     let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
     let nonce = hex::encode(random_bytes);
 
@@ -42,7 +55,7 @@ async fn send_action_request(
         .await
         .ok_or_else(|| format!("Connection closed before {action} response"))?;
 
-    serde_json::from_slice::<cfms_core::Response>(&response_bytes)
+    serde_json::from_slice::<cfms_core::Response<T>>(&response_bytes)
         .map_err(|e| format!("Invalid {action} response: {e}"))
 }
 

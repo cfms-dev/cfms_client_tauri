@@ -4,6 +4,21 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.27.3
+**Released on:** 2026-06-17
+
+**Title:** Implement file sorting with web worker support for improved p...
+
+### Fixed
+- Update document size handling to support null values and improve formatting
+- Rewrap DEK and upload it to the server in advance
+- Add border to parent navigation button for better visibility
+
+### Added
+- Implement file sorting with web worker support for improved performance
+
+--- 
+
 ## v0.27.2
 **Released on:** 2026-06-16
 
