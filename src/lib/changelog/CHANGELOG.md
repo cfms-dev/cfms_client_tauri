@@ -4,6 +4,29 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.28.0
+**Released on:** 2026-06-18
+
+**Title:** Download Logic Adaptation & Batch Download Optimization
+
+### Added
+- Add filename formatting for download tasks and implement path formatting utility
+- Migrate download notifications into one with translations for success and failure events
+- Add ensure_download_subdirectory command and integrate into file handling
+- Implement VirtualList component for optimized rendering in various dialogs and pages
+
+### Fixed
+- Fix file table virtualizer update loop
+- Fix transfer handling for empty files
+
+### Maintenance
+- Update dependencies in Cargo.lock and package.json
+
+### Improved
+- Use tanstack virtual for file list
+
+--- 
+
 ## v0.27.3
 **Released on:** 2026-06-17
 
