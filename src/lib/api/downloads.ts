@@ -35,6 +35,11 @@ export async function resumeDownload(taskId: string): Promise<boolean> {
   return invoke("resume_download", { taskId });
 }
 
+/** Retry a failed download. */
+export async function retryDownload(taskId: string): Promise<boolean> {
+  return invoke("retry_download", { taskId });
+}
+
 /** Cancel a download task. */
 export async function cancelDownload(taskId: string): Promise<boolean> {
   return invoke("cancel_download", { taskId });

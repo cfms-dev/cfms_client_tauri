@@ -7,7 +7,7 @@
   // Reference: TaskTile in reference/src/include/ui/controls/components/explorer/tile.py
 
   import type { DownloadTaskDto, DownloadTaskStatus } from "../api";
-  import { pauseDownload, resumeDownload, cancelDownload, deleteDownload, openDownloadedFile } from "../api";
+  import { pauseDownload, resumeDownload, retryDownload, cancelDownload, deleteDownload, openDownloadedFile } from "../api";
   import { _ as t } from 'svelte-i18n';
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
@@ -37,6 +37,15 @@
     actionPending = true;
     try {
       await resumeDownload(task.task_id);
+    } finally {
+      actionPending = false;
+    }
+  }
+
+  async function handleRetry() {
+    actionPending = true;
+    try {
+      await retryDownload(task.task_id);
     } finally {
       actionPending = false;
     }
@@ -156,6 +165,7 @@
     ["pending", "scheduled", "downloading", "decrypting", "verifying"].includes(task.status),
   );
   const canResume = $derived(task.status === "paused");
+  const canRetry = $derived(task.status === "failed");
   /** Tasks that can be cancelled (matches reference — includes SCHEDULED). */
   const canCancel = $derived(
     !isTerminal && (isActive || isPending || isPaused || isScheduled),
@@ -258,6 +268,20 @@
       >
         <Icon name="resume" size="14px" />
         {$t('tasks.resume')}
+      </button>
+    {/if}
+
+    {#if canRetry}
+      <button
+        class="text-xs px-3 py-1.5 rounded-full font-medium
+               bg-md3-primary-container text-md3-on-primary-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all flex items-center gap-1"
+        onclick={handleRetry}
+        disabled={actionPending}
+      >
+        <Icon name="restartAlt" size="14px" />
+        {$t('tasks.retryAction')}
       </button>
     {/if}
 

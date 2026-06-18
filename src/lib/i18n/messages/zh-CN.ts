@@ -460,6 +460,7 @@ export const zh_CN = {
     noUploadTasks: '没有上传任务',
     noTasksByStatus: '没有{status}任务',
     retry: '重试 {retry}/{max}',
+    retryAction: '重试',
     failedWithError: '失败：{error}',
     pause: '暂停',
     resume: '恢复',
@@ -482,6 +483,7 @@ export const zh_CN = {
     batchActiveCount: '{count} 个进行中',
     batchPausedCount: '{count} 个已暂停',
     batchFailedCount: '{count} 个失败',
+    batchCancelledCount: '{count} 个已取消',
   },
   downloads: {
     completedTitle: '下载已完成',

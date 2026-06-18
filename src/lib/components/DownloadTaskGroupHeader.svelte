@@ -9,10 +9,11 @@
     onToggle: (groupId: string) => void;
     onPause: (groupId: string) => Promise<void>;
     onResume: (groupId: string) => Promise<void>;
+    onRetry: (groupId: string) => Promise<void>;
     onCancel: (groupId: string) => Promise<void>;
   }
 
-  let { group, expanded, onToggle, onPause, onResume, onCancel }: Props = $props();
+  let { group, expanded, onToggle, onPause, onResume, onRetry, onCancel }: Props = $props();
   let actionPending = $state(false);
 
   const percent = $derived(group.progressKnown ? Math.round(group.progress * 100) : null);
@@ -23,6 +24,7 @@
     ),
   );
   const canResume = $derived(group.paused > 0);
+  const canRetry = $derived(group.failed > 0);
   const canCancel = $derived(
     group.preparing || group.tasks.some((task) =>
       ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status),
@@ -34,11 +36,13 @@
         group.phase === 'queueing' ? $t('tasks.batchQueueing') : $t('tasks.batchPreparing'),
         group.queued > 0 ? $t('tasks.batchQueuedCount', { values: { count: group.queued } }) : null,
         group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
+        group.cancelled > 0 ? $t('tasks.batchCancelledCount', { values: { count: group.cancelled } }) : null,
       ].filter(Boolean).join(' · ')
       : [
         group.running > 0 ? $t('tasks.batchActiveCount', { values: { count: group.running } }) : null,
         group.paused > 0 ? $t('tasks.batchPausedCount', { values: { count: group.paused } }) : null,
         group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
+        group.cancelled > 0 ? $t('tasks.batchCancelledCount', { values: { count: group.cancelled } }) : null,
       ].filter(Boolean).join(' · '),
   );
 
@@ -107,6 +111,17 @@
       >
         <Icon name="resume" size="14px" />
         {$t('tasks.resume')}
+      </button>
+    {/if}
+    {#if canRetry}
+      <button
+        type="button"
+        class="batch-action batch-action-primary"
+        disabled={actionPending}
+        onclick={() => runAction(onRetry)}
+      >
+        <Icon name="restartAlt" size="14px" />
+        {$t('tasks.retryAction')}
       </button>
     {/if}
     {#if canCancel}

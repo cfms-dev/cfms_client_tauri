@@ -189,6 +189,9 @@ pub struct DownloadTaskDto {
     /// Unix timestamp (seconds) when the batch was created.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub batch_created_at: Option<i64>,
+    /// Estimated number of document download tasks in the batch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_estimated_total: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------

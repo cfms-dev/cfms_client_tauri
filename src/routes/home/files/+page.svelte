@@ -1352,11 +1352,15 @@
   ): Promise<{ queued: number; failed: number }> {
     let queued = 0;
     let failed = 0;
+    const queuedBatch = {
+      ...batch,
+      batchEstimatedTotal: items.length,
+    };
 
     for (const item of items) {
       await waitForDownloadBatchResume(signal);
       try {
-        await queueDocumentDownload(item.document, item.pathParts, signal, batch);
+        await queueDocumentDownload(item.document, item.pathParts, signal, queuedBatch);
         queued += 1;
         markDownloadBatchQueued(batch.batchId);
       } catch (e) {

@@ -121,9 +121,11 @@ function buildDownloadTaskGroup(
   const completed = countStatus(sortedTasks, ['completed']);
   const failed = countStatus(sortedTasks, ['failed']);
   const cancelled = countStatus(sortedTasks, ['cancelled']);
-  const total = Math.max(sortedTasks.length, activeBatch?.discovered ?? 0, activeBatch?.queued ?? 0);
+  const estimatedTotal = maxEstimatedTotal(sortedTasks);
+  const isBatchGroup = Boolean(activeBatch || sortedTasks.some((task) => task.batch_id?.trim()));
+  const total = Math.max(sortedTasks.length, estimatedTotal, activeBatch?.discovered ?? 0, activeBatch?.queued ?? 0);
   const progressKnown = !activeBatch || total > 0;
-  const progress = activeBatch
+  const progress = isBatchGroup
     ? (total > 0 ? completed / total : 0)
     : (totalBytes > 0 ? currentBytes / totalBytes : averageProgress);
 
@@ -154,6 +156,10 @@ function buildDownloadTaskGroup(
 function countStatus(tasks: DownloadTaskDto[], statuses: string[]) {
   const statusSet = new Set(statuses);
   return tasks.filter((task) => statusSet.has(task.status)).length;
+}
+
+function maxEstimatedTotal(tasks: DownloadTaskDto[]) {
+  return tasks.reduce((max, task) => Math.max(max, task.batch_estimated_total ?? 0), 0);
 }
 
 function minCreatedAt(tasks: DownloadTaskDto[]) {

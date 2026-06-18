@@ -58,6 +58,7 @@ export interface DownloadTaskDto {
   batch_name?: string | null;
   batch_root_id?: string | null;
   batch_created_at?: number | null;
+  batch_estimated_total?: number | null;
 }
 
 export interface FileEntry {

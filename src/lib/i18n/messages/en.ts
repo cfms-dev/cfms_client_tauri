@@ -465,6 +465,7 @@ export const en = {
     noUploadTasks: 'No upload tasks',
     noTasksByStatus: 'No {status} tasks',
     retry: 'Retry {retry}/{max}',
+    retryAction: 'Retry',
     failedWithError: 'Failed: {error}',
     pause: 'Pause',
     resume: 'Resume',
@@ -487,6 +488,7 @@ export const en = {
     batchActiveCount: '{count} running',
     batchPausedCount: '{count} paused',
     batchFailedCount: '{count} failed',
+    batchCancelledCount: '{count} cancelled',
   },
   downloads: {
     completedTitle: 'Downloads completed',

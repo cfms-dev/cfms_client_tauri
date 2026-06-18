@@ -77,6 +77,28 @@ pub async fn resume_download(
     Ok(resumed)
 }
 
+/// Retry a failed download.
+#[tauri::command]
+pub async fn retry_download(
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
+) -> Result<bool, String> {
+    let retried = download_queue::retry_failed_task(&state.tasks, &task_id)
+        .map_err(|e| format!("Failed to retry download: {e}"))?;
+    if retried {
+        if let Some(task) = state.tasks.get(&task_id) {
+            let _ = state
+                .inner
+                .event_tx
+                .send(ServiceEvent::DownloadTaskUpdated { task });
+        }
+        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+            count: state.tasks.active_count(),
+        });
+    }
+    Ok(retried)
+}
+
 /// Cancel a download task.
 #[tauri::command]
 pub async fn cancel_download(

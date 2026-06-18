@@ -7,6 +7,7 @@ export interface DownloadBatchMetadata {
   batchName: string;
   batchRootId?: string | null;
   batchCreatedAt: number;
+  batchEstimatedTotal?: number | null;
 }
 
 /** List a directory on the CFMS server via the active WSS connection.
@@ -42,6 +43,7 @@ export async function getDocument(
     batchName: batch?.batchName ?? null,
     batchRootId: batch?.batchRootId ?? null,
     batchCreatedAt: batch?.batchCreatedAt ?? null,
+    batchEstimatedTotal: batch?.batchEstimatedTotal ?? null,
   });
 }
 

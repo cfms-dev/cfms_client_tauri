@@ -402,6 +402,34 @@ impl QueueState {
         self.save();
         Ok(())
     }
+
+    pub fn retry_failed(&self, task_id: &str) -> Result<bool> {
+        let retried = {
+            let mut map = self.tasks.lock().unwrap();
+            let Some(t) = map.get_mut(task_id) else {
+                return Ok(false);
+            };
+            if t.status != DownloadTaskStatus::Failed {
+                return Ok(false);
+            }
+
+            t.status = DownloadTaskStatus::Pending;
+            t.progress = 0.0;
+            t.current_bytes = 0;
+            t.message = None;
+            t.error = None;
+            t.started_at = None;
+            t.completed_at = None;
+            t.retry_count = 0;
+            t.scheduled_time = None;
+            t.pause_position = None;
+            true
+        };
+        if retried {
+            self.save();
+        }
+        Ok(retried)
+    }
 }
 
 /// Parameters for updating task progress in a single call.
@@ -954,6 +982,10 @@ pub fn resume_task(queue: &QueueState, task_id: &str) -> Result<bool> {
     }
     queue.update_status(task_id, DownloadTaskStatus::Pending)?;
     Ok(true)
+}
+
+pub fn retry_failed_task(queue: &QueueState, task_id: &str) -> Result<bool> {
+    queue.retry_failed(task_id)
 }
 
 pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -> Result<bool> {

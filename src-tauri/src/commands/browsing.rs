@@ -78,6 +78,7 @@ pub async fn get_document(
     batch_name: Option<String>,
     batch_root_id: Option<String>,
     batch_created_at: Option<i64>,
+    batch_estimated_total: Option<u32>,
 ) -> Result<serde_json::Value, String> {
     let conn = {
         let c = state.inner.conn.read().await;
@@ -174,6 +175,7 @@ pub async fn get_document(
         batch_name: non_empty_optional(batch_name),
         batch_root_id: non_empty_optional(batch_root_id),
         batch_created_at,
+        batch_estimated_total,
     };
 
     // Persist the download task so the download queue service picks it up.

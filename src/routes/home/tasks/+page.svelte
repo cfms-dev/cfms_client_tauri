@@ -5,7 +5,7 @@
   import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
-  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
+  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, retryDownload, cancelDownload } from '$lib/api';
   import {
     downloadBatchSnapshots,
     pauseActiveDownloadBatches,
@@ -263,6 +263,15 @@
     await refresh();
   }
 
+  async function handleRetryDownloadGroup(groupId: string) {
+    for (const task of getDownloadGroupTasks(groupId)) {
+      if (task.status === 'failed') {
+        await retryDownload(task.task_id);
+      }
+    }
+    await refresh();
+  }
+
   async function handleCancelDownloadGroup(groupId: string) {
     stopActiveDownloadBatch(groupId);
     for (const task of getDownloadGroupTasks(groupId)) {
@@ -410,6 +419,7 @@
                 onToggle={toggleDownloadGroup}
                 onPause={handlePauseDownloadGroup}
                 onResume={handleResumeDownloadGroup}
+                onRetry={handleRetryDownloadGroup}
                 onCancel={handleCancelDownloadGroup}
               />
             {:else if row.kind === 'group-task'}

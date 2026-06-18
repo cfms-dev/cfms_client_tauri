@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use cfms_core::{DownloadTaskDto, DownloadTaskStatus};
 use cfms_crypto::{decrypt_config, generate_dek, is_encrypted};
-use cfms_service::services::task_persistence;
+use cfms_service::services::{download_queue, task_persistence};
 
 // Type alias matching the JSON shape.
 type TasksJson = HashMap<String, serde_json::Value>;
@@ -55,6 +55,7 @@ fn make_task(id: &str, status: DownloadTaskStatus) -> DownloadTaskDto {
         batch_name: None,
         batch_root_id: None,
         batch_created_at: None,
+        batch_estimated_total: None,
     }
 }
 
@@ -329,6 +330,7 @@ fn all_task_fields_roundtrip() {
         batch_name: Some("Folder".into()),
         batch_root_id: Some("folder-001".into()),
         batch_created_at: Some(now - 3700),
+        batch_estimated_total: Some(12),
     };
 
     task_persistence::save(
@@ -369,4 +371,54 @@ fn all_task_fields_roundtrip() {
     assert_eq!(t.batch_name.as_deref(), Some("Folder"));
     assert_eq!(t.batch_root_id.as_deref(), Some("folder-001"));
     assert_eq!(t.batch_created_at, Some(now - 3700));
+    assert_eq!(t.batch_estimated_total, Some(12));
+}
+
+#[test]
+fn failed_task_can_be_retried_from_queue() {
+    let queue = download_queue::QueueState::new();
+    let mut task = make_task("retry-me", DownloadTaskStatus::Failed);
+    task.progress = 0.75;
+    task.current_bytes = 768;
+    task.error = Some("network interrupted".into());
+    task.message = Some("failed".into());
+    task.started_at = Some(123);
+    task.completed_at = Some(456);
+    task.retry_count = 4;
+    task.scheduled_time = Some(789);
+    task.pause_position = Some(512);
+
+    queue.insert(&task).expect("insert failed task");
+
+    let retried = download_queue::retry_failed_task(&queue, "retry-me").expect("retry task");
+    assert!(retried);
+
+    let retried_task = queue.get("retry-me").expect("task should remain queued");
+    assert_eq!(retried_task.status, DownloadTaskStatus::Pending);
+    assert_eq!(retried_task.progress, 0.0);
+    assert_eq!(retried_task.current_bytes, 0);
+    assert!(retried_task.error.is_none());
+    assert!(retried_task.message.is_none());
+    assert!(retried_task.started_at.is_none());
+    assert!(retried_task.completed_at.is_none());
+    assert_eq!(retried_task.retry_count, 0);
+    assert!(retried_task.scheduled_time.is_none());
+    assert!(retried_task.pause_position.is_none());
+}
+
+#[test]
+fn retry_ignores_non_failed_task() {
+    let queue = download_queue::QueueState::new();
+    let task = make_task("already-done", DownloadTaskStatus::Completed);
+    queue.insert(&task).expect("insert completed task");
+
+    let retried = download_queue::retry_failed_task(&queue, "already-done").expect("retry task");
+    assert!(!retried);
+    assert_eq!(
+        queue
+            .get("already-done")
+            .expect("task should remain")
+            .status,
+        DownloadTaskStatus::Completed
+    );
 }

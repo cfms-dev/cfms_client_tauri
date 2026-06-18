@@ -59,6 +59,8 @@ struct TaskJson {
     batch_root_id: Option<String>,
     #[serde(default)]
     batch_created_at: Option<i64>,
+    #[serde(default)]
+    batch_estimated_total: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +197,7 @@ pub fn load(
                 batch_name: tj.batch_name,
                 batch_root_id: tj.batch_root_id,
                 batch_created_at: tj.batch_created_at,
+                batch_estimated_total: tj.batch_estimated_total,
             }
         })
         .collect();
@@ -257,6 +260,7 @@ pub fn save(
                     batch_name: t.batch_name.clone(),
                     batch_root_id: t.batch_root_id.clone(),
                     batch_created_at: t.batch_created_at,
+                    batch_estimated_total: t.batch_estimated_total,
                 },
             )
         })

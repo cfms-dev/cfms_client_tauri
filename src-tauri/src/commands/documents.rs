@@ -405,6 +405,7 @@ pub async fn get_revision(
         batch_name: None,
         batch_root_id: None,
         batch_created_at: None,
+        batch_estimated_total: None,
     };
 
     state
