@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
+  import { createVirtualizer, type VirtualItem } from '@tanstack/svelte-virtual';
   import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
   import { formatBytes, formatDate } from '$lib/files/formatting';
   import type { SortField } from '$lib/files/sorting';
@@ -17,6 +17,10 @@
     | { kind: 'parent' }
     | { kind: 'folder'; folder: ServerDirectoryEntry }
     | { kind: 'document'; document: ServerDocumentEntry };
+  type RenderedFileTableRow = {
+    row: FileTableRow;
+    virtualItem: VirtualItem | null;
+  };
 
   let {
     loading,
@@ -53,23 +57,17 @@
   } = $props();
 
   let scrollViewport = $state<HTMLDivElement | null>(null);
-  let scrollTop = $state(0);
-  let viewportHeight = $state(DEFAULT_VIEWPORT_HEIGHT);
 
   const rowCount = $derived((canGoToParent ? 1 : 0) + folders.length + documents.length);
   const virtualized = $derived(rowCount > VIRTUALIZATION_THRESHOLD);
-  const firstRenderedRow = $derived(
-    virtualized ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS) : 0,
-  );
-  const lastRenderedRow = $derived(
-    virtualized
-      ? Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN_ROWS)
-      : rowCount,
-  );
-  const topPadding = $derived(virtualized ? firstRenderedRow * ROW_HEIGHT : 0);
-  const bottomPadding = $derived(
-    virtualized ? Math.max(0, (rowCount - lastRenderedRow) * ROW_HEIGHT) : 0,
-  );
+  const rowVirtualizer = createVirtualizer<HTMLDivElement, HTMLButtonElement>({
+    count: 0,
+    getScrollElement: () => scrollViewport,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: OVERSCAN_ROWS,
+    enabled: false,
+    initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
+  });
   const rowsIdentity = $derived.by(() => {
     const firstFolderId = folders[0]?.id ?? '';
     const lastFolderId = folders[folders.length - 1]?.id ?? '';
@@ -86,42 +84,41 @@
       lastDocumentId,
     ].join('|');
   });
-  const visibleRows = $derived.by<FileTableRow[]>(() => {
-    const rows: FileTableRow[] = [];
-    for (let index = firstRenderedRow; index < lastRenderedRow; index += 1) {
-      rows.push(getRowAt(index));
+  const virtualItems = $derived(
+    virtualized ? $rowVirtualizer.getVirtualItems() : [],
+  );
+  const renderedRows = $derived.by<RenderedFileTableRow[]>(() => {
+    if (virtualized) {
+      return virtualItems.map((virtualItem) => ({
+        row: getRowAt(virtualItem.index),
+        virtualItem,
+      }));
+    }
+
+    const rows: RenderedFileTableRow[] = [];
+    for (let index = 0; index < rowCount; index += 1) {
+      rows.push({ row: getRowAt(index), virtualItem: null });
     }
     return rows;
   });
 
   $effect(() => {
+    $rowVirtualizer.setOptions({
+      count: rowCount,
+      getScrollElement: () => scrollViewport,
+      estimateSize: () => ROW_HEIGHT,
+      overscan: OVERSCAN_ROWS,
+      enabled: virtualized,
+      initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
+    });
+  });
+
+  $effect(() => {
     rowsIdentity;
-    scrollTop = 0;
     if (scrollViewport) {
       scrollViewport.scrollTop = 0;
     }
   });
-
-  onMount(() => {
-    if (!scrollViewport) return;
-
-    const updateViewportHeight = () => {
-      viewportHeight = scrollViewport?.clientHeight || DEFAULT_VIEWPORT_HEIGHT;
-    };
-
-    updateViewportHeight();
-    const observer = new ResizeObserver(updateViewportHeight);
-    observer.observe(scrollViewport);
-
-    return () => observer.disconnect();
-  });
-
-  function handleScroll(event: Event) {
-    if (!virtualized) return;
-    const target = event.currentTarget as HTMLDivElement;
-    scrollTop = target.scrollTop;
-    viewportHeight = target.clientHeight || DEFAULT_VIEWPORT_HEIGHT;
-  }
 
   function getRowAt(index: number): FileTableRow {
     if (canGoToParent) {
@@ -140,6 +137,19 @@
     if (row.kind === 'parent') return 'parent';
     return row.kind === 'folder' ? `folder:${row.folder.id}` : `document:${row.document.id}`;
   }
+
+  function rowStyle(virtualItem: VirtualItem | null): string {
+    if (!virtualItem) return '';
+
+    return [
+      'position: absolute;',
+      'top: 0;',
+      'left: 0;',
+      'width: 100%;',
+      `height: ${virtualItem.size}px;`,
+      `transform: translateY(${virtualItem.start}px);`,
+    ].join(' ');
+  }
 </script>
 
 {#if loading}
@@ -155,7 +165,6 @@
       bind:this={scrollViewport}
       class="file-table-scroll-viewport min-w-[620px]"
       class:is-virtualized={virtualized}
-      onscroll={handleScroll}
     >
       <div
         class="sticky top-0 z-10 grid grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline bg-md3-surface-container-high/95 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-md3-on-surface-variant backdrop-blur-sm"
@@ -198,13 +207,18 @@
       {/if}
 
       {#if rowCount > 0}
-        <div aria-hidden="true" style={`height: ${topPadding}px;`}></div>
-
-        {#each visibleRows as row (rowKey(row))}
+        <div
+          class="file-table-row-space"
+          class:is-virtualized={virtualized}
+          style={virtualized ? `height: ${$rowVirtualizer.getTotalSize()}px;` : undefined}
+        >
+        {#each renderedRows as rendered (rowKey(rendered.row))}
+          {@const row = rendered.row}
           {#if row.kind === 'parent'}
             <button
               class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-md3-outline/50 px-4 text-left text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container/20"
               class:border-b={folders.length > 0 || documents.length > 0}
+              style={rowStyle(rendered.virtualItem)}
               onclick={onGoToParent}
             >
               <span class="self-center text-md3-primary-emphasis" aria-hidden="true">
@@ -219,6 +233,7 @@
           {:else if row.kind === 'folder'}
             <button
               class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors hover:bg-md3-primary-container/20"
+              style={rowStyle(rendered.virtualItem)}
               onclick={() => onFolderClick(row.folder)}
               oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
             >
@@ -245,6 +260,7 @@
           {:else}
             <button
               class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors last:border-b-0 hover:bg-md3-surface-container-high/30"
+              style={rowStyle(rendered.virtualItem)}
               onclick={() => onDocumentClick(row.document)}
               oncontextmenu={(event) => onDocumentContextMenu(event, row.document)}
             >
@@ -272,8 +288,7 @@
             </button>
           {/if}
         {/each}
-
-        <div aria-hidden="true" style={`height: ${bottomPadding}px;`}></div>
+        </div>
       {/if}
     </div>
   </div>
@@ -287,5 +302,9 @@
   .file-table-scroll-viewport.is-virtualized {
     max-height: calc(100vh - 15rem);
     overflow-y: auto;
+  }
+
+  .file-table-row-space.is-virtualized {
+    position: relative;
   }
 </style>
