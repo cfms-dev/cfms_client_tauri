@@ -63,7 +63,11 @@
   import {
     beginDownloadBatch,
     finishDownloadBatch,
+    addDiscoveredDownloadBatchItems,
     isDownloadBatchStop,
+    markDownloadBatchFailed,
+    markDownloadBatchQueued,
+    setDownloadBatchPhase,
     stopActiveDownloadBatch,
     waitForDownloadBatchResume,
   } from '$lib/download-batch-control';
@@ -1198,7 +1202,6 @@
     if (totalSelected === 0 || batchBusy) return;
     batchBusy = true;
     error = null;
-    const controller = beginDownloadBatch();
 
     const selectedDocuments = documents.filter((doc) => selectedDocumentIds.has(doc.id));
     const selectedFolders = folders.filter((folder) => selectedFolderIds.has(folder.id));
@@ -1208,6 +1211,7 @@
         : selectedItemsLabel,
       currentFolderId,
     );
+    const controller = beginDownloadBatch(batch);
     let queued = 0;
     let failed = 0;
 
@@ -1216,19 +1220,22 @@
         document,
         pathParts: [],
       }));
+      addDiscoveredDownloadBatchItems(batch.batchId, items.length);
 
       for (const folder of selectedFolders) {
         await waitForDownloadBatchResume(controller.signal);
         try {
-          const result = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal);
+          const result = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal, batch.batchId);
           items.push(...result.items);
           failed += result.failed;
         } catch (e) {
           if (isDownloadBatchStop(e)) throw e;
           failed += 1;
+          markDownloadBatchFailed(batch.batchId);
         }
       }
 
+      setDownloadBatchPhase(batch.batchId, 'queueing');
       const result = await queueCollectedDownloads(items, controller.signal, batch);
       queued += result.queued;
       failed += result.failed;
@@ -1256,11 +1263,12 @@
     if (batchBusy) return;
     batchBusy = true;
     error = null;
-    const controller = beginDownloadBatch();
     const batch = createDownloadBatchMetadata(folder.name, folder.id);
+    const controller = beginDownloadBatch(batch);
 
     try {
-      const collected = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal);
+      const collected = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal, batch.batchId);
+      setDownloadBatchPhase(batch.batchId, 'queueing');
       const queuedResult = await queueCollectedDownloads(collected.items, controller.signal, batch);
       const queued = queuedResult.queued;
       const failed = collected.failed + queuedResult.failed;
@@ -1297,6 +1305,7 @@
     folder: Pick<ServerDirectoryEntry, 'id' | 'name'>,
     pathParts: string[],
     signal: AbortSignal,
+    batchId?: string,
   ): Promise<{ items: DownloadQueueItem[]; failed: number }> {
     await waitForDownloadBatchResume(signal);
     const response = await listDirectory(folder.id);
@@ -1309,22 +1318,27 @@
       await ensureDownloadSubdirectory(downloadPath);
     } catch {
       failed += 1;
+      if (batchId) markDownloadBatchFailed(batchId);
     }
 
     for (const doc of response.documents) {
       await waitForDownloadBatchResume(signal);
       items.push({ document: doc, pathParts });
     }
+    if (batchId) {
+      addDiscoveredDownloadBatchItems(batchId, response.documents.length);
+    }
 
     for (const child of response.folders) {
       await waitForDownloadBatchResume(signal);
       try {
-        const result = await collectDirectoryDownloadItems(child, [...pathParts, child.name], signal);
+        const result = await collectDirectoryDownloadItems(child, [...pathParts, child.name], signal, batchId);
         items.push(...result.items);
         failed += result.failed;
       } catch (e) {
         if (isDownloadBatchStop(e)) throw e;
         failed += 1;
+        if (batchId) markDownloadBatchFailed(batchId);
       }
     }
 
@@ -1344,9 +1358,11 @@
       try {
         await queueDocumentDownload(item.document, item.pathParts, signal, batch);
         queued += 1;
+        markDownloadBatchQueued(batch.batchId);
       } catch (e) {
         if (isDownloadBatchStop(e)) throw e;
         failed += 1;
+        markDownloadBatchFailed(batch.batchId);
       }
     }
 

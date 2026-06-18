@@ -1,4 +1,5 @@
 import type { DownloadTaskDto } from './api';
+import type { DownloadBatchSnapshot } from './download-batch-control';
 
 export type DownloadTaskRow =
   | { kind: 'task'; task: DownloadTaskDto }
@@ -18,9 +19,14 @@ export interface DownloadTaskGroup {
   completed: number;
   failed: number;
   cancelled: number;
+  discovered: number;
+  queued: number;
   currentBytes: number;
   totalBytes: number;
   progress: number;
+  progressKnown: boolean;
+  preparing: boolean;
+  phase: DownloadBatchSnapshot['phase'] | null;
 }
 
 const RUNNING_STATUSES = new Set(['downloading', 'decrypting', 'verifying']);
@@ -28,9 +34,11 @@ const RUNNING_STATUSES = new Set(['downloading', 'decrypting', 'verifying']);
 export function buildDownloadTaskRows(
   tasks: DownloadTaskDto[],
   expandedGroups: ReadonlySet<string>,
+  activeBatches: DownloadBatchSnapshot[] = [],
 ): DownloadTaskRow[] {
   const grouped = new Map<string, DownloadTaskDto[]>();
   const standalone: DownloadTaskDto[] = [];
+  const activeBatchMap = new Map(activeBatches.map((batch) => [batch.batchId, batch]));
 
   for (const task of tasks) {
     const batchId = task.batch_id?.trim();
@@ -48,9 +56,17 @@ export function buildDownloadTaskRows(
     ...standalone.map((task) => ({ kind: 'task' as const, task })),
     ...[...grouped.entries()].map(([id, groupTasks]) => ({
       kind: 'group' as const,
-      group: buildDownloadTaskGroup(id, groupTasks),
+      group: buildDownloadTaskGroup(id, groupTasks, activeBatchMap.get(id)),
     })),
   ];
+
+  for (const batch of activeBatches) {
+    if (grouped.has(batch.batchId)) continue;
+    entries.push({
+      kind: 'group',
+      group: buildDownloadTaskGroup(batch.batchId, [], batch),
+    });
+  }
 
   entries.sort((a, b) => {
     const aRunning = a.kind === 'group' ? a.group.running > 0 : isRunningDownloadTask(a.task);
@@ -84,7 +100,11 @@ export function isRunningDownloadTask(task: DownloadTaskDto) {
   return RUNNING_STATUSES.has(task.status);
 }
 
-function buildDownloadTaskGroup(id: string, tasks: DownloadTaskDto[]): DownloadTaskGroup {
+function buildDownloadTaskGroup(
+  id: string,
+  tasks: DownloadTaskDto[],
+  activeBatch?: DownloadBatchSnapshot,
+): DownloadTaskGroup {
   const sortedTasks = [...tasks].sort((a, b) => {
     const aRunning = isRunningDownloadTask(a);
     const bRunning = isRunningDownloadTask(b);
@@ -98,22 +118,36 @@ function buildDownloadTaskGroup(id: string, tasks: DownloadTaskDto[]): DownloadT
     ? 0
     : sortedTasks.reduce((sum, task) => sum + clampProgress(task.progress), 0) / sortedTasks.length;
 
+  const completed = countStatus(sortedTasks, ['completed']);
+  const failed = countStatus(sortedTasks, ['failed']);
+  const cancelled = countStatus(sortedTasks, ['cancelled']);
+  const total = Math.max(sortedTasks.length, activeBatch?.discovered ?? 0, activeBatch?.queued ?? 0);
+  const progressKnown = !activeBatch || total > 0;
+  const progress = activeBatch
+    ? (total > 0 ? completed / total : 0)
+    : (totalBytes > 0 ? currentBytes / totalBytes : averageProgress);
+
   return {
     id,
-    name: sortedTasks.find((task) => task.batch_name?.trim())?.batch_name?.trim() ?? 'Folder download',
-    rootId: sortedTasks.find((task) => task.batch_root_id)?.batch_root_id ?? null,
-    createdAt: sortedTasks.find((task) => task.batch_created_at)?.batch_created_at ?? minCreatedAt(sortedTasks),
+    name: activeBatch?.batchName ?? sortedTasks.find((task) => task.batch_name?.trim())?.batch_name?.trim() ?? 'Folder download',
+    rootId: activeBatch?.batchRootId ?? sortedTasks.find((task) => task.batch_root_id)?.batch_root_id ?? null,
+    createdAt: activeBatch?.batchCreatedAt ?? sortedTasks.find((task) => task.batch_created_at)?.batch_created_at ?? minCreatedAt(sortedTasks),
     tasks: sortedTasks,
-    total: sortedTasks.length,
+    total,
     pending: countStatus(sortedTasks, ['pending', 'scheduled']),
     running: sortedTasks.filter(isRunningDownloadTask).length,
     paused: countStatus(sortedTasks, ['paused']),
-    completed: countStatus(sortedTasks, ['completed']),
-    failed: countStatus(sortedTasks, ['failed']),
-    cancelled: countStatus(sortedTasks, ['cancelled']),
+    completed,
+    failed,
+    cancelled,
+    discovered: activeBatch?.discovered ?? sortedTasks.length,
+    queued: activeBatch?.queued ?? sortedTasks.length,
     currentBytes,
     totalBytes,
-    progress: totalBytes > 0 ? clampProgress(currentBytes / totalBytes) : averageProgress,
+    progress: clampProgress(progress),
+    progressKnown,
+    preparing: Boolean(activeBatch),
+    phase: activeBatch?.phase ?? null,
   };
 }
 

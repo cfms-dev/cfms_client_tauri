@@ -12,6 +12,7 @@
   "permissions": [
     "notification:default",
     "os:default",
+    "dialog:allow-open",
     "background-service:allow-start",
     "background-service:allow-stop",
     "background-service:allow-is-running",

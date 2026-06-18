@@ -6,7 +6,12 @@
   import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
-  import { pauseActiveDownloadBatches, resumeActiveDownloadBatches } from '$lib/download-batch-control';
+  import {
+    downloadBatchSnapshots,
+    pauseActiveDownloadBatches,
+    resumeActiveDownloadBatches,
+    stopActiveDownloadBatch,
+  } from '$lib/download-batch-control';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
@@ -47,10 +52,13 @@
   ]);
 
   const filteredDownloads = $derived(sortTasksForDisplay(filterDownloadTasks([...downloadStore.tasks.values()], filter), isRunningDownload));
-  const downloadRows = $derived(buildDownloadTaskRows(filteredDownloads, expandedDownloadGroups));
+  const visibleActiveDownloadBatches = $derived(
+    ['all', 'pending', 'active'].includes(filter) ? $downloadBatchSnapshots : [],
+  );
+  const downloadRows = $derived(buildDownloadTaskRows(filteredDownloads, expandedDownloadGroups, visibleActiveDownloadBatches));
   const filteredUploads = $derived(sortTasksForDisplay(filterUploadTasks(uploadStore.allTasks, filter), isRunningUpload));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
-  const visibleTaskCount = $derived(activeTab === 'downloads' ? filteredDownloads.length : filteredUploads.length);
+  const visibleTaskCount = $derived(activeTab === 'downloads' ? downloadRows.length : filteredUploads.length);
   const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
   const completedOrCancelledCount = $derived(
     downloadStore.completedTasks.length
@@ -255,6 +263,16 @@
     await refresh();
   }
 
+  async function handleCancelDownloadGroup(groupId: string) {
+    stopActiveDownloadBatch(groupId);
+    for (const task of getDownloadGroupTasks(groupId)) {
+      if (['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status)) {
+        await cancelDownload(task.task_id);
+      }
+    }
+    await refresh();
+  }
+
   function downloadRowKey(row: DownloadTaskRow) {
     if (row.kind === 'task') return `task:${row.task.task_id}`;
     if (row.kind === 'group-task') return `group-task:${row.group.id}:${row.task.task_id}`;
@@ -371,7 +389,7 @@
 
   <div>
     {#if activeTab === 'downloads'}
-      {#if filteredDownloads.length > 0}
+      {#if downloadRows.length > 0}
         <VirtualList
           items={downloadRows}
           keyOf={(row) => downloadRowKey(row)}
@@ -392,6 +410,7 @@
                 onToggle={toggleDownloadGroup}
                 onPause={handlePauseDownloadGroup}
                 onResume={handleResumeDownloadGroup}
+                onCancel={handleCancelDownloadGroup}
               />
             {:else if row.kind === 'group-task'}
               <div class="task-group-child">

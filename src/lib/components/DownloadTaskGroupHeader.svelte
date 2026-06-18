@@ -9,24 +9,37 @@
     onToggle: (groupId: string) => void;
     onPause: (groupId: string) => Promise<void>;
     onResume: (groupId: string) => Promise<void>;
+    onCancel: (groupId: string) => Promise<void>;
   }
 
-  let { group, expanded, onToggle, onPause, onResume }: Props = $props();
+  let { group, expanded, onToggle, onPause, onResume, onCancel }: Props = $props();
   let actionPending = $state(false);
 
-  const percent = $derived(Math.round(group.progress * 100));
+  const percent = $derived(group.progressKnown ? Math.round(group.progress * 100) : null);
+  const progressWidth = $derived(`${percent ?? 0}%`);
   const canPause = $derived(
     group.tasks.some((task) =>
       ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying'].includes(task.status),
     ),
   );
   const canResume = $derived(group.paused > 0);
+  const canCancel = $derived(
+    group.preparing || group.tasks.some((task) =>
+      ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status),
+    ),
+  );
   const statusText = $derived(
-    [
-      group.running > 0 ? $t('tasks.batchActiveCount', { values: { count: group.running } }) : null,
-      group.paused > 0 ? $t('tasks.batchPausedCount', { values: { count: group.paused } }) : null,
-      group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
-    ].filter(Boolean).join(' · '),
+    group.preparing
+      ? [
+        group.phase === 'queueing' ? $t('tasks.batchQueueing') : $t('tasks.batchPreparing'),
+        group.queued > 0 ? $t('tasks.batchQueuedCount', { values: { count: group.queued } }) : null,
+        group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
+      ].filter(Boolean).join(' · ')
+      : [
+        group.running > 0 ? $t('tasks.batchActiveCount', { values: { count: group.running } }) : null,
+        group.paused > 0 ? $t('tasks.batchPausedCount', { values: { count: group.paused } }) : null,
+        group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
+      ].filter(Boolean).join(' · '),
   );
 
   async function runAction(action: (groupId: string) => Promise<void>) {
@@ -56,18 +69,21 @@
     <span class="batch-copy">
       <span class="batch-title" title={group.name}>{group.name}</span>
       <span class="batch-meta">
-        {$t('tasks.batchTaskCount', { values: { count: group.total } })}
-        · {$t('tasks.batchProgress', { values: { completed: group.completed, total: group.total } })}
+        {#if group.total > 0}
+          {$t('tasks.batchProgress', { values: { completed: group.completed, total: group.total } })}
+        {:else}
+          {$t('tasks.batchTaskCount', { values: { count: group.total } })}
+        {/if}
         {#if statusText}
           · {statusText}
         {/if}
       </span>
     </span>
-    <span class="batch-percent">{percent}%</span>
+    <span class="batch-percent">{percent === null ? $t('tasks.batchProgressPending') : `${percent}%`}</span>
   </button>
 
-  <div class="batch-progress" aria-hidden="true">
-    <span style={`width: ${percent}%`}></span>
+  <div class="batch-progress" class:batch-progress-indeterminate={!group.progressKnown} aria-hidden="true">
+    <span style={`width: ${progressWidth}`}></span>
   </div>
 
   <div class="batch-actions">
@@ -91,6 +107,17 @@
       >
         <Icon name="resume" size="14px" />
         {$t('tasks.resume')}
+      </button>
+    {/if}
+    {#if canCancel}
+      <button
+        type="button"
+        class="batch-action batch-action-danger"
+        disabled={actionPending}
+        onclick={() => runAction(onCancel)}
+      >
+        <Icon name="cancel" size="14px" />
+        {$t('tasks.cancel')}
       </button>
     {/if}
   </div>
@@ -192,6 +219,11 @@
     transition: width 260ms var(--motion-easing-emphasized-decelerate);
   }
 
+  .batch-progress-indeterminate span {
+    width: 42% !important;
+    animation: batch-progress-sweep 1.3s var(--motion-easing-emphasized-decelerate) infinite;
+  }
+
   .batch-actions {
     display: flex;
     min-width: 0;
@@ -231,6 +263,20 @@
     color: var(--color-md3-on-primary-container);
   }
 
+  .batch-action-danger {
+    background: var(--color-md3-error-container);
+    color: var(--color-md3-on-error-container);
+  }
+
+  @keyframes batch-progress-sweep {
+    from {
+      transform: translateX(-110%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
   @media (max-width: 520px) {
     .batch-main {
       grid-template-columns: auto auto minmax(0, 1fr);
@@ -248,6 +294,7 @@
     .batch-progress span,
     .batch-action {
       transition: none;
+      animation: none;
     }
   }
 </style>
