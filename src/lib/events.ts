@@ -4,6 +4,8 @@
 // updates to the reactive stores.  Called once from `+layout.svelte`.
 
 import { listen } from "@tauri-apps/api/event";
+import { get } from "svelte/store";
+import { _ as t } from "svelte-i18n";
 import type { ServiceEvent, UploadProgressEvent } from "./api";
 import {
   authStore,
@@ -41,7 +43,13 @@ export async function initEventListeners(): Promise<void> {
         const { task_id, file_path } = event.data;
         downloadStore.markCompleted(task_id);
         eventLog.push("success", `Download complete: ${file_path}`);
-        notificationStore.success(`Download complete: ${file_path}`, 5000);
+        const filename = formatPathFilename(file_path);
+        notificationStore.success(translate("downloads.completedOne", { name: filename }), 5000, {
+          groupKey: "download-completed",
+          groupTitle: translate("downloads.completedTitle"),
+          itemText: filename,
+          summaryText: (count) => translate("downloads.completedSummary", { count }),
+        });
         break;
       }
 
@@ -49,7 +57,12 @@ export async function initEventListeners(): Promise<void> {
         const { task_id, error } = event.data;
         downloadStore.markFailed(task_id, error);
         eventLog.push("error", `Download failed: ${error}`);
-        notificationStore.error(`Download failed: ${error}`);
+        notificationStore.error(translate("downloads.failedOne", { error }), 5000, {
+          groupKey: "download-failed",
+          groupTitle: translate("downloads.failedTitle"),
+          itemText: error,
+          summaryText: (count) => translate("downloads.failedSummary", { count }),
+        });
         break;
       }
 
@@ -130,6 +143,15 @@ export async function initEventListeners(): Promise<void> {
       });
     }
   });
+}
+
+function translate(key: string, values: Record<string, string | number> = {}) {
+  return get(t)(key, { values });
+}
+
+function formatPathFilename(path: string) {
+  const normalized = path.replace(/\\/g, "/");
+  return normalized.split("/").filter(Boolean).at(-1) ?? path;
 }
 
 /** Stop listening for backend events. */

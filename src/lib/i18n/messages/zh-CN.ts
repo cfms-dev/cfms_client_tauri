@@ -470,6 +470,14 @@ export const zh_CN = {
     uploading: '上传中',
     uploadCompleted: '上传完成',
   },
+  downloads: {
+    completedTitle: '下载已完成',
+    completedOne: '下载完成：{name}',
+    completedSummary: '已完成 {count} 个下载',
+    failedTitle: '下载失败',
+    failedOne: '下载失败：{error}',
+    failedSummary: '{count} 个下载失败',
+  },
   more: {
     changePasswordDescription: '更新你的账户密码',
     settingsDescription: '应用偏好和配置',

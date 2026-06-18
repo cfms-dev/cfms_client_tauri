@@ -475,6 +475,14 @@ export const en = {
     uploading: 'Uploading',
     uploadCompleted: 'Upload complete',
   },
+  downloads: {
+    completedTitle: 'Downloads completed',
+    completedOne: 'Download completed: {name}',
+    completedSummary: '{count} download(s) completed',
+    failedTitle: 'Downloads failed',
+    failedOne: 'Download failed: {error}',
+    failedSummary: '{count} download(s) failed',
+  },
   more: {
     changePasswordDescription: 'Update your account password',
     settingsDescription: 'Application preferences and configuration',
