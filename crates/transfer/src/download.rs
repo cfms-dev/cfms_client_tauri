@@ -72,6 +72,18 @@ struct ChunkData {
     chunk: String,          // base64
 }
 
+/// Expected shape of the empty-file completion message.
+#[derive(Debug, Deserialize)]
+struct EmptyFileMessage {
+    action: String,
+    data: EmptyFileData,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmptyFileData {
+    flag: String,
+}
+
 /// Receive an encrypted file from the server.
 ///
 /// This is a high-level async function that orchestrates the full download
@@ -129,7 +141,12 @@ pub async fn receive(
     stream.send(conn, b"ready".to_vec()).await?;
 
     // --- Handle empty files ---
-    if file_size == 0 || total_chunks == 0 {
+    if file_size == 0 {
+        let marker_raw = stream.recv().await.ok_or_else(|| {
+            cfms_core::Error::Connection("stream closed before empty-file marker".into())
+        })?;
+        parse_empty_file_marker(&marker_raw)?;
+
         ensure_destination_parent(dest)?;
         tokio::fs::write(dest, [])
             .await
@@ -142,6 +159,12 @@ pub async fn receive(
             0,
         );
         return Ok(0);
+    }
+
+    if total_chunks == 0 {
+        return Err(cfms_core::Error::Protocol(
+            "metadata reported zero chunks for a non-empty file".into(),
+        ));
     }
 
     // --- Step 3: receive chunks into SQLite ---
@@ -344,4 +367,36 @@ fn ensure_destination_parent(dest: &Path) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     Ok(())
+}
+
+fn parse_empty_file_marker(raw: &[u8]) -> Result<()> {
+    let marker: EmptyFileMessage = serde_json::from_slice(raw)
+        .map_err(|e| cfms_core::Error::Protocol(format!("invalid empty-file marker: {e}")))?;
+
+    if marker.action == "transfer_file" && marker.data.flag == "empty_file" {
+        return Ok(());
+    }
+
+    Err(cfms_core::Error::Protocol(format!(
+        "unexpected empty-file marker: action={}, flag={}",
+        marker.action, marker.data.flag
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_empty_file_marker;
+
+    #[test]
+    fn empty_file_marker_accepts_reference_protocol() {
+        let raw = br#"{"action":"transfer_file","data":{"flag":"empty_file"}}"#;
+        assert!(parse_empty_file_marker(raw).is_ok());
+    }
+
+    #[test]
+    fn empty_file_marker_rejects_unexpected_flag() {
+        let raw = br#"{"action":"transfer_file","data":{"flag":"done"}}"#;
+        let err = parse_empty_file_marker(raw).unwrap_err().to_string();
+        assert!(err.contains("unexpected empty-file marker"));
+    }
 }

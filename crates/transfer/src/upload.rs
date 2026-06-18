@@ -73,9 +73,9 @@ pub async fn send(
         // Offload SHA-256 hashing to a blocking thread — hashing a large
         // file on the async worker would stall all concurrent tasks.
         let hash = verify::compute_sha256_async(source.to_path_buf()).await?;
-        hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        Some(hash.iter().map(|b| format!("{b:02x}")).collect::<String>())
     } else {
-        String::new()
+        None
     };
 
     let metadata_msg = serde_json::json!({
