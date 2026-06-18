@@ -129,6 +129,7 @@ pub async fn get_document(
         .to_string();
     let _start_time = task_data["start_time"].as_f64().unwrap_or(0.0);
     let _end_time = task_data["end_time"].as_f64().unwrap_or(0.0);
+    let supports_resume = task_data["supports_resume"].as_bool().unwrap_or(false);
 
     // Build a local download path.  Use the Tauri download directory when
     // available; otherwise fall back to the app data directory.
@@ -170,7 +171,7 @@ pub async fn get_document(
         stage: 0,
         bandwidth_limit: None,
         pause_position: None,
-        supports_resume: false,
+        supports_resume,
         batch_id: non_empty_optional(batch_id),
         batch_name: non_empty_optional(batch_name),
         batch_root_id: non_empty_optional(batch_root_id),

@@ -7,7 +7,7 @@
   // Reference: TaskTile in reference/src/include/ui/controls/components/explorer/tile.py
 
   import type { DownloadTaskDto, DownloadTaskStatus } from "../api";
-  import { pauseDownload, resumeDownload, retryDownload, cancelDownload, deleteDownload, openDownloadedFile } from "../api";
+  import { deleteDownload, openDownloadedFile } from "../api";
   import { _ as t } from 'svelte-i18n';
   import DownloadProgress from "./DownloadProgress.svelte";
   import Icon from "./Icon.svelte";
@@ -15,51 +15,51 @@
   import { shortIdentifier } from "$lib/identifiers";
   import { formatPathFilename } from "$lib/path-format";
 
+  type PendingAction = 'pause' | 'resume' | 'retry' | 'cancel' | null;
+
   interface Props {
     task: DownloadTaskDto;
     onRemove: (taskId: string) => void;
+    onPause: (taskId: string) => Promise<void>;
+    onResume: (taskId: string) => Promise<void>;
+    onRetry: (taskId: string) => Promise<void>;
+    onCancel: (taskId: string) => Promise<void>;
+    pendingAction?: PendingAction;
     onContextMenu?: (event: MouseEvent, task: DownloadTaskDto) => void;
   }
 
-  let { task, onRemove, onContextMenu }: Props = $props();
+  let {
+    task,
+    onRemove,
+    onPause,
+    onResume,
+    onRetry,
+    onCancel,
+    pendingAction = null,
+    onContextMenu,
+  }: Props = $props();
 
-  let actionPending = $state(false);
+  let fileActionPending = $state(false);
+  const actionPending = $derived(Boolean(pendingAction) || fileActionPending);
 
   async function handlePause() {
-    actionPending = true;
-    try {
-      await pauseDownload(task.task_id);
-    } finally {
-      actionPending = false;
-    }
+    if (actionPending) return;
+    await onPause(task.task_id);
   }
 
   async function handleResume() {
-    actionPending = true;
-    try {
-      await resumeDownload(task.task_id);
-    } finally {
-      actionPending = false;
-    }
+    if (actionPending) return;
+    await onResume(task.task_id);
   }
 
   async function handleRetry() {
-    actionPending = true;
-    try {
-      await retryDownload(task.task_id);
-    } finally {
-      actionPending = false;
-    }
+    if (actionPending) return;
+    await onRetry(task.task_id);
   }
 
   async function handleCancel() {
-    actionPending = true;
-    try {
-      await cancelDownload(task.task_id);
-      onRemove(task.task_id);
-    } finally {
-      actionPending = false;
-    }
+    if (actionPending) return;
+    await onCancel(task.task_id);
   }
 
   async function handleOpen() {
@@ -71,14 +71,14 @@
   }
 
   async function handleDelete() {
-    actionPending = true;
+    fileActionPending = true;
     try {
       await deleteDownload(task.task_id);
       onRemove(task.task_id);
     } catch (e) {
       console.error('Failed to delete download:', e);
     } finally {
-      actionPending = false;
+      fileActionPending = false;
     }
   }
 
@@ -163,7 +163,9 @@
   );
   /** Whether the pause button should be visible. */
   const canPause = $derived(
-    ["pending", "scheduled", "downloading", "decrypting", "verifying"].includes(task.status),
+    task.status === "pending"
+      || task.status === "scheduled"
+      || (task.status === "downloading" && task.supports_resume),
   );
   const canResume = $derived(task.status === "paused");
   const canRetry = $derived(task.status === "failed");

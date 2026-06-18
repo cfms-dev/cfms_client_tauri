@@ -1,7 +1,11 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskGroup } from '$lib/download-task-groups';
+  import { canDeleteDownloadTaskGroupFiles, type DownloadTaskGroup } from '$lib/download-task-groups';
   import Icon from './Icon.svelte';
+  import ProgressRing from './ProgressRing.svelte';
+
+  type BatchDeleteProgress = { current: number; total: number };
+  type PendingAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete' | null;
 
   interface Props {
     group: DownloadTaskGroup;
@@ -12,6 +16,8 @@
     onRetry: (groupId: string) => Promise<void>;
     onCancel: (groupId: string) => Promise<void>;
     onDeleteFiles: (groupId: string) => Promise<void>;
+    deleting?: BatchDeleteProgress | null;
+    pendingAction?: PendingAction;
     onContextMenu?: (event: MouseEvent, group: DownloadTaskGroup) => void;
   }
 
@@ -24,15 +30,24 @@
     onRetry,
     onCancel,
     onDeleteFiles,
+    deleting = null,
+    pendingAction = null,
     onContextMenu,
   }: Props = $props();
-  let actionPending = $state(false);
 
+  const isDeleting = $derived(Boolean(deleting) || pendingAction === 'delete');
   const percent = $derived(group.progressKnown ? Math.round(group.progress * 100) : null);
-  const progressWidth = $derived(`${percent ?? 0}%`);
+  const deletePercent = $derived(
+    deleting && deleting.total > 0
+      ? Math.round(Math.min(1, deleting.current / deleting.total) * 100)
+      : null,
+  );
+  const progressWidth = $derived(`${isDeleting ? (deletePercent ?? 0) : (percent ?? 0)}%`);
   const canPause = $derived(
     group.tasks.some((task) =>
-      ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying'].includes(task.status),
+      task.status === 'pending'
+        || task.status === 'scheduled'
+        || (task.status === 'downloading' && task.supports_resume),
     ),
   );
   const canResume = $derived(group.paused > 0);
@@ -42,7 +57,7 @@
       ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status),
     ),
   );
-  const canDeleteFiles = $derived(group.tasks.length > 0);
+  const canDeleteFiles = $derived(canDeleteDownloadTaskGroupFiles(group));
   const isCancelled = $derived(
     !group.preparing
     && group.cancelled > 0
@@ -51,7 +66,15 @@
     && group.paused === 0,
   );
   const statusText = $derived(
-    group.preparing
+    deleting
+      ? $t('tasks.batchDeletingProgress', {
+        values: {
+          current: deleting.current,
+          total: deleting.total,
+          percent: deletePercent ?? 0,
+        },
+      })
+      : group.preparing
       ? [
         group.phase === 'queueing' ? $t('tasks.batchQueueing') : $t('tasks.batchPreparing'),
         group.queued > 0 ? $t('tasks.batchQueuedCount', { values: { count: group.queued } }) : null,
@@ -67,30 +90,41 @@
   );
 
   async function runAction(action: (groupId: string) => Promise<void>) {
-    actionPending = true;
-    try {
-      await action(group.id);
-    } finally {
-      actionPending = false;
+    if (pendingAction) return;
+    await action(group.id);
+  }
+
+  function handleContextMenu(event: MouseEvent) {
+    if (isDeleting) {
+      event.preventDefault();
+      return;
     }
+    onContextMenu?.(event, group);
   }
 </script>
 
 <div
   class="batch-card"
+  class:batch-card-deleting={isDeleting}
   role="group"
   aria-label={group.name}
-  oncontextmenu={(event) => onContextMenu?.(event, group)}
+  aria-busy={isDeleting}
+  oncontextmenu={handleContextMenu}
 >
   <button
     type="button"
     class="batch-main"
     aria-expanded={expanded}
     title={expanded ? $t('tasks.collapseBatch') : $t('tasks.expandBatch')}
+    disabled={isDeleting}
     onclick={() => onToggle(group.id)}
   >
     <span class="batch-icon">
-      <Icon name={expanded ? 'expandLess' : 'expandMore'} size="22px" />
+      {#if isDeleting}
+        <ProgressRing class="batch-delete-ring" size={22} strokeWidth={2.8} label={$t('tasks.batchDeleting')} />
+      {:else}
+        <Icon name={expanded ? 'expandLess' : 'expandMore'} size="22px" />
+      {/if}
     </span>
     <span class="batch-folder" class:batch-folder-cancelled={isCancelled}>
       <Icon name="folder" size="24px" />
@@ -108,10 +142,21 @@
         {/if}
       </span>
     </span>
-    <span class="batch-percent">{percent === null ? $t('tasks.batchProgressPending') : `${percent}%`}</span>
+    <span class="batch-percent">
+      {#if isDeleting}
+        {deletePercent === null ? $t('tasks.batchDeleting') : `${deletePercent}%`}
+      {:else}
+        {percent === null ? $t('tasks.batchProgressPending') : `${percent}%`}
+      {/if}
+    </span>
   </button>
 
-  <div class="batch-progress" class:batch-progress-indeterminate={!group.progressKnown} aria-hidden="true">
+  <div
+    class="batch-progress"
+    class:batch-progress-indeterminate={!isDeleting && !group.progressKnown}
+    class:batch-progress-deleting={isDeleting}
+    aria-hidden="true"
+  >
     <span style={`width: ${progressWidth}`}></span>
   </div>
 
@@ -120,7 +165,7 @@
       <button
         type="button"
         class="batch-action batch-action-warning"
-        disabled={actionPending}
+        disabled={Boolean(pendingAction) || isDeleting}
         onclick={() => runAction(onPause)}
       >
         <Icon name="pause" size="14px" />
@@ -131,7 +176,7 @@
       <button
         type="button"
         class="batch-action batch-action-primary"
-        disabled={actionPending}
+        disabled={Boolean(pendingAction) || isDeleting}
         onclick={() => runAction(onResume)}
       >
         <Icon name="resume" size="14px" />
@@ -142,7 +187,7 @@
       <button
         type="button"
         class="batch-action batch-action-primary"
-        disabled={actionPending}
+        disabled={Boolean(pendingAction) || isDeleting}
         onclick={() => runAction(onRetry)}
       >
         <Icon name="restartAlt" size="14px" />
@@ -153,7 +198,7 @@
       <button
         type="button"
         class="batch-action batch-action-danger"
-        disabled={actionPending}
+        disabled={Boolean(pendingAction) || isDeleting}
         onclick={() => runAction(onCancel)}
       >
         <Icon name="cancel" size="14px" />
@@ -164,11 +209,15 @@
       <button
         type="button"
         class="batch-action batch-action-danger"
-        disabled={actionPending}
+        disabled={Boolean(pendingAction) || isDeleting}
         onclick={() => runAction(onDeleteFiles)}
       >
-        <Icon name="delete" size="14px" />
-        {$t('tasks.deleteBatchFiles')}
+        {#if isDeleting}
+          <ProgressRing class="batch-delete-ring" size={14} strokeWidth={2.4} label={$t('tasks.batchDeleting')} />
+        {:else}
+          <Icon name="delete" size="14px" />
+        {/if}
+        {isDeleting ? $t('tasks.batchDeleting') : $t('tasks.deleteBatchFiles')}
       </button>
     {/if}
   </div>
@@ -192,6 +241,11 @@
   .batch-card:hover {
     border-color: color-mix(in srgb, var(--color-md3-primary) 38%, var(--color-md3-outline));
     box-shadow: 0 16px 34px color-mix(in srgb, var(--color-md3-primary) 10%, transparent);
+  }
+
+  .batch-card-deleting {
+    border-color: color-mix(in srgb, var(--color-md3-error) 42%, var(--color-md3-outline));
+    box-shadow: 0 16px 36px color-mix(in srgb, var(--color-md3-error) 11%, transparent);
   }
 
   .batch-main {
@@ -278,6 +332,10 @@
     transition: width 260ms var(--motion-easing-emphasized-decelerate);
   }
 
+  .batch-progress-deleting span {
+    background: var(--color-md3-error);
+  }
+
   .batch-progress-indeterminate span {
     width: 42% !important;
     animation: batch-progress-sweep 1.3s var(--motion-easing-emphasized-decelerate) infinite;
@@ -310,6 +368,10 @@
 
   .batch-action:disabled {
     opacity: 0.5;
+  }
+
+  :global(.batch-delete-ring) {
+    color: currentColor;
   }
 
   .batch-action-warning {
@@ -353,7 +415,6 @@
     .batch-progress span,
     .batch-action {
       transition: none;
-      animation: none;
     }
   }
 </style>

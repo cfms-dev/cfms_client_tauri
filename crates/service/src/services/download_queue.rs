@@ -274,6 +274,7 @@ impl QueueState {
                 t.total_bytes = bytes;
                 t.stage = 4;
                 t.completed_at = Some(now);
+                t.pause_position = None;
             }
         }
         self.save();
@@ -351,31 +352,53 @@ impl QueueState {
     }
 
     pub fn clear_completed(&self) -> usize {
-        let count = {
+        let removed_tasks = {
             let mut map = self.tasks.lock().unwrap();
-            let before = map.len();
+            let removed_tasks = map
+                .values()
+                .filter(|t| {
+                    t.status == DownloadTaskStatus::Completed
+                        || t.status == DownloadTaskStatus::Cancelled
+                })
+                .cloned()
+                .collect::<Vec<_>>();
             map.retain(|_, t| {
                 t.status != DownloadTaskStatus::Completed
                     && t.status != DownloadTaskStatus::Cancelled
             });
-            before - map.len()
+            removed_tasks
         };
+        let count = removed_tasks.len();
         if count > 0 {
+            for task in removed_tasks {
+                cleanup_resume_state(&task.file_path, &task.task_id);
+            }
             self.save();
         }
         count
     }
 
     pub fn clear_failed(&self) -> usize {
-        let count = {
+        let removed_tasks = {
             let mut map = self.tasks.lock().unwrap();
-            let before = map.len();
+            let removed_tasks = map
+                .values()
+                .filter(|t| {
+                    t.status == DownloadTaskStatus::Failed
+                        || t.status == DownloadTaskStatus::Cancelled
+                })
+                .cloned()
+                .collect::<Vec<_>>();
             map.retain(|_, t| {
                 t.status != DownloadTaskStatus::Failed && t.status != DownloadTaskStatus::Cancelled
             });
-            before - map.len()
+            removed_tasks
         };
+        let count = removed_tasks.len();
         if count > 0 {
+            for task in removed_tasks {
+                cleanup_resume_state(&task.file_path, &task.task_id);
+            }
             self.save();
         }
         count
@@ -681,12 +704,26 @@ async fn execute_download(
     // --- Phase 2: DOWNLOADING ---
     let _ = queue.update_status(&task_id, DownloadTaskStatus::Downloading);
     emit_active_count(&queue, &state);
+    let resume_state_path = queue.get(&task_id).and_then(|task| {
+        task.supports_resume.then(|| {
+            let path = resume_state_path(&file_path, &task_id);
+            let offset = task
+                .pause_position
+                .filter(|position| *position > 0 && path.exists())
+                .unwrap_or(0);
+            (path, offset)
+        })
+    });
+    let resume_offset = resume_state_path
+        .as_ref()
+        .map(|(_, offset)| *offset)
+        .unwrap_or(0);
     let _ = state.event_tx.send(ServiceEvent::DownloadProgress {
         task_id: task_id.clone(),
         phase: "downloading".into(),
         progress: 0.0,
         message: String::new(),
-        current_bytes: 0,
+        current_bytes: resume_offset,
         total_bytes: 0,
     });
 
@@ -750,24 +787,38 @@ async fn execute_download(
 
     let dest = std::path::Path::new(&file_path);
 
-    let result: Option<cfms_core::Result<u64>> = tokio::select! {
-        r = cfms_transfer::download::receive(&transfer_conn, &task_id, dest, &on_progress) => {
-            Some(r)
+    let result: Option<cfms_core::Result<u64>> = if let Some((resume_state_path, resume_offset)) =
+        resume_state_path
+    {
+        tokio::select! {
+            r = cfms_transfer::download::receive_with_resume(
+                &transfer_conn,
+                &task_id,
+                dest,
+                resume_offset,
+                Some(&resume_state_path),
+                &on_progress,
+            ) => {
+                Some(r)
+            }
+            _ = cancel_rx.wait_for(|c| *c) => {
+                None
+            }
         }
-        _ = cancel_rx.wait_for(|c| *c) => {
-            None
+    } else {
+        tokio::select! {
+            r = cfms_transfer::download::receive(&transfer_conn, &task_id, dest, &on_progress) => {
+                Some(r)
+            }
+            _ = cancel_rx.wait_for(|c| *c) => {
+                None
+            }
         }
     };
 
     transfer_conn.close().await;
 
     if *cancel_rx.borrow() {
-        if let Err(e) = std::fs::remove_file(&file_path)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!("Failed to clean up partial file {file_path}: {e}");
-        }
-
         if queue
             .get(&task_id)
             .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
@@ -776,6 +827,13 @@ async fn execute_download(
             tracing::info!("Download paused: {task_id}");
             return;
         }
+
+        if let Err(e) = std::fs::remove_file(&file_path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("Failed to clean up partial file {file_path}: {e}");
+        }
+        cleanup_resume_state(&file_path, &task_id);
 
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
         emit_active_count(&queue, &state);
@@ -818,6 +876,7 @@ async fn execute_download(
                 {
                     tracing::warn!("Failed to clean up partial file {file_path}: {rm_err}");
                 }
+                cleanup_resume_state(&file_path, &task_id);
                 let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
                 emit_active_count(&queue, &state);
                 let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
@@ -856,6 +915,7 @@ async fn execute_download(
             {
                 tracing::warn!("Failed to clean up partial file {file_path}: {e}");
             }
+            cleanup_resume_state(&file_path, &task_id);
 
             let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
             emit_active_count(&queue, &state);
@@ -901,6 +961,29 @@ fn emit_task_update(queue: &QueueState, state: &AppState, task_id: &str) {
         let _ = state
             .event_tx
             .send(ServiceEvent::DownloadTaskUpdated { task });
+    }
+}
+
+fn resume_state_path(file_path: &str, task_id: &str) -> PathBuf {
+    let dest = std::path::Path::new(file_path);
+    let filename = format!(".cfms-download-{task_id}.chunks.db");
+    dest.parent()
+        .map(|parent| parent.join(&filename))
+        .unwrap_or_else(|| PathBuf::from(filename))
+}
+
+fn cleanup_resume_state(file_path: &str, task_id: &str) {
+    let path = resume_state_path(file_path, task_id);
+    for candidate in [
+        path.clone(),
+        PathBuf::from(format!("{}-wal", path.display())),
+        PathBuf::from(format!("{}-shm", path.display())),
+    ] {
+        if let Err(e) = std::fs::remove_file(&candidate)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("Failed to remove resume state {}: {e}", candidate.display());
+        }
     }
 }
 
@@ -955,14 +1038,12 @@ pub fn pause_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) ->
         Some(t) => t,
         None => return Ok(false),
     };
-    if !matches!(
+    let can_pause_waiting = matches!(
         task.status,
-        DownloadTaskStatus::Pending
-            | DownloadTaskStatus::Scheduled
-            | DownloadTaskStatus::Downloading
-            | DownloadTaskStatus::Decrypting
-            | DownloadTaskStatus::Verifying
-    ) {
+        DownloadTaskStatus::Pending | DownloadTaskStatus::Scheduled
+    );
+    let can_pause_transfer = task.status == DownloadTaskStatus::Downloading && task.supports_resume;
+    if !can_pause_waiting && !can_pause_transfer {
         return Ok(false);
     }
     let pause_pos = task.current_bytes;
@@ -998,6 +1079,7 @@ pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -
     }
     queue.update_status(task_id, DownloadTaskStatus::Cancelled)?;
     active.cancel(task_id);
+    cleanup_resume_state(&task.file_path, task_id);
     Ok(true)
 }
 

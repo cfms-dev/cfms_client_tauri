@@ -149,6 +149,7 @@ pub async fn delete_download(
         if path.exists() {
             let _ = std::fs::remove_file(path);
         }
+        cleanup_resume_state(&task.file_path, &task_id);
     }
 
     // Remove from the in-memory queue.
@@ -158,3 +159,24 @@ pub async fn delete_download(
 }
 
 // ---------------------------------------------------------------------------
+
+fn cleanup_resume_state(file_path: &str, task_id: &str) {
+    let dest = std::path::Path::new(file_path);
+    let filename = format!(".cfms-download-{task_id}.chunks.db");
+    let path = dest
+        .parent()
+        .map(|parent| parent.join(&filename))
+        .unwrap_or_else(|| std::path::PathBuf::from(filename));
+
+    for candidate in [
+        path.clone(),
+        std::path::PathBuf::from(format!("{}-wal", path.display())),
+        std::path::PathBuf::from(format!("{}-shm", path.display())),
+    ] {
+        if let Err(e) = std::fs::remove_file(candidate)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("Failed to remove download resume state: {e}");
+        }
+    }
+}

@@ -490,6 +490,8 @@ export const en = {
     batchFailedCount: '{count} failed',
     batchCancelledCount: '{count} cancelled',
     deleteBatchFiles: 'Delete files',
+    batchDeleting: 'Deleting...',
+    batchDeletingProgress: 'Deleting files · {current}/{total} ({percent}%)',
   },
   downloads: {
     completedTitle: 'Downloads completed',

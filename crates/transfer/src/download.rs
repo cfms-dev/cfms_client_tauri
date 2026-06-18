@@ -13,7 +13,7 @@ use cfms_core::{DownloadPhase, Result};
 use cfms_transport::Connection;
 use serde::Deserialize;
 use std::io::{BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use crate::chunks::ChunkStore;
@@ -104,12 +104,29 @@ pub async fn receive(
     dest: &Path,
     on_progress: &ProgressFn,
 ) -> Result<u64> {
+    receive_with_resume(conn, task_id, dest, 0, None, on_progress).await
+}
+
+/// Receive an encrypted file, optionally resuming from a byte offset.
+///
+/// When `chunk_store_path` is provided, encrypted chunks are stored in that
+/// stable SQLite file instead of an auto-deleted temporary directory. This lets
+/// the caller pause midway, keep already received chunks, then call this
+/// function again with the server-supported `offset`.
+pub async fn receive_with_resume(
+    conn: &Connection,
+    task_id: &str,
+    dest: &Path,
+    offset: u64,
+    chunk_store_path: Option<&Path>,
+    on_progress: &ProgressFn,
+) -> Result<u64> {
     let mut stream = conn.create_stream().await?;
 
     // --- Step 1: request file metadata ---
     let request = serde_json::json!({
         "action": "download_file",
-        "data": { "task_id": task_id }
+        "data": { "task_id": task_id, "offset": offset }
     });
     stream
         .send(
@@ -136,6 +153,18 @@ pub async fn receive(
     let file_size = metadata.data.file_size.unwrap_or(0);
     let chunk_size = metadata.data.chunk_size.unwrap_or(8192);
     let total_chunks = metadata.data.total_chunks.unwrap_or(0);
+
+    if offset > file_size {
+        return Err(cfms_core::Error::Protocol(format!(
+            "resume offset {offset} exceeds file size {file_size}"
+        )));
+    }
+
+    if offset > 0 && offset % chunk_size as u64 != 0 {
+        return Err(cfms_core::Error::Protocol(format!(
+            "resume offset {offset} is not aligned to chunk size {chunk_size}"
+        )));
+    }
 
     // --- Step 2: send ready ---
     stream.send(conn, b"ready".to_vec()).await?;
@@ -168,13 +197,31 @@ pub async fn receive(
     }
 
     // --- Step 3: receive chunks into SQLite ---
-    let temp_dir = create_download_temp_dir(dest)?;
-    let db_path = temp_dir.path().join("chunks.db");
+    let store_owner = prepare_chunk_store(dest, chunk_store_path, offset)?;
+    let db_path = store_owner.path();
     let store = ChunkStore::open(&db_path)?;
 
+    let start_chunk = (offset / chunk_size as u64) as u32;
+    if start_chunk > total_chunks {
+        return Err(cfms_core::Error::Protocol(format!(
+            "resume chunk {start_chunk} exceeds total chunks {total_chunks}"
+        )));
+    }
+
+    let remaining_chunks = total_chunks - start_chunk;
     let mut received_chunks: u32 = 0;
 
-    while received_chunks < total_chunks {
+    if offset > 0 {
+        on_progress(
+            DownloadPhase::Downloading,
+            offset as f64 / file_size as f64,
+            "resuming encrypted chunks",
+            offset,
+            file_size,
+        );
+    }
+
+    while received_chunks < remaining_chunks {
         let chunk_raw = stream.recv().await.ok_or_else(|| {
             cfms_core::Error::Connection("stream closed during chunk transfer".into())
         })?;
@@ -215,8 +262,9 @@ pub async fn receive(
 
         received_chunks += 1;
 
-        let received_bytes = if received_chunks < total_chunks {
-            chunk_size as u64 * received_chunks as u64
+        let total_received_chunks = start_chunk + received_chunks;
+        let received_bytes = if total_received_chunks < total_chunks {
+            chunk_size as u64 * total_received_chunks as u64
         } else {
             file_size
         };
@@ -330,6 +378,7 @@ pub async fn receive(
             file_size,
         );
         store.purge()?;
+        store_owner.cleanup()?;
 
         // --- Step 7: verify ---
         on_progress(
@@ -348,6 +397,60 @@ pub async fn receive(
     })?;
 
     Ok(file_size)
+}
+
+enum ChunkStoreOwner {
+    Temporary(TempDir),
+    Persistent(PathBuf),
+}
+
+impl ChunkStoreOwner {
+    fn path(&self) -> PathBuf {
+        match self {
+            Self::Temporary(temp_dir) => temp_dir.path().join("chunks.db"),
+            Self::Persistent(path) => path.clone(),
+        }
+    }
+
+    fn cleanup(&self) -> Result<()> {
+        if let Self::Persistent(path) = self {
+            remove_sqlite_sidecars(path)?;
+        }
+        Ok(())
+    }
+}
+
+fn prepare_chunk_store(
+    dest: &Path,
+    chunk_store_path: Option<&Path>,
+    offset: u64,
+) -> Result<ChunkStoreOwner> {
+    if let Some(path) = chunk_store_path {
+        if offset == 0 {
+            remove_sqlite_sidecars(path)?;
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        return Ok(ChunkStoreOwner::Persistent(path.to_path_buf()));
+    }
+
+    Ok(ChunkStoreOwner::Temporary(create_download_temp_dir(dest)?))
+}
+
+fn remove_sqlite_sidecars(path: &Path) -> Result<()> {
+    remove_file_if_exists(path)?;
+    remove_file_if_exists(&PathBuf::from(format!("{}-wal", path.display())))?;
+    remove_file_if_exists(&PathBuf::from(format!("{}-shm", path.display())))?;
+    Ok(())
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(cfms_core::Error::Io(e)),
+    }
 }
 
 fn create_download_temp_dir(dest: &Path) -> Result<TempDir> {

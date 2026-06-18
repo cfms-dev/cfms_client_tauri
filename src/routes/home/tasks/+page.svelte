@@ -18,23 +18,30 @@
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
-  import { buildDownloadTaskRows, isRunningDownloadTask, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
+  import { buildDownloadTaskRows, canDeleteDownloadTaskGroupFiles, isRunningDownloadTask, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
   import type { ContextMenuItem } from '$lib/components/context-menu';
 
   type TaskTab = 'downloads' | 'uploads';
   type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  type DownloadTaskAction = 'pause' | 'resume' | 'retry' | 'cancel';
+  type DownloadGroupAction = DownloadTaskAction | 'delete';
+  type BatchDeleteProgress = { current: number; total: number };
 
   let activeTab = $state<TaskTab>('downloads');
   let filter = $state<TaskFilter>('all');
   let busy = $state(false);
   let menuOpen = $state(false);
   let expandedDownloadGroups = $state<Set<string>>(new Set());
+  let pendingDownloadTaskActions = $state<Map<string, DownloadTaskAction>>(new Map());
+  let pendingDownloadGroupActions = $state<Map<string, DownloadGroupAction>>(new Map());
+  let deletingDownloadGroups = $state<Map<string, BatchDeleteProgress>>(new Map());
   let contextMenu = $state<{
     open: boolean;
     x: number;
     y: number;
     target: { kind: 'download-task'; task: DownloadTaskDto } | { kind: 'download-group'; group: DownloadTaskGroup } | null;
   }>({ open: false, x: 0, y: 0, target: null });
+  const deleteProgressWriteTimes = new Map<string, number>();
 
   const tabs = $derived([
     {
@@ -181,7 +188,7 @@
       pauseActiveDownloadBatches();
       for (const task of downloadStore.activeTasks) {
         const isPending = task.status === 'pending' || task.status === 'scheduled';
-        const isRunning = ['downloading', 'decrypting', 'verifying'].includes(task.status);
+        const isRunning = task.status === 'downloading';
         if (isPending || (isRunning && task.supports_resume)) {
           await pauseDownload(task.task_id, { stopActiveBatch: false });
         }
@@ -257,40 +264,44 @@
           id: 'pause-download-group',
           label: $t('tasks.pause'),
           icon: 'pause',
-          disabled: !canPauseDownloadGroup(group),
+          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canPauseDownloadGroup(group),
           onSelect: () => handlePauseDownloadGroup(group.id),
         },
         {
           id: 'resume-download-group',
           label: $t('tasks.resume'),
           icon: 'resume',
-          disabled: !canResumeDownloadGroup(group),
+          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canResumeDownloadGroup(group),
           onSelect: () => handleResumeDownloadGroup(group.id),
         },
         {
           id: 'retry-download-group',
           label: $t('tasks.retryAction'),
           icon: 'restartAlt',
-          disabled: !canRetryDownloadGroup(group),
+          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canRetryDownloadGroup(group),
           onSelect: () => handleRetryDownloadGroup(group.id),
         },
         {
           id: 'cancel-download-group',
           label: $t('tasks.cancel'),
           icon: 'cancel',
-          disabled: !canCancelDownloadGroup(group),
+          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canCancelDownloadGroup(group),
           danger: true,
           onSelect: () => handleCancelDownloadGroup(group.id),
         },
-        { type: 'divider' },
-        {
-          id: 'delete-download-group-files',
-          label: $t('tasks.deleteBatchFiles'),
-          icon: 'delete',
-          disabled: group.tasks.length === 0,
-          danger: true,
-          onSelect: () => handleDeleteDownloadGroupFiles(group.id),
-        },
+        ...(canDeleteDownloadTaskGroupFiles(group)
+          ? [
+            { type: 'divider' as const },
+            {
+              id: 'delete-download-group-files',
+              label: $t('tasks.deleteBatchFiles'),
+              icon: 'delete' as const,
+              disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id),
+              danger: true,
+              onSelect: () => handleDeleteDownloadGroupFiles(group.id),
+            },
+          ]
+          : []),
       ];
     }
 
@@ -300,28 +311,28 @@
         id: 'pause-download-task',
         label: $t('tasks.pause'),
         icon: 'pause',
-        disabled: !canPauseDownloadTask(task),
+        disabled: isDownloadTaskActionPending(task.task_id) || !canPauseDownloadTask(task),
         onSelect: () => handlePauseDownloadTask(task.task_id),
       },
       {
         id: 'resume-download-task',
         label: $t('tasks.resume'),
         icon: 'resume',
-        disabled: !canResumeDownloadTask(task),
+        disabled: isDownloadTaskActionPending(task.task_id) || !canResumeDownloadTask(task),
         onSelect: () => handleResumeDownloadTask(task.task_id),
       },
       {
         id: 'retry-download-task',
         label: $t('tasks.retryAction'),
         icon: 'restartAlt',
-        disabled: !canRetryDownloadTask(task),
+        disabled: isDownloadTaskActionPending(task.task_id) || !canRetryDownloadTask(task),
         onSelect: () => handleRetryDownloadTask(task.task_id),
       },
       {
         id: 'cancel-download-task',
         label: $t('tasks.cancel'),
         icon: 'cancel',
-        disabled: !canCancelDownloadTask(task),
+        disabled: isDownloadTaskActionPending(task.task_id) || !canCancelDownloadTask(task),
         danger: true,
         onSelect: () => handleCancelDownloadTask(task.task_id),
       },
@@ -347,8 +358,107 @@
     return [...downloadStore.tasks.values()].filter((task) => task.batch_id === groupId);
   }
 
+  function isDeletingDownloadGroup(groupId: string) {
+    return deletingDownloadGroups.has(groupId);
+  }
+
+  function isDownloadTaskActionPending(taskId: string) {
+    return pendingDownloadTaskActions.has(taskId);
+  }
+
+  function getPendingDownloadTaskAction(taskId: string) {
+    return pendingDownloadTaskActions.get(taskId) ?? null;
+  }
+
+  function isDownloadGroupActionPending(groupId: string) {
+    return pendingDownloadGroupActions.has(groupId);
+  }
+
+  function getPendingDownloadGroupAction(groupId: string) {
+    return pendingDownloadGroupActions.get(groupId) ?? null;
+  }
+
+  function setPendingDownloadTaskAction(taskId: string, action: DownloadTaskAction | null) {
+    const next = new Map(pendingDownloadTaskActions);
+    if (action) {
+      next.set(taskId, action);
+    } else {
+      next.delete(taskId);
+    }
+    pendingDownloadTaskActions = next;
+  }
+
+  function setPendingDownloadGroupAction(groupId: string, action: DownloadGroupAction | null) {
+    const next = new Map(pendingDownloadGroupActions);
+    if (action) {
+      next.set(groupId, action);
+    } else {
+      next.delete(groupId);
+    }
+    pendingDownloadGroupActions = next;
+  }
+
+  async function runDownloadTaskAction(
+    taskId: string,
+    action: DownloadTaskAction,
+    runner: () => Promise<void>,
+  ) {
+    if (isDownloadTaskActionPending(taskId)) return;
+
+    setPendingDownloadTaskAction(taskId, action);
+    try {
+      await runner();
+    } finally {
+      setPendingDownloadTaskAction(taskId, null);
+    }
+  }
+
+  async function runDownloadGroupAction(
+    groupId: string,
+    action: DownloadGroupAction,
+    runner: () => Promise<void>,
+  ) {
+    if (isDownloadGroupActionPending(groupId) || isDeletingDownloadGroup(groupId)) return;
+
+    setPendingDownloadGroupAction(groupId, action);
+    try {
+      await runner();
+    } finally {
+      setPendingDownloadGroupAction(groupId, null);
+    }
+  }
+
+  function getDeletingDownloadGroupProgress(groupId: string) {
+    return deletingDownloadGroups.get(groupId) ?? null;
+  }
+
+  function setDeletingDownloadGroupProgress(
+    groupId: string,
+    current: number,
+    total: number,
+    force = false,
+  ) {
+    const now = performance.now();
+    const lastWrite = deleteProgressWriteTimes.get(groupId) ?? 0;
+    if (!force && current < total && now - lastWrite < 80) return;
+
+    deleteProgressWriteTimes.set(groupId, now);
+    const next = new Map(deletingDownloadGroups);
+    next.set(groupId, { current, total });
+    deletingDownloadGroups = next;
+  }
+
+  function clearDeletingDownloadGroupProgress(groupId: string) {
+    deleteProgressWriteTimes.delete(groupId);
+    const next = new Map(deletingDownloadGroups);
+    next.delete(groupId);
+    deletingDownloadGroups = next;
+  }
+
   function canPauseDownloadTask(task: DownloadTaskDto) {
-    return ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying'].includes(task.status);
+    return task.status === 'pending'
+      || task.status === 'scheduled'
+      || (task.status === 'downloading' && task.supports_resume);
   }
 
   function canResumeDownloadTask(task: DownloadTaskDto) {
@@ -380,75 +490,110 @@
   }
 
   async function handlePauseDownloadTask(taskId: string) {
-    await pauseDownload(taskId);
-    await refresh();
+    await runDownloadTaskAction(taskId, 'pause', async () => {
+      await pauseDownload(taskId);
+      await refresh();
+    });
   }
 
   async function handleResumeDownloadTask(taskId: string) {
-    await resumeDownload(taskId);
-    await refresh();
+    await runDownloadTaskAction(taskId, 'resume', async () => {
+      await resumeDownload(taskId);
+      await refresh();
+    });
   }
 
   async function handleRetryDownloadTask(taskId: string) {
-    await retryDownload(taskId);
-    await refresh();
+    await runDownloadTaskAction(taskId, 'retry', async () => {
+      await retryDownload(taskId);
+      await refresh();
+    });
   }
 
   async function handleCancelDownloadTask(taskId: string) {
-    await cancelDownload(taskId);
-    await refresh();
+    await runDownloadTaskAction(taskId, 'cancel', async () => {
+      await cancelDownload(taskId);
+      await refresh();
+    });
   }
 
   async function handlePauseDownloadGroup(groupId: string) {
-    pauseActiveDownloadBatches();
-    for (const task of getDownloadGroupTasks(groupId)) {
-      if (task.status === 'pending' || task.status === 'scheduled' || isRunningDownload(task)) {
-        await pauseDownload(task.task_id, { stopActiveBatch: false });
+    await runDownloadGroupAction(groupId, 'pause', async () => {
+      pauseActiveDownloadBatches();
+      for (const task of getDownloadGroupTasks(groupId)) {
+        if (canPauseDownloadTask(task)) {
+          await pauseDownload(task.task_id, { stopActiveBatch: false });
+        }
       }
-    }
-    await refresh();
+      await refresh();
+    });
   }
 
   async function handleResumeDownloadGroup(groupId: string) {
-    resumeActiveDownloadBatches();
-    for (const task of getDownloadGroupTasks(groupId)) {
-      if (task.status === 'paused') {
-        await resumeDownload(task.task_id);
+    await runDownloadGroupAction(groupId, 'resume', async () => {
+      resumeActiveDownloadBatches();
+      for (const task of getDownloadGroupTasks(groupId)) {
+        if (task.status === 'paused') {
+          await resumeDownload(task.task_id);
+        }
       }
-    }
-    await refresh();
+      await refresh();
+    });
   }
 
   async function handleRetryDownloadGroup(groupId: string) {
-    for (const task of getDownloadGroupTasks(groupId)) {
-      if (task.status === 'failed') {
-        await retryDownload(task.task_id);
+    await runDownloadGroupAction(groupId, 'retry', async () => {
+      for (const task of getDownloadGroupTasks(groupId)) {
+        if (task.status === 'failed') {
+          await retryDownload(task.task_id);
+        }
       }
-    }
-    await refresh();
+      await refresh();
+    });
   }
 
   async function handleCancelDownloadGroup(groupId: string) {
-    stopActiveDownloadBatch(groupId);
-    for (const task of getDownloadGroupTasks(groupId)) {
-      if (canCancelDownloadTask(task)) {
-        await cancelDownload(task.task_id);
+    await runDownloadGroupAction(groupId, 'cancel', async () => {
+      stopActiveDownloadBatch(groupId);
+      for (const task of getDownloadGroupTasks(groupId)) {
+        if (canCancelDownloadTask(task)) {
+          await cancelDownload(task.task_id);
+        }
       }
-    }
-    await refresh();
+      await refresh();
+    });
   }
 
   async function handleDeleteDownloadGroupFiles(groupId: string) {
+    if (isDownloadGroupActionPending(groupId) || isDeletingDownloadGroup(groupId)) return;
+
+    const group = downloadRows.find(
+      (row): row is Extract<DownloadTaskRow, { kind: 'group' }> =>
+        row.kind === 'group' && row.group.id === groupId,
+    )?.group;
+    if (!group || !canDeleteDownloadTaskGroupFiles(group)) return;
+
+    setPendingDownloadGroupAction(groupId, 'delete');
     stopActiveDownloadBatch(groupId);
     const tasks = getDownloadGroupTasks(groupId);
-    for (const task of tasks) {
-      if (canCancelDownloadTask(task)) {
-        await cancelDownload(task.task_id);
+    const total = tasks.length;
+    setDeletingDownloadGroupProgress(groupId, 0, total, true);
+
+    try {
+      for (const [index, task] of tasks.entries()) {
+        if (canCancelDownloadTask(task)) {
+          await cancelDownload(task.task_id);
+        }
+        await deleteDownload(task.task_id);
+        setDeletingDownloadGroupProgress(groupId, index + 1, total);
       }
-      await deleteDownload(task.task_id);
+
+      expandedDownloadGroups = withoutExpandedGroup(expandedDownloadGroups, groupId);
+      await refresh();
+    } finally {
+      setPendingDownloadGroupAction(groupId, null);
+      clearDeletingDownloadGroupProgress(groupId);
     }
-    expandedDownloadGroups = withoutExpandedGroup(expandedDownloadGroups, groupId);
-    await refresh();
   }
 
   function withoutExpandedGroup(groups: Set<string>, groupId: string) {
@@ -597,14 +742,34 @@
                 onRetry={handleRetryDownloadGroup}
                 onCancel={handleCancelDownloadGroup}
                 onDeleteFiles={handleDeleteDownloadGroupFiles}
+                deleting={getDeletingDownloadGroupProgress(row.group.id)}
+                pendingAction={getPendingDownloadGroupAction(row.group.id)}
                 onContextMenu={showDownloadGroupContextMenu}
               />
             {:else if row.kind === 'group-task'}
               <div class="task-group-child">
-                <DownloadTaskCard task={row.task} onRemove={handleRemove} onContextMenu={showDownloadTaskContextMenu} />
+                <DownloadTaskCard
+                  task={row.task}
+                  onRemove={handleRemove}
+                  onPause={handlePauseDownloadTask}
+                  onResume={handleResumeDownloadTask}
+                  onRetry={handleRetryDownloadTask}
+                  onCancel={handleCancelDownloadTask}
+                  pendingAction={getPendingDownloadTaskAction(row.task.task_id)}
+                  onContextMenu={showDownloadTaskContextMenu}
+                />
               </div>
             {:else}
-              <DownloadTaskCard task={row.task} onRemove={handleRemove} onContextMenu={showDownloadTaskContextMenu} />
+              <DownloadTaskCard
+                task={row.task}
+                onRemove={handleRemove}
+                onPause={handlePauseDownloadTask}
+                onResume={handleResumeDownloadTask}
+                onRetry={handleRetryDownloadTask}
+                onCancel={handleCancelDownloadTask}
+                pendingAction={getPendingDownloadTaskAction(row.task.task_id)}
+                onContextMenu={showDownloadTaskContextMenu}
+              />
             {/if}
           {/snippet}
         </VirtualList>

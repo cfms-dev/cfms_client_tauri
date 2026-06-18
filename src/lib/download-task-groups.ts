@@ -30,6 +30,7 @@ export interface DownloadTaskGroup {
 }
 
 const RUNNING_STATUSES = new Set(['downloading', 'decrypting', 'verifying']);
+const BATCH_FILE_DELETE_STATUSES = new Set(['completed', 'cancelled']);
 
 export function buildDownloadTaskRows(
   tasks: DownloadTaskDto[],
@@ -98,6 +99,12 @@ export function buildDownloadTaskRows(
 
 export function isRunningDownloadTask(task: DownloadTaskDto) {
   return RUNNING_STATUSES.has(task.status);
+}
+
+export function canDeleteDownloadTaskGroupFiles(group: DownloadTaskGroup) {
+  return group.tasks.length > 0
+    && !group.preparing
+    && group.tasks.every((task) => BATCH_FILE_DELETE_STATUSES.has(task.status));
 }
 
 function buildDownloadTaskGroup(
