@@ -17,6 +17,11 @@
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import VirtualList from '$lib/components/VirtualList.svelte';
+
+  type MoveTargetRow =
+    | { kind: 'parent' }
+    | { kind: 'folder'; folder: ServerDirectoryEntry };
 
   let {
     objectType,
@@ -55,6 +60,10 @@
   const excludedIds = $derived(excludedDirectorySet(excludedDirectoryIds));
   const visibleFolders = $derived(folders.filter((folder) => !excludedIds.has(folder.id)));
   const currentPath = $derived(formatDirectoryPath(breadcrumb));
+  const targetRows = $derived.by<MoveTargetRow[]>(() => [
+    ...(parentId !== null ? [{ kind: 'parent' } as const] : []),
+    ...visibleFolders.map((folder) => ({ kind: 'folder' as const, folder })),
+  ]);
   const canMoveHere = $derived(
     !moving
       && !loading
@@ -202,37 +211,49 @@
         </div>
       {:else}
         <div class="overflow-hidden rounded-lg border border-md3-outline">
-          {#if parentId !== null}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={moving}
-              onclick={navigateToParent}
-            >
-              <span class="text-md3-primary-emphasis">
-                <Icon name="arrowUpward" size="20px" />
-              </span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
-                {$t('files.parentDirectory')}
-              </span>
-            </button>
-          {/if}
-
-          {#each visibleFolders as folder (folder.id)}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:cursor-not-allowed disabled:opacity-50 last:border-b-0"
-              disabled={moving}
-              onclick={() => navigateToFolder(folder)}
-            >
-              <span class="text-md3-primary-emphasis">
-                <Icon name="folder" size="20px" />
-              </span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
-                {folder.name}
-              </span>
-            </button>
-          {/each}
+          <VirtualList
+            items={targetRows}
+            keyOf={(row) => row.kind === 'parent' ? 'parent' : `folder:${row.folder.id}`}
+            estimateSize={45}
+            overscan={8}
+            threshold={80}
+            resetKey={currentFolderId ?? 'root'}
+            viewportClass="move-target-list-viewport"
+          >
+            {#snippet children(row, index)}
+              {#if row.kind === 'parent'}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  class:border-b-0={index === targetRows.length - 1}
+                  disabled={moving}
+                  onclick={navigateToParent}
+                >
+                  <span class="text-md3-primary-emphasis">
+                    <Icon name="arrowUpward" size="20px" />
+                  </span>
+                  <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
+                    {$t('files.parentDirectory')}
+                  </span>
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  class:border-b-0={index === targetRows.length - 1}
+                  disabled={moving}
+                  onclick={() => navigateToFolder(row.folder)}
+                >
+                  <span class="text-md3-primary-emphasis">
+                    <Icon name="folder" size="20px" />
+                  </span>
+                  <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">
+                    {row.folder.name}
+                  </span>
+                </button>
+              {/if}
+            {/snippet}
+          </VirtualList>
 
           {#if visibleFolders.length === 0 && parentId === null}
             <p class="px-4 py-10 text-center text-sm text-md3-on-surface-variant">
@@ -272,3 +293,11 @@
     </div>
   </div>
 </ModalFrame>
+
+<style>
+  :global(.move-target-list-viewport) {
+    max-height: calc(78vh - 14rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+</style>

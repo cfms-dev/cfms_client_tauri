@@ -43,6 +43,8 @@
     viewAccessEntries,
     type AccessEntry,
     type RevisionEntry,
+    type SearchDirectoryEntry,
+    type SearchDocumentEntry,
     type SearchFilesResponse,
     type UploadRevisionProgressEvent,
     type UserPreference,
@@ -64,6 +66,7 @@
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/components/MoveTargetDialog.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import VirtualList from '$lib/components/VirtualList.svelte';
   import { accessEntrySubject } from '$lib/access-entries';
   import type { AccessGrantFormValue } from '$lib/access-grants';
   import type { AccessRulesRecord } from '$lib/access-rules';
@@ -87,6 +90,10 @@
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
   import { authStore, floatingProgressStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
+
+  type SearchResultRow =
+    | { kind: 'directory'; directory: SearchDirectoryEntry }
+    | { kind: 'document'; document: SearchDocumentEntry };
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -212,6 +219,20 @@
   const revisionRows = $derived(
     revisionsDialog ? buildRevisionRows(revisionsDialog.entries) : [],
   );
+  const searchResultRows = $derived.by<SearchResultRow[]>(() => {
+    if (!searchDialog.results) return [];
+
+    return [
+      ...searchDialog.results.directories.map((directory) => ({
+        kind: 'directory' as const,
+        directory,
+      })),
+      ...searchDialog.results.documents.map((document) => ({
+        kind: 'document' as const,
+        document,
+      })),
+    ];
+  });
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
   const parentTargetId = $derived.by<string | null | undefined>(() => {
     if (
@@ -1813,6 +1834,12 @@
       animation: none;
     }
   }
+
+  :global(.server-search-list-viewport) {
+    max-height: calc(52vh - 2.25rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 </style>
 
 <ContextMenu
@@ -1886,28 +1913,43 @@
               ? $t('files.searchNoResults', { values: { query: searchDialog.query } })
               : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.query } })}
           </div>
-          {#each searchDialog.results.directories as directory (directory.id)}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-primary-container/20"
-              onclick={() => navigateToSearchDirectory(directory)}
-            >
-              <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{directory.name}</span>
-              <span class="text-xs text-md3-on-surface-variant">{formatDate(directory.created_time)}</span>
-            </button>
-          {/each}
-          {#each searchDialog.results.documents as document (document.id)}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-surface-container-high/40 last:border-b-0"
-              onclick={() => navigateToSearchDocument(document)}
-            >
-              <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm text-md3-on-surface">{document.name ?? document.title}</span>
-              <span class="text-xs text-md3-on-surface-variant">{formatBytes(document.size)}</span>
-            </button>
-          {/each}
+          <VirtualList
+            items={searchResultRows}
+            keyOf={(row) => row.kind === 'directory'
+              ? `directory:${row.directory.id}`
+              : `document:${row.document.id}`}
+            estimateSize={37}
+            overscan={10}
+            threshold={120}
+            resetKey={`${searchDialog.query}:${searchDialog.results.total_count}`}
+            viewportClass="server-search-list-viewport"
+          >
+            {#snippet children(row, index)}
+              {#if row.kind === 'directory'}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-primary-container/20"
+                  class:border-b-0={index === searchResultRows.length - 1}
+                  onclick={() => navigateToSearchDirectory(row.directory)}
+                >
+                  <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
+                  <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{row.directory.name}</span>
+                  <span class="text-xs text-md3-on-surface-variant">{formatDate(row.directory.created_time)}</span>
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-3 py-2 text-left transition-colors hover:bg-md3-surface-container-high/40"
+                  class:border-b-0={index === searchResultRows.length - 1}
+                  onclick={() => navigateToSearchDocument(row.document)}
+                >
+                  <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
+                  <span class="min-w-0 truncate text-sm text-md3-on-surface">{row.document.name ?? row.document.title}</span>
+                  <span class="text-xs text-md3-on-surface-variant">{formatBytes(row.document.size)}</span>
+                </button>
+              {/if}
+            {/snippet}
+          </VirtualList>
         </div>
       {/if}
     </form>

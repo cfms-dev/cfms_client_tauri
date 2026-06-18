@@ -17,6 +17,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import VirtualList from '$lib/components/VirtualList.svelte';
 
   type TrashKind = 'directory' | 'document';
 
@@ -450,61 +451,86 @@
             </p>
           </div>
         {:else}
-          {#each items as item (item.kind + item.id)}
-            <div
-              class="grid grid-cols-[auto_minmax(280px,1fr)_180px_auto] gap-3 px-4 py-2.5
-                     border-b border-md3-outline/50 last:border-b-0 items-center text-left transition-colors
-                     hover:bg-md3-surface-container-high/30"
-            >
-              {#if selectMode}
-                <button
-                  type="button"
-                  class="self-center text-left {isSelected(item) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
-                  aria-label={isSelected(item) ? $t('files.selectNone') : $t('files.selectAll')}
-                  onclick={() => item.kind === 'directory' ? toggleSelectFolder(item.id) : toggleSelectDocument(item.id)}
-                >
-                  <Icon name={isSelected(item) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
-                </button>
-              {:else}
-                <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
-                  <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
+          <VirtualList
+            items={items}
+            keyOf={(item) => `${item.kind}:${item.id}`}
+            estimateSize={61}
+            overscan={8}
+            threshold={120}
+            resetKey={`${currentFolderId}:${selectMode}`}
+            viewportClass="trash-list-viewport"
+          >
+            {#snippet children(item, index)}
+              <div
+                class="grid grid-cols-[auto_minmax(280px,1fr)_180px_auto] gap-3 px-4 py-2.5
+                       border-b border-md3-outline/50 items-center text-left transition-colors
+                       hover:bg-md3-surface-container-high/30"
+                class:border-b-0={index === items.length - 1}
+              >
+                {#if selectMode}
+                  <button
+                    type="button"
+                    class="self-center text-left {isSelected(item) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
+                    aria-label={isSelected(item) ? $t('files.selectNone') : $t('files.selectAll')}
+                    onclick={() => item.kind === 'directory' ? toggleSelectFolder(item.id) : toggleSelectDocument(item.id)}
+                  >
+                    <Icon name={isSelected(item) ? 'checkBox' : 'checkBoxBlank'} size="22px" />
+                  </button>
+                {:else}
+                  <span class={item.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                    <Icon name={item.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
+                  </span>
+                {/if}
+                <div class="min-w-0">
+                  <p class="text-sm text-md3-on-surface-variant truncate line-through decoration-md3-error/90 decoration-2">
+                    {item.name}
+                  </p>
+                  <p class="text-xs text-md3-on-surface-variant truncate">ID: {item.id}</p>
+                </div>
+                <span class="text-xs text-md3-on-surface-variant text-right">
+                  {formatDate(item.created_time)}
                 </span>
-              {/if}
-              <div class="min-w-0">
-                <p class="text-sm text-md3-on-surface-variant truncate line-through decoration-md3-error/90 decoration-2">
-                  {item.name}
-                </p>
-                <p class="text-xs text-md3-on-surface-variant truncate">ID: {item.id}</p>
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    class="p-1.5 rounded-full text-md3-on-surface-variant
+                           hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
+                           disabled:opacity-40 transition-colors"
+                    title={$t('trash.restore')}
+                    onclick={(event) => { event.stopPropagation(); handleRestore(item.kind, item.id, item.name); }}
+                    disabled={!canRestore || busyItemId === item.id}
+                  >
+                    <Icon name="restoreFromTrash" size="18px" />
+                  </button>
+                  <button
+                    class="p-1.5 rounded-full text-md3-error
+                           hover:bg-md3-error-container/40 disabled:opacity-40
+                           transition-colors"
+                    title={$t('trash.purge')}
+                    onclick={(event) => { event.stopPropagation(); handlePurge(item.kind, item.id, item.name); }}
+                    disabled={!canPurge || busyItemId === item.id}
+                  >
+                    <Icon name="deleteForever" size="18px" />
+                  </button>
+                </div>
               </div>
-              <span class="text-xs text-md3-on-surface-variant text-right">
-                {formatDate(item.created_time)}
-              </span>
-              <div class="flex items-center justify-end gap-1">
-                <button
-                  class="p-1.5 rounded-full text-md3-on-surface-variant
-                         hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis
-                         disabled:opacity-40 transition-colors"
-                  title={$t('trash.restore')}
-                  onclick={(event) => { event.stopPropagation(); handleRestore(item.kind, item.id, item.name); }}
-                  disabled={!canRestore || busyItemId === item.id}
-                >
-                  <Icon name="restoreFromTrash" size="18px" />
-                </button>
-                <button
-                  class="p-1.5 rounded-full text-md3-error
-                         hover:bg-md3-error-container/40 disabled:opacity-40
-                         transition-colors"
-                  title={$t('trash.purge')}
-                  onclick={(event) => { event.stopPropagation(); handlePurge(item.kind, item.id, item.name); }}
-                  disabled={!canPurge || busyItemId === item.id}
-                >
-                  <Icon name="deleteForever" size="18px" />
-                </button>
-              </div>
-            </div>
-          {/each}
+            {/snippet}
+          </VirtualList>
         {/if}
       </div>
     </div>
   {/if}
 </div>
+
+<style>
+  :global(.trash-list-viewport) {
+    max-height: calc(100vh - 23rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  @media (max-width: 640px) {
+    :global(.trash-list-viewport) {
+      max-height: calc(100vh - 28rem);
+    }
+  }
+</style>

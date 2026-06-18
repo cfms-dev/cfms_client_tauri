@@ -15,6 +15,12 @@
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import VirtualList from '$lib/components/VirtualList.svelte';
+
+  type PickerRow =
+    | { kind: 'parent' }
+    | { kind: 'folder'; folder: ServerDirectoryEntry }
+    | { kind: 'document'; document: ServerDocumentEntry };
 
   let {
     title,
@@ -38,6 +44,11 @@
 
   const visibleDocuments = $derived(documents.filter(documentFilter));
   const currentPath = $derived(formatDirectoryPath(breadcrumb));
+  const pickerRows = $derived.by<PickerRow[]>(() => [
+    ...(parentId !== null ? [{ kind: 'parent' } as const] : []),
+    ...folders.map((folder) => ({ kind: 'folder' as const, folder })),
+    ...visibleDocuments.map((document) => ({ kind: 'document' as const, document })),
+  ]);
 
   onMount(() => {
     void loadDirectory(null);
@@ -157,39 +168,54 @@
         </div>
       {:else}
         <div class="overflow-hidden rounded-lg border border-md3-outline">
-          {#if parentId !== null}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20"
-              onclick={navigateToParent}
-            >
-              <span class="text-md3-primary-emphasis"><Icon name="arrowUpward" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{$t('files.parentDirectory')}</span>
-            </button>
-          {/if}
-
-          {#each folders as folder (folder.id)}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20"
-              onclick={() => navigateToFolder(folder)}
-            >
-              <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{folder.name}</span>
-            </button>
-          {/each}
-
-          {#each visibleDocuments as document (document.id)}
-            <button
-              type="button"
-              class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-surface-container-high/45 last:border-b-0"
-              onclick={() => onSelect(document)}
-            >
-              <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
-              <span class="min-w-0 truncate text-sm text-md3-on-surface">{document.title}</span>
-              <span class="text-md3-primary-emphasis"><Icon name="done" size="18px" /></span>
-            </button>
-          {/each}
+          <VirtualList
+            items={pickerRows}
+            keyOf={(row) => row.kind === 'parent'
+              ? 'parent'
+              : row.kind === 'folder'
+                ? `folder:${row.folder.id}`
+                : `document:${row.document.id}`}
+            estimateSize={45}
+            overscan={8}
+            threshold={80}
+            resetKey={currentFolderId ?? 'root'}
+            viewportClass="server-picker-list-viewport"
+          >
+            {#snippet children(row, index)}
+              {#if row.kind === 'parent'}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20"
+                  class:border-b-0={index === pickerRows.length - 1}
+                  onclick={navigateToParent}
+                >
+                  <span class="text-md3-primary-emphasis"><Icon name="arrowUpward" size="20px" /></span>
+                  <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{$t('files.parentDirectory')}</span>
+                </button>
+              {:else if row.kind === 'folder'}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20"
+                  class:border-b-0={index === pickerRows.length - 1}
+                  onclick={() => navigateToFolder(row.folder)}
+                >
+                  <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
+                  <span class="min-w-0 truncate text-sm font-medium text-md3-primary-emphasis">{row.folder.name}</span>
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  class="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-md3-outline/50 px-4 py-3 text-left transition-colors hover:bg-md3-surface-container-high/45"
+                  class:border-b-0={index === pickerRows.length - 1}
+                  onclick={() => onSelect(row.document)}
+                >
+                  <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
+                  <span class="min-w-0 truncate text-sm text-md3-on-surface">{row.document.title}</span>
+                  <span class="text-md3-primary-emphasis"><Icon name="done" size="18px" /></span>
+                </button>
+              {/if}
+            {/snippet}
+          </VirtualList>
 
           {#if folders.length === 0 && visibleDocuments.length === 0}
             <p class="px-4 py-10 text-center text-sm text-md3-on-surface-variant">
@@ -201,3 +227,11 @@
     </div>
   </div>
 </ModalFrame>
+
+<style>
+  :global(.server-picker-list-viewport) {
+    max-height: calc(78vh - 11rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+</style>

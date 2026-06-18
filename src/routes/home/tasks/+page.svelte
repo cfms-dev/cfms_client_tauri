@@ -9,6 +9,7 @@
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import VirtualList from '$lib/components/VirtualList.svelte';
 
   type TaskTab = 'downloads' | 'uploads';
   type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
@@ -312,22 +313,48 @@
     </div>
   </div>
 
-  <div class="grid gap-3">
+  <div>
     {#if activeTab === 'downloads'}
       {#if filteredDownloads.length > 0}
-        {#each filteredDownloads as task (task.task_id)}
-          <DownloadTaskCard task={task} onRemove={handleRemove} />
-        {/each}
+        <VirtualList
+          items={filteredDownloads}
+          keyOf={(task) => task.task_id}
+          estimateSize={190}
+          gap={12}
+          overscan={5}
+          threshold={24}
+          resetKey={`${activeTab}:${filter}`}
+          viewportClass="task-list-viewport"
+          contentClass="task-list-content"
+          itemClass="task-list-item"
+        >
+          {#snippet children(task)}
+            <DownloadTaskCard task={task} onRemove={handleRemove} />
+          {/snippet}
+        </VirtualList>
       {/if}
     {:else if filteredUploads.length > 0}
-      {#each filteredUploads as task (task.upload_id)}
-        <UploadTaskCard
-          {task}
-          onPause={handlePauseUpload}
-          onResume={handleResumeUpload}
-          onCancel={handleCancelUpload}
-        />
-      {/each}
+      <VirtualList
+        items={filteredUploads}
+        keyOf={(task) => task.upload_id}
+        estimateSize={148}
+        gap={12}
+        overscan={6}
+        threshold={28}
+        resetKey={`${activeTab}:${filter}`}
+        viewportClass="task-list-viewport"
+        contentClass="task-list-content"
+        itemClass="task-list-item"
+      >
+        {#snippet children(task)}
+          <UploadTaskCard
+            {task}
+            onPause={handlePauseUpload}
+            onResume={handleResumeUpload}
+            onCancel={handleCancelUpload}
+          />
+        {/snippet}
+      </VirtualList>
     {/if}
 
     {#if visibleTaskCount === 0}
@@ -418,6 +445,17 @@
     opacity: 0.5;
   }
 
+  :global(.task-list-viewport) {
+    max-height: calc(100vh - 17rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  :global(.task-list-content) {
+    display: grid;
+    gap: 0.75rem;
+  }
+
   @media (max-width: 520px) {
     .task-tabs {
       width: 100%;
@@ -426,6 +464,10 @@
 
     .task-tab {
       flex: 0 1 auto;
+    }
+
+    :global(.task-list-viewport) {
+      max-height: calc(100vh - 19rem);
     }
   }
 </style>
