@@ -74,6 +74,10 @@ pub async fn get_document(
     state: tauri::State<'_, AppHandleState>,
     document_id: String,
     filename: String,
+    batch_id: Option<String>,
+    batch_name: Option<String>,
+    batch_root_id: Option<String>,
+    batch_created_at: Option<i64>,
 ) -> Result<serde_json::Value, String> {
     let conn = {
         let c = state.inner.conn.read().await;
@@ -141,12 +145,13 @@ pub async fn get_document(
     let _ = std::fs::create_dir_all(&download_root);
 
     let file_path = download_root.join(&filename);
+    let display_filename = download_display_filename(&filename);
     let now = unix_now();
 
     let task = DownloadTaskDto {
         task_id: task_id.clone(),
         file_id: document_id.clone(),
-        filename: filename.clone(),
+        filename: display_filename.clone(),
         file_path: file_path.to_string_lossy().into_owned(),
         status: DownloadTaskStatus::Pending,
         progress: 0.0,
@@ -165,6 +170,10 @@ pub async fn get_document(
         bandwidth_limit: None,
         pause_position: None,
         supports_resume: false,
+        batch_id: non_empty_optional(batch_id),
+        batch_name: non_empty_optional(batch_name),
+        batch_root_id: non_empty_optional(batch_root_id),
+        batch_created_at,
     };
 
     // Persist the download task so the download queue service picks it up.
@@ -172,13 +181,29 @@ pub async fn get_document(
         .tasks
         .insert(&task)
         .map_err(|e| format!("Failed to add download: {e}"))?;
+    let _ = state
+        .inner
+        .event_tx
+        .send(ServiceEvent::DownloadTaskUpdated { task: task.clone() });
+    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+        count: state.tasks.active_count(),
+    });
 
     Ok(serde_json::json!({
         "task_id": task_id,
         "file_id": document_id,
-        "filename": filename,
+        "filename": display_filename,
         "file_path": task.file_path,
     }))
+}
+
+fn download_display_filename(path_or_name: &str) -> String {
+    path_or_name
+        .split(['/', '\\'])
+        .filter(|part| !part.is_empty())
+        .next_back()
+        .unwrap_or(path_or_name)
+        .to_string()
 }
 
 /// Create a subdirectory under the local download root.

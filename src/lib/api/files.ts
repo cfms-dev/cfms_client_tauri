@@ -2,6 +2,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AccessEntry, AccessEntityType, AccessType, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
 
+export interface DownloadBatchMetadata {
+  batchId: string;
+  batchName: string;
+  batchRootId?: string | null;
+  batchCreatedAt: number;
+}
+
 /** List a directory on the CFMS server via the active WSS connection.
  *
  * Pass `folderId = null` to list the root directory.
@@ -21,13 +28,21 @@ export async function listDirectory(
 export async function getDocument(
   documentId: string,
   filename: string,
+  batch?: DownloadBatchMetadata,
 ): Promise<{
   task_id: string;
   file_id: string;
   filename: string;
   file_path: string;
 }> {
-  return invoke("get_document", { documentId, filename });
+  return invoke("get_document", {
+    documentId,
+    filename,
+    batchId: batch?.batchId ?? null,
+    batchName: batch?.batchName ?? null,
+    batchRootId: batch?.batchRootId ?? null,
+    batchCreatedAt: batch?.batchCreatedAt ?? null,
+  });
 }
 
 /** Ensure a relative subdirectory exists under the local download root. */

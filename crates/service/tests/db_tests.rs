@@ -51,6 +51,10 @@ fn make_task(id: &str, status: DownloadTaskStatus) -> DownloadTaskDto {
         bandwidth_limit: None,
         pause_position: None,
         supports_resume: false,
+        batch_id: None,
+        batch_name: None,
+        batch_root_id: None,
+        batch_created_at: None,
     }
 }
 
@@ -321,6 +325,10 @@ fn all_task_fields_roundtrip() {
         bandwidth_limit: Some(1_000_000),
         pause_position: Some(512),
         supports_resume: true,
+        batch_id: Some("batch-001".into()),
+        batch_name: Some("Folder".into()),
+        batch_root_id: Some("folder-001".into()),
+        batch_created_at: Some(now - 3700),
     };
 
     task_persistence::save(
@@ -357,4 +365,8 @@ fn all_task_fields_roundtrip() {
     assert_eq!(t.bandwidth_limit, Some(1_000_000));
     assert_eq!(t.pause_position, Some(512));
     assert!(t.supports_resume);
+    assert_eq!(t.batch_id.as_deref(), Some("batch-001"));
+    assert_eq!(t.batch_name.as_deref(), Some("Folder"));
+    assert_eq!(t.batch_root_id.as_deref(), Some("folder-001"));
+    assert_eq!(t.batch_created_at, Some(now - 3700));
 }

@@ -51,6 +51,14 @@ struct TaskJson {
     bandwidth_limit: Option<i64>,
     pause_position: Option<u64>,
     supports_resume: bool,
+    #[serde(default)]
+    batch_id: Option<String>,
+    #[serde(default)]
+    batch_name: Option<String>,
+    #[serde(default)]
+    batch_root_id: Option<String>,
+    #[serde(default)]
+    batch_created_at: Option<i64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +191,10 @@ pub fn load(
                 bandwidth_limit: tj.bandwidth_limit,
                 pause_position: tj.pause_position,
                 supports_resume: tj.supports_resume,
+                batch_id: tj.batch_id,
+                batch_name: tj.batch_name,
+                batch_root_id: tj.batch_root_id,
+                batch_created_at: tj.batch_created_at,
             }
         })
         .collect();
@@ -241,6 +253,10 @@ pub fn save(
                     bandwidth_limit: t.bandwidth_limit,
                     pause_position: t.pause_position,
                     supports_resume: t.supports_resume,
+                    batch_id: t.batch_id.clone(),
+                    batch_name: t.batch_name.clone(),
+                    batch_root_id: t.batch_root_id.clone(),
+                    batch_created_at: t.batch_created_at,
                 },
             )
         })

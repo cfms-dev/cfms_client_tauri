@@ -213,7 +213,7 @@ class DownloadStoreImpl {
 
       if (phase === "downloading") newTask.status = "downloading";
       else if (phase === "decrypting") newTask.status = "decrypting";
-      else if (phase === "verifying") newTask.status = "verifying";
+      else if (phase === "cleaning" || phase === "verifying") newTask.status = "verifying";
 
       this.tasks.set(taskId, newTask);
 
@@ -245,6 +245,15 @@ class DownloadStoreImpl {
     }
   }
 
+  /** Mark a task as paused. */
+  markPaused(taskId: string) {
+    const task = this.tasks.get(taskId);
+    if (task) {
+      task.status = "paused";
+      this.tasks = new Map(this.tasks);
+    }
+  }
+
   /** Mark a task as cancelled. */
   markCancelled(taskId: string) {
     const task = this.tasks.get(taskId);
@@ -257,7 +266,7 @@ class DownloadStoreImpl {
   // Derived views
   get activeTasks(): DownloadTaskDto[] {
     return [...this.tasks.values()].filter((t) =>
-      ["pending", "downloading", "decrypting", "verifying"].includes(
+      ["pending", "scheduled", "downloading", "decrypting", "verifying"].includes(
         t.status,
       ),
     );

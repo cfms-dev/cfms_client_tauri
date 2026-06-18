@@ -10,7 +10,15 @@ pub async fn add_download(
     state
         .tasks
         .insert(&task)
-        .map_err(|e| format!("Failed to add download: {e}"))
+        .map_err(|e| format!("Failed to add download: {e}"))?;
+    let _ = state
+        .inner
+        .event_tx
+        .send(ServiceEvent::DownloadTaskUpdated { task });
+    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+        count: state.tasks.active_count(),
+    });
+    Ok(())
 }
 
 /// Get all download tasks, optionally filtered by status.
@@ -28,8 +36,23 @@ pub async fn pause_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::pause_task(&state.tasks, &task_id)
-        .map_err(|e| format!("Failed to pause download: {e}"))
+    let paused = download_queue::pause_task(&state.tasks, &state.active_downloads, &task_id)
+        .map_err(|e| format!("Failed to pause download: {e}"))?;
+    if paused {
+        if let Some(task) = state.tasks.get(&task_id) {
+            let _ = state
+                .inner
+                .event_tx
+                .send(ServiceEvent::DownloadTaskUpdated { task });
+        }
+        let _ = state.inner.event_tx.send(ServiceEvent::DownloadPaused {
+            task_id: task_id.clone(),
+        });
+        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+            count: state.tasks.active_count(),
+        });
+    }
+    Ok(paused)
 }
 
 /// Resume a paused download.
@@ -38,8 +61,20 @@ pub async fn resume_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::resume_task(&state.tasks, &task_id)
-        .map_err(|e| format!("Failed to resume download: {e}"))
+    let resumed = download_queue::resume_task(&state.tasks, &task_id)
+        .map_err(|e| format!("Failed to resume download: {e}"))?;
+    if resumed {
+        if let Some(task) = state.tasks.get(&task_id) {
+            let _ = state
+                .inner
+                .event_tx
+                .send(ServiceEvent::DownloadTaskUpdated { task });
+        }
+        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+            count: state.tasks.active_count(),
+        });
+    }
+    Ok(resumed)
 }
 
 /// Cancel a download task.
@@ -48,8 +83,20 @@ pub async fn cancel_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
-    download_queue::cancel_task(&state.tasks, &state.active_downloads, &task_id)
-        .map_err(|e| format!("Failed to cancel download: {e}"))
+    let cancelled = download_queue::cancel_task(&state.tasks, &state.active_downloads, &task_id)
+        .map_err(|e| format!("Failed to cancel download: {e}"))?;
+    if cancelled {
+        if let Some(task) = state.tasks.get(&task_id) {
+            let _ = state
+                .inner
+                .event_tx
+                .send(ServiceEvent::DownloadTaskUpdated { task });
+        }
+        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+            count: state.tasks.active_count(),
+        });
+    }
+    Ok(cancelled)
 }
 
 /// Clear completed and cancelled tasks.

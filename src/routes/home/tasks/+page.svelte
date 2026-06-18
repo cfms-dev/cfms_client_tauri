@@ -6,10 +6,13 @@
   import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, cancelDownload } from '$lib/api';
+  import { pauseActiveDownloadBatches, resumeActiveDownloadBatches } from '$lib/download-batch-control';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
+  import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
+  import { buildDownloadTaskRows, isRunningDownloadTask, type DownloadTaskRow } from '$lib/download-task-groups';
 
   type TaskTab = 'downloads' | 'uploads';
   type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
@@ -18,6 +21,7 @@
   let filter = $state<TaskFilter>('all');
   let busy = $state(false);
   let menuOpen = $state(false);
+  let expandedDownloadGroups = $state<Set<string>>(new Set());
 
   const tabs = $derived([
     {
@@ -43,6 +47,7 @@
   ]);
 
   const filteredDownloads = $derived(sortTasksForDisplay(filterDownloadTasks([...downloadStore.tasks.values()], filter), isRunningDownload));
+  const downloadRows = $derived(buildDownloadTaskRows(filteredDownloads, expandedDownloadGroups));
   const filteredUploads = $derived(sortTasksForDisplay(filterUploadTasks(uploadStore.allTasks, filter), isRunningUpload));
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
   const visibleTaskCount = $derived(activeTab === 'downloads' ? filteredDownloads.length : filteredUploads.length);
@@ -122,7 +127,7 @@
   }
 
   function isRunningDownload(task: DownloadTaskDto) {
-    return ['downloading', 'decrypting', 'verifying'].includes(task.status);
+    return isRunningDownloadTask(task);
   }
 
   function isRunningUpload(task: UploadTaskDto) {
@@ -156,9 +161,12 @@
   async function handlePauseAll() {
     busy = true;
     try {
+      pauseActiveDownloadBatches();
       for (const task of downloadStore.activeTasks) {
-        if (['downloading', 'decrypting', 'verifying'].includes(task.status)) {
-          await pauseDownload(task.task_id);
+        const isPending = task.status === 'pending' || task.status === 'scheduled';
+        const isRunning = ['downloading', 'decrypting', 'verifying'].includes(task.status);
+        if (isPending || (isRunning && task.supports_resume)) {
+          await pauseDownload(task.task_id, { stopActiveBatch: false });
         }
       }
       for (const task of uploadStore.activeTasks) {
@@ -174,6 +182,7 @@
   async function handleResumeAll() {
     busy = true;
     try {
+      resumeActiveDownloadBatches();
       for (const task of [...downloadStore.tasks.values()]) {
         if (task.status === 'paused') {
           await resumeDownload(task.task_id);
@@ -210,6 +219,53 @@
   function handleRemove(taskId: string) {
     downloadStore.remove(taskId);
     refresh();
+  }
+
+  function toggleDownloadGroup(groupId: string) {
+    const next = new Set(expandedDownloadGroups);
+    if (next.has(groupId)) {
+      next.delete(groupId);
+    } else {
+      next.add(groupId);
+    }
+    expandedDownloadGroups = next;
+  }
+
+  function getDownloadGroupTasks(groupId: string) {
+    return [...downloadStore.tasks.values()].filter((task) => task.batch_id === groupId);
+  }
+
+  async function handlePauseDownloadGroup(groupId: string) {
+    pauseActiveDownloadBatches();
+    for (const task of getDownloadGroupTasks(groupId)) {
+      if (task.status === 'pending' || task.status === 'scheduled' || isRunningDownload(task)) {
+        await pauseDownload(task.task_id, { stopActiveBatch: false });
+      }
+    }
+    await refresh();
+  }
+
+  async function handleResumeDownloadGroup(groupId: string) {
+    resumeActiveDownloadBatches();
+    for (const task of getDownloadGroupTasks(groupId)) {
+      if (task.status === 'paused') {
+        await resumeDownload(task.task_id);
+      }
+    }
+    await refresh();
+  }
+
+  function downloadRowKey(row: DownloadTaskRow) {
+    if (row.kind === 'task') return `task:${row.task.task_id}`;
+    if (row.kind === 'group-task') return `group-task:${row.group.id}:${row.task.task_id}`;
+    return `group:${row.group.id}`;
+  }
+
+  function estimateDownloadRowSize(index: number) {
+    const row = downloadRows[index];
+    if (!row) return 190;
+    if (row.kind === 'group') return 150;
+    return 190;
   }
 
   async function handlePauseUpload(uploadId: string) {
@@ -317,9 +373,9 @@
     {#if activeTab === 'downloads'}
       {#if filteredDownloads.length > 0}
         <VirtualList
-          items={filteredDownloads}
-          keyOf={(task) => task.task_id}
-          estimateSize={190}
+          items={downloadRows}
+          keyOf={(row) => downloadRowKey(row)}
+          estimateSize={estimateDownloadRowSize}
           gap={12}
           overscan={5}
           threshold={24}
@@ -328,8 +384,22 @@
           contentClass="task-list-content"
           itemClass="task-list-item"
         >
-          {#snippet children(task)}
-            <DownloadTaskCard task={task} onRemove={handleRemove} />
+          {#snippet children(row)}
+            {#if row.kind === 'group'}
+              <DownloadTaskGroupHeader
+                group={row.group}
+                expanded={expandedDownloadGroups.has(row.group.id)}
+                onToggle={toggleDownloadGroup}
+                onPause={handlePauseDownloadGroup}
+                onResume={handleResumeDownloadGroup}
+              />
+            {:else if row.kind === 'group-task'}
+              <div class="task-group-child">
+                <DownloadTaskCard task={row.task} onRemove={handleRemove} />
+              </div>
+            {:else}
+              <DownloadTaskCard task={row.task} onRemove={handleRemove} />
+            {/if}
           {/snippet}
         </VirtualList>
       {/if}
@@ -456,6 +526,24 @@
     gap: 0.75rem;
   }
 
+  .task-group-child {
+    min-width: 0;
+    border-left: 2px solid color-mix(in srgb, var(--color-md3-primary) 35%, transparent);
+    padding-left: 1rem;
+    animation: task-group-child-in 180ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  @keyframes task-group-child-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   @media (max-width: 520px) {
     .task-tabs {
       width: 100%;
@@ -468,6 +556,16 @@
 
     :global(.task-list-viewport) {
       max-height: calc(100vh - 19rem);
+    }
+
+    .task-group-child {
+      padding-left: 0.65rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .task-group-child {
+      animation: none;
     }
   }
 </style>

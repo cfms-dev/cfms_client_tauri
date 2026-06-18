@@ -7,6 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { _ as t } from "svelte-i18n";
 import type { ServiceEvent, UploadProgressEvent } from "./api";
+import { formatPathFilename } from "$lib/path-format";
 import {
   authStore,
   downloadStore,
@@ -29,13 +30,15 @@ export async function initEventListeners(): Promise<void> {
 
     switch (event.event) {
       case "DownloadProgress": {
-        console.log("Received DownloadProgress event: {:?}", event.data);
         const { task_id, phase, progress, message, current_bytes, total_bytes } = event.data;
         downloadStore.updateProgress(task_id, phase, progress, message, current_bytes, total_bytes);
-        eventLog.push(
-          "info",
-          `Download ${task_id.slice(0, 8)}…: ${message || phase} (${Math.round(progress * 100)}%)`,
-        );
+        updateDownloadBadgeFromStore();
+        break;
+      }
+
+      case "DownloadTaskUpdated": {
+        downloadStore.upsert(event.data.task);
+        updateDownloadBadgeFromStore();
         break;
       }
 
@@ -63,6 +66,13 @@ export async function initEventListeners(): Promise<void> {
           itemText: error,
           summaryText: (count) => translate("downloads.failedSummary", { count }),
         });
+        break;
+      }
+
+      case "DownloadPaused": {
+        const { task_id } = event.data;
+        downloadStore.markPaused(task_id);
+        eventLog.push("info", `Download paused: ${task_id.slice(0, 8)}…`);
         break;
       }
 
@@ -149,9 +159,10 @@ function translate(key: string, values: Record<string, string | number> = {}) {
   return get(t)(key, { values });
 }
 
-function formatPathFilename(path: string) {
-  const normalized = path.replace(/\\/g, "/");
-  return normalized.split("/").filter(Boolean).at(-1) ?? path;
+function updateDownloadBadgeFromStore() {
+  downloadStore.activeBadgeCount = [...downloadStore.tasks.values()].filter((task) =>
+    ["pending", "downloading", "decrypting", "verifying", "scheduled"].includes(task.status),
+  ).length;
 }
 
 /** Stop listening for backend events. */

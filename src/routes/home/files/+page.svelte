@@ -43,6 +43,7 @@
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
+    type DownloadBatchMetadata,
     type RevisionEntry,
     type SearchDirectoryEntry,
     type SearchDocumentEntry,
@@ -59,6 +60,13 @@
   import AuthorizeAccessDialog from '$lib/components/AuthorizeAccessDialog.svelte';
   import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import {
+    beginDownloadBatch,
+    finishDownloadBatch,
+    isDownloadBatchStop,
+    stopActiveDownloadBatch,
+    waitForDownloadBatchResume,
+  } from '$lib/download-batch-control';
   import FileTable from '$lib/components/files/FileTable.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
@@ -95,6 +103,11 @@
   type SearchResultRow =
     | { kind: 'directory'; directory: SearchDirectoryEntry }
     | { kind: 'document'; document: SearchDocumentEntry };
+
+  type DownloadQueueItem = {
+    document: Pick<ServerDocumentEntry, 'id' | 'title'>;
+    pathParts: string[];
+  };
 
   // --- Navigation state ---
   let currentFolderId = $state<string | null>(null);
@@ -1185,31 +1198,40 @@
     if (totalSelected === 0 || batchBusy) return;
     batchBusy = true;
     error = null;
+    const controller = beginDownloadBatch();
 
     const selectedDocuments = documents.filter((doc) => selectedDocumentIds.has(doc.id));
     const selectedFolders = folders.filter((folder) => selectedFolderIds.has(folder.id));
+    const batch = createDownloadBatchMetadata(
+      selectedFolders.length === 1 && selectedDocuments.length === 0
+        ? selectedFolders[0].name
+        : selectedItemsLabel,
+      currentFolderId,
+    );
     let queued = 0;
     let failed = 0;
 
     try {
-      for (const doc of selectedDocuments) {
+      const items: DownloadQueueItem[] = selectedDocuments.map((document) => ({
+        document,
+        pathParts: [],
+      }));
+
+      for (const folder of selectedFolders) {
+        await waitForDownloadBatchResume(controller.signal);
         try {
-          await queueDocumentDownload(doc, []);
-          queued += 1;
-        } catch {
+          const result = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal);
+          items.push(...result.items);
+          failed += result.failed;
+        } catch (e) {
+          if (isDownloadBatchStop(e)) throw e;
           failed += 1;
         }
       }
 
-      for (const folder of selectedFolders) {
-        try {
-          const result = await queueDirectoryDownloads(folder, [folder.name]);
-          queued += result.queued;
-          failed += result.failed;
-        } catch {
-          failed += 1;
-        }
-      }
+      const result = await queueCollectedDownloads(items, controller.signal, batch);
+      queued += result.queued;
+      failed += result.failed;
 
       if (queued > 0) {
         status = $t('files.batchDownloadQueued', { values: { count: queued } });
@@ -1218,7 +1240,14 @@
         error = $t('files.batchDownloadPartialFailed', { values: { count: failed } });
       }
       if (queued > 0 && failed === 0) clearSelection();
+    } catch (e) {
+      if (isDownloadBatchStop(e)) {
+        status = $t('files.batchDownloadStopped');
+      } else {
+        error = String(e);
+      }
     } finally {
+      finishDownloadBatch(controller);
       batchBusy = false;
     }
   }
@@ -1227,18 +1256,28 @@
     if (batchBusy) return;
     batchBusy = true;
     error = null;
+    const controller = beginDownloadBatch();
+    const batch = createDownloadBatchMetadata(folder.name, folder.id);
 
     try {
-      const result = await queueDirectoryDownloads(folder, [folder.name]);
-      if (result.queued > 0) {
-        status = $t('files.batchDownloadQueued', { values: { count: result.queued } });
+      const collected = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal);
+      const queuedResult = await queueCollectedDownloads(collected.items, controller.signal, batch);
+      const queued = queuedResult.queued;
+      const failed = collected.failed + queuedResult.failed;
+      if (queued > 0) {
+        status = $t('files.batchDownloadQueued', { values: { count: queued } });
       }
-      if (result.failed > 0) {
-        error = $t('files.batchDownloadPartialFailed', { values: { count: result.failed } });
+      if (failed > 0) {
+        error = $t('files.batchDownloadPartialFailed', { values: { count: failed } });
       }
     } catch (e) {
-      error = String(e);
+      if (isDownloadBatchStop(e)) {
+        status = $t('files.batchDownloadStopped');
+      } else {
+        error = String(e);
+      }
     } finally {
+      finishDownloadBatch(controller);
       batchBusy = false;
     }
   }
@@ -1246,16 +1285,23 @@
   async function queueDocumentDownload(
     doc: Pick<ServerDocumentEntry, 'id' | 'title'>,
     pathParts: string[],
+    signal: AbortSignal,
+    batch?: DownloadBatchMetadata,
   ) {
-    await getDocument(doc.id, makeDownloadPath([...pathParts, doc.title]));
+    await waitForDownloadBatchResume(signal);
+    await getDocument(doc.id, makeDownloadPath([...pathParts, doc.title]), batch);
+    await waitForDownloadBatchResume(signal);
   }
 
-  async function queueDirectoryDownloads(
+  async function collectDirectoryDownloadItems(
     folder: Pick<ServerDirectoryEntry, 'id' | 'name'>,
     pathParts: string[],
-  ): Promise<{ queued: number; failed: number }> {
+    signal: AbortSignal,
+  ): Promise<{ items: DownloadQueueItem[]; failed: number }> {
+    await waitForDownloadBatchResume(signal);
     const response = await listDirectory(folder.id);
-    let queued = 0;
+    await waitForDownloadBatchResume(signal);
+    const items: DownloadQueueItem[] = [];
     let failed = 0;
     const downloadPath = makeDownloadPath(pathParts);
 
@@ -1266,25 +1312,62 @@
     }
 
     for (const doc of response.documents) {
+      await waitForDownloadBatchResume(signal);
+      items.push({ document: doc, pathParts });
+    }
+
+    for (const child of response.folders) {
+      await waitForDownloadBatchResume(signal);
       try {
-        await queueDocumentDownload(doc, pathParts);
-        queued += 1;
-      } catch {
+        const result = await collectDirectoryDownloadItems(child, [...pathParts, child.name], signal);
+        items.push(...result.items);
+        failed += result.failed;
+      } catch (e) {
+        if (isDownloadBatchStop(e)) throw e;
         failed += 1;
       }
     }
 
-    for (const child of response.folders) {
+    return { items, failed };
+  }
+
+  async function queueCollectedDownloads(
+    items: DownloadQueueItem[],
+    signal: AbortSignal,
+    batch: DownloadBatchMetadata,
+  ): Promise<{ queued: number; failed: number }> {
+    let queued = 0;
+    let failed = 0;
+
+    for (const item of items) {
+      await waitForDownloadBatchResume(signal);
       try {
-        const result = await queueDirectoryDownloads(child, [...pathParts, child.name]);
-        queued += result.queued;
-        failed += result.failed;
-      } catch {
+        await queueDocumentDownload(item.document, item.pathParts, signal, batch);
+        queued += 1;
+      } catch (e) {
+        if (isDownloadBatchStop(e)) throw e;
         failed += 1;
       }
     }
 
     return { queued, failed };
+  }
+
+  function createDownloadBatchMetadata(name: string, rootId: string | null): DownloadBatchMetadata {
+    return {
+      batchId: `download-batch:${Date.now()}:${randomBatchSuffix()}`,
+      batchName: name || $t('tasks.folderBatch'),
+      batchRootId: rootId,
+      batchCreatedAt: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  function randomBatchSuffix() {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+
+    return Math.random().toString(36).slice(2);
   }
 
   function makeDownloadPath(parts: string[]) {
@@ -1657,6 +1740,7 @@
   onMount(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
+    window.addEventListener('cfms:download-paused', stopActiveDownloadBatch);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -1692,6 +1776,7 @@
     loadDirectory(initialFolder);
     reloadUserPreference();
     return () => {
+      window.removeEventListener('cfms:download-paused', stopActiveDownloadBatch);
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
     };

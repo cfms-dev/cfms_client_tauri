@@ -177,6 +177,18 @@ pub struct DownloadTaskDto {
     pub pause_position: Option<u64>,
     /// Whether the server supports pause/resume for this task.
     pub supports_resume: bool,
+    /// Optional client-side batch/group identifier for folder downloads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_id: Option<String>,
+    /// Human-readable batch/group name shown in the task manager.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_name: Option<String>,
+    /// Server-side root folder ID for the batch, when applicable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_root_id: Option<String>,
+    /// Unix timestamp (seconds) when the batch was created.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_created_at: Option<i64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -200,10 +212,14 @@ pub enum ServiceEvent {
         /// Total bytes expected for the current phase (0 when unknown).
         total_bytes: u64,
     },
+    /// A download task snapshot has changed.
+    DownloadTaskUpdated { task: DownloadTaskDto },
     /// A download has completed successfully.
     DownloadCompleted { task_id: String, file_path: String },
     /// A download has failed.
     DownloadFailed { task_id: String, error: String },
+    /// A download was paused by the user.
+    DownloadPaused { task_id: String },
     /// A download was cancelled.
     DownloadCancelled { task_id: String },
     /// Server lockdown status changed.

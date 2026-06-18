@@ -401,12 +401,23 @@ pub async fn get_revision(
         bandwidth_limit: None,
         pause_position: None,
         supports_resume,
+        batch_id: None,
+        batch_name: None,
+        batch_root_id: None,
+        batch_created_at: None,
     };
 
     state
         .tasks
         .insert(&task)
         .map_err(|e| format!("Failed to add download: {e}"))?;
+    let _ = state
+        .inner
+        .event_tx
+        .send(ServiceEvent::DownloadTaskUpdated { task: task.clone() });
+    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+        count: state.tasks.active_count(),
+    });
 
     Ok(serde_json::json!({
         "task_id": task_id,

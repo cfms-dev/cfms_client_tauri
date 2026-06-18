@@ -13,6 +13,7 @@
   import Icon from "./Icon.svelte";
   import type { IconName } from "$lib/icons";
   import { shortIdentifier } from "$lib/identifiers";
+  import { formatPathFilename } from "$lib/path-format";
 
   interface Props {
     task: DownloadTaskDto;
@@ -150,15 +151,16 @@
   const isTerminal = $derived(
     ["completed", "failed", "cancelled"].includes(task.status),
   );
-  /** Whether the pause button should be visible (matches reference TaskTile). */
+  /** Whether the pause button should be visible. */
   const canPause = $derived(
-    task.supports_resume &&
-    (task.status === "downloading" || task.status === "pending"),
+    ["pending", "scheduled", "downloading", "decrypting", "verifying"].includes(task.status),
   );
+  const canResume = $derived(task.status === "paused");
   /** Tasks that can be cancelled (matches reference — includes SCHEDULED). */
   const canCancel = $derived(
     !isTerminal && (isActive || isPending || isPaused || isScheduled),
   );
+  const displayFilename = $derived(formatPathFilename(task.filename));
 </script>
 
 <!-- MD3 card: rounded-xl (12px) surface container with outline border -->
@@ -178,10 +180,10 @@
       <div class="flex min-w-0 items-center gap-2">
         <p
           class="min-w-0 truncate font-medium text-md3-on-surface"
-          title={task.filename}
+          title={displayFilename}
           style="font-family: var(--font-md3-sans);"
         >
-          {task.filename}
+          {displayFilename}
         </p>
         <!-- Priority badge -->
         {#if task.priority > 0}
@@ -232,35 +234,20 @@
 
   <!-- Actions (mirrors reference TaskTile button visibility) -->
   <div class="mt-3 flex min-w-0 flex-wrap gap-2">
-    <!-- Pause/Resume: only when supports_resume is true and status is downloading/pending -->
+    <!-- Pause/Resume -->
     {#if canPause}
-      {#if task.status === "downloading"}
-        <button
-          class="text-xs px-3 py-1.5 rounded-full font-medium
-                 bg-md3-warning-container text-md3-on-warning-container
-                 hover:brightness-110
-                 disabled:opacity-50 transition-all flex items-center gap-1"
-          onclick={handlePause}
-          disabled={actionPending}
-        >
-          <Icon name="pause" size="14px" />
-          {$t('tasks.pause')}
-        </button>
-      {:else}
-        <button
-          class="text-xs px-3 py-1.5 rounded-full font-medium
-                 bg-md3-primary-container text-md3-on-primary-container
-                 hover:brightness-110
-                 disabled:opacity-50 transition-all flex items-center gap-1"
-          onclick={handleResume}
-          disabled={actionPending}
-        >
-          <Icon name="resume" size="14px" />
-          {$t('tasks.resume')}
-        </button>
-      {/if}
-    {:else if isPaused}
-      <!-- Paused without supports_resume: only show Resume (server can't pause/resume, but user paused via queue) -->
+      <button
+        class="text-xs px-3 py-1.5 rounded-full font-medium
+               bg-md3-warning-container text-md3-on-warning-container
+               hover:brightness-110
+               disabled:opacity-50 transition-all flex items-center gap-1"
+        onclick={handlePause}
+        disabled={actionPending}
+      >
+        <Icon name="pause" size="14px" />
+        {$t('tasks.pause')}
+      </button>
+    {:else if canResume}
       <button
         class="text-xs px-3 py-1.5 rounded-full font-medium
                bg-md3-primary-container text-md3-on-primary-container

@@ -54,6 +54,10 @@ export interface DownloadTaskDto {
   bandwidth_limit: number | null;
   pause_position: number | null;
   supports_resume: boolean;
+  batch_id?: string | null;
+  batch_name?: string | null;
+  batch_root_id?: string | null;
+  batch_created_at?: number | null;
 }
 
 export interface FileEntry {
@@ -293,8 +297,10 @@ export interface SelectedUploadDirectory {
 
 export type ServiceEvent =
   | { event: "DownloadProgress"; data: { task_id: string; phase: string; progress: number; message: string; current_bytes: number; total_bytes: number } }
+  | { event: "DownloadTaskUpdated"; data: { task: DownloadTaskDto } }
   | { event: "DownloadCompleted"; data: { task_id: string; file_path: string } }
   | { event: "DownloadFailed"; data: { task_id: string; error: string } }
+  | { event: "DownloadPaused"; data: { task_id: string } }
   | { event: "DownloadCancelled"; data: { task_id: string } }
   | { event: "ActiveCountChanged"; data: { count: number } }
   | { event: "Lockdown"; data: { status: boolean } }

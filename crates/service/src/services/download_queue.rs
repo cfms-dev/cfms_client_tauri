@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::watch;
 
@@ -243,7 +243,10 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
-                if t.status == DownloadTaskStatus::Cancelled {
+                if matches!(
+                    t.status,
+                    DownloadTaskStatus::Cancelled | DownloadTaskStatus::Paused
+                ) {
                     return Ok(());
                 }
                 t.started_at = Some(now);
@@ -259,7 +262,10 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
-                if t.status == DownloadTaskStatus::Cancelled {
+                if matches!(
+                    t.status,
+                    DownloadTaskStatus::Cancelled | DownloadTaskStatus::Paused
+                ) {
                     return Ok(());
                 }
                 t.status = DownloadTaskStatus::Completed;
@@ -279,7 +285,10 @@ impl QueueState {
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
-                if t.status == DownloadTaskStatus::Cancelled {
+                if matches!(
+                    t.status,
+                    DownloadTaskStatus::Cancelled | DownloadTaskStatus::Paused
+                ) {
                     return Ok(());
                 }
                 t.status = DownloadTaskStatus::Failed;
@@ -299,6 +308,9 @@ impl QueueState {
             };
             if t.status == DownloadTaskStatus::Cancelled {
                 return Ok(DownloadTaskStatus::Cancelled);
+            }
+            if t.status == DownloadTaskStatus::Paused {
+                return Ok(DownloadTaskStatus::Paused);
             }
             t.retry_count += 1;
             if t.retry_count > t.max_retries {
@@ -400,6 +412,42 @@ pub struct UpdateProgressParams {
     pub current_bytes: Option<u64>,
     pub total_bytes: Option<u64>,
     pub stage: Option<i32>,
+}
+
+struct ProgressEventThrottle {
+    phase: Option<DownloadPhase>,
+    progress: f64,
+    last_emit: Option<Instant>,
+}
+
+impl ProgressEventThrottle {
+    fn new() -> Self {
+        Self {
+            phase: None,
+            progress: -1.0,
+            last_emit: None,
+        }
+    }
+
+    fn should_emit(&mut self, phase: DownloadPhase, progress: f64) -> bool {
+        let now = Instant::now();
+        let phase_changed = self.phase != Some(phase);
+        let progress_delta = (progress - self.progress).abs();
+        let elapsed = match self.last_emit {
+            Some(last_emit) => now.duration_since(last_emit) >= Duration::from_millis(250),
+            None => true,
+        };
+        let terminal = progress >= 1.0;
+
+        if phase_changed || terminal || progress_delta >= 0.01 || elapsed {
+            self.phase = Some(phase);
+            self.progress = progress;
+            self.last_emit = Some(now);
+            return true;
+        }
+
+        false
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +588,14 @@ async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry
             active.unregister(&task.task_id);
             continue;
         }
+        emit_task_update(queue, state, &task.task_id);
+        if queue
+            .get(&task.task_id)
+            .is_some_and(|task| task.status != DownloadTaskStatus::Downloading)
+        {
+            active.unregister(&task.task_id);
+            continue;
+        }
 
         let state = Arc::clone(state);
         let queue = queue.clone();
@@ -583,6 +639,7 @@ async fn execute_download(
         Err(e) => {
             tracing::error!("Download {task_id}: failed to create transfer connection: {e}");
             let _ = queue.mark_failed(&task_id, &e);
+            emit_task_update(&queue, &state, &task_id);
             let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
                 task_id: task_id.clone(),
                 error: e,
@@ -611,6 +668,7 @@ async fn execute_download(
     let state_for_progress = state.clone();
     let cancel_for_progress = cancel_rx.clone();
     let tid = task_id.clone();
+    let progress_throttle = Arc::new(Mutex::new(ProgressEventThrottle::new()));
 
     let on_progress = move |phase: DownloadPhase,
                             progress: f64,
@@ -644,16 +702,22 @@ async fn execute_download(
                 stage: Some(phase as i32),
             },
         );
-        let _ = state_for_progress
-            .event_tx
-            .send(ServiceEvent::DownloadProgress {
-                task_id: tid.clone(),
-                phase: phase_to_str(phase).to_string(),
-                progress,
-                message: message.to_string(),
-                current_bytes,
-                total_bytes,
-            });
+        if progress_throttle
+            .lock()
+            .unwrap()
+            .should_emit(phase, progress)
+        {
+            let _ = state_for_progress
+                .event_tx
+                .send(ServiceEvent::DownloadProgress {
+                    task_id: tid.clone(),
+                    phase: phase_to_str(phase).to_string(),
+                    progress,
+                    message: message.to_string(),
+                    current_bytes,
+                    total_bytes,
+                });
+        }
     };
 
     let dest = std::path::Path::new(&file_path);
@@ -675,6 +739,16 @@ async fn execute_download(
         {
             tracing::warn!("Failed to clean up partial file {file_path}: {e}");
         }
+
+        if queue
+            .get(&task_id)
+            .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+        {
+            emit_active_count(&queue, &state);
+            tracing::info!("Download paused: {task_id}");
+            return;
+        }
+
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
         emit_active_count(&queue, &state);
         let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
@@ -684,11 +758,21 @@ async fn execute_download(
         return;
     }
 
+    if queue
+        .get(&task_id)
+        .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+    {
+        emit_active_count(&queue, &state);
+        tracing::info!("Download paused after transfer returned: {task_id}");
+        return;
+    }
+
     match result {
         Some(Ok(file_size)) => {
             if let Err(e) = queue.mark_completed(&task_id, file_size) {
                 tracing::error!("Failed to mark task {task_id} as completed: {e}");
             }
+            emit_task_update(&queue, &state, &task_id);
             emit_active_count(&queue, &state);
 
             let _ = state.event_tx.send(ServiceEvent::DownloadCompleted {
@@ -720,6 +804,7 @@ async fn execute_download(
 
             match queue.retry_or_fail(&task_id, &error_msg) {
                 Ok(DownloadTaskStatus::Failed) => {
+                    emit_task_update(&queue, &state, &task_id);
                     emit_active_count(&queue, &state);
                     let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
                         task_id: task_id.clone(),
@@ -727,6 +812,7 @@ async fn execute_download(
                     });
                 }
                 Ok(_) => {
+                    emit_task_update(&queue, &state, &task_id);
                     emit_active_count(&queue, &state);
                     tracing::info!("Download {task_id} will be retried: {error_msg}");
                 }
@@ -782,6 +868,14 @@ fn emit_active_count(queue: &QueueState, state: &AppState) {
         .send(ServiceEvent::ActiveCountChanged { count });
 }
 
+fn emit_task_update(queue: &QueueState, state: &AppState, task_id: &str) {
+    if let Some(task) = queue.get(task_id) {
+        let _ = state
+            .event_tx
+            .send(ServiceEvent::DownloadTaskUpdated { task });
+    }
+}
+
 async fn create_transfer_connection(
     state: &AppState,
 ) -> std::result::Result<cfms_transport::Connection, String> {
@@ -828,21 +922,25 @@ pub fn add_task(queue: &QueueState, task: DownloadTaskDto) -> Result<()> {
     queue.insert(&task)
 }
 
-pub fn pause_task(queue: &QueueState, task_id: &str) -> Result<bool> {
+pub fn pause_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -> Result<bool> {
     let task = match queue.get(task_id) {
         Some(t) => t,
         None => return Ok(false),
     };
-    if !task.supports_resume {
-        return Ok(false);
-    }
-    if task.status != DownloadTaskStatus::Downloading && task.status != DownloadTaskStatus::Pending
-    {
+    if !matches!(
+        task.status,
+        DownloadTaskStatus::Pending
+            | DownloadTaskStatus::Scheduled
+            | DownloadTaskStatus::Downloading
+            | DownloadTaskStatus::Decrypting
+            | DownloadTaskStatus::Verifying
+    ) {
         return Ok(false);
     }
     let pause_pos = task.current_bytes;
     queue.update_status(task_id, DownloadTaskStatus::Paused)?;
     queue.set_pause_position(task_id, pause_pos)?;
+    active.cancel(task_id);
     Ok(true)
 }
 
@@ -866,8 +964,8 @@ pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -
     if task.status.is_terminal() {
         return Ok(false);
     }
-    active.cancel(task_id);
     queue.update_status(task_id, DownloadTaskStatus::Cancelled)?;
+    active.cancel(task_id);
     Ok(true)
 }
 
