@@ -11,9 +11,21 @@
     onResume: (groupId: string) => Promise<void>;
     onRetry: (groupId: string) => Promise<void>;
     onCancel: (groupId: string) => Promise<void>;
+    onDeleteFiles: (groupId: string) => Promise<void>;
+    onContextMenu?: (event: MouseEvent, group: DownloadTaskGroup) => void;
   }
 
-  let { group, expanded, onToggle, onPause, onResume, onRetry, onCancel }: Props = $props();
+  let {
+    group,
+    expanded,
+    onToggle,
+    onPause,
+    onResume,
+    onRetry,
+    onCancel,
+    onDeleteFiles,
+    onContextMenu,
+  }: Props = $props();
   let actionPending = $state(false);
 
   const percent = $derived(group.progressKnown ? Math.round(group.progress * 100) : null);
@@ -29,6 +41,14 @@
     group.preparing || group.tasks.some((task) =>
       ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status),
     ),
+  );
+  const canDeleteFiles = $derived(group.tasks.length > 0);
+  const isCancelled = $derived(
+    !group.preparing
+    && group.cancelled > 0
+    && group.pending === 0
+    && group.running === 0
+    && group.paused === 0,
   );
   const statusText = $derived(
     group.preparing
@@ -56,7 +76,12 @@
   }
 </script>
 
-<div class="batch-card">
+<div
+  class="batch-card"
+  role="group"
+  aria-label={group.name}
+  oncontextmenu={(event) => onContextMenu?.(event, group)}
+>
   <button
     type="button"
     class="batch-main"
@@ -67,7 +92,7 @@
     <span class="batch-icon">
       <Icon name={expanded ? 'expandLess' : 'expandMore'} size="22px" />
     </span>
-    <span class="batch-folder">
+    <span class="batch-folder" class:batch-folder-cancelled={isCancelled}>
       <Icon name="folder" size="24px" />
     </span>
     <span class="batch-copy">
@@ -135,6 +160,17 @@
         {$t('tasks.cancel')}
       </button>
     {/if}
+    {#if canDeleteFiles}
+      <button
+        type="button"
+        class="batch-action batch-action-danger"
+        disabled={actionPending}
+        onclick={() => runAction(onDeleteFiles)}
+      >
+        <Icon name="delete" size="14px" />
+        {$t('tasks.deleteBatchFiles')}
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -184,6 +220,14 @@
     border-radius: 9999px;
     background: var(--color-md3-primary-container);
     color: var(--color-md3-on-primary-container);
+    transition:
+      background-color 180ms var(--motion-easing-standard),
+      color 180ms var(--motion-easing-standard);
+  }
+
+  .batch-folder-cancelled {
+    background: var(--color-md3-surface-container-highest);
+    color: var(--color-md3-on-surface-variant);
   }
 
   .batch-copy {

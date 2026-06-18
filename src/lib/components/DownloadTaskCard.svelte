@@ -18,9 +18,10 @@
   interface Props {
     task: DownloadTaskDto;
     onRemove: (taskId: string) => void;
+    onContextMenu?: (event: MouseEvent, task: DownloadTaskDto) => void;
   }
 
-  let { task, onRemove }: Props = $props();
+  let { task, onRemove, onContextMenu }: Props = $props();
 
   let actionPending = $state(false);
 
@@ -178,6 +179,9 @@
   class="w-full min-w-0 bg-md3-surface-container/70 backdrop-blur-sm
          rounded-xl border border-md3-outline
          p-4 transition-shadow hover:shadow-lg hover:shadow-md3-primary/5"
+  role="group"
+  aria-label={displayFilename}
+  oncontextmenu={(event) => onContextMenu?.(event, task)}
 >
   <!-- Top row: status icon + filename + priority badge -->
   <div class="mb-2 flex min-w-0 flex-wrap items-start gap-3 sm:flex-nowrap">

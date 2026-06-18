@@ -489,6 +489,7 @@ export const en = {
     batchPausedCount: '{count} paused',
     batchFailedCount: '{count} failed',
     batchCancelledCount: '{count} cancelled',
+    deleteBatchFiles: 'Delete files',
   },
   downloads: {
     completedTitle: 'Downloads completed',

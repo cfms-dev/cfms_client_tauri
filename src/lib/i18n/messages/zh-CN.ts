@@ -484,6 +484,7 @@ export const zh_CN = {
     batchPausedCount: '{count} 个已暂停',
     batchFailedCount: '{count} 个失败',
     batchCancelledCount: '{count} 个已取消',
+    deleteBatchFiles: '删除文件',
   },
   downloads: {
     completedTitle: '下载已完成',

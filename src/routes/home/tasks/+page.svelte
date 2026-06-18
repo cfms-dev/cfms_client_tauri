@@ -5,7 +5,7 @@
   import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
-  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, retryDownload, cancelDownload } from '$lib/api';
+  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, retryDownload, cancelDownload, deleteDownload } from '$lib/api';
   import {
     downloadBatchSnapshots,
     pauseActiveDownloadBatches,
@@ -14,10 +14,12 @@
   } from '$lib/download-batch-control';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
-  import { buildDownloadTaskRows, isRunningDownloadTask, type DownloadTaskRow } from '$lib/download-task-groups';
+  import { buildDownloadTaskRows, isRunningDownloadTask, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
+  import type { ContextMenuItem } from '$lib/components/context-menu';
 
   type TaskTab = 'downloads' | 'uploads';
   type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
@@ -27,6 +29,12 @@
   let busy = $state(false);
   let menuOpen = $state(false);
   let expandedDownloadGroups = $state<Set<string>>(new Set());
+  let contextMenu = $state<{
+    open: boolean;
+    x: number;
+    y: number;
+    target: { kind: 'download-task'; task: DownloadTaskDto } | { kind: 'download-group'; group: DownloadTaskGroup } | null;
+  }>({ open: false, x: 0, y: 0, target: null });
 
   const tabs = $derived([
     {
@@ -57,6 +65,7 @@
   );
   const downloadRows = $derived(buildDownloadTaskRows(filteredDownloads, expandedDownloadGroups, visibleActiveDownloadBatches));
   const filteredUploads = $derived(sortTasksForDisplay(filterUploadTasks(uploadStore.allTasks, filter), isRunningUpload));
+  const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
   const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
   const visibleTaskCount = $derived(activeTab === 'downloads' ? downloadRows.length : filteredUploads.length);
   const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
@@ -224,6 +233,101 @@
     }
   }
 
+  function hideContextMenu() {
+    contextMenu = { open: false, x: 0, y: 0, target: null };
+  }
+
+  function showDownloadTaskContextMenu(event: MouseEvent, task: DownloadTaskDto) {
+    event.preventDefault();
+    contextMenu = { open: true, x: event.clientX, y: event.clientY, target: { kind: 'download-task', task } };
+  }
+
+  function showDownloadGroupContextMenu(event: MouseEvent, group: DownloadTaskGroup) {
+    event.preventDefault();
+    contextMenu = { open: true, x: event.clientX, y: event.clientY, target: { kind: 'download-group', group } };
+  }
+
+  function getContextMenuItems(): ContextMenuItem[] {
+    if (!contextMenu.target) return [];
+
+    if (contextMenu.target.kind === 'download-group') {
+      const group = contextMenu.target.group;
+      return [
+        {
+          id: 'pause-download-group',
+          label: $t('tasks.pause'),
+          icon: 'pause',
+          disabled: !canPauseDownloadGroup(group),
+          onSelect: () => handlePauseDownloadGroup(group.id),
+        },
+        {
+          id: 'resume-download-group',
+          label: $t('tasks.resume'),
+          icon: 'resume',
+          disabled: !canResumeDownloadGroup(group),
+          onSelect: () => handleResumeDownloadGroup(group.id),
+        },
+        {
+          id: 'retry-download-group',
+          label: $t('tasks.retryAction'),
+          icon: 'restartAlt',
+          disabled: !canRetryDownloadGroup(group),
+          onSelect: () => handleRetryDownloadGroup(group.id),
+        },
+        {
+          id: 'cancel-download-group',
+          label: $t('tasks.cancel'),
+          icon: 'cancel',
+          disabled: !canCancelDownloadGroup(group),
+          danger: true,
+          onSelect: () => handleCancelDownloadGroup(group.id),
+        },
+        { type: 'divider' },
+        {
+          id: 'delete-download-group-files',
+          label: $t('tasks.deleteBatchFiles'),
+          icon: 'delete',
+          disabled: group.tasks.length === 0,
+          danger: true,
+          onSelect: () => handleDeleteDownloadGroupFiles(group.id),
+        },
+      ];
+    }
+
+    const task = contextMenu.target.task;
+    return [
+      {
+        id: 'pause-download-task',
+        label: $t('tasks.pause'),
+        icon: 'pause',
+        disabled: !canPauseDownloadTask(task),
+        onSelect: () => handlePauseDownloadTask(task.task_id),
+      },
+      {
+        id: 'resume-download-task',
+        label: $t('tasks.resume'),
+        icon: 'resume',
+        disabled: !canResumeDownloadTask(task),
+        onSelect: () => handleResumeDownloadTask(task.task_id),
+      },
+      {
+        id: 'retry-download-task',
+        label: $t('tasks.retryAction'),
+        icon: 'restartAlt',
+        disabled: !canRetryDownloadTask(task),
+        onSelect: () => handleRetryDownloadTask(task.task_id),
+      },
+      {
+        id: 'cancel-download-task',
+        label: $t('tasks.cancel'),
+        icon: 'cancel',
+        disabled: !canCancelDownloadTask(task),
+        danger: true,
+        onSelect: () => handleCancelDownloadTask(task.task_id),
+      },
+    ];
+  }
+
   function handleRemove(taskId: string) {
     downloadStore.remove(taskId);
     refresh();
@@ -241,6 +345,58 @@
 
   function getDownloadGroupTasks(groupId: string) {
     return [...downloadStore.tasks.values()].filter((task) => task.batch_id === groupId);
+  }
+
+  function canPauseDownloadTask(task: DownloadTaskDto) {
+    return ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying'].includes(task.status);
+  }
+
+  function canResumeDownloadTask(task: DownloadTaskDto) {
+    return task.status === 'paused';
+  }
+
+  function canRetryDownloadTask(task: DownloadTaskDto) {
+    return task.status === 'failed';
+  }
+
+  function canCancelDownloadTask(task: DownloadTaskDto) {
+    return ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status);
+  }
+
+  function canPauseDownloadGroup(group: DownloadTaskGroup) {
+    return group.tasks.some(canPauseDownloadTask);
+  }
+
+  function canResumeDownloadGroup(group: DownloadTaskGroup) {
+    return group.paused > 0;
+  }
+
+  function canRetryDownloadGroup(group: DownloadTaskGroup) {
+    return group.failed > 0;
+  }
+
+  function canCancelDownloadGroup(group: DownloadTaskGroup) {
+    return group.preparing || group.tasks.some(canCancelDownloadTask);
+  }
+
+  async function handlePauseDownloadTask(taskId: string) {
+    await pauseDownload(taskId);
+    await refresh();
+  }
+
+  async function handleResumeDownloadTask(taskId: string) {
+    await resumeDownload(taskId);
+    await refresh();
+  }
+
+  async function handleRetryDownloadTask(taskId: string) {
+    await retryDownload(taskId);
+    await refresh();
+  }
+
+  async function handleCancelDownloadTask(taskId: string) {
+    await cancelDownload(taskId);
+    await refresh();
   }
 
   async function handlePauseDownloadGroup(groupId: string) {
@@ -275,11 +431,30 @@
   async function handleCancelDownloadGroup(groupId: string) {
     stopActiveDownloadBatch(groupId);
     for (const task of getDownloadGroupTasks(groupId)) {
-      if (['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status)) {
+      if (canCancelDownloadTask(task)) {
         await cancelDownload(task.task_id);
       }
     }
     await refresh();
+  }
+
+  async function handleDeleteDownloadGroupFiles(groupId: string) {
+    stopActiveDownloadBatch(groupId);
+    const tasks = getDownloadGroupTasks(groupId);
+    for (const task of tasks) {
+      if (canCancelDownloadTask(task)) {
+        await cancelDownload(task.task_id);
+      }
+      await deleteDownload(task.task_id);
+    }
+    expandedDownloadGroups = withoutExpandedGroup(expandedDownloadGroups, groupId);
+    await refresh();
+  }
+
+  function withoutExpandedGroup(groups: Set<string>, groupId: string) {
+    const next = new Set(groups);
+    next.delete(groupId);
+    return next;
   }
 
   function downloadRowKey(row: DownloadTaskRow) {
@@ -421,13 +596,15 @@
                 onResume={handleResumeDownloadGroup}
                 onRetry={handleRetryDownloadGroup}
                 onCancel={handleCancelDownloadGroup}
+                onDeleteFiles={handleDeleteDownloadGroupFiles}
+                onContextMenu={showDownloadGroupContextMenu}
               />
             {:else if row.kind === 'group-task'}
               <div class="task-group-child">
-                <DownloadTaskCard task={row.task} onRemove={handleRemove} />
+                <DownloadTaskCard task={row.task} onRemove={handleRemove} onContextMenu={showDownloadTaskContextMenu} />
               </div>
             {:else}
-              <DownloadTaskCard task={row.task} onRemove={handleRemove} />
+              <DownloadTaskCard task={row.task} onRemove={handleRemove} onContextMenu={showDownloadTaskContextMenu} />
             {/if}
           {/snippet}
         </VirtualList>
@@ -468,6 +645,14 @@
     {/if}
   </div>
 </div>
+
+<ContextMenu
+  open={contextMenu.open}
+  x={contextMenu.x}
+  y={contextMenu.y}
+  items={contextMenuItems}
+  onClose={hideContextMenu}
+/>
 
 <style>
   .task-tabs {
