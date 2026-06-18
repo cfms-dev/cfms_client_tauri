@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { createVirtualizer, type VirtualItem } from '@tanstack/svelte-virtual';
   import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
@@ -103,13 +104,19 @@
   });
 
   $effect(() => {
-    $rowVirtualizer.setOptions({
-      count: rowCount,
-      getScrollElement: () => scrollViewport,
-      estimateSize: () => ROW_HEIGHT,
-      overscan: OVERSCAN_ROWS,
-      enabled: virtualized,
-      initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
+    const count = rowCount;
+    const enabled = virtualized;
+    const scrollElement = scrollViewport;
+
+    untrack(() => {
+      $rowVirtualizer.setOptions({
+        count,
+        getScrollElement: () => scrollElement,
+        estimateSize: () => ROW_HEIGHT,
+        overscan: OVERSCAN_ROWS,
+        enabled,
+        initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
+      });
     });
   });
 
