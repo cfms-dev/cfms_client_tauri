@@ -4,6 +4,20 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.29.0
+**Released on:** 2026-06-18
+
+**Title:** Supporting Resume Download
+
+### Added
+- Enhance download functionality with resume support and cleanup mechanisms
+- Remove SnackBar notifiications for download completion
+- Add download task context actions
+- Add retry functionality for failed downloads and enhance download task metadata
+- Enhance download batch management with new tracking and UI updates
+
+--- 
+
 ## v0.28.0
 **Released on:** 2026-06-18
 
