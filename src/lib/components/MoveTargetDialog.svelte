@@ -27,6 +27,7 @@
     objectType,
     objectName,
     initialFolderId = null,
+    navigationRootId = null,
     originalParentId = null,
     initialBreadcrumb = [],
     excludedDirectoryIds = [],
@@ -37,6 +38,7 @@
     objectType: ServerObjectType;
     objectName: string;
     initialFolderId?: string | null;
+    navigationRootId?: string | null;
     originalParentId?: string | null;
     initialBreadcrumb?: DirectoryBreadcrumbSegment[];
     excludedDirectoryIds?: string[];
@@ -60,8 +62,27 @@
   const excludedIds = $derived(excludedDirectorySet(excludedDirectoryIds));
   const visibleFolders = $derived(folders.filter((folder) => !excludedIds.has(folder.id)));
   const currentPath = $derived(formatDirectoryPath(breadcrumb));
+  const normalizedNavigationRootId = $derived(normalizeDirectoryId(navigationRootId));
+  const parentTargetId = $derived.by<string | null | undefined>(() => {
+    if (
+      normalizedNavigationRootId !== null
+      && breadcrumb.length <= 1
+      && sameDirectoryId(currentFolderId, normalizedNavigationRootId)
+    ) {
+      return undefined;
+    }
+
+    if (parentId !== null) return parentId;
+
+    const currentBreadcrumbEntry = breadcrumb[breadcrumb.length - 1];
+    if (currentBreadcrumbEntry && sameDirectoryId(currentFolderId, currentBreadcrumbEntry.id)) {
+      return breadcrumb[breadcrumb.length - 2]?.id ?? null;
+    }
+
+    return undefined;
+  });
   const targetRows = $derived.by<MoveTargetRow[]>(() => [
-    ...(parentId !== null ? [{ kind: 'parent' } as const] : []),
+    ...(parentTargetId !== undefined ? [{ kind: 'parent' } as const] : []),
     ...visibleFolders.map((folder) => ({ kind: 'folder' as const, folder })),
   ]);
   const canMoveHere = $derived(
@@ -106,7 +127,8 @@
   }
 
   async function navigateToParent() {
-    const ok = await loadDirectory(parentId);
+    if (parentTargetId === undefined) return;
+    const ok = await loadDirectory(parentTargetId);
     if (ok && breadcrumb.length > 0) {
       breadcrumb = breadcrumb.slice(0, -1);
     }
@@ -255,7 +277,7 @@
             {/snippet}
           </VirtualList>
 
-          {#if visibleFolders.length === 0 && parentId === null}
+          {#if visibleFolders.length === 0 && parentTargetId === undefined}
             <p class="px-4 py-10 text-center text-sm text-md3-on-surface-variant">
               {$t('files.noSubdirectories')}
             </p>

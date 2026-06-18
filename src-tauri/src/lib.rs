@@ -357,6 +357,7 @@ pub fn run() {
             commands::scan_directory,
             commands::list_directory,
             commands::get_document,
+            commands::ensure_download_subdirectory,
             commands::get_setting,
             commands::set_setting,
             commands::get_locale,

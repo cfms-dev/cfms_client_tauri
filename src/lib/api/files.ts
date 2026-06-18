@@ -30,6 +30,13 @@ export async function getDocument(
   return invoke("get_document", { documentId, filename });
 }
 
+/** Ensure a relative subdirectory exists under the local download root. */
+export async function ensureDownloadSubdirectory(
+  relativePath: string,
+): Promise<string> {
+  return invoke("ensure_download_subdirectory", { relativePath });
+}
+
 /** Delete a download task from the database and remove its file from disk. */
 export async function deleteDownload(taskId: string): Promise<boolean> {
   return invoke("delete_download", { taskId });

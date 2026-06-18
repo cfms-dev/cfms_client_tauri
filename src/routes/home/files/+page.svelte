@@ -22,6 +22,7 @@
     createDirectory,
     deleteDirectory,
     deleteDocument,
+    ensureDownloadSubdirectory,
     getAccessRules,
     getDirectoryInfo,
     getDocumentInfo,
@@ -632,6 +633,13 @@
         onSelect: () => handleNavigate(folder.id, folder.name),
       },
       {
+        id: 'download-folder',
+        label: $t('common.download'),
+        icon: 'download',
+        disabled: batchBusy,
+        onSelect: () => handleDownloadFolder(folder),
+      },
+      {
         id: 'favorite-folder',
         label: favorite ? $t('files.removeFavorite') : $t('files.addFavorite'),
         icon: favorite ? 'star' : 'starOutline',
@@ -1215,11 +1223,31 @@
     }
   }
 
+  async function handleDownloadFolder(folder: ServerDirectoryEntry) {
+    if (batchBusy) return;
+    batchBusy = true;
+    error = null;
+
+    try {
+      const result = await queueDirectoryDownloads(folder, [folder.name]);
+      if (result.queued > 0) {
+        status = $t('files.batchDownloadQueued', { values: { count: result.queued } });
+      }
+      if (result.failed > 0) {
+        error = $t('files.batchDownloadPartialFailed', { values: { count: result.failed } });
+      }
+    } catch (e) {
+      error = String(e);
+    } finally {
+      batchBusy = false;
+    }
+  }
+
   async function queueDocumentDownload(
     doc: Pick<ServerDocumentEntry, 'id' | 'title'>,
     pathParts: string[],
   ) {
-    await getDocument(doc.id, makeDownloadFilename([...pathParts, doc.title]));
+    await getDocument(doc.id, makeDownloadPath([...pathParts, doc.title]));
   }
 
   async function queueDirectoryDownloads(
@@ -1229,6 +1257,13 @@
     const response = await listDirectory(folder.id);
     let queued = 0;
     let failed = 0;
+    const downloadPath = makeDownloadPath(pathParts);
+
+    try {
+      await ensureDownloadSubdirectory(downloadPath);
+    } catch {
+      failed += 1;
+    }
 
     for (const doc of response.documents) {
       try {
@@ -1252,12 +1287,19 @@
     return { queued, failed };
   }
 
-  function makeDownloadFilename(parts: string[]) {
-    return parts
-      .filter(Boolean)
-      .map((part) => part.replace(/[\\/:*?"<>|]+/g, ' ').trim())
-      .filter(Boolean)
-      .join(' - ');
+  function makeDownloadPath(parts: string[]) {
+    const safeParts = parts
+      .map(sanitizeDownloadPathSegment)
+      .filter(Boolean);
+
+    return safeParts.length > 0 ? safeParts.join('/') : 'download';
+  }
+
+  function sanitizeDownloadPathSegment(part: string) {
+    return part
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function handleMoveSelected() {
@@ -1988,6 +2030,7 @@
     objectType={moveTargetDialog.objectType}
     objectName={moveTargetDialog.objectName}
     initialFolderId={currentFolderId}
+    {navigationRootId}
     originalParentId={moveTargetDialog.originalParentId}
     initialBreadcrumb={moveInitialBreadcrumb}
     excludedDirectoryIds={moveTargetDialog.excludedDirectoryIds}
@@ -2002,6 +2045,7 @@
     objectType="directory"
     objectName={selectedItemsLabel}
     initialFolderId={currentFolderId}
+    {navigationRootId}
     originalParentId={currentFolderId}
     initialBreadcrumb={moveInitialBreadcrumb}
     excludedDirectoryIds={batchMoveDialog.excludedDirectoryIds}

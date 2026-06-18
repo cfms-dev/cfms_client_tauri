@@ -181,4 +181,38 @@ pub async fn get_document(
     }))
 }
 
+/// Create a subdirectory under the local download root.
+#[tauri::command]
+pub async fn ensure_download_subdirectory(
+    app_handle: tauri::AppHandle,
+    relative_path: String,
+) -> Result<String, String> {
+    let download_root = download_root(&app_handle)?;
+    let directory_path = resolve_download_subdirectory(download_root, &relative_path)?;
+    std::fs::create_dir_all(&directory_path)
+        .map_err(|e| format!("Failed to create download directory: {e}"))?;
+
+    Ok(directory_path.to_string_lossy().into_owned())
+}
+
+fn resolve_download_subdirectory(
+    mut root: std::path::PathBuf,
+    relative_path: &str,
+) -> Result<std::path::PathBuf, String> {
+    for raw_part in relative_path.split(['/', '\\']) {
+        let part = raw_part.trim();
+        if part.is_empty() || part == "." {
+            continue;
+        }
+
+        if part == ".." || part.contains(':') || part.contains('\0') {
+            return Err("Invalid download directory path".to_string());
+        }
+
+        root.push(part);
+    }
+
+    Ok(root)
+}
+
 // ---------------------------------------------------------------------------
