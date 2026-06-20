@@ -9,6 +9,7 @@ export interface DownloadBatchSnapshot {
   batchRootId: string | null;
   batchCreatedAt: number;
   phase: DownloadBatchPhase;
+  paused: boolean;
   discovered: number;
   queued: number;
   failed: number;
@@ -24,6 +25,7 @@ export const downloadBatchSnapshots = writable<DownloadBatchSnapshot[]>([]);
 
 export function beginDownloadBatch(batch: DownloadBatchMetadata) {
   if (activeController) {
+    paused = false;
     activeController.abort();
     if (activeBatchId) removeDownloadBatchSnapshot(activeBatchId);
   }
@@ -35,6 +37,7 @@ export function beginDownloadBatch(batch: DownloadBatchMetadata) {
     batchRootId: batch.batchRootId ?? null,
     batchCreatedAt: batch.batchCreatedAt,
     phase: 'collecting',
+    paused: false,
     discovered: 0,
     queued: 0,
     failed: 0,
@@ -53,19 +56,32 @@ export function finishDownloadBatch(controller: AbortController) {
 export function stopActiveDownloadBatch(batchId?: string | Event) {
   const requestedBatchId = typeof batchId === 'string' ? batchId : null;
   if (requestedBatchId && activeBatchId !== requestedBatchId) return;
+  if (activeBatchId) {
+    updateDownloadBatchSnapshot(activeBatchId, (snapshot) => ({ ...snapshot, paused: false }));
+  }
+  paused = false;
   activeController?.abort();
 }
 
-export function pauseActiveDownloadBatches() {
+export function pauseActiveDownloadBatches(batchId?: string) {
+  if (batchId && activeBatchId !== batchId) return false;
+  if (!activeBatchId) return false;
   paused = true;
+  updateDownloadBatchSnapshot(activeBatchId, (snapshot) => ({ ...snapshot, paused: true }));
+  return true;
 }
 
-export function resumeActiveDownloadBatches() {
-  if (!paused) return;
+export function resumeActiveDownloadBatches(batchId?: string) {
+  if (batchId && activeBatchId !== batchId) return false;
+  if (!paused) return false;
   paused = false;
+  if (activeBatchId) {
+    updateDownloadBatchSnapshot(activeBatchId, (snapshot) => ({ ...snapshot, paused: false }));
+  }
   const waiters = resumeWaiters;
   resumeWaiters = new Set();
   for (const resolve of waiters) resolve();
+  return true;
 }
 
 export function throwIfDownloadBatchStopped(signal: AbortSignal) {

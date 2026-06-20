@@ -68,7 +68,6 @@
     markDownloadBatchFailed,
     markDownloadBatchQueued,
     setDownloadBatchPhase,
-    stopActiveDownloadBatch,
     waitForDownloadBatchResume,
   } from '$lib/download-batch-control';
   import FileTable from '$lib/components/files/FileTable.svelte';
@@ -1760,7 +1759,6 @@
   onMount(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
-    window.addEventListener('cfms:download-paused', stopActiveDownloadBatch);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -1796,7 +1794,6 @@
     loadDirectory(initialFolder);
     reloadUserPreference();
     return () => {
-      window.removeEventListener('cfms:download-paused', stopActiveDownloadBatch);
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
     };

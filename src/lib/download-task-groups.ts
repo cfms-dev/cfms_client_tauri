@@ -26,6 +26,7 @@ export interface DownloadTaskGroup {
   progress: number;
   progressKnown: boolean;
   preparing: boolean;
+  batchPaused: boolean;
   phase: DownloadBatchSnapshot['phase'] | null;
 }
 
@@ -156,6 +157,7 @@ function buildDownloadTaskGroup(
     progress: clampProgress(progress),
     progressKnown,
     preparing: Boolean(activeBatch),
+    batchPaused: activeBatch?.paused ?? false,
     phase: activeBatch?.phase ?? null,
   };
 }

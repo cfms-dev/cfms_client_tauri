@@ -44,13 +44,13 @@
   );
   const progressWidth = $derived(`${isDeleting ? (deletePercent ?? 0) : (percent ?? 0)}%`);
   const canPause = $derived(
-    group.tasks.some((task) =>
+    (group.preparing && !group.batchPaused) || group.tasks.some((task) =>
       task.status === 'pending'
         || task.status === 'scheduled'
         || (task.status === 'downloading' && task.supports_resume),
     ),
   );
-  const canResume = $derived(group.paused > 0);
+  const canResume = $derived(group.batchPaused || group.paused > 0);
   const canRetry = $derived(group.failed > 0);
   const canCancel = $derived(
     group.preparing || group.tasks.some((task) =>
@@ -76,7 +76,9 @@
       })
       : group.preparing
       ? [
-        group.phase === 'queueing' ? $t('tasks.batchQueueing') : $t('tasks.batchPreparing'),
+        group.batchPaused
+          ? $t('tasks.paused')
+          : group.phase === 'queueing' ? $t('tasks.batchQueueing') : $t('tasks.batchPreparing'),
         group.queued > 0 ? $t('tasks.batchQueuedCount', { values: { count: group.queued } }) : null,
         group.failed > 0 ? $t('tasks.batchFailedCount', { values: { count: group.failed } }) : null,
         group.cancelled > 0 ? $t('tasks.batchCancelledCount', { values: { count: group.cancelled } }) : null,

@@ -678,8 +678,16 @@ async fn execute_download(
     active: ActiveRegistry,
     mut cancel_rx: watch::Receiver<bool>,
 ) {
-    // Check cancellation before starting.
+    // Pause and cancellation share the same interruption signal. Preserve the
+    // task state selected by pause_task if the worker has not started yet.
     if *cancel_rx.borrow() {
+        if queue
+            .get(&task_id)
+            .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+        {
+            tracing::info!("Download paused before worker start: {task_id}");
+            return;
+        }
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
         return;
     }
@@ -701,8 +709,33 @@ async fn execute_download(
 
     active.set_transfer_conn(&task_id, transfer_conn.clone());
 
+    // mark_started already set Downloading. A pause may arrive while the
+    // connection is being established, so do not overwrite Paused here.
+    if *cancel_rx.borrow()
+        || queue
+            .get(&task_id)
+            .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+    {
+        transfer_conn.close().await;
+        if queue
+            .get(&task_id)
+            .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+        {
+            emit_active_count(&queue, &state);
+            tracing::info!("Download paused while connecting: {task_id}");
+            return;
+        }
+
+        let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
+        emit_active_count(&queue, &state);
+        let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
+            task_id: task_id.clone(),
+        });
+        tracing::info!("Download cancelled while connecting: {task_id}");
+        return;
+    }
+
     // --- Phase 2: DOWNLOADING ---
-    let _ = queue.update_status(&task_id, DownloadTaskStatus::Downloading);
     emit_active_count(&queue, &state);
     let resume_state_path = queue.get(&task_id).and_then(|task| {
         task.supports_resume.then(|| {
@@ -871,6 +904,15 @@ async fn execute_download(
 
         Some(Err(e)) => {
             if *cancel_rx.borrow() {
+                if queue
+                    .get(&task_id)
+                    .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+                {
+                    emit_active_count(&queue, &state);
+                    tracing::info!("Download paused after connection close: {task_id}");
+                    return;
+                }
+
                 if let Err(rm_err) = std::fs::remove_file(&file_path)
                     && rm_err.kind() != std::io::ErrorKind::NotFound
                 {

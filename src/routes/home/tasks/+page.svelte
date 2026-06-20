@@ -190,7 +190,7 @@
         const isPending = task.status === 'pending' || task.status === 'scheduled';
         const isRunning = task.status === 'downloading';
         if (isPending || (isRunning && task.supports_resume)) {
-          await pauseDownload(task.task_id, { stopActiveBatch: false });
+          await pauseDownload(task.task_id);
         }
       }
       for (const task of uploadStore.activeTasks) {
@@ -474,11 +474,11 @@
   }
 
   function canPauseDownloadGroup(group: DownloadTaskGroup) {
-    return group.tasks.some(canPauseDownloadTask);
+    return (group.preparing && !group.batchPaused) || group.tasks.some(canPauseDownloadTask);
   }
 
   function canResumeDownloadGroup(group: DownloadTaskGroup) {
-    return group.paused > 0;
+    return group.batchPaused || group.paused > 0;
   }
 
   function canRetryDownloadGroup(group: DownloadTaskGroup) {
@@ -519,10 +519,10 @@
 
   async function handlePauseDownloadGroup(groupId: string) {
     await runDownloadGroupAction(groupId, 'pause', async () => {
-      pauseActiveDownloadBatches();
+      pauseActiveDownloadBatches(groupId);
       for (const task of getDownloadGroupTasks(groupId)) {
         if (canPauseDownloadTask(task)) {
-          await pauseDownload(task.task_id, { stopActiveBatch: false });
+          await pauseDownload(task.task_id);
         }
       }
       await refresh();
@@ -531,7 +531,7 @@
 
   async function handleResumeDownloadGroup(groupId: string) {
     await runDownloadGroupAction(groupId, 'resume', async () => {
-      resumeActiveDownloadBatches();
+      resumeActiveDownloadBatches(groupId);
       for (const task of getDownloadGroupTasks(groupId)) {
         if (task.status === 'paused') {
           await resumeDownload(task.task_id);

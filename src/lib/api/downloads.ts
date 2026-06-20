@@ -14,20 +14,9 @@ export async function getDownloadTasks(
   return invoke("get_download_tasks", { statusFilter: statusFilter ?? null });
 }
 
-interface PauseDownloadOptions {
-  stopActiveBatch?: boolean;
-}
-
 /** Pause an in-progress download. */
-export async function pauseDownload(
-  taskId: string,
-  options: PauseDownloadOptions = {},
-): Promise<boolean> {
-  const paused = await invoke<boolean>("pause_download", { taskId });
-  if (paused && options.stopActiveBatch !== false && typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("cfms:download-paused", { detail: { taskId } }));
-  }
-  return paused;
+export async function pauseDownload(taskId: string): Promise<boolean> {
+  return invoke("pause_download", { taskId });
 }
 
 /** Resume a paused download. */
