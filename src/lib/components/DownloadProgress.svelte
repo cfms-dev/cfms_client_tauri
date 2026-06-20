@@ -33,6 +33,7 @@
       case "paused":
         return "bg-md3-warning";
       case "cancelled":
+      case "deleted":
         return "bg-md3-outline-variant";
       default:
         return "bg-md3-primary";
@@ -48,6 +49,7 @@
       case "paused":
         return "text-md3-warning";
       case "cancelled":
+      case "deleted":
         return "text-md3-on-surface-variant";
       default:
         return "text-md3-on-surface-variant";
@@ -85,6 +87,8 @@
         <span class="text-md3-error font-medium">{$t('tasks.failed')}</span>
       {:else if status === "cancelled"}
         <span class="text-md3-on-surface-variant font-medium">{$t('tasks.cancelled')}</span>
+      {:else if status === "deleted"}
+        <span class="text-md3-on-surface-variant font-medium">{$t('tasks.fileDeleted')}</span>
       {:else if status === "paused"}
         <span class="text-md3-warning font-medium">{$t('tasks.paused')}</span>
       {/if}
@@ -92,7 +96,7 @@
     <span>
       {#if status === "completed"}
         {completedText ?? $t('tasks.downloadCompleted')}
-      {:else if status === "failed" || status === "cancelled"}
+      {:else if status === "failed" || status === "cancelled" || status === "deleted"}
         <!-- empty — reference shows nothing for these statuses -->
       {:else if totalBytes > 0}
         {formatBytes(currentBytes)} / {formatBytes(totalBytes)} ({pct}%)

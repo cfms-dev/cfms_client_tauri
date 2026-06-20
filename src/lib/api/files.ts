@@ -60,8 +60,8 @@ export async function deleteDownload(taskId: string): Promise<boolean> {
 }
 
 /** Open a completed download with the platform's default application. */
-export async function openDownloadedFile(path: string): Promise<void> {
-  return invoke("open_downloaded_file", { path });
+export async function openDownloadedFile(taskId: string): Promise<void> {
+  return invoke("open_downloaded_file", { taskId });
 }
 
 /** Create a new directory on the CFMS server.

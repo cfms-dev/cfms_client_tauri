@@ -31,7 +31,7 @@ export interface DownloadTaskGroup {
 }
 
 const RUNNING_STATUSES = new Set(['downloading', 'decrypting', 'verifying']);
-const BATCH_FILE_DELETE_STATUSES = new Set(['completed', 'cancelled']);
+const TERMINAL_DOWNLOAD_STATUSES = new Set(['completed', 'deleted', 'failed', 'cancelled']);
 
 export function buildDownloadTaskRows(
   tasks: DownloadTaskDto[],
@@ -105,7 +105,10 @@ export function isRunningDownloadTask(task: DownloadTaskDto) {
 export function canDeleteDownloadTaskGroupFiles(group: DownloadTaskGroup) {
   return group.tasks.length > 0
     && !group.preparing
-    && group.tasks.every((task) => BATCH_FILE_DELETE_STATUSES.has(task.status));
+    && group.tasks.every((task) => TERMINAL_DOWNLOAD_STATUSES.has(task.status))
+    // A naturally failed batch remains retry-only. Once cancellation has been
+    // recorded, failed siblings must not hide the action that clears the batch.
+    && (group.failed === 0 || group.cancelled > 0);
 }
 
 function buildDownloadTaskGroup(

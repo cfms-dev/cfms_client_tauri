@@ -102,9 +102,10 @@ pub async fn install_app_update<R: tauri::Runtime>(
 #[tauri::command]
 pub async fn open_downloaded_file<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    path: String,
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
 ) -> Result<(), String> {
-    ensure_regular_file_exists(&path)?;
+    let path = prepare_downloaded_file_for_open(&state, &task_id)?;
 
     let opener = app.state::<AndroidFileOpener<R>>();
     opener
@@ -117,22 +118,61 @@ pub async fn open_downloaded_file<R: tauri::Runtime>(
 #[tauri::command]
 pub async fn open_downloaded_file<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    path: String,
+    state: tauri::State<'_, AppHandleState>,
+    task_id: String,
 ) -> Result<(), String> {
-    ensure_regular_file_exists(&path)?;
+    let path = prepare_downloaded_file_for_open(&state, &task_id)?;
 
     tauri_plugin_opener::OpenerExt::opener(&app)
         .open_path(path, None::<&str>)
         .map_err(|e| format!("Failed to open downloaded file: {e}"))
 }
 
-fn ensure_regular_file_exists(path: &str) -> Result<(), String> {
-    let metadata =
-        std::fs::metadata(path).map_err(|e| format!("Downloaded file was not found: {e}"))?;
+fn prepare_downloaded_file_for_open(
+    state: &AppHandleState,
+    task_id: &str,
+) -> Result<String, String> {
+    let task = state
+        .tasks
+        .get(task_id)
+        .ok_or_else(|| "Download task was not found.".to_string())?;
+    let metadata = match std::fs::metadata(&task.file_path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return mark_download_file_deleted(
+                state,
+                task_id,
+                format!("Downloaded file was not found: {error}"),
+            );
+        }
+        Err(error) => return Err(format!("Failed to inspect downloaded file: {error}")),
+    };
     if !metadata.is_file() {
-        return Err("Downloaded path is not a file.".to_string());
+        return mark_download_file_deleted(
+            state,
+            task_id,
+            "Downloaded path is not a file.".to_string(),
+        );
     }
-    Ok(())
+    Ok(task.file_path)
+}
+
+fn mark_download_file_deleted(
+    state: &AppHandleState,
+    task_id: &str,
+    error: String,
+) -> Result<String, String> {
+    state
+        .tasks
+        .mark_file_deleted(task_id)
+        .map_err(|e| format!("Failed to update download task: {e}"))?;
+    if let Some(task) = state.tasks.get(task_id) {
+        let _ = state
+            .inner
+            .event_tx
+            .send(ServiceEvent::DownloadTaskUpdated { task });
+    }
+    Err(error)
 }
 
 #[cfg(not(target_os = "android"))]

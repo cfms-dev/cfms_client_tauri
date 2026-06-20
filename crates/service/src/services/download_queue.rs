@@ -216,6 +216,7 @@ impl QueueState {
                     t.status,
                     DownloadTaskStatus::Cancelled
                         | DownloadTaskStatus::Completed
+                        | DownloadTaskStatus::Deleted
                         | DownloadTaskStatus::Failed
                         | DownloadTaskStatus::Paused
                 ) {
@@ -301,6 +302,19 @@ impl QueueState {
         Ok(())
     }
 
+    pub fn mark_file_deleted(&self, task_id: &str) -> Result<()> {
+        {
+            let mut map = self.tasks.lock().unwrap();
+            if let Some(t) = map.get_mut(task_id) {
+                t.status = DownloadTaskStatus::Deleted;
+                t.message = None;
+                t.error = None;
+            }
+        }
+        self.save();
+        Ok(())
+    }
+
     pub fn retry_or_fail(&self, task_id: &str, error: &str) -> Result<DownloadTaskStatus> {
         let status = {
             let mut map = self.tasks.lock().unwrap();
@@ -358,12 +372,14 @@ impl QueueState {
                 .values()
                 .filter(|t| {
                     t.status == DownloadTaskStatus::Completed
+                        || t.status == DownloadTaskStatus::Deleted
                         || t.status == DownloadTaskStatus::Cancelled
                 })
                 .cloned()
                 .collect::<Vec<_>>();
             map.retain(|_, t| {
                 t.status != DownloadTaskStatus::Completed
+                    && t.status != DownloadTaskStatus::Deleted
                     && t.status != DownloadTaskStatus::Cancelled
             });
             removed_tasks

@@ -144,9 +144,11 @@ pub async fn delete_download(
 ) -> Result<bool, String> {
     // Look up the task to get its file_path for filesystem cleanup.
     if let Some(task) = state.tasks.get(&task_id) {
-        // Try to delete the file from disk (best-effort, don't fail if missing).
+        // Only completed tasks own a successfully downloaded output file.
+        // Failed/cancelled entries are still cleared without deleting a path
+        // that may contain unrelated or incomplete local data.
         let path = std::path::Path::new(&task.file_path);
-        if path.exists() {
+        if task.status == DownloadTaskStatus::Completed && path.exists() {
             let _ = std::fs::remove_file(path);
         }
         cleanup_resume_state(&task.file_path, &task_id);

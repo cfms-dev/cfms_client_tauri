@@ -471,6 +471,7 @@ export const zh_CN = {
     uploadQueued: '等待上传...',
     uploading: '上传中',
     uploadCompleted: '上传完成',
+    fileDeleted: '文件已删除',
     folderBatch: '文件夹下载',
     expandBatch: '展开批量任务',
     collapseBatch: '收起批量任务',

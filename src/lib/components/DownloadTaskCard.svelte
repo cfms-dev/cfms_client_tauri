@@ -63,10 +63,14 @@
   }
 
   async function handleOpen() {
+    if (actionPending) return;
+    fileActionPending = true;
     try {
-      await openDownloadedFile(task.file_path);
+      await openDownloadedFile(task.task_id);
     } catch (e) {
       console.error('Failed to open file:', e);
+    } finally {
+      fileActionPending = false;
     }
   }
 
@@ -91,6 +95,7 @@
       case "decrypting":   return "lockOpen";
       case "verifying":    return "verified";
       case "completed":    return "checkCircle";
+      case "deleted":      return "delete";
       case "failed":       return "errorFilled";
       case "cancelled":    return "cancel";
       case "scheduled":    return "accessTime";
@@ -107,6 +112,7 @@
       case "decrypting":  return "text-md3-tertiary";
       case "verifying":   return "text-md3-tertiary";
       case "completed":   return "text-md3-success";
+      case "deleted":     return "text-md3-on-surface-variant";
       case "failed":      return "text-md3-error";
       case "cancelled":   return "text-md3-on-surface-variant";
       case "scheduled":   return "text-md3-secondary";
@@ -118,6 +124,8 @@
     switch (task.status) {
       case "completed":
         return "bg-md3-success-container text-md3-on-success-container";
+      case "deleted":
+        return "bg-md3-surface-container-highest text-md3-on-surface-variant";
       case "failed":
         return "bg-md3-error-container text-md3-on-error-container";
       case "downloading":
@@ -143,6 +151,7 @@
       case "downloading": return $t('tasks.downloading');
       case "paused": return $t('tasks.paused');
       case "completed": return $t('tasks.completed');
+      case "deleted": return $t('tasks.fileDeleted');
       case "failed": return $t('tasks.failed');
       case "cancelled": return $t('tasks.cancelled');
       case "decrypting": return $t('login.settingUpEncryption');
@@ -159,7 +168,7 @@
   const isPaused = $derived(task.status === "paused");
   const isScheduled = $derived(task.status === "scheduled");
   const isTerminal = $derived(
-    ["completed", "failed", "cancelled"].includes(task.status),
+    ["completed", "deleted", "failed", "cancelled"].includes(task.status),
   );
   /** Whether the pause button should be visible. */
   const canPause = $derived(

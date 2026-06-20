@@ -78,6 +78,7 @@
   const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
   const completedOrCancelledCount = $derived(
     downloadStore.completedTasks.length
+      + [...downloadStore.tasks.values()].filter((task) => task.status === 'deleted').length
       + downloadStore.cancelledTasks.length
       + uploadStore.completedTasks.length
       + uploadStore.cancelledTasks.length,
@@ -126,6 +127,7 @@
   function downloadMatchesFilter(task: DownloadTaskDto, nextFilter: TaskFilter) {
     if (nextFilter === 'pending') return task.status === 'pending' || task.status === 'scheduled';
     if (nextFilter === 'active') return ['downloading', 'decrypting', 'verifying'].includes(task.status);
+    if (nextFilter === 'completed') return task.status === 'completed' || task.status === 'deleted';
     return task.status === nextFilter;
   }
 

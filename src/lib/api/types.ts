@@ -9,6 +9,7 @@ export type DownloadTaskStatus =
   | "decrypting"
   | "verifying"
   | "completed"
+  | "deleted"
   | "failed"
   | "cancelled"
   | "scheduled";

@@ -476,6 +476,7 @@ export const en = {
     uploadQueued: 'Waiting to upload...',
     uploading: 'Uploading',
     uploadCompleted: 'Upload complete',
+    fileDeleted: 'File deleted',
     folderBatch: 'Folder download',
     expandBatch: 'Expand batch',
     collapseBatch: 'Collapse batch',

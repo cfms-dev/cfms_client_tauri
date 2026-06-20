@@ -111,6 +111,8 @@ pub enum DownloadTaskStatus {
     Verifying,
     /// Download completed successfully.
     Completed,
+    /// Download completed, but its local output file was later removed.
+    Deleted,
     /// Download failed (retries exhausted or unrecoverable error).
     Failed,
     /// Cancelled by the user.
@@ -122,7 +124,10 @@ pub enum DownloadTaskStatus {
 impl DownloadTaskStatus {
     /// Returns `true` if this status represents a terminal state.
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+        matches!(
+            self,
+            Self::Completed | Self::Deleted | Self::Failed | Self::Cancelled
+        )
     }
 
     /// Returns `true` if the task is currently in flight.
