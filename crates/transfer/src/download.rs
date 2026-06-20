@@ -107,6 +107,14 @@ pub async fn receive(
     receive_with_resume(conn, task_id, dest, 0, None, on_progress).await
 }
 
+/// Normal response envelope used by request handlers when a transfer cannot
+/// be started (for example, because a one-shot task was already consumed).
+#[derive(Debug, Deserialize)]
+struct ServerErrorResponse {
+    code: u32,
+    message: String,
+}
+
 /// Receive an encrypted file, optionally resuming from a byte offset.
 ///
 /// When `chunk_store_path` is provided, encrypted chunks are stored in that
@@ -140,8 +148,7 @@ pub async fn receive_with_resume(
         .await
         .ok_or_else(|| cfms_core::Error::Connection("stream closed before metadata".into()))?;
 
-    let metadata: FileMetadataResponse = serde_json::from_slice(&response_raw)
-        .map_err(|e| cfms_core::Error::Protocol(format!("invalid metadata response: {e}")))?;
+    let metadata = parse_metadata_response(&response_raw)?;
 
     if metadata.action != "transfer_file" {
         return Err(cfms_core::Error::Protocol(format!(
@@ -399,6 +406,23 @@ pub async fn receive_with_resume(
     Ok(file_size)
 }
 
+fn parse_metadata_response(raw: &[u8]) -> Result<FileMetadataResponse> {
+    // Error envelopes do not contain `action`, so detect them before parsing
+    // the transfer metadata. Previously these surfaced as the misleading
+    // "missing field `action`" protocol error and were retried repeatedly.
+    if let Ok(response) = serde_json::from_slice::<ServerErrorResponse>(raw)
+        && response.code != 200
+    {
+        return Err(cfms_core::Error::Server {
+            code: response.code,
+            message: response.message,
+        });
+    }
+
+    serde_json::from_slice(raw)
+        .map_err(|e| cfms_core::Error::Protocol(format!("invalid metadata response: {e}")))
+}
+
 enum ChunkStoreOwner {
     Temporary(TempDir),
     Persistent(PathBuf),
@@ -488,7 +512,7 @@ fn parse_empty_file_marker(raw: &[u8]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_empty_file_marker;
+    use super::{parse_empty_file_marker, parse_metadata_response};
 
     #[test]
     fn empty_file_marker_accepts_reference_protocol() {
@@ -501,5 +525,26 @@ mod tests {
         let raw = br#"{"action":"transfer_file","data":{"flag":"done"}}"#;
         let err = parse_empty_file_marker(raw).unwrap_err().to_string();
         assert!(err.contains("unexpected empty-file marker"));
+    }
+
+    #[test]
+    fn metadata_parser_preserves_server_rejection() {
+        let raw = br#"{"code":400,"data":{},"message":"Task is not in a valid state for download","timestamp":1781931222.0}"#;
+        let err = parse_metadata_response(raw).unwrap_err();
+
+        assert!(matches!(
+            err,
+            cfms_core::Error::Server { code: 400, ref message }
+                if message == "Task is not in a valid state for download"
+        ));
+    }
+
+    #[test]
+    fn metadata_parser_accepts_transfer_metadata() {
+        let raw = br#"{"action":"transfer_file","data":{"file_size":12,"chunk_size":8,"total_chunks":2}}"#;
+        let metadata = parse_metadata_response(raw).unwrap();
+
+        assert_eq!(metadata.action, "transfer_file");
+        assert_eq!(metadata.data.file_size, Some(12));
     }
 }

@@ -931,6 +931,21 @@ async fn execute_download(
             let error_msg = e.to_string();
             tracing::error!("Download {task_id} failed: {error_msg}");
 
+            // A server rejection is authoritative. In particular, download
+            // task IDs are one-shot: retrying the same ID after the server has
+            // completed or invalidated it can never succeed and only hides the
+            // useful response behind repeated protocol errors.
+            if matches!(e, cfms_core::Error::Server { .. }) {
+                let _ = queue.mark_failed(&task_id, &error_msg);
+                emit_task_update(&queue, &state, &task_id);
+                emit_active_count(&queue, &state);
+                let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                    task_id: task_id.clone(),
+                    error: error_msg,
+                });
+                return;
+            }
+
             match queue.retry_or_fail(&task_id, &error_msg) {
                 Ok(DownloadTaskStatus::Failed) => {
                     emit_task_update(&queue, &state, &task_id);

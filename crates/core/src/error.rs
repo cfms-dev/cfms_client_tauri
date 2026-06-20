@@ -26,6 +26,13 @@ pub enum Error {
     #[error("authentication failed: {0}")]
     Auth(String),
 
+    /// The server rejected an otherwise valid request.
+    ///
+    /// Keeping the status code structured lets callers distinguish a terminal
+    /// task rejection from a transient transport failure.
+    #[error("server rejected request ({code}): {message}")]
+    Server { code: u32, message: String },
+
     /// A wrapped [`std::io::Error`].
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
