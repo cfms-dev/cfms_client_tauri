@@ -4,6 +4,18 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.29.1
+**Released on:** 2026-06-20
+
+**Title:** Bugfix
+
+### Added
+- Add 'deleted' status to download tasks and update related functionality
+- Add structured server rejection handling and improve metadata response parsing
+- Enhance download management with pause and resume functionality
+
+--- 
+
 ## v0.29.0
 **Released on:** 2026-06-18
 
