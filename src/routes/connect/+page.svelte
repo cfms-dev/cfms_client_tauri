@@ -46,7 +46,13 @@
   let recentConnectionAddresses = $state<string[]>([]);
   let recentAddressesOpen = $state(false);
   let serverAddressField: HTMLDivElement | null = null;
-  let playLoginReturnTransition = $state(browser ? consumeLoginToConnectTransition() : false);
+  const initialLoginReturnTransition = browser ? consumeLoginToConnectTransition() : false;
+  let playLoginReturnTransition = $state(initialLoginReturnTransition);
+  let playDesktopLoginReturnTransition = $state(
+    browser && initialLoginReturnTransition
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : false,
+  );
   let protocolError = $state<{
     serverVersion: number;
     clientVersion: number;
@@ -89,6 +95,17 @@
 
     document.addEventListener('pointerdown', closeRecentAddresses);
     return () => document.removeEventListener('pointerdown', closeRecentAddresses);
+  });
+
+  // Keep the navigation transition one-shot. Without clearing this flag,
+  // crossing the desktop breakpoint later would activate its media rule again.
+  onMount(() => {
+    if (!playLoginReturnTransition) return;
+    const transitionTimer = window.setTimeout(() => {
+      playLoginReturnTransition = false;
+      playDesktopLoginReturnTransition = false;
+    }, 700);
+    return () => window.clearTimeout(transitionTimer);
   });
 
   function validateUrl(): boolean {
@@ -192,25 +209,26 @@
   }
 </script>
 
-<div class="connect-auth-shell" class:connect-auth-shell--login-return={playLoginReturnTransition}>
-  <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
+<div class="connect-auth-shell" class:connect-auth-shell--login-return={playDesktopLoginReturnTransition}>
+  <section class="connect-auth-panel">
+    <div class="connect-actions">
     <button
       type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      class="connect-icon-button"
       title={$t('settings.title')}
       aria-label={$t('settings.title')}
       onclick={goToSettings}
     >
-      <Icon name="settings" size="18px" />
+      <Icon name="settings" size="22px" />
     </button>
     <button
       type="button"
-      class="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      class="connect-icon-button connect-icon-button--status"
       title={$t('more.about')}
       aria-label={$t('more.about')}
       onclick={goToAbout}
     >
-      <Icon name="info" size="18px" />
+      <Icon name="info" size="22px" />
       {#if appUpdateState.update}
         <span
           class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-md3-error shadow-[0_0_0_3px_rgba(248,113,113,0.18)]"
@@ -219,29 +237,18 @@
         ></span>
       {/if}
     </button>
-  </div>
+    </div>
 
-  <section class="connect-auth-panel">
-  <div
-    class="connect-form-stage"
-    class:animate-fade-scale-in={!playLoginReturnTransition}
-    class:connect-form-stage--login-return={playLoginReturnTransition}
-  >
-      <!-- App title -->
-      <h1
-        class="mb-2 text-center text-2xl font-bold text-md3-on-surface"
-        style="font-family: var(--font-md3-serif);"
-      >
-        CFMS Client
-      </h1>
-      <p class="mb-8 text-center text-xs text-md3-on-surface-variant">
-        {$t('connect.tagline')}
-      </p>
+    <h1 class="connect-page-title">{$t('connect.title')}</h1>
 
+    <div
+      class="connect-form-stage"
+      class:animate-fade-scale-in={!playLoginReturnTransition}
+      class:connect-form-stage--login-return={playLoginReturnTransition}
+    >
       <!-- Connect form — MD3 card -->
       <form
-        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-             border border-md3-outline p-6 space-y-4"
+        class="connect-card"
         onsubmit={(e) => {
           e.preventDefault();
           handleConnect();
@@ -388,18 +395,14 @@
       <!-- Connect button — MD3 filled primary -->
       <button
         type="submit"
-        class="w-full py-2.5 px-4 rounded-full font-medium
-               bg-md3-primary text-md3-on-primary
-               hover:brightness-110
-               disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-        style="font-family: var(--font-md3-sans);"
+        class="connect-submit"
         disabled={busy}
       >
         {#if busy}
           <ProgressRing size={18} strokeWidth={2.5} label={$t('common.connecting')} />
           {$t('common.connecting')}
         {:else}
-          <Icon name="connect" size="20px" />
+          <Icon name="connect" size="19px" />
           {$t('connect.connect')}
         {/if}
       </button>
@@ -408,70 +411,22 @@
       <p class="mt-4 text-center text-xs text-md3-on-surface-variant">
         {$t('about.version')} {appVersion || '...'}
       </p>
-  </div>
+    </div>
   </section>
 
   <section class="connect-auth-visual" aria-hidden="true">
-    <img
-      src="/astronomy.jpg"
-      alt=""
-      class="connect-auth-visual-image"
-    />
+    <img src="/astronomy.jpg" alt="" class="connect-auth-visual-image" />
   </section>
 </div>
 
 <style>
-  .connect-auth-shell {
-    position: relative;
-    display: flex;
-    min-height: 100%;
-    overflow: hidden;
-  }
-
-  .connect-auth-panel {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    min-height: 100%;
-    flex: 0 0 100%;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-    background:
-      linear-gradient(
-        135deg,
-        var(--color-md3-bg-gradient-start) 0%,
-        var(--color-md3-bg-gradient-mid-1) 28%,
-        var(--color-md3-bg-gradient-mid-2) 58%,
-        var(--color-md3-bg-gradient-end) 100%
-      );
-  }
-
-  .connect-form-stage {
-    width: 100%;
-    max-width: 420px;
-  }
-
-  .connect-auth-visual {
-    display: none;
-    min-height: 100%;
-    min-width: 0;
-    flex: 0 0 0;
-    overflow: hidden;
-    background: #0e1217;
-  }
-
-  .connect-auth-visual-image {
-    height: 100%;
-    width: 100%;
-    object-fit: cover;
+  .connect-form-stage--login-return {
+    animation: connect-form-crossfade var(--motion-duration-long4)
+      var(--motion-easing-emphasized) both;
+    will-change: opacity, transform, filter;
   }
 
   @media (min-width: 1024px) {
-    .connect-auth-visual {
-      display: block;
-    }
-
     .connect-auth-shell--login-return .connect-auth-panel {
       animation: connect-panel-expand var(--motion-duration-long4)
         var(--motion-easing-emphasized) both;
@@ -489,12 +444,6 @@
         var(--motion-easing-emphasized) both;
       will-change: transform;
     }
-  }
-
-  .connect-form-stage--login-return {
-    animation: connect-form-crossfade var(--motion-duration-long4)
-      var(--motion-easing-emphasized) both;
-    will-change: opacity, transform, filter;
   }
 
   @keyframes connect-panel-expand {
@@ -555,6 +504,289 @@
     .connect-auth-shell--login-return .connect-auth-visual-image,
     .connect-form-stage--login-return {
       animation: none !important;
+    }
+  }
+
+  /* Connect workspace layout: header and content are positioned by grid flow,
+     so the composition scales without relying on viewport-specific offsets. */
+  .connect-auth-shell {
+    display: flex;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+  }
+
+  .connect-page-title {
+    z-index: 1;
+    grid-row: 1;
+    grid-column: 2;
+    align-self: start;
+    justify-self: center;
+    margin: 0;
+    padding-top: clamp(1.25rem, 3vh, 1.75rem);
+    color: var(--color-md3-on-surface);
+    font-family: var(--font-md3-serif);
+    font-size: clamp(1.25rem, calc(0.75rem + 2.5vw), 1.75rem);
+    font-weight: 500;
+    line-height: 1.25;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .connect-actions {
+    z-index: 2;
+    display: flex;
+    grid-row: 1;
+    grid-column: 3;
+    align-self: start;
+    justify-self: end;
+    gap: 0.25rem;
+    padding-top: clamp(0.75rem, 2vh, 1.25rem);
+  }
+
+  .connect-icon-button {
+    position: relative;
+    display: inline-flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-md3-on-surface-variant);
+    cursor: pointer;
+    transition:
+      color var(--motion-duration-short4) var(--motion-easing-standard),
+      background var(--motion-duration-short4) var(--motion-easing-standard),
+      transform var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .connect-icon-button:hover {
+    background: color-mix(in srgb, var(--color-md3-surface-container-high) 70%, transparent);
+    color: var(--color-md3-on-surface);
+  }
+
+  .connect-icon-button:active {
+    transform: scale(0.94);
+  }
+
+  .connect-icon-button:focus-visible,
+  .connect-submit:focus-visible {
+    outline: 2px solid var(--color-md3-primary-emphasis);
+    outline-offset: 2px;
+  }
+
+  .connect-auth-panel {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: clamp(4.5rem, 10vh, 6rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: 100%;
+    flex: 0 0 100%;
+    padding: 0 clamp(0.75rem, 2vw, 1.5rem) clamp(1rem, 3vh, 2rem);
+    overflow: auto;
+    background: linear-gradient(
+      135deg,
+      var(--color-md3-bg-gradient-start) 0%,
+      var(--color-md3-bg-gradient-mid-1) 28%,
+      var(--color-md3-bg-gradient-mid-2) 58%,
+      var(--color-md3-bg-gradient-end) 100%
+    );
+  }
+
+  .connect-form-stage {
+    box-sizing: border-box;
+    grid-row: 2;
+    grid-column: 1 / -1;
+    align-self: center;
+    justify-self: center;
+    width: min(100%, 380px);
+    min-width: 0;
+    padding: clamp(1rem, 4vh, 2.5rem) 0 clamp(1.5rem, 8vh, 5rem);
+  }
+
+  .connect-card {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.95rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 1.25rem;
+    border: 0;
+    border-radius: var(--radius-md3-form);
+    background: var(--color-md3-surface-container);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      0 12px 36px rgb(0 0 0 / 0.1);
+  }
+
+  .connect-card > div:first-child {
+    position: relative;
+    min-width: 0;
+  }
+
+  .connect-card > div:first-child > .relative,
+  .connect-card > div:first-child > .relative > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .connect-card > div:first-child > label {
+    position: absolute;
+    z-index: 2;
+    top: -0.55rem;
+    left: 0.75rem;
+    margin: 0;
+    padding: 0 0.35rem;
+    background: var(--color-md3-surface-container);
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.75rem;
+    line-height: 1.15rem;
+    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .connect-card > div:first-child:focus-within > label {
+    color: var(--color-md3-primary-emphasis);
+  }
+
+  .connect-card > div:first-child > .relative > div:first-child {
+    min-height: 3rem;
+    border-radius: 0.5rem;
+    background: transparent;
+  }
+
+  .connect-card > div:first-child > .relative > div:first-child:focus-within {
+    border-color: var(--color-md3-primary);
+    box-shadow: 0 0 0 1px var(--color-md3-primary);
+  }
+
+  .connect-card input {
+    font-family: var(--font-md3-serif);
+    font-size: 1rem;
+  }
+
+  .connect-card input:disabled {
+    cursor: not-allowed;
+  }
+
+  .connect-submit {
+    display: inline-flex;
+    min-width: 6.75rem;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    border: 0;
+    border-radius: var(--radius-md3-button);
+    background: var(--color-md3-primary);
+    color: var(--color-md3-on-primary);
+    font-family: var(--font-md3-serif);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background var(--motion-duration-short4) var(--motion-easing-standard),
+      opacity var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .connect-submit:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-md3-primary) 90%, white);
+  }
+
+  .connect-submit:active:not(:disabled) {
+    opacity: 0.72;
+  }
+
+  .connect-submit:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .connect-auth-visual {
+    display: none;
+    min-width: 0;
+    min-height: 100%;
+    flex: 0 0 0;
+    overflow: hidden;
+    background: #0e1217;
+  }
+
+  .connect-auth-visual-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (min-width: 1024px) {
+    .connect-auth-visual {
+      display: block;
+    }
+  }
+
+  @media (max-width: 460px) {
+    .connect-auth-shell {
+      overflow-x: hidden;
+    }
+
+    .connect-auth-panel {
+      grid-template-rows: 4.25rem minmax(0, 1fr);
+      padding-right: 0.75rem;
+      padding-left: 0.75rem;
+    }
+
+    .connect-page-title {
+      padding-top: 1.15rem;
+    }
+
+    .connect-actions {
+      gap: 0;
+      padding-top: 0.7rem;
+    }
+
+    .connect-icon-button {
+      width: 2.5rem;
+      height: 2.5rem;
+    }
+
+    .connect-form-stage {
+      padding-top: 0.75rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .connect-card {
+      padding: 1rem;
+    }
+  }
+
+  @media (max-height: 580px) {
+    .connect-auth-shell {
+      overflow-y: auto;
+    }
+
+    .connect-auth-panel {
+      grid-template-rows: 4rem auto;
+    }
+
+    .connect-page-title {
+      padding-top: 1rem;
+    }
+
+    .connect-actions {
+      padding-top: 0.6rem;
+    }
+
+    .connect-form-stage {
+      align-self: start;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
     }
   }
 </style>
