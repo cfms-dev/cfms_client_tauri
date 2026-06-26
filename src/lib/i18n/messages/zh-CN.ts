@@ -82,6 +82,7 @@ export const zh_CN = {
     unknownError: '发生未知错误。',
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
+    forgotPassword: '忘记密码？',
     passwordChangeRequired: '需要修改密码',
     passwordChangeRequiredBody: '你必须先修改密码才能登录。',
     changePassword: '修改密码',
@@ -697,6 +698,13 @@ export const zh_CN = {
     description: '编辑服务器安全策略。保存后更改生效。请使用有效的 JSON 格式。',
   },
   dialog: {
+    forgotPassword: {
+      title: '忘记密码',
+      contactAdmin: '若要在忘记密码的情况下恢复对您账户的访问权限，请联系您的系统管理员。',
+      encryptionWarning:
+        '请注意，重置密码无法同步更新已利用旧密码加密的数据加密密钥，因此若您确实忘记了旧密码，您将无法解密客户端本地的用户偏好文件。',
+      confirm: '知道了',
+    },
     twoFactor: {
       title: '二步验证',
       recoveryDescription: '请输入一个恢复代码',

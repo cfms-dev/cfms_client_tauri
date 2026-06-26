@@ -47,6 +47,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import ModalFrame from "$lib/components/ModalFrame.svelte";
   import CorruptedPreferenceDialog from "$lib/components/CorruptedPreferenceDialog.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
@@ -60,6 +61,7 @@
   let successMessage = $state<string | null>(null);
   let passwordChangeRequired = $state(false);
   let showChangePassword = $state(false);
+  let showForgotPasswordDialog = $state(false);
   let showCorruptedPreferenceDialog = $state(false);
   type UnreadablePreferenceDecision = 'cancel' | 'delete' | 'recovered';
   let corruptedPreferenceResolver: ((decision: UnreadablePreferenceDecision) => void) | null = null;
@@ -771,6 +773,17 @@
             {/if}
           </button>
         </div>
+
+        <div class="flex justify-center">
+          <button
+            type="button"
+            class="px-2 py-1 text-xs font-medium text-md3-primary transition-colors hover:text-md3-primary-emphasis disabled:opacity-50"
+            onclick={() => (showForgotPasswordDialog = true)}
+            disabled={busy}
+          >
+            {$t('login.forgotPassword')}
+          </button>
+        </div>
       </form>
     {/if}
   </div>
@@ -802,6 +815,32 @@
     onDelete={() => resolveCorruptedPreferenceDialog('delete')}
     onCancel={() => resolveCorruptedPreferenceDialog('cancel')}
   />
+{/if}
+
+{#if showForgotPasswordDialog}
+  <ModalFrame
+    title={$t('dialog.forgotPassword.title')}
+    maxWidth="max-w-md"
+    closeLabel={$t('common.close')}
+    onClose={() => (showForgotPasswordDialog = false)}
+  >
+    <div class="space-y-5 p-5">
+      <div class="space-y-4 text-sm leading-6 text-md3-on-surface-variant">
+        <p>{$t('dialog.forgotPassword.contactAdmin')}</p>
+        <p>{$t('dialog.forgotPassword.encryptionWarning')}</p>
+      </div>
+
+      <div class="flex justify-end">
+        <button
+          type="button"
+          class="rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110"
+          onclick={() => (showForgotPasswordDialog = false)}
+        >
+          {$t('dialog.forgotPassword.confirm')}
+        </button>
+      </div>
+    </div>
+  </ModalFrame>
 {/if}
 
 <style>

@@ -82,6 +82,7 @@ export const en = {
     unknownError: 'An unknown error occurred.',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
+    forgotPassword: 'Forgot password?',
     passwordChangeRequired: 'Password change required',
     passwordChangeRequiredBody: 'Your password must be changed before you can sign in.',
     changePassword: 'Change Password',
@@ -705,6 +706,14 @@ export const en = {
     description: 'Edit the server security policy. Changes take effect after saving. Use valid JSON format.',
   },
   dialog: {
+    forgotPassword: {
+      title: 'Forgot Password',
+      contactAdmin:
+        'To restore access to your account after forgetting your password, contact your system administrator.',
+      encryptionWarning:
+        'Please note that resetting your password cannot also update the data encryption key that was encrypted with your old password. If you truly forgot the old password, you will not be able to decrypt the local user preference file on this client.',
+      confirm: 'OK',
+    },
     twoFactor: {
       title: 'Two-Factor Authentication',
       recoveryDescription: 'Enter one of your recovery codes',
