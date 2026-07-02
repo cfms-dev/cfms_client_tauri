@@ -110,7 +110,7 @@
 
   const SERVER_SEARCH_PAGE_SIZE = 128;
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
-  const SEARCH_PREVIEW_DEBOUNCE_MS = 260;
+  const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
   const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
 
   type DownloadQueueItem = {
@@ -1723,10 +1723,6 @@
     searchPreviewDebounce = null;
   }
 
-  function syncPreviewQuery() {
-    searchPreview.query = searchQuery;
-  }
-
   function closeSearchPreview() {
     clearSearchPreviewDebounce();
     searchPreviewRunId += 1;
@@ -1742,7 +1738,6 @@
   }
 
   function openSearchPreview() {
-    syncPreviewQuery();
     searchPreview.open = true;
     scheduleSearchPreview();
   }
@@ -1751,7 +1746,6 @@
     if (event?.currentTarget instanceof HTMLInputElement) {
       searchQuery = event.currentTarget.value;
     }
-    syncPreviewQuery();
     if (!searchPreviewHasQuery) {
       resetSearchPreviewResults();
       searchPreview.open = false;
@@ -1775,31 +1769,37 @@
   }
 
   function scheduleSearchPreview(immediate = false) {
+    const hadSettledResults = searchPreview.results !== null;
+    const hadPendingPreview =
+      searchPreview.loading || searchPreview.loadingMore || searchPreviewDebounce !== null;
     clearSearchPreviewDebounce();
-    syncPreviewQuery();
-    resetSearchPreviewResults();
 
     const query = searchQuery.trim();
     if (!query) {
+      resetSearchPreviewResults();
       searchPreview.loading = false;
       return;
     }
 
     if (!searchPreview.searchDocuments && !searchPreview.searchDirectories) {
       searchPreview.loading = false;
+      searchPreview.loadingMore = false;
       searchPreview.error = $t('files.searchTypeRequired');
       return;
     }
 
     const runId = ++searchPreviewRunId;
+    const shouldLoadImmediately = immediate || (!hadSettledResults && !hadPendingPreview);
     searchPreview.open = true;
-    searchPreview.loading = true;
+    searchPreview.error = null;
+    searchPreview.loading = shouldLoadImmediately ? searchPreview.loading : !hadSettledResults;
+    searchPreview.loadingMore = false;
     const load = () => {
       searchPreviewDebounce = null;
       void loadSearchPreviewPage({ cursor: null, reset: true, runId });
     };
 
-    if (immediate) {
+    if (shouldLoadImmediately) {
       load();
     } else {
       searchPreviewDebounce = setTimeout(load, SEARCH_PREVIEW_DEBOUNCE_MS);
@@ -1865,6 +1865,7 @@
     if (
       !results?.has_more
       || !results.next_cursor
+      || searchQuery.trim() !== searchPreview.query
       || searchPreview.loading
       || searchPreview.loadingMore
     ) {
