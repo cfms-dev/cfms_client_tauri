@@ -238,6 +238,10 @@ export async function setCurrentRevision(
   return invoke("set_current_revision", { documentId, revisionId: String(revisionId) });
 }
 
+export async function deleteRevision(revisionId: string): Promise<boolean> {
+  return invoke("delete_revision", { revisionId: String(revisionId) });
+}
+
 export async function uploadNewRevision(
   documentId: string,
   filePath: string,
@@ -314,7 +318,8 @@ export async function cancelUpload(uploadId: string): Promise<boolean> {
 export async function searchFiles(
   query: string,
   options: {
-    limit?: number;
+    pageSize?: number;
+    cursor?: string | null;
     sortBy?: string;
     sortOrder?: "asc" | "desc";
     searchDocuments?: boolean;
@@ -323,7 +328,8 @@ export async function searchFiles(
 ): Promise<SearchFilesResponse> {
   const data = await invoke<Partial<SearchFilesResponse>>("search_files", {
     query,
-    limit: options.limit ?? 100,
+    pageSize: options.pageSize ?? 128,
+    cursor: options.cursor ?? null,
     sortBy: options.sortBy ?? "name",
     sortOrder: options.sortOrder ?? "asc",
     searchDocuments: options.searchDocuments ?? true,
@@ -335,6 +341,9 @@ export async function searchFiles(
     total_count:
       data.total_count
       ?? ((data.documents?.length ?? 0) + (data.directories?.length ?? 0)),
+    page_size: data.page_size ?? options.pageSize ?? 128,
+    next_cursor: data.next_cursor ?? null,
+    has_more: data.has_more ?? false,
   };
 }
 

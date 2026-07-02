@@ -16,6 +16,7 @@
     listGroups,
     listUserBlocks,
     listUsers,
+    manageUserStatus,
     renameGroup,
     renameUser,
     resetUserPassword,
@@ -24,6 +25,7 @@
     type AuditLogEntry,
     type ManagedGroup,
     type ManagedUser,
+    type ManagedUserStatus,
     type UserBlock,
     type UserBlockTarget,
   } from '$lib/api';
@@ -60,6 +62,7 @@
     | { kind: 'user-groups'; user: ManagedUser }
     | { kind: 'user-permissions'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
+    | { kind: 'user-status'; user: ManagedUser }
     | { kind: 'block-user'; user: ManagedUser }
     | { kind: 'group-permissions'; group: ManagedGroup }
     | null;
@@ -89,9 +92,10 @@
   let users = $state<ManagedUser[]>([]);
   let groups = $state<ManagedGroup[]>([]);
   let auditEntries = $state<AuditLogEntry[]>([]);
-  let auditTotal = $state(0);
-  let auditOffset = $state(0);
-  const auditCount = 100;
+  let auditNextCursor = $state<string | null>(null);
+  let auditCursorStack = $state<Array<string | null>>([]);
+  let auditPageIndex = $state(0);
+  const auditPageSize = 128;
 
   let loadingUsers = $state(false);
   let loadingGroups = $state(false);
@@ -141,6 +145,7 @@
   const canBlock = $derived(hasAnyPermission('block', 'manage_system'));
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
+  const canManageUserStatus = $derived(hasAnyPermission('manage_user_status', 'manage_system'));
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => {
     if (!contextMenu.target) return [];
     if (contextMenu.target.kind === 'user') return getUserContextMenuItems(contextMenu.target.user);
@@ -280,7 +285,7 @@
     expandedAuditIds = new Set();
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
-    else loadAuditLogPage(auditOffset);
+    else loadAuditLogPage(null, 'reset');
   }
 
   function toggleActionRow(key: string) {
@@ -351,6 +356,14 @@
         icon: 'password',
         onSelect: () => handleResetPassword(user),
         disabled,
+      },
+      {
+        id: 'manage-user-status',
+        label: $t('manage.setAccountStatus'),
+        icon: 'manageAccounts',
+        onSelect: () => handleManageUserStatus(user),
+        disabled,
+        hidden: !canManageUserStatus,
       },
       { type: 'divider', hidden: !canBlock && !canListBlocks },
       {
@@ -439,20 +452,28 @@
     }
   }
 
-  async function loadAuditLogPage(offset: number) {
+  async function loadAuditLogPage(cursor: string | null, direction: 'reset' | 'next' | 'previous' = 'reset') {
     if (!canViewLogs) return;
     loadingLogs = true;
     error = null;
     try {
-      auditOffset = Math.max(0, offset);
-      const data = await viewAuditLogs(auditOffset, auditCount);
+      const data = await viewAuditLogs(cursor, auditPageSize);
       auditEntries = data.entries;
-      auditTotal = data.total;
+      auditNextCursor = data.next_cursor;
+      if (direction === 'reset') {
+        auditCursorStack = [cursor];
+        auditPageIndex = 0;
+      } else if (direction === 'next') {
+        auditCursorStack = [...auditCursorStack.slice(0, auditPageIndex + 1), cursor];
+        auditPageIndex += 1;
+      } else {
+        auditPageIndex = Math.max(0, auditPageIndex - 1);
+      }
       expandedAuditIds = new Set();
     } catch (err) {
       error = formatError(err);
       auditEntries = [];
-      auditTotal = 0;
+      auditNextCursor = null;
       expandedAuditIds = new Set();
     } finally {
       loadingLogs = false;
@@ -493,6 +514,10 @@
 
   async function handleResetPassword(user: ManagedUser) {
     activeDialog = { kind: 'reset-password', user };
+  }
+
+  async function handleManageUserStatus(user: ManagedUser) {
+    activeDialog = { kind: 'user-status', user };
   }
 
   async function handleViewUser(user: ManagedUser) {
@@ -717,6 +742,19 @@
       bypassRequirements,
       forceUpdateAfterLogin,
     );
+  }
+
+  async function saveActiveUserStatus(statusValue: ManagedUserStatus) {
+    if (activeDialog?.kind !== 'user-status') return;
+    const user = activeDialog.user;
+    await runBusy(`status-user:${user.username}`, async () => {
+      await manageUserStatus(user.username, statusValue);
+      status = $t('manage.userStatusUpdated', {
+        values: { username: user.username },
+      });
+      activeDialog = null;
+      await loadUserList();
+    });
   }
 
   async function saveActiveBlockUser(
@@ -990,6 +1028,7 @@
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                   {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                  {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
                   {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
                   {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
@@ -1002,6 +1041,7 @@
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                       {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                      {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
                       {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
                       {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
@@ -1101,29 +1141,28 @@
           </h2>
           <div class="flex items-center gap-2">
             <span class="text-xs text-md3-on-surface-variant">
-              {auditTotal === 0
+              {auditEntries.length === 0
                 ? $t('manage.auditRangeEmpty')
-                : $t('manage.auditRange', {
+                : $t('manage.auditPageRange', {
                     values: {
-                      start: auditOffset + 1,
-                      end: auditOffset + auditEntries.length,
-                      total: auditTotal,
+                      page: auditPageIndex + 1,
+                      count: auditEntries.length,
                     },
                   })}
             </span>
             <button
               class="p-1.5 rounded-full text-md3-on-surface-variant hover:bg-md3-surface-container-high disabled:opacity-40"
               title={$t('common.previous')}
-              onclick={() => loadAuditLogPage(auditOffset - auditCount)}
-              disabled={auditOffset <= 0 || loadingLogs}
+              onclick={() => loadAuditLogPage(auditCursorStack[Math.max(0, auditPageIndex - 1)] ?? null, 'previous')}
+              disabled={auditPageIndex <= 0 || loadingLogs}
             >
               <Icon name="navigateBefore" size="18px" />
             </button>
             <button
               class="p-1.5 rounded-full text-md3-on-surface-variant hover:bg-md3-surface-container-high disabled:opacity-40"
               title={$t('common.next')}
-              onclick={() => loadAuditLogPage(auditOffset + auditCount)}
-              disabled={auditOffset + auditCount >= auditTotal || loadingLogs}
+              onclick={() => loadAuditLogPage(auditNextCursor, 'next')}
+              disabled={!auditNextCursor || loadingLogs}
             >
               <Icon name="navigateNext" size="18px" />
             </button>
@@ -1248,6 +1287,37 @@
     onSave={saveActiveResetPassword}
     onClose={() => (activeDialog = null)}
   />
+{:else if activeDialog?.kind === 'user-status'}
+  <ModalFrame
+    title={$t('manage.setAccountStatusTitle', { values: { username: activeDialog.user.username } })}
+    maxWidth="max-w-md"
+    closeLabel={$t('common.cancel')}
+    onClose={() => (activeDialog = null)}
+  >
+    <div class="space-y-4 p-5">
+      <p class="text-sm text-md3-on-surface-variant">{$t('manage.setAccountStatusDescription')}</p>
+      <div class="grid gap-2">
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:opacity-50"
+          disabled={busyKey !== null}
+          onclick={() => saveActiveUserStatus('active')}
+        >
+          <Icon name="verifiedUser" size="20px" />
+          <span class="text-sm font-medium text-md3-on-surface">{$t('manage.statusActive')}</span>
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-error-container/30 disabled:opacity-50"
+          disabled={busyKey !== null}
+          onclick={() => saveActiveUserStatus('disabled')}
+        >
+          <Icon name="block" size="20px" />
+          <span class="text-sm font-medium text-md3-on-surface">{$t('manage.statusDisabled')}</span>
+        </button>
+      </div>
+    </div>
+  </ModalFrame>
 {:else if activeDialog?.kind === 'block-user'}
   <BlockUserDialog
     username={activeDialog.user.username}

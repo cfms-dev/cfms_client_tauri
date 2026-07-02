@@ -630,6 +630,175 @@ async fn server_action_bool(
     Ok(true)
 }
 
+fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
+    let mut folders = Vec::new();
+    let mut documents = Vec::new();
+
+    for item in page.items {
+        match item {
+            cfms_core::ServerListingItem::Directory(folder) => folders.push(folder),
+            cfms_core::ServerListingItem::Document(document) => documents.push(document),
+        }
+    }
+
+    ListDirectoryResponse {
+        folders,
+        documents,
+        parent_id: page.parent_id,
+    }
+}
+
+fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingCursorPage) {
+    target.parent_id = page.parent_id.clone();
+    let split = split_listing_page(page);
+    target.folders.extend(split.folders);
+    target.documents.extend(split.documents);
+}
+
+async fn fetch_all_listing_pages(
+    state: &AppHandleState,
+    action: &str,
+    mut data: serde_json::Value,
+) -> Result<ListDirectoryResponse, String> {
+    let mut combined = ListDirectoryResponse {
+        folders: Vec::new(),
+        documents: Vec::new(),
+        parent_id: None,
+    };
+    let mut cursor: Option<String> = None;
+
+    loop {
+        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
+        data["cursor"] = cursor
+            .as_ref()
+            .map(|value| serde_json::Value::String(value.clone()))
+            .unwrap_or(serde_json::Value::Null);
+
+        let page: ListingCursorPage = serde_json::from_value(server_action_json(state, action, data.clone()).await?)
+            .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+        let has_more = page.has_more;
+        cursor = page.next_cursor.clone();
+        merge_listing_response(&mut combined, page);
+
+        if !has_more {
+            break;
+        }
+        if cursor.is_none() {
+            return Err(format!("{action} reported more pages without next_cursor"));
+        }
+    }
+
+    Ok(combined)
+}
+
+async fn fetch_all_cursor_items(
+    state: &AppHandleState,
+    action: &str,
+    mut data: serde_json::Value,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut items = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
+        data["cursor"] = cursor
+            .as_ref()
+            .map(|value| serde_json::Value::String(value.clone()))
+            .unwrap_or(serde_json::Value::Null);
+
+        let page: CursorPage<serde_json::Value> =
+            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
+                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+        let has_more = page.has_more;
+        cursor = page.next_cursor.clone();
+        items.extend(page.items);
+
+        if !has_more {
+            break;
+        }
+        if cursor.is_none() {
+            return Err(format!("{action} reported more pages without next_cursor"));
+        }
+    }
+
+    Ok(items)
+}
+
+fn split_search_page(mut page: CursorPage<serde_json::Value>) -> serde_json::Value {
+    let mut documents = Vec::new();
+    let mut directories = Vec::new();
+
+    for item in page.items.drain(..) {
+        match item.get("type").and_then(|value| value.as_str()) {
+            Some("directory") => directories.push(item),
+            Some("document") => documents.push(item),
+            _ => {}
+        }
+    }
+
+    serde_json::json!({
+        "documents": documents,
+        "directories": directories,
+        "page_size": page.page_size,
+        "next_cursor": page.next_cursor,
+        "has_more": page.has_more,
+    })
+}
+
+#[cfg(test)]
+mod protocol_v15_tests {
+    use super::*;
+
+    #[test]
+    fn split_listing_page_maps_v15_items_to_legacy_response() {
+        let page: ListingCursorPage = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "directory", "id": "dir", "name": "Folder", "created_time": 1.0 },
+                    { "type": "document", "id": "doc", "title": "File", "name": "File", "size": 5, "last_modified": 2.0 }
+                ],
+                "page_size": 128,
+                "next_cursor": null,
+                "has_more": false,
+                "parent_id": "/"
+            }"#,
+        )
+        .unwrap();
+
+        let split = split_listing_page(page);
+
+        assert_eq!(split.folders.len(), 1);
+        assert_eq!(split.folders[0].name, "Folder");
+        assert_eq!(split.documents.len(), 1);
+        assert_eq!(split.documents[0].title, "File");
+        assert_eq!(split.parent_id.as_deref(), Some("/"));
+    }
+
+    #[test]
+    fn split_search_page_preserves_cursor_metadata() {
+        let page: CursorPage<serde_json::Value> = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "directory", "id": "dir", "name": "Folder" },
+                    { "type": "document", "id": "doc", "name": "File", "size": 5 }
+                ],
+                "page_size": 64,
+                "next_cursor": "cursor",
+                "has_more": true
+            }"#,
+        )
+        .unwrap();
+
+        let split = split_search_page(page);
+
+        assert_eq!(split["directories"].as_array().unwrap().len(), 1);
+        assert_eq!(split["documents"].as_array().unwrap().len(), 1);
+        assert_eq!(split["page_size"], 64);
+        assert_eq!(split["next_cursor"], "cursor");
+        assert_eq!(split["has_more"], true);
+    }
+}
+
 async fn clear_auth_state(state: &AppHandleState) {
     {
         let mut u = state.inner.username.write().await;

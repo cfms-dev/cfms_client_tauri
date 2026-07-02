@@ -202,7 +202,7 @@ pub async fn view_access_entries(
     object_type: String,
     object_identifier: String,
 ) -> Result<serde_json::Value, String> {
-    server_action_json(
+    let items = fetch_all_cursor_items(
         &state,
         "view_access_entries",
         serde_json::json!({
@@ -210,7 +210,9 @@ pub async fn view_access_entries(
             "object_identifier": object_identifier,
         }),
     )
-    .await
+    .await?;
+
+    Ok(serde_json::json!({ "result": items }))
 }
 
 /// Revoke a temporary access entry.
@@ -327,10 +329,26 @@ pub async fn list_revisions(
     state: tauri::State<'_, AppHandleState>,
     document_id: String,
 ) -> Result<serde_json::Value, String> {
-    server_action_json(
+    let items = fetch_all_cursor_items(
         &state,
         "list_revisions",
         serde_json::json!({ "document_id": document_id }),
+    )
+    .await?;
+
+    Ok(serde_json::json!({ "revisions": items }))
+}
+
+/// Delete a non-current document revision.
+#[tauri::command]
+pub async fn delete_revision(
+    state: tauri::State<'_, AppHandleState>,
+    revision_id: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "delete_revision",
+        serde_json::json!({ "id": revision_id }),
     )
     .await
 }
@@ -714,7 +732,8 @@ pub async fn cancel_upload(
 pub async fn search_files(
     state: tauri::State<'_, AppHandleState>,
     query: String,
-    limit: Option<u32>,
+    page_size: Option<u32>,
+    cursor: Option<String>,
     sort_by: Option<String>,
     sort_order: Option<String>,
     search_documents: Option<bool>,
@@ -725,19 +744,24 @@ pub async fn search_files(
         return Err("Search query cannot be empty".to_string());
     }
 
-    server_action_json(
+    let raw = server_action_json(
         &state,
         "search",
         serde_json::json!({
             "query": trimmed,
-            "limit": limit.unwrap_or(100).clamp(1, 1000),
+            "page_size": page_size.unwrap_or(SERVER_CURSOR_PAGE_SIZE).clamp(1, SERVER_CURSOR_PAGE_SIZE),
+            "cursor": cursor,
             "sort_by": sort_by.unwrap_or_else(|| "name".to_string()),
             "sort_order": sort_order.unwrap_or_else(|| "asc".to_string()),
             "search_documents": search_documents.unwrap_or(true),
             "search_directories": search_directories.unwrap_or(true),
         }),
     )
-    .await
+    .await?;
+    let page: CursorPage<serde_json::Value> =
+        serde_json::from_value(raw).map_err(|e| format!("Invalid search response: {e}"))?;
+
+    Ok(split_search_page(page))
 }
 
 // ---------------------------------------------------------------------------
@@ -753,12 +777,18 @@ pub async fn list_deleted_items(
     state: tauri::State<'_, AppHandleState>,
     folder_id: String,
 ) -> Result<serde_json::Value, String> {
-    server_action_json(
+    let listing = fetch_all_listing_pages(
         &state,
         "list_deleted_items",
         serde_json::json!({ "folder_id": folder_id }),
     )
-    .await
+    .await?;
+
+    Ok(serde_json::json!({
+        "folders": listing.folders,
+        "documents": listing.documents,
+        "parent_id": listing.parent_id,
+    }))
 }
 
 /// Restore a deleted document, optionally with a new title or destination.

@@ -28,38 +28,12 @@ pub async fn list_directory(
     state: tauri::State<'_, AppHandleState>,
     folder_id: Option<String>,
 ) -> Result<ListDirectoryResponse, String> {
-    let conn = {
-        let c = state.inner.conn.read().await;
-        c.clone()
-    }
-    .ok_or_else(|| "Not connected to a server".to_string())?;
-
-    let username = {
-        let u = state.inner.username.read().await;
-        u.clone()
-    }
-    .ok_or_else(|| "Not logged in".to_string())?;
-
-    let token = {
-        let t = state.inner.token.read().await;
-        t.clone()
-    }
-    .ok_or_else(|| "Not logged in".to_string())?;
-
-    let resp = send_typed_action_request::<ListDirectoryResponse>(
-        &conn,
+    fetch_all_listing_pages(
+        &state,
         "list_directory",
         serde_json::json!({"folder_id": folder_id}),
-        &username,
-        &token,
     )
-    .await?;
-
-    if resp.code != 200 {
-        return Err(format!("Server returned {}: {}", resp.code, resp.message));
-    }
-
-    Ok(resp.data)
+    .await
 }
 
 /// Request a document download from the CFMS server.

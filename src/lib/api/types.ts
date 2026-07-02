@@ -84,6 +84,10 @@ export interface ServerDocumentEntry {
   last_modified: number | null;
 }
 
+export type DirectoryListingItem =
+  | ({ type: "directory" } & ServerDirectoryEntry)
+  | ({ type: "document" } & ServerDocumentEntry);
+
 export interface ServerDocumentMetadata {
   tags: string[];
   creator?: string | null;
@@ -134,6 +138,16 @@ export interface RevisionEntry {
   is_current?: boolean;
 }
 
+export interface CursorPageMeta {
+  page_size: number;
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface CursorPage<T> extends CursorPageMeta {
+  items: T[];
+}
+
 /** Response data for the list_directory server action. */
 export interface ListDirectoryResponse {
   folders: ServerDirectoryEntry[];
@@ -154,7 +168,11 @@ export interface SearchDocumentEntry {
   last_modified?: number | null;
 }
 
-export interface SearchFilesResponse {
+export type SearchResultItem =
+  | ({ type: "directory" } & SearchDirectoryEntry)
+  | ({ type: "document" } & SearchDocumentEntry);
+
+export interface SearchFilesResponse extends CursorPageMeta {
   documents: SearchDocumentEntry[];
   directories: SearchDirectoryEntry[];
   total_count: number;
@@ -192,6 +210,8 @@ export interface ManagedUser {
   passwd_last_modified?: number | null;
 }
 
+export type ManagedUserStatus = "active" | "disabled";
+
 export interface ManagedGroup {
   name: string;
   display_name?: string | null;
@@ -225,9 +245,21 @@ export interface AuditLogEntry {
   logged_time: number;
 }
 
-export interface AuditLogsResponse {
-  total: number;
+export interface AuditLogsResponse extends CursorPageMeta {
   entries: AuditLogEntry[];
+}
+
+export interface UserKeyMetadata {
+  id: string;
+  label?: string | null;
+  is_preference_dek?: boolean;
+  created_time?: number | null;
+}
+
+export interface UserKeyDetails extends UserKeyMetadata {
+  key_id?: string;
+  username: string;
+  key_content: string;
 }
 
 export interface ServiceStatusInfo {

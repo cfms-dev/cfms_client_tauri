@@ -22,6 +22,7 @@
     createDirectory,
     deleteDirectory,
     deleteDocument,
+    deleteRevision,
     ensureDownloadSubdirectory,
     getAccessRules,
     getDirectoryInfo,
@@ -107,6 +108,8 @@
     | { kind: 'directory'; directory: SearchDirectoryEntry }
     | { kind: 'document'; document: SearchDocumentEntry };
 
+  const SERVER_SEARCH_PAGE_SIZE = 128;
+
   type DownloadQueueItem = {
     document: Pick<ServerDocumentEntry, 'id' | 'title'>;
     pathParts: string[];
@@ -188,6 +191,7 @@
     title: string;
     tags: string[];
   } | null>(null);
+  let searchRunId = 0;
   let uploadProgress = $state<{
     documentId: string;
     taskId: string;
@@ -202,7 +206,6 @@
     query: string;
     searchDocuments: boolean;
     searchDirectories: boolean;
-    limit: number;
     loading: boolean;
     results: SearchFilesResponse | null;
   }>({
@@ -210,7 +213,6 @@
     query: '',
     searchDocuments: true,
     searchDirectories: true,
-    limit: 100,
     loading: false,
     results: null,
   });
@@ -1344,6 +1346,26 @@
     return { items, failed };
   }
 
+  async function handleDeleteRevision(revision: RevisionEntry) {
+    if (!revisionsDialog || revision.is_current) return;
+    if (!(await dialogStore.confirm({
+      title: $t('files.deleteRevision'),
+      message: $t('files.deleteRevisionConfirm', {
+        values: { revision: shortIdentifier(revision.id) },
+      }),
+      confirmLabel: $t('common.delete'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    }))) return;
+
+    await runFileAction(async () => {
+      await deleteRevision(revision.id);
+      await refreshRevisionsDialog();
+      await loadDirectory(currentFolderId);
+      status = $t('files.deleteRevisionSuccess');
+    });
+  }
+
   async function queueCollectedDownloads(
     items: DownloadQueueItem[],
     signal: AbortSignal,
@@ -1649,7 +1671,31 @@
       ...searchDialog,
       open: true,
       query: searchQuery,
+      loading: false,
       results: null,
+    };
+  }
+
+  function emptySearchResults(): SearchFilesResponse {
+    return {
+      documents: [],
+      directories: [],
+      total_count: 0,
+      page_size: SERVER_SEARCH_PAGE_SIZE,
+      next_cursor: null,
+      has_more: false,
+    };
+  }
+
+  function mergeSearchResults(
+    previous: SearchFilesResponse,
+    page: SearchFilesResponse,
+  ): SearchFilesResponse {
+    return {
+      ...page,
+      documents: [...previous.documents, ...page.documents],
+      directories: [...previous.directories, ...page.directories],
+      total_count: previous.total_count + page.total_count,
     };
   }
 
@@ -1664,22 +1710,44 @@
       return;
     }
 
-    searchDialog = { ...searchDialog, loading: true };
+    const runId = ++searchRunId;
+    const searchDocuments = searchDialog.searchDocuments;
+    const searchDirectories = searchDialog.searchDirectories;
+    let cursor: string | null = null;
+    let combined = emptySearchResults();
+
+    searchDialog = { ...searchDialog, loading: true, results: null };
     try {
-      const results = await searchFiles(query, {
-        limit: searchDialog.limit,
-        searchDocuments: searchDialog.searchDocuments,
-        searchDirectories: searchDialog.searchDirectories,
-      });
-      searchDialog = { ...searchDialog, results, loading: false };
+      while (true) {
+        const results = await searchFiles(query, {
+          pageSize: SERVER_SEARCH_PAGE_SIZE,
+          cursor,
+          searchDocuments,
+          searchDirectories,
+        });
+        if (runId !== searchRunId) return;
+
+        combined = mergeSearchResults(combined, results);
+        searchDialog = { ...searchDialog, results: combined, loading: results.has_more };
+
+        if (!results.has_more) break;
+        cursor = results.next_cursor;
+        if (!cursor) {
+          throw new Error('Server reported more search results without a cursor.');
+        }
+      }
+
+      searchDialog = { ...searchDialog, loading: false, results: combined };
     } catch (e) {
+      if (runId !== searchRunId) return;
       searchDialog = { ...searchDialog, loading: false };
       error = formatError(e);
     }
   }
 
   function closeSearchDialog() {
-    searchDialog = { ...searchDialog, open: false };
+    searchRunId += 1;
+    searchDialog = { ...searchDialog, open: false, loading: false };
   }
 
   async function navigateToSearchDirectory(directory: { id: string; name: string }) {
@@ -2008,6 +2076,7 @@
           class="rounded-lg border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
           bind:value={searchDialog.query}
           placeholder={$t('files.searchPlaceholder')}
+          disabled={searchDialog.loading}
         />
         <button
           type="submit"
@@ -2023,6 +2092,7 @@
           <MdCheckbox
             bind:checked={searchDialog.searchDocuments}
             ariaLabel={$t('files.searchDocuments')}
+            disabled={searchDialog.loading}
           />
           {$t('files.searchDocuments')}
         </div>
@@ -2030,32 +2100,26 @@
           <MdCheckbox
             bind:checked={searchDialog.searchDirectories}
             ariaLabel={$t('files.searchDirectories')}
+            disabled={searchDialog.loading}
           />
           {$t('files.searchDirectories')}
         </div>
-        <label class="ml-auto flex items-center gap-2">
-          {$t('files.searchLimit')}
-          <input
-            type="number"
-            min="1"
-            max="1000"
-            class="w-24 rounded-lg border border-md3-outline bg-md3-field px-2 py-1 text-sm text-md3-on-surface"
-            bind:value={searchDialog.limit}
-          />
-        </label>
       </div>
 
-      {#if searchDialog.loading}
-        <div class="flex items-center gap-2 py-6 text-sm text-md3-on-surface-variant">
-          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-          {$t('common.loadingEllipsis')}
-        </div>
-      {:else if searchDialog.results}
+      {#if searchDialog.results}
         <div class="max-h-[52vh] overflow-auto rounded-lg border border-md3-outline">
-          <div class="border-b border-md3-outline bg-md3-surface-container-high/50 px-3 py-2 text-xs font-medium uppercase text-md3-on-surface-variant">
-            {searchDialog.results.total_count === 0
-              ? $t('files.searchNoResults', { values: { query: searchDialog.query } })
-              : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.query } })}
+          <div class="flex items-center justify-between gap-3 border-b border-md3-outline bg-md3-surface-container-high/50 px-3 py-2 text-xs font-medium uppercase text-md3-on-surface-variant">
+            <span>
+              {searchDialog.results.total_count === 0 && !searchDialog.loading
+                ? $t('files.searchNoResults', { values: { query: searchDialog.query } })
+                : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.query } })}
+            </span>
+            {#if searchDialog.loading}
+              <span class="inline-flex shrink-0 items-center gap-2">
+                <ProgressRing size={14} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+                {$t('common.loadingEllipsis')}
+              </span>
+            {/if}
           </div>
           <VirtualList
             items={searchResultRows}
@@ -2065,7 +2129,7 @@
             estimateSize={37}
             overscan={10}
             threshold={120}
-            resetKey={`${searchDialog.query}:${searchDialog.results.total_count}`}
+            resetKey={`${searchDialog.query}:${searchDialog.results.total_count}:${searchDialog.results.next_cursor ?? ''}`}
             viewportClass="server-search-list-viewport"
           >
             {#snippet children(row, index)}
@@ -2094,6 +2158,11 @@
               {/if}
             {/snippet}
           </VirtualList>
+        </div>
+      {:else if searchDialog.loading}
+        <div class="flex items-center gap-2 py-6 text-sm text-md3-on-surface-variant">
+          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+          {$t('common.loadingEllipsis')}
         </div>
       {/if}
     </form>
@@ -2369,6 +2438,13 @@
                       onclick={() => handleSetCurrentRevision(row.revision)}
                     >
                       <Icon name="verified" size="18px" />
+                    </button>
+                    <button
+                      class="rounded-full p-2 text-md3-on-surface-variant transition-colors hover:bg-md3-error-container hover:text-md3-on-error-container"
+                      title={$t('files.deleteRevision')}
+                      onclick={() => handleDeleteRevision(row.revision)}
+                    >
+                      <Icon name="delete" size="18px" />
                     </button>
                   {/if}
                 </div>

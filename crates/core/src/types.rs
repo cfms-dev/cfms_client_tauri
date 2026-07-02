@@ -317,6 +317,32 @@ pub struct ServerDocumentEntry {
     pub last_modified: Option<f64>,
 }
 
+/// Generic cursor-paginated response returned by CFMS protocol v15 list APIs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
+pub struct CursorPage<T> {
+    /// Page items.
+    #[serde(default)]
+    pub items: Vec<T>,
+    /// Effective page size used by the server.
+    #[serde(default)]
+    pub page_size: u32,
+    /// Cursor for the next page, if any.
+    #[serde(default)]
+    pub next_cursor: Option<String>,
+    /// Whether another page is available.
+    #[serde(default)]
+    pub has_more: bool,
+}
+
+/// A mixed directory-listing item returned by protocol v15.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerListingItem {
+    Directory(ServerDirectoryEntry),
+    Document(ServerDocumentEntry),
+}
+
 /// Metadata returned by the server's `server_info` action.
 ///
 /// Sent immediately after WebSocket connection to establish protocol
@@ -542,5 +568,28 @@ mod tests {
         assert_eq!(parsed.documents[1].size, None);
         assert_eq!(parsed.documents[2].size, Some(4096));
         assert_eq!(parsed.documents[3].size, Some(0));
+    }
+
+    #[test]
+    fn cursor_page_deserializes_v15_listing_items() {
+        let raw = r#"{
+            "items": [
+                { "type": "directory", "id": "dir-1", "name": "Folder", "created_time": 1.0 },
+                { "type": "document", "id": "doc-1", "title": "File.txt", "name": "File.txt", "size": 12, "last_modified": 2.0 }
+            ],
+            "page_size": 128,
+            "next_cursor": "next",
+            "has_more": true,
+            "parent_id": null
+        }"#;
+
+        let parsed: CursorPage<ServerListingItem> = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(parsed.items.len(), 2);
+        assert_eq!(parsed.page_size, 128);
+        assert_eq!(parsed.next_cursor.as_deref(), Some("next"));
+        assert!(parsed.has_more);
+        assert!(matches!(parsed.items[0], ServerListingItem::Directory(_)));
+        assert!(matches!(parsed.items[1], ServerListingItem::Document(_)));
     }
 }

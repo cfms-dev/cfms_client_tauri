@@ -15,6 +15,8 @@ use tokio::io::AsyncReadExt;
 
 use crate::verify;
 
+const CLIENT_MAX_UPLOAD_CHUNK_SIZE: u64 = 64 * 1024;
+
 /// Progress callback: `(current_bytes, total_bytes)`.
 pub type UploadProgressFn = dyn Fn(u64, u64) + Send + Sync;
 
@@ -78,13 +80,7 @@ pub async fn send(
         None
     };
 
-    let metadata_msg = serde_json::json!({
-        "action": "transfer_file",
-        "data": {
-            "sha256": sha256_hex,
-            "file_size": file_size
-        }
-    });
+    let metadata_msg = upload_metadata_message(sha256_hex.as_deref(), file_size);
     stream
         .send(
             conn,
@@ -136,6 +132,17 @@ pub async fn send(
     Ok(())
 }
 
+fn upload_metadata_message(sha256_hex: Option<&str>, file_size: u64) -> serde_json::Value {
+    serde_json::json!({
+        "action": "transfer_file",
+        "data": {
+            "sha256": sha256_hex,
+            "file_size": file_size,
+            "max_chunk_size": CLIENT_MAX_UPLOAD_CHUNK_SIZE
+        }
+    })
+}
+
 fn parse_ready_signal(ready_str: &str, file_size: u64) -> Result<Option<usize>> {
     if ready_str == "stop" {
         return if file_size == 0 {
@@ -158,7 +165,7 @@ fn parse_ready_signal(ready_str: &str, file_size: u64) -> Result<Option<usize>> 
 
 #[cfg(test)]
 mod tests {
-    use super::parse_ready_signal;
+    use super::{parse_ready_signal, upload_metadata_message};
 
     #[test]
     fn stop_completes_zero_byte_upload() {
@@ -174,5 +181,14 @@ mod tests {
     #[test]
     fn ready_signal_uses_server_chunk_size() {
         assert_eq!(parse_ready_signal("ready 16384", 42).unwrap(), Some(16384));
+    }
+
+    #[test]
+    fn upload_metadata_includes_client_max_chunk_size() {
+        let metadata = upload_metadata_message(Some("abc"), 42);
+        assert_eq!(metadata["action"], "transfer_file");
+        assert_eq!(metadata["data"]["sha256"], "abc");
+        assert_eq!(metadata["data"]["file_size"], 42);
+        assert_eq!(metadata["data"]["max_chunk_size"], 64 * 1024);
     }
 }

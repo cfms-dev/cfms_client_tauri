@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, ManagedGroup, ManagedUser, UserBlock, UserBlockTarget } from './types';
+import type { AuditLogsResponse, ManagedGroup, ManagedUser, ManagedUserStatus, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 export async function listUsers(): Promise<ManagedUser[]> {
   const data = await invoke<{ users?: ManagedUser[] }>("list_users");
@@ -56,6 +56,13 @@ export async function resetUserPassword(
     bypassPasswdRequirements,
     forceUpdateAfterLogin,
   });
+}
+
+export async function manageUserStatus(
+  username: string,
+  status: ManagedUserStatus,
+): Promise<boolean> {
+  return invoke("manage_user_status", { username, status });
 }
 
 export async function setLockdown(status: boolean): Promise<boolean> {
@@ -122,17 +129,40 @@ export async function changeGroupPermissions(
 }
 
 export async function viewAuditLogs(
-  offset: number,
-  count: number,
+  cursor: string | null = null,
+  pageSize = 128,
+  filters: string[] = [],
 ): Promise<AuditLogsResponse> {
   const data = await invoke<Partial<AuditLogsResponse>>("view_audit_logs", {
-    offset,
-    count,
+    cursor,
+    pageSize,
+    filters,
   });
   return {
-    total: data.total ?? 0,
     entries: data.entries ?? [],
+    page_size: data.page_size ?? pageSize,
+    next_cursor: data.next_cursor ?? null,
+    has_more: data.has_more ?? false,
   };
+}
+
+export async function listUserKeys(targetUsername?: string | null): Promise<UserKeyMetadata[]> {
+  const data = await invoke<{ keys?: UserKeyMetadata[] }>("list_user_keys", {
+    targetUsername: targetUsername ?? null,
+  });
+  return data.keys ?? [];
+}
+
+export async function getUserKey(id: string): Promise<UserKeyDetails> {
+  const data = await invoke<UserKeyDetails>("get_user_key", { id });
+  return {
+    ...data,
+    id: data.id ?? data.key_id ?? id,
+  };
+}
+
+export async function deleteUserKey(id: string): Promise<boolean> {
+  return invoke("delete_user_key", { id });
 }
 
 // ---------------------------------------------------------------------------

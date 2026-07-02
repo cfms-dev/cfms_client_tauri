@@ -11,7 +11,7 @@
 
 use cfms_core::constants;
 use cfms_core::{
-    DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServerInfo,
+    CursorPage, DownloadTaskDto, DownloadTaskStatus, FileEntry, ListDirectoryResponse, ServerInfo,
     ServiceEvent, ServiceStatusInfo, UserPreference,
 };
 use cfms_crypto::dek;

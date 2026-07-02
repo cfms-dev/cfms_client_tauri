@@ -77,6 +77,22 @@ pub struct UploadProgressEvent {
     pub message: Option<String>,
 }
 
+const SERVER_CURSOR_PAGE_SIZE: u32 = 128;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct ListingCursorPage {
+    #[serde(default)]
+    items: Vec<cfms_core::ServerListingItem>,
+    #[serde(default)]
+    page_size: u32,
+    #[serde(default)]
+    next_cursor: Option<String>,
+    #[serde(default)]
+    has_more: bool,
+    #[serde(default)]
+    parent_id: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct UploadFileResult {
     upload_id: String,
