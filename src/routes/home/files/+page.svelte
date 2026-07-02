@@ -109,6 +109,9 @@
     | { kind: 'document'; document: SearchDocumentEntry };
 
   const SERVER_SEARCH_PAGE_SIZE = 128;
+  const SEARCH_PREVIEW_PAGE_SIZE = 24;
+  const SEARCH_PREVIEW_DEBOUNCE_MS = 260;
+  const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
 
   type DownloadQueueItem = {
     document: Pick<ServerDocumentEntry, 'id' | 'title'>;
@@ -124,6 +127,7 @@
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
   let searchQuery = $state('');
+  let searchPreviewRoot = $state<HTMLDivElement | null>(null);
   let navigationRootId = $state<string | null>(null);
   let navigationRootLabel = $state<string | null>(null);
   let userPreference = $state<UserPreference | null>(null);
@@ -192,6 +196,8 @@
     tags: string[];
   } | null>(null);
   let searchRunId = 0;
+  let searchPreviewRunId = 0;
+  let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
   let uploadProgress = $state<{
     documentId: string;
     taskId: string;
@@ -206,6 +212,8 @@
     query: string;
     searchDocuments: boolean;
     searchDirectories: boolean;
+    sortBy: SortField;
+    sortOrder: SortDirection;
     loading: boolean;
     results: SearchFilesResponse | null;
   }>({
@@ -213,8 +221,33 @@
     query: '',
     searchDocuments: true,
     searchDirectories: true,
+    sortBy: 'name',
+    sortOrder: 'asc',
     loading: false,
     results: null,
+  });
+  let searchPreview = $state<{
+    open: boolean;
+    query: string;
+    searchDocuments: boolean;
+    searchDirectories: boolean;
+    sortBy: SortField;
+    sortOrder: SortDirection;
+    loading: boolean;
+    loadingMore: boolean;
+    results: SearchFilesResponse | null;
+    error: string | null;
+  }>({
+    open: false,
+    query: '',
+    searchDocuments: true,
+    searchDirectories: true,
+    sortBy: 'name',
+    sortOrder: 'asc',
+    loading: false,
+    loadingMore: false,
+    results: null,
+    error: null,
   });
 
   // Breadcrumb navigation history — each entry records the folder name and its
@@ -241,17 +274,35 @@
   const searchResultRows = $derived.by<SearchResultRow[]>(() => {
     if (!searchDialog.results) return [];
 
+    return buildSearchResultRows(searchDialog.results);
+  });
+  const searchPreviewRows = $derived.by<SearchResultRow[]>(() => {
+    if (!searchPreview.results) return [];
+
+    return buildSearchResultRows(searchPreview.results);
+  });
+  const searchPreviewHasQuery = $derived(searchQuery.trim().length > 0);
+  const searchPreviewCanSearch = $derived(
+    searchPreviewHasQuery && (searchPreview.searchDocuments || searchPreview.searchDirectories),
+  );
+  const searchPreviewResetKey = $derived(
+    `${searchPreview.query}:${searchPreview.sortBy}:${searchPreview.sortOrder}:${searchPreview.searchDocuments}:${searchPreview.searchDirectories}`,
+  );
+  const searchDialogResetKey = $derived(
+    `${searchDialog.query}:${searchDialog.sortBy}:${searchDialog.sortOrder}:${searchDialog.searchDocuments}:${searchDialog.searchDirectories}`,
+  );
+  function buildSearchResultRows(results: SearchFilesResponse): SearchResultRow[] {
     return [
-      ...searchDialog.results.directories.map((directory) => ({
+      ...results.directories.map((directory) => ({
         kind: 'directory' as const,
         directory,
       })),
-      ...searchDialog.results.documents.map((document) => ({
+      ...results.documents.map((document) => ({
         kind: 'document' as const,
         document,
       })),
     ];
-  });
+  }
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
   const parentTargetId = $derived.by<string | null | undefined>(() => {
     if (
@@ -1666,14 +1717,238 @@
     return value?.length ? value.join(', ') : $t('common.none');
   }
 
-  function openSearchDialog() {
-    searchDialog = {
-      ...searchDialog,
-      open: true,
-      query: searchQuery,
-      loading: false,
-      results: null,
+  function clearSearchPreviewDebounce() {
+    if (!searchPreviewDebounce) return;
+    clearTimeout(searchPreviewDebounce);
+    searchPreviewDebounce = null;
+  }
+
+  function syncPreviewQuery() {
+    searchPreview.query = searchQuery;
+  }
+
+  function closeSearchPreview() {
+    clearSearchPreviewDebounce();
+    searchPreviewRunId += 1;
+    searchPreview.open = false;
+    searchPreview.loading = false;
+    searchPreview.loadingMore = false;
+  }
+
+  function resetSearchPreviewResults() {
+    searchPreview.results = null;
+    searchPreview.error = null;
+    searchPreview.loadingMore = false;
+  }
+
+  function openSearchPreview() {
+    syncPreviewQuery();
+    searchPreview.open = true;
+    scheduleSearchPreview();
+  }
+
+  function handleSearchInput(event?: Event) {
+    if (event?.currentTarget instanceof HTMLInputElement) {
+      searchQuery = event.currentTarget.value;
+    }
+    syncPreviewQuery();
+    if (!searchPreviewHasQuery) {
+      resetSearchPreviewResults();
+      searchPreview.open = false;
+      searchPreview.loading = false;
+      return;
+    }
+    searchPreview.open = true;
+    scheduleSearchPreview();
+  }
+
+  function handleSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      closeSearchPreview();
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openSearchDialog(true);
+    }
+  }
+
+  function scheduleSearchPreview(immediate = false) {
+    clearSearchPreviewDebounce();
+    syncPreviewQuery();
+    resetSearchPreviewResults();
+
+    const query = searchQuery.trim();
+    if (!query) {
+      searchPreview.loading = false;
+      return;
+    }
+
+    if (!searchPreview.searchDocuments && !searchPreview.searchDirectories) {
+      searchPreview.loading = false;
+      searchPreview.error = $t('files.searchTypeRequired');
+      return;
+    }
+
+    const runId = ++searchPreviewRunId;
+    searchPreview.open = true;
+    searchPreview.loading = true;
+    const load = () => {
+      searchPreviewDebounce = null;
+      void loadSearchPreviewPage({ cursor: null, reset: true, runId });
     };
+
+    if (immediate) {
+      load();
+    } else {
+      searchPreviewDebounce = setTimeout(load, SEARCH_PREVIEW_DEBOUNCE_MS);
+    }
+  }
+
+  async function loadSearchPreviewPage({
+    cursor,
+    reset,
+    runId,
+  }: {
+    cursor: string | null;
+    reset: boolean;
+    runId: number;
+  }) {
+    const query = searchQuery.trim();
+    if (!query || (!searchPreview.searchDocuments && !searchPreview.searchDirectories)) {
+      searchPreview.loading = false;
+      searchPreview.loadingMore = false;
+      return;
+    }
+
+    const searchDocuments = searchPreview.searchDocuments;
+    const searchDirectories = searchPreview.searchDirectories;
+    const sortBy = searchSortByParam(searchPreview.sortBy);
+    const sortOrder = searchPreview.sortOrder;
+
+    if (reset) {
+      searchPreview.loading = true;
+      searchPreview.loadingMore = false;
+    } else {
+      searchPreview.loadingMore = true;
+    }
+
+    try {
+      const page = await searchFiles(query, {
+        pageSize: SEARCH_PREVIEW_PAGE_SIZE,
+        cursor,
+        sortBy,
+        sortOrder,
+        searchDocuments,
+        searchDirectories,
+      });
+      if (runId !== searchPreviewRunId) return;
+
+      searchPreview.query = query;
+      searchPreview.results = reset || !searchPreview.results
+        ? page
+        : mergeSearchResults(searchPreview.results, page);
+      searchPreview.loading = false;
+      searchPreview.loadingMore = false;
+      searchPreview.error = null;
+    } catch (e) {
+      if (runId !== searchPreviewRunId) return;
+      searchPreview.loading = false;
+      searchPreview.loadingMore = false;
+      searchPreview.error = formatError(e);
+    }
+  }
+
+  function loadMoreSearchPreview() {
+    const results = searchPreview.results;
+    if (
+      !results?.has_more
+      || !results.next_cursor
+      || searchPreview.loading
+      || searchPreview.loadingMore
+    ) {
+      return;
+    }
+
+    const runId = ++searchPreviewRunId;
+    void loadSearchPreviewPage({ cursor: results.next_cursor, reset: false, runId });
+  }
+
+  function handleSearchPreviewScroll(event: Event) {
+    const target = event.currentTarget as HTMLElement;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom <= SEARCH_PREVIEW_SCROLL_THRESHOLD) {
+      loadMoreSearchPreview();
+    }
+  }
+
+  function updateSearchPreviewOptions() {
+    if (!searchPreview.open && searchPreviewHasQuery) {
+      searchPreview.open = true;
+    }
+    scheduleSearchPreview(true);
+  }
+
+  function setSearchPreviewSort(field: SortField) {
+    searchPreview.sortBy = field;
+    updateSearchPreviewOptions();
+  }
+
+  function toggleSearchPreviewSortOrder() {
+    searchPreview.sortOrder = searchPreview.sortOrder === 'asc' ? 'desc' : 'asc';
+    updateSearchPreviewOptions();
+  }
+
+  function setSearchDialogSort(field: SortField) {
+    searchDialog.sortBy = field;
+  }
+
+  function toggleSearchDialogSortOrder() {
+    searchDialog.sortOrder = searchDialog.sortOrder === 'asc' ? 'desc' : 'asc';
+  }
+
+  function searchSortLabel(field: SortField) {
+    return field === 'name'
+      ? $t('files.searchSortName')
+      : field === 'size'
+        ? $t('files.searchSortSize')
+        : $t('files.searchSortModified');
+  }
+
+  function searchSortByParam(field: SortField) {
+    return field === 'modified' ? 'last_modified' : field;
+  }
+
+  function searchSortIndex(field: SortField) {
+    return field === 'name' ? 0 : field === 'size' ? 1 : 2;
+  }
+
+  function searchSortIndicatorStyle(field: SortField) {
+    return `width: calc((100% - 4px) / 3); transform: translateX(${searchSortIndex(field) * 100}%);`;
+  }
+
+  function searchResultDate(row: SearchResultRow) {
+    return row.kind === 'directory'
+      ? formatDate(row.directory.created_time)
+      : formatDate(row.document.last_modified ?? null);
+  }
+
+  function openSearchDialog(runImmediately = false) {
+    const query = searchQuery.trim() ? searchQuery : searchPreview.query;
+    closeSearchPreview();
+    searchDialog.open = true;
+    searchDialog.query = query;
+    searchDialog.searchDocuments = searchPreview.searchDocuments;
+    searchDialog.searchDirectories = searchPreview.searchDirectories;
+    searchDialog.sortBy = searchPreview.sortBy;
+    searchDialog.sortOrder = searchPreview.sortOrder;
+    searchDialog.loading = false;
+    searchDialog.results = null;
+
+    if (runImmediately) {
+      void runServerSearch();
+    }
   }
 
   function emptySearchResults(): SearchFilesResponse {
@@ -1713,6 +1988,8 @@
     const runId = ++searchRunId;
     const searchDocuments = searchDialog.searchDocuments;
     const searchDirectories = searchDialog.searchDirectories;
+    const sortBy = searchSortByParam(searchDialog.sortBy);
+    const sortOrder = searchDialog.sortOrder;
     let cursor: string | null = null;
     let combined = emptySearchResults();
 
@@ -1722,6 +1999,8 @@
         const results = await searchFiles(query, {
           pageSize: SERVER_SEARCH_PAGE_SIZE,
           cursor,
+          sortBy,
+          sortOrder,
           searchDocuments,
           searchDirectories,
         });
@@ -1751,6 +2030,7 @@
   }
 
   async function navigateToSearchDirectory(directory: { id: string; name: string }) {
+    closeSearchPreview();
     closeSearchDialog();
     const ok = await loadDirectory(directory.id);
     if (ok) {
@@ -1769,6 +2049,7 @@
   }
 
   async function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {
+    closeSearchPreview();
     closeSearchDialog();
     const parent = normalizeDirectoryId(document.parent_id);
     const ok = await loadDirectory(parent);
@@ -1827,6 +2108,14 @@
   onMount(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (!searchPreview.open || !searchPreviewRoot || !(event.target instanceof Node)) return;
+      if (!searchPreviewRoot.contains(event.target)) {
+        closeSearchPreview();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -1862,6 +2151,8 @@
     loadDirectory(initialFolder);
     reloadUserPreference();
     return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
+      clearSearchPreviewDebounce();
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
     };
@@ -1921,31 +2212,198 @@
     <span class="flex-1"></span>
 
     <!-- Search -->
-    <form
-      class="flex gap-2"
-      onsubmit={(e) => { e.preventDefault(); openSearchDialog(); }}
-    >
-      <input
-        type="text"
-        class="px-3 py-1.5 text-sm rounded-xl border border-md3-outline
-               bg-md3-field text-md3-on-surface w-36
-               placeholder:text-md3-on-surface-variant
-               focus:ring-2 focus:ring-md3-primary focus:border-transparent
-               transition-colors"
-        placeholder={$t('files.search')}
-        bind:value={searchQuery}
-      />
-      <button
-        type="submit"
-        class="inline-flex h-9 w-9 items-center justify-center rounded-full
-               bg-md3-primary-container text-md3-on-primary-container
-               transition-all hover:brightness-110 active:scale-95"
-        title={$t('files.serverSearch')}
-        aria-label={$t('files.serverSearch')}
+    <div bind:this={searchPreviewRoot} class="relative">
+      <form
+        class="flex gap-2"
+        onsubmit={(e) => { e.preventDefault(); openSearchDialog(true); }}
       >
-        <Icon name="search" size="16px" />
-      </button>
-    </form>
+        <div class="relative">
+          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
+            <Icon name="search" size="17px" />
+          </span>
+          <input
+            type="text"
+            class="h-9 w-48 rounded-full border border-md3-outline bg-md3-field py-1.5 pl-9 pr-9 text-sm text-md3-on-surface
+                   placeholder:text-md3-on-surface-variant
+                   focus:border-transparent focus:ring-2 focus:ring-md3-primary
+                   transition-all"
+            placeholder={$t('files.search')}
+            bind:value={searchQuery}
+            onfocus={openSearchPreview}
+            oninput={handleSearchInput}
+            onkeydown={handleSearchKeydown}
+            role="combobox"
+            aria-expanded={searchPreview.open}
+            aria-controls="files-search-preview-panel"
+            aria-label={$t('files.searchPlaceholder')}
+          />
+          {#if searchQuery}
+            <button
+              type="button"
+              class="absolute right-1.5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-md3-on-surface-variant transition hover:bg-md3-surface-container-high hover:text-md3-on-surface"
+              aria-label={$t('common.clear')}
+              onclick={() => {
+                searchQuery = '';
+                handleSearchInput();
+              }}
+            >
+              <Icon name="close" size="16px" />
+            </button>
+          {/if}
+        </div>
+        <button
+          type="submit"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-full
+                 bg-md3-primary-container text-md3-on-primary-container
+                 transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+          title={$t('files.serverSearch')}
+          aria-label={$t('files.serverSearch')}
+          disabled={!searchPreviewHasQuery}
+        >
+          <Icon name="search" size="16px" />
+        </button>
+      </form>
+
+      {#if searchPreview.open}
+        <div id="files-search-preview-panel" class="search-preview-panel absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[min(720px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-md3-outline bg-md3-surface-container shadow-2xl">
+          <div class="border-b border-md3-outline bg-md3-surface-container-high/45 px-4 py-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="inline-flex items-center gap-1.5 text-sm text-md3-on-surface-variant">
+                <MdCheckbox
+                  bind:checked={searchPreview.searchDocuments}
+                  ariaLabel={$t('files.searchDocuments')}
+                  onChange={updateSearchPreviewOptions}
+                />
+                {$t('files.searchDocuments')}
+              </label>
+              <label class="inline-flex items-center gap-1.5 text-sm text-md3-on-surface-variant">
+                <MdCheckbox
+                  bind:checked={searchPreview.searchDirectories}
+                  ariaLabel={$t('files.searchDirectories')}
+                  onChange={updateSearchPreviewOptions}
+                />
+                {$t('files.searchDirectories')}
+              </label>
+
+              <span class="mx-1 hidden h-6 w-px bg-md3-outline sm:block"></span>
+
+              <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5">
+                <span
+                  class="search-sort-indicator absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-md3-primary"
+                  style={searchSortIndicatorStyle(searchPreview.sortBy)}
+                  aria-hidden="true"
+                ></span>
+                {#each ['name', 'size', 'modified'] as field}
+                  <button
+                    type="button"
+                    class="relative z-10 min-w-16 rounded-full px-3 py-1 text-xs font-medium transition-colors {searchPreview.sortBy === field ? 'text-md3-on-primary' : 'text-md3-on-surface-variant hover:text-md3-on-surface'}"
+                    aria-pressed={searchPreview.sortBy === field}
+                    onclick={() => setSearchPreviewSort(field as SortField)}
+                  >
+                    {searchSortLabel(field as SortField)}
+                  </button>
+                {/each}
+              </div>
+              <button
+                type="button"
+                class="inline-flex h-8 items-center gap-1 rounded-full border border-md3-outline px-2.5 text-xs font-medium text-md3-on-surface-variant transition hover:bg-md3-surface-container-high hover:text-md3-on-surface"
+                title={searchPreview.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
+                onclick={toggleSearchPreviewSortOrder}
+              >
+                <Icon name={searchPreview.sortOrder === 'asc' ? 'arrowUpward' : 'arrowDownward'} size="16px" />
+                {searchPreview.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 px-4 py-2 text-xs font-medium uppercase text-md3-on-surface-variant">
+            <span>{$t('files.searchPreviewResults')}</span>
+            {#if searchPreview.loading || searchPreview.loadingMore}
+              <span class="inline-flex items-center gap-2 normal-case">
+                <ProgressRing size={13} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+                {$t('common.loadingEllipsis')}
+              </span>
+            {/if}
+          </div>
+
+          <div
+            class="search-preview-list border-y border-md3-outline/60"
+          >
+            {#if searchPreview.error}
+              <p class="px-4 py-8 text-center text-sm text-md3-error">{searchPreview.error}</p>
+            {:else if !searchPreviewHasQuery}
+              <p class="px-4 py-8 text-center text-sm text-md3-on-surface-variant">{$t('files.searchPreviewEmpty')}</p>
+            {:else if searchPreview.results && searchPreviewRows.length === 0 && !searchPreview.loading}
+              <p class="px-4 py-8 text-center text-sm text-md3-on-surface-variant">
+                {$t('files.searchNoResults', { values: { query: searchPreview.query } })}
+              </p>
+            {:else if searchPreviewRows.length > 0}
+              <VirtualList
+                items={searchPreviewRows}
+                keyOf={(row) => row.kind === 'directory'
+                  ? `preview-directory:${row.directory.id}`
+                  : `preview-document:${row.document.id}`}
+                estimateSize={48}
+                overscan={8}
+                threshold={80}
+                resetKey={searchPreviewResetKey}
+                viewportClass="search-preview-virtual-viewport"
+                onScroll={handleSearchPreviewScroll}
+              >
+                {#snippet children(row, index)}
+                  <button
+                    type="button"
+                    class="grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-md3-outline/45 px-4 py-2 text-left transition-colors hover:bg-md3-primary-container/15"
+                    class:border-b-0={index === searchPreviewRows.length - 1}
+                    onclick={() => row.kind === 'directory'
+                      ? navigateToSearchDirectory(row.directory)
+                      : navigateToSearchDocument(row.document)}
+                  >
+                    <span class={row.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
+                      <Icon name={row.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block truncate text-sm font-medium {row.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface'}">
+                        {row.kind === 'directory' ? row.directory.name : (row.document.name ?? row.document.title)}
+                      </span>
+                      <span class="block truncate text-xs text-md3-on-surface-variant">
+                        {row.kind === 'directory' ? $t('files.searchDirectories') : formatBytes(row.document.size)}
+                      </span>
+                    </span>
+                    <span class="text-xs text-md3-on-surface-variant">{searchResultDate(row)}</span>
+                  </button>
+                {/snippet}
+              </VirtualList>
+            {:else if searchPreview.loading}
+              <div class="flex items-center justify-center gap-2 px-4 py-8 text-sm text-md3-on-surface-variant">
+                <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+                {$t('common.loadingEllipsis')}
+              </div>
+            {/if}
+          </div>
+
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <button
+              type="button"
+              class="text-sm font-semibold text-md3-primary-emphasis transition hover:brightness-125 disabled:opacity-50"
+              disabled={!searchPreviewCanSearch}
+              onclick={() => openSearchDialog(true)}
+            >
+              {$t('files.advancedSearch')}
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-md3-primary-emphasis transition hover:bg-md3-primary-container/20 disabled:opacity-50"
+              disabled={!searchPreviewCanSearch}
+              onclick={() => openSearchDialog(true)}
+            >
+              <Icon name="search" size="16px" />
+              {$t('files.allResults')}
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
 
     <IconButton icon="refresh" label={$t('common.refresh')} onclick={() => loadDirectory(currentFolderId)} />
   </div>
@@ -2045,12 +2503,48 @@
     .drop-upload-overlay {
       animation: none;
     }
+
+    .search-preview-panel {
+      animation: none;
+    }
   }
 
   :global(.server-search-list-viewport) {
     max-height: calc(52vh - 2.25rem);
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  :global(.search-preview-virtual-viewport) {
+    max-height: 360px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .search-preview-panel {
+    background:
+      linear-gradient(145deg, rgba(31, 41, 55, 0.98) 0%, rgba(20, 29, 43, 0.98) 56%, rgba(15, 23, 42, 0.98) 100%);
+    border-color: rgba(99, 102, 241, 0.22);
+    box-shadow:
+      0 24px 72px rgba(0, 0, 0, 0.38),
+      0 0 0 1px rgba(148, 163, 184, 0.06) inset;
+    animation: search-preview-in 180ms var(--motion-easing-emphasized-decelerate) both;
+    backdrop-filter: blur(18px);
+  }
+
+  .search-sort-indicator {
+    transition: transform var(--motion-duration-medium1) var(--motion-easing-emphasized-decelerate);
+  }
+
+  @keyframes search-preview-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 </style>
 
@@ -2088,22 +2582,51 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-4 text-sm text-md3-on-surface-variant">
-        <div class="flex items-center gap-2">
+        <label class="flex items-center gap-2">
           <MdCheckbox
             bind:checked={searchDialog.searchDocuments}
             ariaLabel={$t('files.searchDocuments')}
             disabled={searchDialog.loading}
           />
           {$t('files.searchDocuments')}
-        </div>
-        <div class="flex items-center gap-2">
+        </label>
+        <label class="flex items-center gap-2">
           <MdCheckbox
             bind:checked={searchDialog.searchDirectories}
             ariaLabel={$t('files.searchDirectories')}
             disabled={searchDialog.loading}
           />
           {$t('files.searchDirectories')}
+        </label>
+
+        <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5">
+          <span
+            class="search-sort-indicator absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-md3-primary"
+            style={searchSortIndicatorStyle(searchDialog.sortBy)}
+            aria-hidden="true"
+          ></span>
+          {#each ['name', 'size', 'modified'] as field}
+            <button
+              type="button"
+              class="relative z-10 min-w-16 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 {searchDialog.sortBy === field ? 'text-md3-on-primary' : 'text-md3-on-surface-variant hover:text-md3-on-surface'}"
+              aria-pressed={searchDialog.sortBy === field}
+              disabled={searchDialog.loading}
+              onclick={() => setSearchDialogSort(field as SortField)}
+            >
+              {searchSortLabel(field as SortField)}
+            </button>
+          {/each}
         </div>
+        <button
+          type="button"
+          class="inline-flex h-8 items-center gap-1 rounded-full border border-md3-outline px-2.5 text-xs font-medium text-md3-on-surface-variant transition hover:bg-md3-surface-container-high hover:text-md3-on-surface disabled:opacity-50"
+          disabled={searchDialog.loading}
+          title={searchDialog.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
+          onclick={toggleSearchDialogSortOrder}
+        >
+          <Icon name={searchDialog.sortOrder === 'asc' ? 'arrowUpward' : 'arrowDownward'} size="16px" />
+          {searchDialog.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
+        </button>
       </div>
 
       {#if searchDialog.results}
@@ -2129,7 +2652,7 @@
             estimateSize={37}
             overscan={10}
             threshold={120}
-            resetKey={`${searchDialog.query}:${searchDialog.results.total_count}:${searchDialog.results.next_cursor ?? ''}`}
+            resetKey={searchDialogResetKey}
             viewportClass="server-search-list-viewport"
           >
             {#snippet children(row, index)}

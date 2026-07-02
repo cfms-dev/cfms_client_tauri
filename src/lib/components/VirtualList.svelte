@@ -20,6 +20,7 @@
     contentClass = '',
     itemClass = '',
     initialHeight = DEFAULT_INITIAL_HEIGHT,
+    onScroll,
     children,
   }: {
     items: Item[];
@@ -33,6 +34,7 @@
     contentClass?: string;
     itemClass?: string;
     initialHeight?: number;
+    onScroll?: (event: Event) => void;
     children: Snippet<[Item, number, VirtualItem | null]>;
   } = $props();
 
@@ -136,7 +138,7 @@
   }
 </script>
 
-<div bind:this={scrollViewport} class={`virtual-list-viewport ${viewportClass}`}>
+<div bind:this={scrollViewport} class={`virtual-list-viewport ${viewportClass}`} onscroll={onScroll}>
   <div class={`virtual-list-content ${contentClass}`} style={contentStyle()}>
     {#each renderedRows as row (rowKey(row.item, row.index))}
       <div
