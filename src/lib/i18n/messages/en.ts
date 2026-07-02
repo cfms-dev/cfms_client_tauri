@@ -667,7 +667,7 @@ export const en = {
     userDetailsFor: 'User Details: {username}',
     auditRangeEmpty: '0 of 0',
     auditRange: '{start} - {end} of {total}',
-    auditPageRange: 'Page {page} · {count} record(s)',
+    auditPageRange: 'Records {start} - {end}',
     expandAuditId: 'Expand full audit log ID',
     collapseAuditId: 'Collapse audit log ID',
     auditIdCopied: 'Audit log ID copied.',

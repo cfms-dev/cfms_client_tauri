@@ -659,7 +659,7 @@ export const zh_CN = {
     userDetailsFor: '用户详情：{username}',
     auditRangeEmpty: '0 / 0',
     auditRange: '{start} - {end} / {total}',
-    auditPageRange: '第 {page} 页 · {count} 条记录',
+    auditPageRange: '第 {start} - {end} 条',
     expandAuditId: '展开完整审计日志 ID',
     collapseAuditId: '收起审计日志 ID',
     auditIdCopied: '审计日志 ID 已复制。',

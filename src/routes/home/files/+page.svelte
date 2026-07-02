@@ -128,6 +128,7 @@
   let status = $state<string | null>(null);
   let searchQuery = $state('');
   let searchPreviewRoot = $state<HTMLDivElement | null>(null);
+  let searchPreviewPanelStyle = $state('');
   let navigationRootId = $state<string | null>(null);
   let navigationRootLabel = $state<string | null>(null);
   let userPreference = $state<UserPreference | null>(null);
@@ -198,6 +199,7 @@
   let searchRunId = 0;
   let searchPreviewRunId = 0;
   let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
+  let searchPreviewPositionFrame: number | null = null;
   let uploadProgress = $state<{
     documentId: string;
     taskId: string;
@@ -1723,8 +1725,46 @@
     searchPreviewDebounce = null;
   }
 
+  function updateSearchPreviewPanelPosition() {
+    if (!searchPreviewRoot || typeof window === 'undefined') {
+      searchPreviewPanelStyle = '';
+      return;
+    }
+
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const margin = 16;
+    const width = Math.max(0, Math.min(720, viewportWidth - margin * 2));
+    const rect = searchPreviewRoot.getBoundingClientRect();
+    const maxLeft = Math.max(margin, viewportWidth - width - margin);
+    const left = Math.min(Math.max(rect.right - width, margin), maxLeft);
+    const top = rect.bottom + 8;
+
+    searchPreviewPanelStyle = `left: ${Math.round(left)}px; top: ${Math.round(top)}px; width: ${Math.round(width)}px;`;
+  }
+
+  function queueSearchPreviewPanelPosition() {
+    updateSearchPreviewPanelPosition();
+
+    if (typeof requestAnimationFrame === 'undefined') {
+      return;
+    }
+
+    if (searchPreviewPositionFrame !== null) return;
+    searchPreviewPositionFrame = requestAnimationFrame(() => {
+      searchPreviewPositionFrame = null;
+      if (searchPreview.open) updateSearchPreviewPanelPosition();
+    });
+  }
+
+  function clearSearchPreviewPanelPosition() {
+    if (searchPreviewPositionFrame === null || typeof cancelAnimationFrame === 'undefined') return;
+    cancelAnimationFrame(searchPreviewPositionFrame);
+    searchPreviewPositionFrame = null;
+  }
+
   function closeSearchPreview() {
     clearSearchPreviewDebounce();
+    clearSearchPreviewPanelPosition();
     searchPreviewRunId += 1;
     searchPreview.open = false;
     searchPreview.loading = false;
@@ -1739,6 +1779,7 @@
 
   function openSearchPreview() {
     searchPreview.open = true;
+    queueSearchPreviewPanelPosition();
     scheduleSearchPreview();
   }
 
@@ -1753,6 +1794,7 @@
       return;
     }
     searchPreview.open = true;
+    queueSearchPreviewPanelPosition();
     scheduleSearchPreview();
   }
 
@@ -1791,6 +1833,7 @@
     const runId = ++searchPreviewRunId;
     const shouldLoadImmediately = immediate || (!hadSettledResults && !hadPendingPreview);
     searchPreview.open = true;
+    queueSearchPreviewPanelPosition();
     searchPreview.error = null;
     searchPreview.loading = shouldLoadImmediately ? searchPreview.loading : !hadSettledResults;
     searchPreview.loadingMore = false;
@@ -2115,8 +2158,13 @@
         closeSearchPreview();
       }
     };
+    const handleSearchPreviewViewportChange = () => {
+      if (searchPreview.open) queueSearchPreviewPanelPosition();
+    };
 
     document.addEventListener('pointerdown', handleOutsidePointerDown, true);
+    window.addEventListener('resize', handleSearchPreviewViewportChange);
+    window.addEventListener('scroll', handleSearchPreviewViewportChange, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -2153,7 +2201,10 @@
     reloadUserPreference();
     return () => {
       document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
+      window.removeEventListener('resize', handleSearchPreviewViewportChange);
+      window.removeEventListener('scroll', handleSearchPreviewViewportChange, true);
       clearSearchPreviewDebounce();
+      clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
     };
@@ -2266,7 +2317,11 @@
       </form>
 
       {#if searchPreview.open}
-        <div id="files-search-preview-panel" class="search-preview-panel absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[min(720px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-md3-outline bg-md3-surface-container shadow-2xl">
+        <div
+          id="files-search-preview-panel"
+          class="search-preview-panel fixed z-40 overflow-hidden rounded-2xl border border-md3-outline bg-md3-surface-container shadow-2xl"
+          style={searchPreviewPanelStyle}
+        >
           <div class="border-b border-md3-outline bg-md3-surface-container-high/45 px-4 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <label class="inline-flex items-center gap-1.5 text-sm text-md3-on-surface-variant">

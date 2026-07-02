@@ -146,6 +146,14 @@
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
   const canManageUserStatus = $derived(hasAnyPermission('manage_user_status', 'manage_system'));
+  const auditDisplayRange = $derived.by(() => {
+    if (auditEntries.length === 0) return null;
+    const start = auditPageIndex * auditPageSize + 1;
+    return {
+      start,
+      end: start + auditEntries.length - 1,
+    };
+  });
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => {
     if (!contextMenu.target) return [];
     if (contextMenu.target.kind === 'user') return getUserContextMenuItems(contextMenu.target.user);
@@ -1141,12 +1149,12 @@
           </h2>
           <div class="flex items-center gap-2">
             <span class="text-xs text-md3-on-surface-variant">
-              {auditEntries.length === 0
+              {auditDisplayRange === null
                 ? $t('manage.auditRangeEmpty')
                 : $t('manage.auditPageRange', {
                     values: {
-                      page: auditPageIndex + 1,
-                      count: auditEntries.length,
+                      start: auditDisplayRange.start,
+                      end: auditDisplayRange.end,
                     },
                   })}
             </span>
