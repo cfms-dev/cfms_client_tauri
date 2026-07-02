@@ -4,6 +4,20 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.30.0
+**Released on:** 2026-07-02
+
+**Title:** Protocol Version 15
+
+### Added
+- Implement keyboard shortcut handling to prevent default find action and enhance input focus behavior
+- Update audit range display format and improve search preview positioning logic
+- Implement search preview functionality with sorting and debounce support
+- Refactor directory and document listing commands to use cursor-based pagination
+- Add 'Forgot Password' functionality with dialog and internationalization support
+
+--- 
+
 ## v0.29.1
 **Released on:** 2026-06-20
 
