@@ -10,7 +10,7 @@
   // Reference: ConnectToServerModel in reference/src/include/ui/models/connect.py
   //            ConnectFormController in reference/src/include/controllers/connect.py
 
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
@@ -46,6 +46,7 @@
   let recentConnectionAddresses = $state<string[]>([]);
   let recentAddressesOpen = $state(false);
   let serverAddressField: HTMLDivElement | null = null;
+  let serverAddressInput: HTMLInputElement | null = null;
   let playLoginReturnTransition = $state(browser ? consumeLoginToConnectTransition() : false);
   let protocolError = $state<{
     serverVersion: number;
@@ -70,6 +71,7 @@
     } catch {
       /* ignore */
     }
+    await focusServerAddressInput();
     // Close any previous connection to start fresh.
     try {
       await disconnect();
@@ -79,6 +81,13 @@
     authStore.clear();
     serverStateStore.clear();
   });
+
+  async function focusServerAddressInput() {
+    await tick();
+    if (busy) return;
+    serverAddressInput?.focus({ preventScroll: true });
+    serverAddressInput?.select();
+  }
 
   onMount(() => {
     function closeRecentAddresses(event: PointerEvent) {
@@ -280,6 +289,7 @@
               class:pr-2={canShowRecentAddresses}
               placeholder="localhost:5104"
               bind:value={hostPort}
+              bind:this={serverAddressInput}
               disabled={busy}
               onkeydown={handleServerAddressKeydown}
               onfocus={() => {

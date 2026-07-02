@@ -99,6 +99,7 @@
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
   import { sortFileEntries, type SortDirection, type SortField } from '$lib/files/sorting';
   import { shouldDeferFileSort, sortFileEntriesAsync } from '$lib/files/sort-worker-client';
+  import { isFindShortcut } from '$lib/keyboard';
   import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
@@ -127,6 +128,8 @@
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
   let searchQuery = $state('');
+  let searchInput = $state<HTMLInputElement | null>(null);
+  let searchDialogInput = $state<HTMLInputElement | null>(null);
   let searchPreviewRoot = $state<HTMLDivElement | null>(null);
   let searchPreviewPanelStyle = $state('');
   let navigationRootId = $state<string | null>(null);
@@ -1783,6 +1786,36 @@
     scheduleSearchPreview();
   }
 
+  function focusFilesSearchInput() {
+    const target = searchDialog.open ? searchDialogInput : searchInput;
+    target?.focus({ preventScroll: true });
+    target?.select();
+    if (!searchDialog.open) {
+      openSearchPreview();
+    }
+  }
+
+  function hasBlockingFilesDialog() {
+    return Boolean(
+      detailTitle
+        || accessEntriesDialog
+        || authorizeDialog
+        || accessRulesDialog
+        || moveTargetDialog
+        || batchMoveDialog
+        || revisionsDialog
+        || documentTagsDialog,
+    );
+  }
+
+  function handleFindShortcut(event: KeyboardEvent) {
+    if (!isFindShortcut(event)) return;
+
+    event.preventDefault();
+    if (hasBlockingFilesDialog()) return;
+    focusFilesSearchInput();
+  }
+
   function handleSearchInput(event?: Event) {
     if (event?.currentTarget instanceof HTMLInputElement) {
       searchQuery = event.currentTarget.value;
@@ -2165,6 +2198,7 @@
     document.addEventListener('pointerdown', handleOutsidePointerDown, true);
     window.addEventListener('resize', handleSearchPreviewViewportChange);
     window.addEventListener('scroll', handleSearchPreviewViewportChange, true);
+    window.addEventListener('keydown', handleFindShortcut, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       uploadProgress = {
         documentId: event.payload.document_id,
@@ -2203,6 +2237,7 @@
       document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
       window.removeEventListener('resize', handleSearchPreviewViewportChange);
       window.removeEventListener('scroll', handleSearchPreviewViewportChange, true);
+      window.removeEventListener('keydown', handleFindShortcut, true);
       clearSearchPreviewDebounce();
       clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
@@ -2281,6 +2316,7 @@
                    transition-all"
             placeholder={$t('files.search')}
             bind:value={searchQuery}
+            bind:this={searchInput}
             onfocus={openSearchPreview}
             oninput={handleSearchInput}
             onkeydown={handleSearchKeydown}
@@ -2625,6 +2661,7 @@
         <input
           class="rounded-lg border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
           bind:value={searchDialog.query}
+          bind:this={searchDialogInput}
           placeholder={$t('files.searchPlaceholder')}
           disabled={searchDialog.loading}
         />

@@ -12,7 +12,7 @@
   // Reference: LoginModel in reference/src/include/ui/models/login.py
   //            LoginFormController in reference/src/include/controllers/login.py
 
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
@@ -69,6 +69,7 @@
   let corruptedPreferenceCurrentPassword = $state("");
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
+  let usernameInput: HTMLInputElement | null = $state(null);
   let passwordInput: HTMLInputElement | null = $state(null);
   let playConnectTransition = $state(browser ? consumeConnectToLoginTransition() : false);
 
@@ -347,8 +348,17 @@
   onMount(() => {
     if (authStore.isLoggedIn && !authStore.postLoginPending) {
       goto("/home/overview");
+      return;
     }
+    void focusUsernameInput();
   });
+
+  async function focusUsernameInput() {
+    await tick();
+    if (busy) return;
+    usernameInput?.focus({ preventScroll: true });
+    usernameInput?.select();
+  }
 
   /** Validate fields before submitting. Returns true if valid. */
   function validate(): boolean {
@@ -621,6 +631,7 @@
                      transition-colors"
               placeholder={$t('login.usernamePlaceholder')}
               bind:value={username}
+              bind:this={usernameInput}
               disabled={busy}
               autocomplete="off"
               autocapitalize="none"

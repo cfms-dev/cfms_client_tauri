@@ -24,6 +24,7 @@
   import { initNavigationHistory, navigateUp } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
   import { screenProtectionStore } from "$lib/screen-protection.svelte";
+  import { isFindShortcut } from "$lib/keyboard";
   import {
     authStore,
     serverStateStore,
@@ -206,6 +207,17 @@
   });
 
   onMount(() => {
+    const preventNativeFindShortcut = (event: KeyboardEvent) => {
+      if (isFindShortcut(event)) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('keydown', preventNativeFindShortcut, true);
+    return () => document.removeEventListener('keydown', preventNativeFindShortcut, true);
+  });
+
+  onMount(() => {
     let removeBackButtonListener: (() => void) | null = null;
     let handlingBackButton = false;
 
@@ -308,13 +320,20 @@
     lastRecordedActivityAt = now;
     appLockStore.recordActivity();
   }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (isFindShortcut(event)) {
+      event.preventDefault();
+    }
+    recordUserActivity();
+  }
 </script>
 
 <svelte:window
   oncontextmenu={preventDefaultContextMenu}
   onmousemove={recordUserActivity}
   onmousedown={recordUserActivity}
-  onkeydown={recordUserActivity}
+  onkeydown={handleWindowKeydown}
   ontouchstart={recordUserActivity}
   onwheel={recordUserActivity}
 />
