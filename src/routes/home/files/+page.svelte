@@ -215,6 +215,7 @@
   let searchDialog = $state<{
     open: boolean;
     query: string;
+    resultQuery: string;
     searchDocuments: boolean;
     searchDirectories: boolean;
     sortBy: SortField;
@@ -224,6 +225,7 @@
   }>({
     open: false,
     query: '',
+    resultQuery: '',
     searchDocuments: true,
     searchDirectories: true,
     sortBy: 'name',
@@ -294,7 +296,7 @@
     `${searchPreview.query}:${searchPreview.sortBy}:${searchPreview.sortOrder}:${searchPreview.searchDocuments}:${searchPreview.searchDirectories}`,
   );
   const searchDialogResetKey = $derived(
-    `${searchDialog.query}:${searchDialog.sortBy}:${searchDialog.sortOrder}:${searchDialog.searchDocuments}:${searchDialog.searchDirectories}`,
+    `${searchDialog.resultQuery}:${searchDialog.sortBy}:${searchDialog.sortOrder}:${searchDialog.searchDocuments}:${searchDialog.searchDirectories}`,
   );
   function buildSearchResultRows(results: SearchFilesResponse): SearchResultRow[] {
     return [
@@ -1978,11 +1980,20 @@
   }
 
   function setSearchDialogSort(field: SortField) {
+    if (searchDialog.sortBy === field) return;
     searchDialog.sortBy = field;
+    rerunSearchDialogIfReady();
   }
 
   function toggleSearchDialogSortOrder() {
     searchDialog.sortOrder = searchDialog.sortOrder === 'asc' ? 'desc' : 'asc';
+    rerunSearchDialogIfReady();
+  }
+
+  function rerunSearchDialogIfReady() {
+    if (!searchDialog.query.trim()) return;
+    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) return;
+    void runServerSearch();
   }
 
   function searchSortLabel(field: SortField) {
@@ -2016,6 +2027,7 @@
     closeSearchPreview();
     searchDialog.open = true;
     searchDialog.query = query;
+    searchDialog.resultQuery = '';
     searchDialog.searchDocuments = searchPreview.searchDocuments;
     searchDialog.searchDirectories = searchPreview.searchDirectories;
     searchDialog.sortBy = searchPreview.sortBy;
@@ -2070,7 +2082,7 @@
     let cursor: string | null = null;
     let combined = emptySearchResults();
 
-    searchDialog = { ...searchDialog, loading: true, results: null };
+    searchDialog = { ...searchDialog, resultQuery: query, loading: true, results: null };
     try {
       while (true) {
         const results = await searchFiles(query, {
@@ -2727,8 +2739,8 @@
           <div class="flex items-center justify-between gap-3 border-b border-md3-outline bg-md3-surface-container-high/50 px-3 py-2 text-xs font-medium uppercase text-md3-on-surface-variant">
             <span>
               {searchDialog.results.total_count === 0 && !searchDialog.loading
-                ? $t('files.searchNoResults', { values: { query: searchDialog.query } })
-                : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.query } })}
+                ? $t('files.searchNoResults', { values: { query: searchDialog.resultQuery } })
+                : $t('files.searchResultCount', { values: { count: searchDialog.results.total_count, query: searchDialog.resultQuery } })}
             </span>
             {#if searchDialog.loading}
               <span class="inline-flex shrink-0 items-center gap-2">
