@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -182,6 +182,34 @@ impl QueueState {
         let mut tasks = self.list_by_status(DownloadTaskStatus::Pending);
         tasks.sort_by_key(|b| std::cmp::Reverse(b.priority));
         tasks
+    }
+
+    fn claim_next_pending(&self) -> Option<DownloadTaskDto> {
+        let now = unix_now();
+        let claimed = {
+            let mut map = self.tasks.lock().unwrap();
+            let next_id = map
+                .values()
+                .filter(|task| task.status == DownloadTaskStatus::Pending)
+                .max_by(|a, b| {
+                    a.priority
+                        .cmp(&b.priority)
+                        .then_with(|| b.created_at.cmp(&a.created_at))
+                })
+                .map(|task| task.task_id.clone());
+
+            let Some(next_id) = next_id else {
+                return None;
+            };
+
+            let task = map.get_mut(&next_id)?;
+            task.started_at = Some(now);
+            task.status = DownloadTaskStatus::Downloading;
+            task.clone()
+        };
+
+        self.save();
+        Some(claimed)
     }
 
     // ------------------------------------------------------------------
@@ -529,6 +557,7 @@ struct ActiveDownload {
 #[derive(Clone)]
 pub struct ActiveRegistry {
     inner: Arc<Mutex<HashMap<String, ActiveDownload>>>,
+    workers: Arc<AtomicUsize>,
 }
 
 impl Default for ActiveRegistry {
@@ -541,6 +570,7 @@ impl ActiveRegistry {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(HashMap::new())),
+            workers: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -582,8 +612,16 @@ impl ActiveRegistry {
         }
     }
 
-    fn count(&self) -> usize {
-        self.inner.lock().unwrap().len()
+    fn start_worker(&self) {
+        self.workers.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn finish_worker(&self) {
+        self.workers.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    fn worker_count(&self) -> usize {
+        self.workers.load(Ordering::SeqCst)
     }
 }
 
@@ -602,7 +640,7 @@ pub async fn run(
             break;
         }
 
-        tick(&state, &queue, &active).await;
+        tick(&state, &queue, &active, &shutdown_rx).await;
 
         tokio::select! {
             _ = tokio::time::sleep(INTERVAL) => {},
@@ -625,7 +663,12 @@ pub async fn run(
     tracing::info!("DownloadQueueService stopped");
 }
 
-async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry) {
+async fn tick(
+    state: &Arc<AppState>,
+    queue: &QueueState,
+    active: &ActiveRegistry,
+    shutdown_rx: &watch::Receiver<bool>,
+) {
     let promoted = queue.promote_scheduled();
     if promoted > 0 {
         tracing::debug!("Promoted {promoted} scheduled tasks to pending");
@@ -635,54 +678,144 @@ async fn tick(state: &Arc<AppState>, queue: &QueueState, active: &ActiveRegistry
         cfms_core::MIN_TASK_CONCURRENCY as usize,
         cfms_core::MAX_TASK_CONCURRENCY as usize,
     );
-    let active_count = active.count();
-    if active_count >= max_concurrent {
+    let worker_count = active.worker_count();
+    if worker_count >= max_concurrent {
         return;
     }
 
-    let pending = queue.pending_tasks();
+    let pending_count = queue.count_by_status(DownloadTaskStatus::Pending) as usize;
+    if pending_count == 0 {
+        return;
+    }
 
-    let slots = max_concurrent - active_count;
-    for task in pending.into_iter().take(slots) {
-        if task.status == DownloadTaskStatus::Cancelled {
-            continue;
-        }
-
-        let cancel_rx = active.register(&task.task_id);
-
-        if let Err(e) = queue.mark_started(&task.task_id) {
-            tracing::error!("Failed to mark task {} as started: {e}", task.task_id);
-            active.unregister(&task.task_id);
-            continue;
-        }
-        emit_task_update(queue, state, &task.task_id);
-        if queue
-            .get(&task.task_id)
-            .is_some_and(|task| task.status != DownloadTaskStatus::Downloading)
-        {
-            active.unregister(&task.task_id);
-            continue;
-        }
-
+    let slots = (max_concurrent - worker_count).min(pending_count);
+    for _ in 0..slots {
         let state = Arc::clone(state);
         let queue = queue.clone();
         let active = active.clone();
+        let shutdown_rx = shutdown_rx.clone();
+
+        active.start_worker();
+        tokio::spawn(async move {
+            let active_for_finish = active.clone();
+            download_worker(state, queue, active, shutdown_rx).await;
+            active_for_finish.finish_worker();
+        });
+    }
+}
+
+async fn download_worker(
+    state: Arc<AppState>,
+    queue: QueueState,
+    active: ActiveRegistry,
+    mut shutdown_rx: watch::Receiver<bool>,
+) {
+    let mut transfer_conn: Option<cfms_transport::Connection> = None;
+
+    loop {
+        if *shutdown_rx.borrow() {
+            break;
+        }
+
+        let Some(task) = queue.claim_next_pending() else {
+            break;
+        };
+
         let task_id = task.task_id.clone();
         let file_path = task.file_path.clone();
+        let cancel_rx = active.register(&task_id);
+        emit_task_update(&queue, &state, &task_id);
 
-        tokio::spawn(async move {
-            let tid = task_id.clone();
-            execute_download(
-                tid.clone(),
-                file_path,
-                state,
-                queue,
-                active.clone(),
-                cancel_rx,
-            )
-            .await;
-            active.unregister(&tid);
-        });
+        if transfer_conn
+            .as_ref()
+            .is_none_or(cfms_transport::Connection::is_closed)
+        {
+            if let Some(conn) = transfer_conn.take() {
+                conn.close().await;
+            }
+
+            match create_transfer_connection(&state).await {
+                Ok(conn) => {
+                    transfer_conn = Some(conn);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Download {task_id}: failed to create transfer connection: {e}"
+                    );
+                    let _ = queue.mark_failed(&task_id, &e);
+                    emit_task_update(&queue, &state, &task_id);
+                    emit_active_count(&queue, &state);
+                    let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                        task_id: task_id.clone(),
+                        error: e,
+                    });
+                    active.unregister(&task_id);
+                    break;
+                }
+            }
+        }
+
+        let conn = transfer_conn
+            .as_ref()
+            .expect("transfer connection exists after creation")
+            .clone();
+
+        let outcome = execute_download(
+            task_id.clone(),
+            file_path,
+            state.clone(),
+            queue.clone(),
+            active.clone(),
+            cancel_rx,
+            &conn,
+        )
+        .await;
+        active.unregister(&task_id);
+
+        if !outcome.reuse_connection || conn.is_closed() {
+            if let Some(conn) = transfer_conn.take() {
+                conn.close().await;
+            }
+        }
+
+        if !outcome.continue_worker {
+            break;
+        }
+
+        tokio::select! {
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    break;
+                }
+            }
+            _ = tokio::task::yield_now() => {}
+        }
+    }
+
+    if let Some(conn) = transfer_conn.take() {
+        conn.close().await;
+    }
+}
+
+#[derive(Clone, Copy)]
+struct DownloadOutcome {
+    reuse_connection: bool,
+    continue_worker: bool,
+}
+
+impl DownloadOutcome {
+    const fn reusable() -> Self {
+        Self {
+            reuse_connection: true,
+            continue_worker: true,
+        }
+    }
+
+    const fn discard_and_stop() -> Self {
+        Self {
+            reuse_connection: false,
+            continue_worker: false,
+        }
     }
 }
 
@@ -693,7 +826,8 @@ async fn execute_download(
     queue: QueueState,
     active: ActiveRegistry,
     mut cancel_rx: watch::Receiver<bool>,
-) {
+    transfer_conn: &cfms_transport::Connection,
+) -> DownloadOutcome {
     // Pause and cancellation share the same interruption signal. Preserve the
     // task state selected by pause_task if the worker has not started yet.
     if *cancel_rx.borrow() {
@@ -702,44 +836,28 @@ async fn execute_download(
             .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
         {
             tracing::info!("Download paused before worker start: {task_id}");
-            return;
+            return DownloadOutcome::discard_and_stop();
         }
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
-        return;
+        return DownloadOutcome::discard_and_stop();
     }
-
-    // --- Phase 1: Establish a dedicated transfer connection ---
-    let transfer_conn = match create_transfer_connection(&state).await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!("Download {task_id}: failed to create transfer connection: {e}");
-            let _ = queue.mark_failed(&task_id, &e);
-            emit_task_update(&queue, &state, &task_id);
-            let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
-                task_id: task_id.clone(),
-                error: e,
-            });
-            return;
-        }
-    };
 
     active.set_transfer_conn(&task_id, transfer_conn.clone());
 
-    // mark_started already set Downloading. A pause may arrive while the
-    // connection is being established, so do not overwrite Paused here.
+    // claim_next_pending already set Downloading. A pause may arrive while the
+    // worker is preparing the transfer, so do not overwrite Paused here.
     if *cancel_rx.borrow()
         || queue
             .get(&task_id)
             .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
     {
-        transfer_conn.close().await;
         if queue
             .get(&task_id)
             .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
         {
             emit_active_count(&queue, &state);
             tracing::info!("Download paused while connecting: {task_id}");
-            return;
+            return DownloadOutcome::discard_and_stop();
         }
 
         let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
@@ -748,7 +866,7 @@ async fn execute_download(
             task_id: task_id.clone(),
         });
         tracing::info!("Download cancelled while connecting: {task_id}");
-        return;
+        return DownloadOutcome::discard_and_stop();
     }
 
     // --- Phase 2: DOWNLOADING ---
@@ -865,8 +983,6 @@ async fn execute_download(
         }
     };
 
-    transfer_conn.close().await;
-
     if *cancel_rx.borrow() {
         if queue
             .get(&task_id)
@@ -874,7 +990,7 @@ async fn execute_download(
         {
             emit_active_count(&queue, &state);
             tracing::info!("Download paused: {task_id}");
-            return;
+            return DownloadOutcome::discard_and_stop();
         }
 
         if let Err(e) = std::fs::remove_file(&file_path)
@@ -890,7 +1006,7 @@ async fn execute_download(
             task_id: task_id.clone(),
         });
         tracing::info!("Download cancelled: {task_id}");
-        return;
+        return DownloadOutcome::discard_and_stop();
     }
 
     if queue
@@ -899,7 +1015,7 @@ async fn execute_download(
     {
         emit_active_count(&queue, &state);
         tracing::info!("Download paused after transfer returned: {task_id}");
-        return;
+        return DownloadOutcome::discard_and_stop();
     }
 
     match result {
@@ -916,6 +1032,7 @@ async fn execute_download(
             });
 
             tracing::info!("Download completed: {task_id} ({file_size} bytes)");
+            DownloadOutcome::reusable()
         }
 
         Some(Err(e)) => {
@@ -926,7 +1043,7 @@ async fn execute_download(
                 {
                     emit_active_count(&queue, &state);
                     tracing::info!("Download paused after connection close: {task_id}");
-                    return;
+                    return DownloadOutcome::discard_and_stop();
                 }
 
                 if let Err(rm_err) = std::fs::remove_file(&file_path)
@@ -941,7 +1058,7 @@ async fn execute_download(
                     task_id: task_id.clone(),
                 });
                 tracing::info!("Download cancelled (via connection close): {task_id}");
-                return;
+                return DownloadOutcome::discard_and_stop();
             }
 
             let error_msg = e.to_string();
@@ -959,7 +1076,7 @@ async fn execute_download(
                     task_id: task_id.clone(),
                     error: error_msg,
                 });
-                return;
+                return DownloadOutcome::discard_and_stop();
             }
 
             match queue.retry_or_fail(&task_id, &error_msg) {
@@ -980,6 +1097,7 @@ async fn execute_download(
                     tracing::error!("Failed to update retry state for {task_id}: {db_err}");
                 }
             }
+            DownloadOutcome::discard_and_stop()
         }
 
         None => {
@@ -997,6 +1115,7 @@ async fn execute_download(
             });
 
             tracing::info!("Download cancelled: {task_id}");
+            DownloadOutcome::discard_and_stop()
         }
     }
 }

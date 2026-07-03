@@ -555,6 +555,7 @@ pub async fn upload_document_file<R: Runtime>(
     let source = prepare_upload_source(&app_handle, file_path)?;
     let upload_name =
         clean_optional_upload_name(upload_name).or_else(|| source.display_name.clone());
+    let mut transfer_session = UploadTransferSession::new();
     let result = upload_local_file(
         &app_handle,
         &state,
@@ -563,8 +564,11 @@ pub async fn upload_document_file<R: Runtime>(
         upload_name,
         upload_id,
         conflict_strategy.unwrap_or_default(),
+        &mut transfer_session,
     )
-    .await?;
+    .await;
+    transfer_session.close().await;
+    let result = result?;
 
     Ok(serde_json::json!({
         "upload_id": result.upload_id,
@@ -609,27 +613,44 @@ pub async fn upload_directory<R: Runtime>(
     let mut dir_ids = std::collections::HashMap::<std::path::PathBuf, String>::new();
     dir_ids.insert(std::path::PathBuf::new(), root_id.clone());
     let conflict_strategy = conflict_strategy.unwrap_or_default();
+    let mut transfer_session = UploadTransferSession::new();
 
     for entry in entries {
-        let relative = entry
-            .strip_prefix(&root)
-            .map_err(|e| format!("Failed to resolve upload path: {e}"))?
-            .to_path_buf();
+        let relative = match entry.strip_prefix(&root) {
+            Ok(path) => path.to_path_buf(),
+            Err(e) => {
+                transfer_session.close().await;
+                return Err(format!("Failed to resolve upload path: {e}"));
+            }
+        };
 
         if entry.is_dir() {
             let parent_rel = relative
                 .parent()
                 .unwrap_or_else(|| std::path::Path::new(""));
-            let parent_server_id = dir_ids
-                .get(parent_rel)
-                .cloned()
-                .ok_or_else(|| "Missing parent directory while uploading".to_string())?;
+            let parent_server_id = match dir_ids.get(parent_rel).cloned() {
+                Some(id) => id,
+                None => {
+                    transfer_session.close().await;
+                    return Err("Missing parent directory while uploading".to_string());
+                }
+            };
             let name = entry
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or_else(|| "Directory has no valid name".to_string())?
-                .to_string();
-            let id = create_server_directory(&state, Some(parent_server_id), name, true).await?;
+                .map(ToOwned::to_owned);
+            let Some(name) = name else {
+                transfer_session.close().await;
+                return Err("Directory has no valid name".to_string());
+            };
+            let id =
+                match create_server_directory(&state, Some(parent_server_id), name, true).await {
+                    Ok(id) => id,
+                    Err(err) => {
+                        transfer_session.close().await;
+                        return Err(err);
+                    }
+                };
             dir_ids.insert(relative, id);
             continue;
         }
@@ -638,11 +659,14 @@ pub async fn upload_directory<R: Runtime>(
             let parent_rel = relative
                 .parent()
                 .unwrap_or_else(|| std::path::Path::new(""));
-            let parent_server_id = dir_ids
-                .get(parent_rel)
-                .cloned()
-                .ok_or_else(|| "Missing parent directory while uploading".to_string())?;
-            upload_local_file(
+            let parent_server_id = match dir_ids.get(parent_rel).cloned() {
+                Some(id) => id,
+                None => {
+                    transfer_session.close().await;
+                    return Err("Missing parent directory while uploading".to_string());
+                }
+            };
+            if let Err(err) = upload_local_file(
                 &app_handle,
                 &state,
                 Some(parent_server_id),
@@ -650,11 +674,18 @@ pub async fn upload_directory<R: Runtime>(
                 None,
                 upload_id.clone(),
                 conflict_strategy,
+                &mut transfer_session,
             )
-            .await?;
+            .await
+            {
+                transfer_session.close().await;
+                return Err(err);
+            }
             uploaded_files += 1;
         }
     }
+
+    transfer_session.close().await;
 
     Ok(serde_json::json!({
         "upload_id": upload_id,

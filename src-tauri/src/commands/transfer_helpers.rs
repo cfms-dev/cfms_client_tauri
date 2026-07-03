@@ -76,6 +76,50 @@ async fn create_transfer_connection(
         .map_err(|e| format!("Transfer connection failed: {e}"))
 }
 
+struct UploadTransferSession {
+    conn: Option<cfms_transport::Connection>,
+}
+
+impl UploadTransferSession {
+    fn new() -> Self {
+        Self { conn: None }
+    }
+
+    async fn get(
+        &mut self,
+        state: &cfms_service::state::AppState,
+    ) -> Result<cfms_transport::Connection, String> {
+        if self
+            .conn
+            .as_ref()
+            .is_some_and(cfms_transport::Connection::is_closed)
+            && let Some(conn) = self.conn.take()
+        {
+            conn.close().await;
+        }
+
+        if self.conn.is_none() {
+            self.conn = Some(create_transfer_connection(state).await?);
+        }
+
+        Ok(self
+            .conn
+            .as_ref()
+            .expect("upload transfer connection exists after creation")
+            .clone())
+    }
+
+    async fn discard(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            conn.close().await;
+        }
+    }
+
+    async fn close(&mut self) {
+        self.discard().await;
+    }
+}
+
 async fn create_server_directory(
     state: &AppHandleState,
     parent_id: Option<String>,
@@ -245,6 +289,7 @@ async fn upload_local_file<R: Runtime>(
     upload_name: Option<String>,
     upload_id: String,
     conflict_strategy: UploadConflictStrategy,
+    transfer_session: &mut UploadTransferSession,
 ) -> Result<UploadFileResult, String> {
     if !source.is_file() {
         return Err("Selected path is not a file".to_string());
@@ -404,7 +449,7 @@ async fn upload_local_file<R: Runtime>(
         return Err(upload_interruption_message(reason).to_string());
     }
 
-    let transfer_conn = match create_transfer_connection(&state.inner).await {
+    let transfer_conn = match transfer_session.get(&state.inner).await {
         Ok(conn) => conn,
         Err(err) => {
             state.active_uploads.unregister(&upload_id);
@@ -444,9 +489,8 @@ async fn upload_local_file<R: Runtime>(
             Err(upload_interruption_message(reason).to_string())
         }
     };
-    transfer_conn.close().await;
-
     if let Err(message) = result {
+        transfer_session.discard().await;
         if let Some(reason) = *upload_control.borrow() {
             emit_interrupted_upload(app_handle, &upload_id, Some(&task_id), &file_name, reason);
             state.active_uploads.unregister(&upload_id);
@@ -465,6 +509,10 @@ async fn upload_local_file<R: Runtime>(
         );
         state.active_uploads.unregister(&upload_id);
         return Err(message);
+    }
+
+    if transfer_conn.is_closed() {
+        transfer_session.discard().await;
     }
 
     emit_upload_progress(

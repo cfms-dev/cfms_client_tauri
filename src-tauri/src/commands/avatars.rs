@@ -91,13 +91,7 @@ pub async fn download_avatar(
         let _ = std::fs::remove_file(&cache_path);
     }
 
-    // Get connection for file transfer (separate connection, matching the
-    // reference pattern of creating a dedicated connection for avatar download).
-    let conn = {
-        let c = state.inner.conn.read().await;
-        c.clone()
-    }
-    .ok_or_else(|| "Not connected to a server".to_string())?;
+    let conn = create_transfer_connection(&state.inner).await?;
 
     // Download using the transfer protocol.
     // Progress is silently consumed (avatars are small; the reference does the same).
@@ -106,9 +100,11 @@ pub async fn download_avatar(
                     _message: &str,
                     _current: u64,
                     _total: u64| {};
-    cfms_transfer::download::receive(&conn, task_id, &cache_path, &progress)
+    let result = cfms_transfer::download::receive(&conn, task_id, &cache_path, &progress)
         .await
-        .map_err(|e| format!("Avatar download failed: {e}"))?;
+        .map_err(|e| format!("Avatar download failed: {e}"));
+    conn.close().await;
+    result?;
 
     if cache_path.exists() {
         let path_str = cache_path.to_string_lossy().into_owned();
