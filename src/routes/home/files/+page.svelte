@@ -212,6 +212,9 @@
   } | null>(null);
   let dragUploadActive = $state(false);
   let dragUploadDepth = $state(0);
+  let nativeDragDropAvailable = false;
+  let lastDropBatchSignature = '';
+  let lastDropBatchAt = 0;
   let searchDialog = $state<{
     open: boolean;
     query: string;
@@ -1556,9 +1559,22 @@
     );
   }
 
+  const DROP_BATCH_DEDUP_WINDOW_MS = 1000;
+
   async function handleDroppedUploadPaths(paths: string[]) {
     const uniquePaths = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
     if (uniquePaths.length === 0) return;
+
+    const signature = droppedPathBatchSignature(uniquePaths);
+    const now = Date.now();
+    if (
+      signature === lastDropBatchSignature
+      && now - lastDropBatchAt < DROP_BATCH_DEDUP_WINDOW_MS
+    ) {
+      return;
+    }
+    lastDropBatchSignature = signature;
+    lastDropBatchAt = now;
 
     const targetFolderId = currentFolderId;
     let queued = 0;
@@ -1598,6 +1614,10 @@
     if (unsupported > 0) {
       notificationStore.warning($t('files.dropUnsupported'));
     }
+  }
+
+  function droppedPathBatchSignature(paths: string[]) {
+    return JSON.stringify([...paths].sort());
   }
 
   async function droppedUploadKind(path: string): Promise<'file' | 'directory' | null> {
@@ -1646,6 +1666,8 @@
     event.preventDefault();
     dragUploadDepth = 0;
     dragUploadActive = false;
+
+    if (nativeDragDropAvailable) return;
 
     const paths = droppedFilePaths(event);
     if (paths.length === 0) {
@@ -2233,8 +2255,10 @@
         handleNativeDragLeave();
       }
     }).then((fn) => {
+      nativeDragDropAvailable = true;
       unlistenDragDrop = fn;
     }).catch(() => {
+      nativeDragDropAvailable = false;
       /* HTML5 drag/drop remains as a best-effort fallback. */
     });
     const initialFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
@@ -2254,6 +2278,7 @@
       clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
+      nativeDragDropAvailable = false;
     };
   });
 
