@@ -24,7 +24,7 @@
   import { initNavigationHistory, navigateUp } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
   import { screenProtectionStore } from "$lib/screen-protection.svelte";
-  import { isFindShortcut } from "$lib/keyboard";
+  import { isAppLockShortcut, isFindShortcut } from "$lib/keyboard";
   import {
     authStore,
     serverStateStore,
@@ -321,10 +321,20 @@
     appLockStore.recordActivity();
   }
 
+  function handleAppLockShortcut(event: KeyboardEvent) {
+    if (!isAppLockShortcut(event)) return false;
+    if (!authStore.isLoggedIn || !appLockStore.canLock || appLockStore.locked) return false;
+
+    event.preventDefault();
+    appLockStore.lock();
+    return true;
+  }
+
   function handleWindowKeydown(event: KeyboardEvent) {
     if (isFindShortcut(event)) {
       event.preventDefault();
     }
+    if (handleAppLockShortcut(event)) return;
     recordUserActivity();
   }
 </script>
