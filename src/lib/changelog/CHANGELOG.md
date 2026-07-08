@@ -4,6 +4,21 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.30.1
+**Released on:** 2026-07-08
+
+**Title:** Add app lock shortcut handling to enhance security features
+
+### Added
+- Add app lock shortcut handling to enhance security features
+- Implement upload transfer session management and enhance connection handling
+- Enhance search dialog with result query handling and sorting functionality
+
+### Fixed
+- Enhance drag-and-drop upload handling with deduplication logic
+
+--- 
+
 ## v0.30.0
 **Released on:** 2026-07-02
 
