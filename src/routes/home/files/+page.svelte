@@ -1122,7 +1122,6 @@
       try {
         notificationStore.info($t('files.uploadRevisionStarted'), 2500);
         await uploadNewRevision(doc.id, selected);
-        status = $t('files.uploadRevisionSuccess');
         await loadDirectory(currentFolderId);
         if (revisionsDialog?.documentId === doc.id) {
           revisionsDialog = {

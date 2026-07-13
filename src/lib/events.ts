@@ -129,12 +129,6 @@ export async function initEventListeners(): Promise<void> {
     uploadStore.applyProgress(event);
     if (event.status === "completed") {
       eventLog.push("success", `Upload complete: ${event.file_name}`);
-      notificationStore.success("1 upload completed", 3000, {
-        groupKey: "upload-completed",
-        groupTitle: "Uploads completed",
-        itemText: event.file_name,
-        summaryText: (count) => `${count} upload${count === 1 ? "" : "s"} completed`,
-      });
     } else if (event.status === "failed") {
       eventLog.push("error", `Upload failed: ${event.message ?? event.file_name}`);
       notificationStore.error(`Upload failed: ${event.message ?? event.file_name}`, 3000, {

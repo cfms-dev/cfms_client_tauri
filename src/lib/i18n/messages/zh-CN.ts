@@ -394,7 +394,6 @@ export const zh_CN = {
     groupNamePlaceholder: '用户组名称',
     uploadNewVersion: '上传新版本',
     uploadRevisionStarted: '正在上传新版本...',
-    uploadRevisionSuccess: '新版本已上传。',
     uploadRevisionFailed: '上传新版本失败：{error}',
     selectRevisionFile: '选择要作为新版本上传的文件。',
     viewRevisions: '查看修订版本',

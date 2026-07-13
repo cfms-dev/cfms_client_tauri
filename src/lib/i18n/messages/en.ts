@@ -399,7 +399,6 @@ export const en = {
     groupNamePlaceholder: 'Group name',
     uploadNewVersion: 'Upload new version',
     uploadRevisionStarted: 'Uploading new version...',
-    uploadRevisionSuccess: 'New version uploaded.',
     uploadRevisionFailed: 'Failed to upload new version: {error}',
     selectRevisionFile: 'Select a file to upload as the new version.',
     viewRevisions: 'View revisions',
