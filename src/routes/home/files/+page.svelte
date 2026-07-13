@@ -107,7 +107,14 @@
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
   import { sortFileEntries, type SortDirection, type SortField } from '$lib/files/sorting';
   import { shouldDeferFileSort, sortFileEntriesAsync } from '$lib/files/sort-worker-client';
-  import { fileManagerShortcutFor, isFindShortcut } from '$lib/keyboard';
+  import {
+    fileManagerShortcutFor,
+    isFindShortcut,
+    registerKeyboardCommands,
+    keyboardMenuAnchor,
+    focusRovingItem,
+    type FileManagerShortcut,
+  } from '$lib/keyboard';
   import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
@@ -172,7 +179,8 @@
     y: number;
     kind: 'folder' | 'document' | 'selection' | 'current-directory' | null;
     item: ServerDirectoryEntry | ServerDocumentEntry | null;
-  }>({ open: false, x: 0, y: 0, kind: null, item: null });
+    sourceElement: HTMLElement | null;
+  }>({ open: false, x: 0, y: 0, kind: null, item: null, sourceElement: null });
   let detailTitle = $state<string | null>(null);
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
   let accessEntriesDialog = $state<{
@@ -221,6 +229,7 @@
   } | null>(null);
   let searchRunId = 0;
   let searchPreviewRunId = 0;
+  let searchPreviewActiveIndex = $state(-1);
   let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
   let searchPreviewPositionFrame: number | null = null;
   let uploadProgress = $state<{
@@ -765,6 +774,13 @@
   }
 
   function handleFileRowKeydown(event: KeyboardEvent, row: FileTableRow) {
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'].includes(event.key)) {
+      const id = row.kind === 'folder' ? row.folder.id : row.document.id;
+      if (event.ctrlKey || event.metaKey) focusedItemKey = fileSelectionKey(row.kind, id);
+      else selectRow({ ctrlKey: false, metaKey: false, shiftKey: event.shiftKey }, row.kind, id);
+      return;
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault();
       if (row.kind === 'folder') void handleNavigate(row.folder.id, row.folder.name);
@@ -786,6 +802,10 @@
     const shortcut = fileManagerShortcutFor(event);
     if (!shortcut) return;
 
+    executeFileManagerShortcut(shortcut, event);
+  }
+
+  function executeFileManagerShortcut(shortcut: FileManagerShortcut, event: KeyboardEvent) {
     if (shortcut === 'go-parent') {
       event.preventDefault();
       if (canGoToParent && !loading) void handleGoToParent();
@@ -890,13 +910,14 @@
   // --- Context menu ---
 
   function hideContextMenu() {
-    contextMenu = { open: false, x: 0, y: 0, kind: null, item: null };
+    contextMenu = { open: false, x: 0, y: 0, kind: null, item: null, sourceElement: null };
   }
 
-  function showFolderContextMenu(e: MouseEvent, folder: ServerDirectoryEntry) {
+  function showFolderContextMenu(e: MouseEvent | KeyboardEvent, folder: ServerDirectoryEntry) {
     e.preventDefault();
+    const anchor = keyboardMenuAnchor(e);
     if (selectedFolderIds.has(folder.id) && totalSelected > 1) {
-      contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'selection', item: null };
+      contextMenu = { open: true, ...anchor, kind: 'selection', item: null };
       return;
     }
     if (!selectedFolderIds.has(folder.id)) {
@@ -905,13 +926,14 @@
       focusedItemKey = `folder:${folder.id}`;
       selectionAnchorKey = focusedItemKey;
     }
-    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'folder', item: folder };
+    contextMenu = { open: true, ...anchor, kind: 'folder', item: folder };
   }
 
-  function showDocumentContextMenu(e: MouseEvent, doc: ServerDocumentEntry) {
+  function showDocumentContextMenu(e: MouseEvent | KeyboardEvent, doc: ServerDocumentEntry) {
     e.preventDefault();
+    const anchor = keyboardMenuAnchor(e);
     if (selectedDocumentIds.has(doc.id) && totalSelected > 1) {
-      contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'selection', item: null };
+      contextMenu = { open: true, ...anchor, kind: 'selection', item: null };
       return;
     }
     if (!selectedDocumentIds.has(doc.id)) {
@@ -920,12 +942,12 @@
       focusedItemKey = `document:${doc.id}`;
       selectionAnchorKey = focusedItemKey;
     }
-    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'document', item: doc };
+    contextMenu = { open: true, ...anchor, kind: 'document', item: doc };
   }
 
   function showCurrentDirectoryContextMenu(e: MouseEvent) {
     e.preventDefault();
-    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'current-directory', item: null };
+    contextMenu = { open: true, ...keyboardMenuAnchor(e), kind: 'current-directory', item: null };
   }
 
   function showFilesPageBlankContextMenu(e: MouseEvent) {
@@ -2228,6 +2250,7 @@
     searchPreview.open = false;
     searchPreview.loading = false;
     searchPreview.loadingMore = false;
+    searchPreviewActiveIndex = -1;
   }
 
   function resetSearchPreviewResults() {
@@ -2293,8 +2316,31 @@
       return;
     }
 
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && searchPreviewRows.length > 0) {
+      event.preventDefault();
+      if (!searchPreview.open) openSearchPreview();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const start = searchPreviewActiveIndex < 0 ? (delta > 0 ? -1 : 0) : searchPreviewActiveIndex;
+      searchPreviewActiveIndex = (start + delta + searchPreviewRows.length) % searchPreviewRows.length;
+      document.getElementById(`files-search-preview-option-${searchPreviewActiveIndex}`)?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+
+    if ((event.key === 'Home' || event.key === 'End') && searchPreview.open && searchPreviewRows.length > 0) {
+      event.preventDefault();
+      searchPreviewActiveIndex = event.key === 'Home' ? 0 : searchPreviewRows.length - 1;
+      document.getElementById(`files-search-preview-option-${searchPreviewActiveIndex}`)?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault();
+      if (searchPreview.open && searchPreviewActiveIndex >= 0) {
+        const row = searchPreviewRows[searchPreviewActiveIndex];
+        if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
+        else void navigateToSearchDocument(row.document);
+        return;
+      }
       openSearchDialog(true);
     }
   }
@@ -2679,6 +2725,81 @@
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
     let disposed = false;
+    const unregisterKeyboardCommands = registerKeyboardCommands([
+      {
+        id: 'files.find',
+        label: () => $t('files.search'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'f', primary: true }],
+        scope: 'page',
+        enabled: () => !hasBlockingFilesDialog(),
+        allowInEditable: true,
+        handler: handleFindShortcut,
+      },
+      {
+        id: 'files.parent',
+        label: () => $t('files.parentDirectory'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'Backspace' }, { key: 'ArrowUp', alt: true }],
+        scope: 'page',
+        enabled: () => canGoToParent && !loading && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('go-parent', event),
+      },
+      {
+        id: 'files.refresh',
+        label: () => $t('common.refresh'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
+        scope: 'page',
+        enabled: () => !loading && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('refresh', event),
+      },
+      {
+        id: 'files.create-folder',
+        label: () => $t('files.createFolder'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'n', primary: true, shift: true }],
+        scope: 'page',
+        enabled: () => !loading && !batchBusy && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('create-folder', event),
+      },
+      {
+        id: 'files.select-all',
+        label: () => $t('files.selectAll'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'a', primary: true }],
+        scope: 'page',
+        enabled: () => !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('select-all', event),
+      },
+      {
+        id: 'files.clear-selection',
+        label: () => $t('files.selectNone'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'Escape' }],
+        scope: 'page',
+        enabled: () => totalSelected > 0 && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('clear-selection', event),
+      },
+      {
+        id: 'files.delete',
+        label: () => $t('common.delete'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'Delete' }],
+        scope: 'page',
+        enabled: () => totalSelected > 0 && canDeleteSelection() && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('delete-selection', event),
+      },
+      {
+        id: 'files.rename',
+        label: () => $t('files.rename'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'F2' }],
+        scope: 'page',
+        enabled: () => totalSelected === 1 && canRenameSelected() && !hasBlockingFilesDialog(),
+        handler: (event) => executeFileManagerShortcut('rename-selection', event),
+      },
+    ]);
     coarsePointer = window.matchMedia('(pointer: coarse)').matches;
     try {
       marqueeSelectionEnabled = !isMobilePlatform();
@@ -2698,8 +2819,6 @@
     document.addEventListener('pointerdown', handleOutsidePointerDown, true);
     window.addEventListener('resize', handleSearchPreviewViewportChange);
     window.addEventListener('scroll', handleSearchPreviewViewportChange, true);
-    window.addEventListener('keydown', handleFindShortcut, true);
-    window.addEventListener('keydown', handleFilePageShortcut, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       if (disposed) return;
       uploadProgress = {
@@ -2753,8 +2872,7 @@
       document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
       window.removeEventListener('resize', handleSearchPreviewViewportChange);
       window.removeEventListener('scroll', handleSearchPreviewViewportChange, true);
-      window.removeEventListener('keydown', handleFindShortcut, true);
-      window.removeEventListener('keydown', handleFilePageShortcut, true);
+      unregisterKeyboardCommands();
       clearSearchPreviewDebounce();
       clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
@@ -2809,12 +2927,12 @@
         onsubmit={(e) => { e.preventDefault(); openSearchDialog(true); }}
       >
         <div class="relative">
-          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
-            <Icon name="search" size="17px" />
+          <span class="pointer-events-none absolute inset-y-0 left-3 inline-flex items-center justify-center leading-none text-md3-on-surface-variant">
+            <Icon name="search" size="17px" class="shrink-0" />
           </span>
           <input
             type="text"
-            class="h-9 w-48 rounded-full border border-md3-outline bg-md3-field py-1.5 pl-9 pr-9 text-sm text-md3-on-surface
+            class="h-9 w-48 rounded-full border border-md3-outline bg-md3-field py-1.5 pl-9 pr-9 text-sm leading-5 text-md3-on-surface
                    placeholder:text-md3-on-surface-variant
                    focus:border-transparent focus:ring-2 focus:ring-md3-primary
                    transition-all"
@@ -2826,8 +2944,13 @@
             onkeydown={handleSearchKeydown}
             role="combobox"
             aria-expanded={searchPreview.open}
-            aria-controls="files-search-preview-panel"
+            aria-controls="files-search-preview-list"
             aria-label={$t('files.searchPlaceholder')}
+            aria-keyshortcuts="Control+F Meta+F"
+            aria-autocomplete="list"
+            aria-activedescendant={searchPreview.open && searchPreviewActiveIndex >= 0
+              ? `files-search-preview-option-${searchPreviewActiveIndex}`
+              : undefined}
           />
           {#if searchQuery}
             <button
@@ -2883,7 +3006,7 @@
 
               <span class="mx-1 hidden h-6 w-px bg-md3-outline sm:block"></span>
 
-              <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5">
+              <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5" role="toolbar" tabindex="-1" aria-label={$t('workspace.sort')} onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, { selector: '[data-search-sort]', orientation: 'horizontal' })}>
                 <span
                   class="search-sort-indicator absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-md3-primary"
                   style={searchSortIndicatorStyle(searchPreview.sortBy)}
@@ -2891,6 +3014,8 @@
                 ></span>
                 {#each ['name', 'size', 'modified'] as field}
                   <button
+                    data-search-sort
+                    tabindex={searchPreview.sortBy === field ? 0 : -1}
                     type="button"
                     class="relative z-10 min-w-16 rounded-full px-3 py-1 text-xs font-medium transition-colors {searchPreview.sortBy === field ? 'text-md3-on-primary' : 'text-md3-on-surface-variant hover:text-md3-on-surface'}"
                     aria-pressed={searchPreview.sortBy === field}
@@ -2923,7 +3048,10 @@
           </div>
 
           <div
+            id="files-search-preview-list"
             class="search-preview-list border-y border-md3-outline/60"
+            role="listbox"
+            aria-label={$t('files.searchPreviewResults')}
           >
             {#if searchPreview.error}
               <p class="px-4 py-8 text-center text-sm text-md3-error">{searchPreview.error}</p>
@@ -2948,9 +3076,14 @@
               >
                 {#snippet children(row, index)}
                   <button
+                    id={`files-search-preview-option-${index}`}
                     type="button"
-                    class="grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-md3-outline/45 px-4 py-2 text-left transition-colors hover:bg-md3-primary-container/15"
+                    class="grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-md3-outline/45 px-4 py-2 text-left transition-colors hover:bg-md3-primary-container/15 {searchPreviewActiveIndex === index ? 'bg-md3-primary-container/15' : ''}"
                     class:border-b-0={index === searchPreviewRows.length - 1}
+                    role="option"
+                    aria-selected={searchPreviewActiveIndex === index}
+                    tabindex="-1"
+                    onmouseenter={() => (searchPreviewActiveIndex = index)}
                     onclick={() => row.kind === 'directory'
                       ? navigateToSearchDirectory(row.directory)
                       : navigateToSearchDocument(row.document)}
@@ -3011,16 +3144,23 @@
     <div
       class="files-sort-actions"
       role="toolbar"
+      tabindex="-1"
       aria-label={$t('workspace.sort')}
+      onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, {
+        selector: '[data-sort-item]',
+        orientation: 'horizontal',
+      })}
     >
       {#each SORT_FIELDS as field}
         <button
+          data-sort-item
           type="button"
           class="explorer-command-button explorer-command-button--compact files-sort-button"
           data-active={sortField === field ? 'true' : undefined}
           title={sortTitle(field as SortField)}
           aria-label={sortTitle(field as SortField)}
           aria-pressed={sortField === field}
+          tabindex={sortField === field ? 0 : -1}
           onclick={() => setSort(field as SortField)}
         >
           <Icon name={sortFieldIcon(field)} size="17px" />
@@ -3284,6 +3424,7 @@
   y={contextMenu.y}
   items={contextMenuItems}
   userPermissions={authStore.permissions}
+  sourceElement={contextMenu.sourceElement}
   onClose={hideContextMenu}
 />
 
@@ -3330,7 +3471,7 @@
           {$t('files.searchDirectories')}
         </label>
 
-        <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5">
+        <div class="relative grid grid-cols-3 overflow-hidden rounded-full border border-md3-outline bg-md3-field p-0.5" role="toolbar" tabindex="-1" aria-label={$t('workspace.sort')} onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, { selector: '[data-search-sort]', orientation: 'horizontal' })}>
           <span
             class="search-sort-indicator absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-md3-primary"
             style={searchSortIndicatorStyle(searchDialog.sortBy)}
@@ -3338,6 +3479,8 @@
           ></span>
           {#each ['name', 'size', 'modified'] as field}
             <button
+              data-search-sort
+              tabindex={searchDialog.sortBy === field ? 0 : -1}
               type="button"
               class="relative z-10 min-w-16 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 {searchDialog.sortBy === field ? 'text-md3-on-primary' : 'text-md3-on-surface-variant hover:text-md3-on-surface'}"
               aria-pressed={searchDialog.sortBy === field}
@@ -3385,6 +3528,8 @@
             threshold={120}
             resetKey={searchDialogResetKey}
             viewportClass="server-search-list-viewport"
+            keyboardNavigation
+            keyboardTargetSelector="button"
           >
             {#snippet children(row, index)}
               {#if row.kind === 'directory'}

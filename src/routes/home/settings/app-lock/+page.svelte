@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from 'svelte/transition';
   import { onDestroy, onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -11,9 +10,8 @@
   import AppPinPad from '$lib/components/AppPinPad.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
+  import ModalFrame from '$lib/components/ModalFrame.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
-  import ViewportScaleFrame from '$lib/components/ViewportScaleFrame.svelte';
-  import { flyScale } from '$lib/motion/transitions';
   import { isMobilePlatform } from '$lib/platform';
 
   const pinLength = getRequiredPinLength();
@@ -500,55 +498,48 @@
 </div>
 
 {#if pinSetupOpen}
-  <div
-    class="pin-setup-backdrop fixed inset-0 z-[70] flex items-center justify-center overflow-auto px-5 py-10"
-    role="presentation"
-    transition:fade|global={{ duration: 180 }}
+  <ModalFrame
+    title={pinSetupTitle}
+    maxWidth="max-w-lg"
+    closeLabel={$t('common.close')}
+    dismissible={busy !== 'pin'}
+    onClose={() => {
+      if (busy !== 'pin') closePinSetup();
+    }}
   >
-    <ViewportScaleFrame inlinePadding={40} blockPadding={136} mobileBlockPadding={36}>
-      <div
-        class="pin-setup-panel flex w-[520px] max-w-full flex-col items-center text-center text-white"
-        role="dialog"
-        aria-modal="true"
-        aria-label={pinSetupTitle}
-        tabindex="-1"
-        transition:flyScale|global={{ y: 16, duration: 260 }}
-        onkeydown={(event) => event.stopPropagation()}
-      >
-        <div class="mb-6 rounded-[1.75rem] bg-white/12 p-4 shadow-2xl shadow-black/20">
-          <Icon name="password" size="48px" />
-        </div>
-        <h2 class="text-3xl font-light" style="font-family: var(--font-md3-sans);">
-          {pinSetupTitle}
-        </h2>
-        <p class="mt-4 min-h-6 text-base text-white/82">
-          {pinSetupMessage ?? (pinSetupStep === 'new'
-            ? $t('appLock.settings.enterNewPin')
-            : $t('appLock.settings.enterConfirmPin'))}
-        </p>
+    <div class="flex flex-col items-center px-5 pb-6 pt-5 text-center text-md3-on-surface">
+      <div class="mb-3 grid h-14 w-14 place-items-center rounded-xl bg-md3-primary-container text-md3-primary-emphasis">
+        <Icon name="password" size="32px" />
+      </div>
+      <p class="min-h-6 text-sm leading-6 text-md3-on-surface-variant">
+        {pinSetupMessage ?? (pinSetupStep === 'new'
+          ? $t('appLock.settings.enterNewPin')
+          : $t('appLock.settings.enterConfirmPin'))}
+      </p>
 
-        <AppPinPad
-          class="mt-7"
-          bind:value={pinSetupEntry}
-          length={pinLength}
-          density="compact"
-          disabled={busy !== null}
-          shake={pinSetupShake}
-          deleteLabel={$t('common.delete')}
-        />
+      <AppPinPad
+        class="mt-5"
+        bind:value={pinSetupEntry}
+        length={pinLength}
+        density="compact"
+        tone="surface"
+        disabled={busy !== null}
+        shake={pinSetupShake}
+        deleteLabel={$t('common.delete')}
+      />
 
+      <div class="mt-5 flex w-full justify-end border-t border-md3-outline pt-4">
         <button
           type="button"
-          class="pin-setup-cancel mt-6"
+          class="pin-setup-cancel"
           onclick={() => closePinSetup()}
           disabled={busy === 'pin'}
         >
-          <Icon name="arrowBack" size="18px" />
           {$t('common.cancel')}
         </button>
       </div>
-    </ViewportScaleFrame>
-  </div>
+    </div>
+  </ModalFrame>
 {/if}
 
 <style>
@@ -592,29 +583,16 @@
     color: var(--color-md3-error);
   }
 
-  .pin-setup-backdrop {
-    min-block-size: 100dvh;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
-    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
-    padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
-    padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
-    background:
-      linear-gradient(145deg, rgba(14, 19, 50, 0.98), rgba(43, 16, 55, 0.98) 58%, rgba(30, 20, 39, 0.98)),
-      radial-gradient(circle at 18% 14%, rgba(103, 80, 164, 0.28), transparent 34%);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-  }
-
   .pin-setup-cancel {
     display: inline-flex;
     min-block-size: 42px;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    border: 0;
-    border-radius: 9999px;
-    background: transparent;
-    color: white;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-small, 6px);
+    background: var(--color-md3-surface-container-high);
+    color: var(--color-md3-on-surface-variant);
     padding: 0.5rem 0.9rem;
     font-size: 0.875rem;
     font-weight: 650;
@@ -624,7 +602,8 @@
   }
 
   .pin-setup-cancel:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-md3-on-surface);
+    background: var(--color-md3-surface-container-highest);
   }
 
   .pin-setup-cancel:disabled {

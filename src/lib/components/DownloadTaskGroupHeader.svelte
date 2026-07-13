@@ -18,7 +18,7 @@
     onDeleteFiles: (groupId: string) => Promise<void>;
     deleting?: BatchDeleteProgress | null;
     pendingAction?: PendingAction;
-    onContextMenu?: (event: MouseEvent, group: DownloadTaskGroup) => void;
+    onContextMenu?: (event: MouseEvent | KeyboardEvent, group: DownloadTaskGroup) => void;
   }
 
   let {
@@ -96,7 +96,7 @@
     await action(group.id);
   }
 
-  function handleContextMenu(event: MouseEvent) {
+  function handleContextMenu(event: MouseEvent | KeyboardEvent) {
     if (isDeleting) {
       event.preventDefault();
       return;
@@ -105,6 +105,7 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="batch-card"
   class:batch-card-deleting={isDeleting}
@@ -112,6 +113,12 @@
   aria-label={group.name}
   aria-busy={isDeleting}
   oncontextmenu={handleContextMenu}
+  onkeydown={(event) => {
+    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+      event.preventDefault();
+      handleContextMenu(event);
+    }
+  }}
 >
   <button
     type="button"

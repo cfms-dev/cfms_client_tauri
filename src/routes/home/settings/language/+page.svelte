@@ -7,6 +7,7 @@
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '$lib/keyboard';
 
   const languages: Array<{ value: AppLocale; labelKey: string }> = [
     { value: 'zh_CN', labelKey: 'settings.language.chinese' },
@@ -64,6 +65,14 @@
   function resetLanguage() {
     selectLanguage('zh_CN');
   }
+
+  function handleLanguageKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-radio-item]',
+      orientation: 'both',
+    });
+    next?.click();
+  }
 </script>
 
 <div class="p-6 space-y-4 max-w-lg mx-auto">
@@ -85,10 +94,14 @@
       </p>
     </div>
 
-    <div class="space-y-2">
+    <div class="space-y-2" role="radiogroup" tabindex="-1" aria-label={$t('settings.language.display')} onkeydown={handleLanguageKeydown}>
       {#each languages as option}
         <button
+          data-radio-item
           type="button"
+          role="radio"
+          aria-checked={language === option.value}
+          tabindex={language === option.value ? 0 : -1}
           class="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left
                  bg-md3-surface-container-high/40 text-sm text-md3-on-surface
                  border border-md3-outline/50 transition-colors hover:bg-md3-primary-container/15 disabled:cursor-not-allowed disabled:opacity-60"

@@ -103,7 +103,6 @@
                 type="button"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant transition-colors hover:text-md3-on-surface"
                 onclick={() => (recoveryVisible = !recoveryVisible)}
-                tabindex="-1"
                 aria-label={recoveryVisible ? $t('login.hidePassword') : $t('login.showPassword')}
                 disabled={recoveryBusy}
               >

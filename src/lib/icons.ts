@@ -21,6 +21,7 @@ export const ICONS = {
   logout:        'logout',
   chevronLeft:   'chevron_left',
   password:      'password',
+  keyboard:      'keyboard',
   accountCircle: 'account_circle',
   pin:           'pin',
   fingerprint:   'fingerprint',

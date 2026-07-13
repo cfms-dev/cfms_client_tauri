@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { browser } from '$app/environment';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
@@ -12,6 +13,7 @@
     notificationStore,
   } from '$lib/stores.svelte';
   import { appLockStore } from '$lib/app-lock.svelte';
+  import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
   import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '$lib/api';
   import { favoriteRecordsFromPreference, type FileRecord } from '$lib/file-preferences';
   import Icon from '$lib/components/Icon.svelte';
@@ -19,6 +21,7 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { WorkspaceNavItem } from '$lib/explorer/types';
+  import { focusRovingItem, openKeyboardShortcutHelp, registerKeyboardCommands } from '$lib/keyboard';
 
   let { children }: { children: Snippet } = $props();
 
@@ -31,6 +34,9 @@
   let favorites = $state<FileRecord[]>([]);
   let favoritesLoading = $state(false);
   let loadedFavoriteScope = '';
+  let routeReloadToken = $state(0);
+  let accountTriggerElement = $state<HTMLButtonElement | null>(null);
+  let enteredFromConnectToolbar = $state(browser ? consumeConnectToUtilityTransition() : false);
 
   const activeTaskCount = $derived(downloadStore.activeTasks.length + uploadStore.activeTasks.length);
   const accountDisplayName = $derived(
@@ -48,6 +54,17 @@
         permission === 'apply_lockdown' || permission === 'manage_system'
       ),
   );
+  const isPublicUtilityRoute = $derived(
+    $page.url.pathname === '/home/about'
+      || $page.url.pathname === '/home/settings'
+      || $page.url.pathname.startsWith('/home/settings/'),
+  );
+  const showPublicUtilityClose = $derived(
+    enteredFromConnectToolbar
+      && isPublicUtilityRoute
+      && !serverStateStore.connected
+      && !authStore.isLoggedIn,
+  );
 
   const primaryNavigation = $derived<WorkspaceNavItem[]>([
     { id: 'home', label: $t('nav.home'), href: '/home/overview', icon: 'home', exact: true },
@@ -62,6 +79,9 @@
     { id: 'settings', label: $t('workspace.settings'), href: '/home/settings', icon: 'settings' },
     { id: 'about', label: $t('workspace.about'), href: '/home/about', icon: 'info' },
   ]);
+  const navigationHasActiveItem = $derived(
+    [...primaryNavigation, ...bottomNavigation].some((item) => isActive(item)),
+  );
 
   const currentTitle = $derived.by(() => {
     const path = $page.url.pathname;
@@ -95,6 +115,16 @@
     return () => window.removeEventListener('cfms:favorites-changed', refresh);
   });
 
+  onMount(() => registerKeyboardCommands({
+    id: 'public-utility.close',
+    label: () => $t('common.close'),
+    shortcuts: [{ key: 'Escape' }],
+    scope: 'page',
+    enabled: () => showPublicUtilityClose,
+    allowInEditable: true,
+    handler: closePublicUtility,
+  }));
+
   async function refreshFavorites() {
     if (favoritesLoading || !authStore.isLoggedIn) return;
     favoritesLoading = true;
@@ -112,16 +142,32 @@
     return item.exact ? path === item.href : path === item.href || path.startsWith(`${item.href}/`);
   }
 
+  function navigationShortcut(item: WorkspaceNavItem) {
+    if (item.id === 'home') return 'Control+1 Meta+1';
+    if (item.id === 'files') return 'Control+2 Meta+2';
+    if (item.id === 'tasks') return 'Control+3 Meta+3';
+    if (item.id === 'settings') return 'Control+, Meta+,';
+    return undefined;
+  }
+
   async function navigate(href: string) {
     drawerOpen = false;
     await goto(href);
   }
 
+  async function closePublicUtility() {
+    enteredFromConnectToolbar = false;
+    drawerOpen = false;
+    await goto('/connect');
+  }
+
   async function openFavorite(record: FileRecord) {
     drawerOpen = false;
     if (record.type === 'directory') {
+      const reloadFilesView = $page.url.pathname === '/home/files';
       const params = new URLSearchParams({ folder: record.id, name: record.name });
       await goto(`/home/files?${params.toString()}`);
+      if (reloadFilesView) routeReloadToken += 1;
       return;
     }
     try {
@@ -158,12 +204,18 @@
     showAvatarPicker = true;
   }
 
-  function openAccountMenu() {
+  function openAccountMenu(focusFirst = false) {
     if (accountCloseTimer !== null) {
       window.clearTimeout(accountCloseTimer);
       accountCloseTimer = null;
     }
     accountMenuOpen = true;
+    if (focusFirst) {
+      void tick().then(() => {
+        document.querySelector<HTMLElement>('.explorer-account-menu [data-menu-item]:not(:disabled)')
+          ?.focus({ preventScroll: true });
+      });
+    }
   }
 
   function closeAccountMenu() {
@@ -194,6 +246,35 @@
     if (!(event.currentTarget instanceof HTMLElement)) return;
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
     closeAccountMenu();
+  }
+
+  function handleAccountTriggerKeydown(event: KeyboardEvent) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    event.stopPropagation();
+    openAccountMenu(true);
+  }
+
+  function handleAccountMenuKeydown(event: KeyboardEvent) {
+    const menu = event.currentTarget as HTMLElement;
+    if (event.key === 'Tab') {
+      closeAccountMenu();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAccountMenu();
+      accountTriggerElement?.focus({ preventScroll: true });
+      return;
+    }
+    focusRovingItem(event, menu, { selector: '[data-menu-item]', orientation: 'vertical' });
+  }
+
+  function handleNavigationKeydown(event: KeyboardEvent) {
+    focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-nav-item]',
+      orientation: 'vertical',
+    });
   }
 
   async function handleLogout() {
@@ -240,7 +321,7 @@
 />
 
 <div class="explorer-shell">
-  <header class="explorer-topbar">
+  <header class="explorer-topbar" data-keyboard-region="toolbar">
     <button
       type="button"
       class="explorer-command-button explorer-mobile-menu"
@@ -254,9 +335,11 @@
 
     <h1 class="explorer-route-title">{currentTitle}</h1>
 
+    {#if authStore.isLoggedIn}
     <div class="explorer-topbar-actions">
       {#if canApplyLockdown}
         <button
+          bind:this={accountTriggerElement}
           type="button"
           class="explorer-command-button explorer-lockdown-button"
           data-active={serverStateStore.lockdown ? 'true' : undefined}
@@ -278,7 +361,7 @@
         role="group"
         onpointerenter={handleAccountPointerEnter}
         onpointerleave={handleAccountPointerLeave}
-        onfocusin={openAccountMenu}
+        onfocusin={() => openAccountMenu()}
         onfocusout={handleAccountFocusOut}
       >
         <button
@@ -287,7 +370,8 @@
           aria-label={$t('common.accountMenu')}
           aria-haspopup="menu"
           aria-expanded={accountMenuOpen}
-          onclick={(event) => { event.stopPropagation(); openAccountMenu(); }}
+          onclick={(event) => { event.stopPropagation(); openAccountMenu(true); }}
+          onkeydown={handleAccountTriggerKeydown}
         >
           <span
             class="explorer-connection-dot"
@@ -299,12 +383,14 @@
         </button>
 
         {#if accountMenuOpen}
-          <div class="explorer-account-menu" role="menu" tabindex="-1">
+          <div class="explorer-account-menu" role="menu" tabindex="-1" onkeydown={handleAccountMenuKeydown}>
             <div class="explorer-account-summary" role="presentation">
               <button
+                data-menu-item
                 type="button"
                 class="explorer-account-avatar"
                 role="menuitem"
+                tabindex="-1"
                 title={$t('avatar.change')}
                 aria-label={$t('avatar.change')}
                 onclick={openAvatarPicker}
@@ -320,10 +406,13 @@
               </span>
               {#if appLockStore.canLock}
                 <button
+                  data-menu-item
                   class="explorer-account-lock"
                   role="menuitem"
+                  tabindex="-1"
                   title={$t('appLock.lockNow')}
                   aria-label={$t('appLock.lockNow')}
+                  aria-keyshortcuts="Control+L Meta+L"
                   onclick={lockApp}
                 >
                   <Icon name="lock" size="18px" />
@@ -331,16 +420,37 @@
               {/if}
             </div>
             <span class="explorer-menu-separator"></span>
-            <button role="menuitem" disabled={accountActionBusy} onclick={handleLogout}>
+            <button data-menu-item role="menuitem" tabindex="-1" disabled={accountActionBusy} onclick={handleLogout}>
               <Icon name="logout" size="18px" /><span>{$t('lockdown.logout')}</span>
             </button>
-            <button role="menuitem" disabled={accountActionBusy} onclick={handleDisconnect}>
+            <button data-menu-item role="menuitem" tabindex="-1" disabled={accountActionBusy} onclick={handleDisconnect}>
               <Icon name="connect" size="18px" /><span>{$t('lockdown.disconnect')}</span>
+            </button>
+            <button
+              data-menu-item
+              role="menuitem"
+              tabindex="-1"
+              aria-keyshortcuts="Control+/ Meta+/"
+              onclick={() => { closeAccountMenu(); openKeyboardShortcutHelp(); }}
+            >
+              <Icon name="keyboard" size="18px" /><span>{$t('keyboard.openHelp')}</span>
             </button>
           </div>
         {/if}
       </div>
     </div>
+    {:else if showPublicUtilityClose}
+      <button
+        type="button"
+        class="explorer-command-button explorer-public-utility-close"
+        title={$t('common.close')}
+        aria-label={$t('common.close')}
+        aria-keyshortcuts="Escape"
+        onclick={closePublicUtility}
+      >
+        <Icon name="close" size="20px" />
+      </button>
+    {/if}
   </header>
 
   <div class="explorer-workspace">
@@ -348,10 +458,12 @@
       <button class="explorer-drawer-scrim" aria-label={$t('common.close')} onclick={() => (drawerOpen = false)}></button>
     {/if}
 
-    <aside class="explorer-navigation" class:explorer-navigation--open={drawerOpen} aria-label={$t('workspace.navigation')}>
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <aside class="explorer-navigation" class:explorer-navigation--open={drawerOpen} aria-label={$t('workspace.navigation')} data-keyboard-region="navigation" onkeydown={handleNavigationKeydown}>
       <nav class="explorer-navigation-main">
+        {#if authStore.isLoggedIn}
         {#each primaryNavigation as item (item.id)}
-          <button class="explorer-nav-item" class:explorer-nav-item--active={isActive(item)} onclick={() => navigate(item.href)}>
+          <button data-nav-item tabindex={isActive(item) || (!navigationHasActiveItem && item.id === 'home') ? 0 : -1} class="explorer-nav-item" class:explorer-nav-item--active={isActive(item)} aria-current={isActive(item) ? 'page' : undefined} aria-keyshortcuts={navigationShortcut(item)} onclick={() => navigate(item.href)}>
             <Icon name={item.icon} size="19px" />
             <span>{item.label}</span>
             {#if item.badge}
@@ -368,18 +480,19 @@
             <p class="explorer-nav-empty">{$t('workspace.noFavorites')}</p>
           {:else}
             {#each favoriteFolders as favorite (`${favorite.type}:${favorite.id}`)}
-              <button class="explorer-nav-item explorer-nav-favorite" title={favorite.name} onclick={() => openFavorite(favorite)}>
+              <button data-nav-item tabindex="-1" class="explorer-nav-item explorer-nav-favorite" title={favorite.name} onclick={() => openFavorite(favorite)}>
                 <Icon name="folder" size="18px" />
                 <span>{favorite.name}</span>
               </button>
             {/each}
           {/if}
         </div>
+        {/if}
       </nav>
 
       <nav class="explorer-navigation-bottom">
         {#each bottomNavigation as item (item.id)}
-          <button class="explorer-nav-item" class:explorer-nav-item--active={isActive(item)} onclick={() => navigate(item.href)}>
+          <button data-nav-item tabindex={isActive(item) ? 0 : -1} class="explorer-nav-item" class:explorer-nav-item--active={isActive(item)} aria-current={isActive(item) ? 'page' : undefined} aria-keyshortcuts={navigationShortcut(item)} onclick={() => navigate(item.href)}>
             <Icon name={item.icon} size="19px" /><span>{item.label}</span>
           </button>
         {/each}
@@ -387,8 +500,8 @@
       </nav>
     </aside>
 
-    <main class="explorer-content">
-      {#key $page.url.pathname}
+    <main id="workspace-main-content" class="explorer-content" data-keyboard-region="main" tabindex="-1">
+      {#key `${$page.url.pathname}:${routeReloadToken}`}
         <div class="explorer-route-view">
           {@render children()}
         </div>
@@ -426,6 +539,7 @@
   .explorer-mobile-menu { display: none; width: 34px; padding: 0; }
   .explorer-route-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text); font-size: 0.9rem; font-weight: 600; }
   .explorer-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
+  .explorer-public-utility-close { width: 34px; margin-left: auto; padding-inline: 0; }
   .explorer-lockdown-button { width: 34px; padding-inline: 0; }
   .explorer-lockdown-button[data-active="true"] { color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 14%, transparent); }
   .explorer-account-wrap { position: relative; }

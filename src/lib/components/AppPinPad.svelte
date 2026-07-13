@@ -17,6 +17,7 @@
     disabled = false,
     shake = false,
     density = 'comfortable',
+    tone = 'overlay',
     deleteLabel = 'Delete',
     class: className = '',
   }: {
@@ -25,6 +26,7 @@
     disabled?: boolean;
     shake?: boolean;
     density?: 'comfortable' | 'compact';
+    tone?: 'overlay' | 'surface';
     deleteLabel?: string;
     class?: string;
   } = $props();
@@ -42,7 +44,7 @@
   }
 </script>
 
-<div class={`app-pin-pad app-pin-pad--${density} ${className}`}>
+<div class={`app-pin-pad app-pin-pad--${density} ${className}`} data-tone={tone}>
   <div class="app-pin-pad__dots" class:app-pin-pad__dots--shake={shake}>
     {#each dots as filled}
       <span class="app-pin-pad__dot" class:app-pin-pad__dot--filled={filled}></span>
@@ -87,11 +89,29 @@
 
 <style>
   .app-pin-pad {
+    --app-pin-color: white;
+    --app-pin-muted: rgba(255, 255, 255, 0.94);
+    --app-pin-key-background: rgba(255, 255, 255, 0.13);
+    --app-pin-key-hover: rgba(255, 255, 255, 0.2);
+    --app-pin-delete-hover: rgba(255, 255, 255, 0.1);
+    --app-pin-dot-outline: rgba(255, 255, 255, 0.92);
+    --app-pin-dot-fill: white;
+
     display: flex;
     inline-size: 100%;
     max-inline-size: var(--app-pin-pad-width, 390px);
     flex-direction: column;
     align-items: center;
+  }
+
+  .app-pin-pad[data-tone='surface'] {
+    --app-pin-color: var(--color-md3-on-surface);
+    --app-pin-muted: var(--color-md3-on-surface-variant);
+    --app-pin-key-background: var(--color-md3-surface-container-high);
+    --app-pin-key-hover: var(--color-md3-surface-container-highest);
+    --app-pin-delete-hover: var(--color-md3-surface-container-high);
+    --app-pin-dot-outline: var(--color-md3-outline-variant);
+    --app-pin-dot-fill: var(--color-md3-primary);
   }
 
   .app-pin-pad--comfortable {
@@ -121,7 +141,7 @@
   .app-pin-pad__dot {
     inline-size: 20px;
     block-size: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.92);
+    border: 2px solid var(--app-pin-dot-outline);
     border-radius: 9999px;
     background: transparent;
     transition:
@@ -130,7 +150,8 @@
   }
 
   .app-pin-pad__dot--filled {
-    background: white;
+    border-color: var(--app-pin-dot-fill);
+    background: var(--app-pin-dot-fill);
     transform: scale(1.08);
   }
 
@@ -152,8 +173,8 @@
     justify-content: center;
     border: 0;
     border-radius: 9999px;
-    color: white;
-    background: rgba(255, 255, 255, 0.13);
+    color: var(--app-pin-color);
+    background: var(--app-pin-key-background);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
     transition:
       transform 160ms var(--motion-easing-emphasized-decelerate),
@@ -162,7 +183,7 @@
   }
 
   .app-pin-key:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--app-pin-key-hover);
     transform: translateY(-2px);
   }
 
@@ -196,7 +217,7 @@
     min-block-size: 44px;
     border: 0;
     border-radius: 9999px;
-    color: rgba(255, 255, 255, 0.94);
+    color: var(--app-pin-muted);
     background: transparent;
     font-size: 1.05rem;
     font-weight: 500;
@@ -206,7 +227,7 @@
   }
 
   .app-pin-delete:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--app-pin-delete-hover);
   }
 
   .app-pin-pad__dots--shake {

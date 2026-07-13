@@ -17,6 +17,7 @@
   import IconButton from '$lib/components/IconButton.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
+  import { registerKeyboardCommands } from '$lib/keyboard';
 
   type TrashKind = 'directory' | 'document';
 
@@ -73,6 +74,16 @@
   onMount(() => {
     loadItems(page.url.searchParams.get('folder') ?? folderId);
   });
+
+  onMount(() => registerKeyboardCommands({
+    id: 'trash.refresh',
+    label: () => $t('common.refresh'),
+    group: () => $t('trash.title'),
+    shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
+    scope: 'page',
+    enabled: () => !loading && !batchBusy,
+    handler: () => loadItems(currentFolderId),
+  }));
 
   async function loadItems(nextFolderId = folderId) {
     const normalized = normalizeFolderId(nextFolderId);
@@ -448,6 +459,8 @@
             threshold={120}
             resetKey={`${currentFolderId}:${selectMode}`}
             viewportClass="trash-list-viewport"
+            keyboardNavigation
+            keyboardTargetSelector="button"
           >
             {#snippet children(item, index)}
               <div

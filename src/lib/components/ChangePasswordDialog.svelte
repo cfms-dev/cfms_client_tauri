@@ -197,7 +197,6 @@
             class="absolute right-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant
                    hover:text-md3-on-surface transition-colors"
             onclick={() => (oldVisible = !oldVisible)}
-            tabindex="-1"
             aria-label={oldVisible ? $t('login.hidePassword') : $t('login.showPassword')}
           >
             <Icon name="visibility" size="18px" />
@@ -238,7 +237,6 @@
                      transition-colors rounded-full p-1"
               onclick={handleDice}
               disabled={busy}
-              tabindex="-1"
               title={$t('dialog.changePassword.generateStrongPassword')}
               aria-label={$t('dialog.changePassword.generateStrongPassword')}
             >
@@ -249,7 +247,6 @@
               class="text-md3-on-surface-variant hover:text-md3-on-surface
                      transition-colors rounded-full p-1"
               onclick={() => (newVisible = !newVisible)}
-              tabindex="-1"
               aria-label={newVisible ? $t('login.hidePassword') : $t('login.showPassword')}
             >
               <Icon name="visibility" size="18px" />

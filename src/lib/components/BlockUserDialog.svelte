@@ -235,7 +235,7 @@
       </button>
       <button
         type="submit"
-        class="inline-flex items-center gap-2 rounded-full bg-md3-error px-4 py-2 text-sm font-medium text-md3-on-error transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        class="inline-flex items-center gap-2 rounded-full bg-md3-error-action px-4 py-2 text-sm font-medium text-md3-on-error-action transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={busy}
       >
         {#if busy}

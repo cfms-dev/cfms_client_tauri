@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { createVirtualizer, type VirtualItem } from '@tanstack/svelte-virtual';
   import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
@@ -77,8 +77,8 @@
     onRowKeydown: (event: KeyboardEvent, row: FileTableRow) => void;
     onBlankClick: () => void;
     onBlankContextMenu: (event: MouseEvent) => void;
-    onFolderContextMenu: (event: MouseEvent, folder: ServerDirectoryEntry) => void;
-    onDocumentContextMenu: (event: MouseEvent, document: ServerDocumentEntry) => void;
+    onFolderContextMenu: (event: MouseEvent | KeyboardEvent, folder: ServerDirectoryEntry) => void;
+    onDocumentContextMenu: (event: MouseEvent | KeyboardEvent, document: ServerDocumentEntry) => void;
   } = $props();
 
   let scrollViewport = $state<HTMLDivElement | null>(null);
@@ -104,6 +104,7 @@
   } | null>(null);
   let suppressClick = false;
   let autoScrollFrame: number | null = null;
+  let activeRowKey = $state<string | null>(null);
   const rowCount = $derived(folders.length + documents.length);
   const virtualized = $derived(rowCount > VIRTUALIZATION_THRESHOLD);
   const rowVirtualizer = createVirtualizer<HTMLDivElement, HTMLButtonElement>({
@@ -159,6 +160,8 @@
   $effect(() => {
     rowsIdentity;
     if (scrollViewport) scrollViewport.scrollTop = 0;
+    const keys = new Set(Array.from({ length: rowCount }, (_, index) => rowKey(getRowAt(index))));
+    if (!activeRowKey || !keys.has(activeRowKey)) activeRowKey = rowCount > 0 ? rowKey(getRowAt(0)) : null;
   });
 
   function getRowAt(index: number): FileTableRow {
@@ -220,6 +223,7 @@
 
   function handleRowClick(event: MouseEvent, row: FileTableRow) {
     if (suppressClick) return;
+    activeRowKey = rowKey(row);
     if (row.kind === 'folder') onFolderClick(event, row.folder);
     else onDocumentClick(event, row.document);
   }
@@ -359,14 +363,62 @@
 
   onDestroy(cancelMarqueeAutoScroll);
 
-  function handleKeyboardNavigation(event: KeyboardEvent, row: FileTableRow) {
-    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && scrollViewport) {
+  onMount(() => {
+    document.addEventListener('keydown', handleUnfocusedTableEntry);
+    return () => document.removeEventListener('keydown', handleUnfocusedTableEntry);
+  });
+
+  async function focusRow(event: KeyboardEvent, row: FileTableRow, index: number) {
+    activeRowKey = rowKey(row);
+    onRowKeydown(event, row);
+    if (virtualized) $rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+    await tick();
+    scrollViewport?.querySelector<HTMLButtonElement>(`[data-file-row-index="${index}"]`)
+      ?.focus({ preventScroll: true });
+  }
+
+  function handleUnfocusedTableEntry(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented
+      || loading
+      || rowCount === 0
+      || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
+      || event.ctrlKey
+      || event.metaKey
+      || event.altKey
+      || event.shiftKey
+    ) return;
+
+    const activeElement = document.activeElement;
+    if (activeElement !== document.body && activeElement !== document.documentElement) return;
+
+    event.preventDefault();
+    void focusRow(event, getRowAt(0), 0);
+  }
+
+  async function handleKeyboardNavigation(event: KeyboardEvent, row: FileTableRow) {
+    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
       event.preventDefault();
-      const rows = Array.from(scrollViewport.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
-      const current = event.currentTarget as HTMLButtonElement;
-      const index = rows.indexOf(current);
-      const next = event.key === 'ArrowDown' ? rows[index + 1] : rows[index - 1];
-      next?.focus();
+      if (row.kind === 'folder') onFolderContextMenu(event, row.folder);
+      else onDocumentContextMenu(event, row.document);
+      return;
+    }
+
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'].includes(event.key) && scrollViewport) {
+      event.preventDefault();
+      const keys = Array.from({ length: rowCount }, (_, index) => rowKey(getRowAt(index)));
+      const currentIndex = Math.max(0, keys.indexOf(rowKey(row)));
+      const pageSize = Math.max(1, Math.floor(scrollViewport.clientHeight / ROW_HEIGHT) - 1);
+      let targetIndex = currentIndex;
+      if (event.key === 'ArrowDown') targetIndex += 1;
+      else if (event.key === 'ArrowUp') targetIndex -= 1;
+      else if (event.key === 'Home') targetIndex = 0;
+      else if (event.key === 'End') targetIndex = rowCount - 1;
+      else if (event.key === 'PageDown') targetIndex += pageSize;
+      else if (event.key === 'PageUp') targetIndex -= pageSize;
+      targetIndex = Math.max(0, Math.min(rowCount - 1, targetIndex));
+      const targetRow = getRowAt(targetIndex);
+      await focusRow(event, targetRow, targetIndex);
       return;
     }
     onRowKeydown(event, row);
@@ -538,15 +590,18 @@
               {#if row.kind === 'folder'}
                 <button
                   data-file-table-row
+                  data-file-row-index={rendered.virtualItem?.index ?? folders.indexOf(row.folder)}
                   data-selection-key={fileSelectionKey('folder', row.folder.id)}
                   type="button"
                   class="file-table-grid file-table-row"
                   class:file-table-row--selected={isSelected(row)}
                   aria-pressed={isSelected(row)}
+                  tabindex={activeRowKey === rowKey(row) ? 0 : -1}
                   style={rowStyle(rendered.virtualItem)}
                   onclick={(event) => handleRowClick(event, row)}
                   ondblclick={() => onFolderActivate(row.folder)}
                   onkeydown={(event) => handleKeyboardNavigation(event, row)}
+                  onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
                 >
                   <span class="file-table-icon" class:file-table-icon--selected={isSelected(row)}>
@@ -560,15 +615,18 @@
               {:else}
                 <button
                   data-file-table-row
+                  data-file-row-index={rendered.virtualItem?.index ?? folders.length + documents.indexOf(row.document)}
                   data-selection-key={fileSelectionKey('document', row.document.id)}
                   type="button"
                   class="file-table-grid file-table-row"
                   class:file-table-row--selected={isSelected(row)}
                   aria-pressed={isSelected(row)}
+                  tabindex={activeRowKey === rowKey(row) ? 0 : -1}
                   style={rowStyle(rendered.virtualItem)}
                   onclick={(event) => handleRowClick(event, row)}
                   ondblclick={() => onDocumentActivate(row.document)}
                   onkeydown={(event) => handleKeyboardNavigation(event, row)}
+                  onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onDocumentContextMenu(event, row.document)}
                 >
                   <span class="file-table-icon" class:file-table-icon--selected={isSelected(row)}>

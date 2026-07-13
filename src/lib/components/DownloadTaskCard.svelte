@@ -25,7 +25,7 @@
     onRetry: (taskId: string) => Promise<void>;
     onCancel: (taskId: string) => Promise<void>;
     pendingAction?: PendingAction;
-    onContextMenu?: (event: MouseEvent, task: DownloadTaskDto) => void;
+    onContextMenu?: (event: MouseEvent | KeyboardEvent, task: DownloadTaskDto) => void;
   }
 
   let {
@@ -71,6 +71,13 @@
       console.error('Failed to open file:', e);
     } finally {
       fileActionPending = false;
+    }
+  }
+
+  function handleCardKeydown(event: KeyboardEvent) {
+    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+      event.preventDefault();
+      onContextMenu?.(event, task);
     }
   }
 
@@ -186,6 +193,7 @@
 </script>
 
 <!-- MD3 card: rounded-xl (12px) surface container with outline border -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="w-full min-w-0 bg-md3-surface-container/70 backdrop-blur-sm
          rounded-xl border border-md3-outline
@@ -193,6 +201,7 @@
   role="group"
   aria-label={displayFilename}
   oncontextmenu={(event) => onContextMenu?.(event, task)}
+  onkeydown={handleCardKeydown}
 >
   <!-- Top row: status icon + filename + priority badge -->
   <div class="mb-2 flex min-w-0 flex-wrap items-start gap-3 sm:flex-nowrap">

@@ -1,7 +1,7 @@
 <script lang="ts">
   // Task manager page: upload/download tabs with a shared status filter.
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
@@ -20,6 +20,7 @@
   import VirtualList from '$lib/components/VirtualList.svelte';
   import { buildDownloadTaskRows, canDeleteDownloadTaskGroupFiles, isRunningDownloadTask, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
   import type { ContextMenuItem } from '$lib/components/context-menu';
+  import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
   type TaskTab = 'downloads' | 'uploads';
   type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
@@ -31,6 +32,7 @@
   let filter = $state<TaskFilter>('all');
   let busy = $state(false);
   let menuOpen = $state(false);
+  let taskMenuTrigger = $state<HTMLButtonElement | null>(null);
   let expandedDownloadGroups = $state<Set<string>>(new Set());
   let pendingDownloadTaskActions = $state<Map<string, DownloadTaskAction>>(new Map());
   let pendingDownloadGroupActions = $state<Map<string, DownloadGroupAction>>(new Map());
@@ -40,7 +42,8 @@
     x: number;
     y: number;
     target: { kind: 'download-task'; task: DownloadTaskDto } | { kind: 'download-group'; group: DownloadTaskGroup } | null;
-  }>({ open: false, x: 0, y: 0, target: null });
+    sourceElement: HTMLElement | null;
+  }>({ open: false, x: 0, y: 0, target: null, sourceElement: null });
   const deleteProgressWriteTimes = new Map<string, number>();
 
   const tabs = $derived([
@@ -97,6 +100,16 @@
     } catch { /* ignore */ }
   });
 
+  onMount(() => registerKeyboardCommands({
+    id: 'tasks.refresh',
+    label: () => $t('common.refresh'),
+    group: () => $t('tasks.title'),
+    shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
+    scope: 'page',
+    enabled: () => !busy,
+    handler: refresh,
+  }));
+
   async function refresh() {
     try {
       const tasks = await getDownloadTasks();
@@ -106,6 +119,44 @@
 
   function switchTab(tab: TaskTab) {
     activeTab = tab;
+  }
+
+  function handleTabKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-tab-item]',
+      orientation: 'horizontal',
+    });
+    next?.click();
+  }
+
+  function handleFilterKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-filter-item]',
+      orientation: 'both',
+    });
+    next?.click();
+  }
+
+  function toggleTaskMenu(focusFirst = false) {
+    menuOpen = !menuOpen;
+    if (menuOpen && focusFirst) {
+      void tick().then(() => document.querySelector<HTMLElement>('[data-task-menu] [data-menu-item]:not(:disabled)')?.focus());
+    }
+  }
+
+  function handleTaskMenuKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      menuOpen = false;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        taskMenuTrigger?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-menu-item]',
+      orientation: 'vertical',
+    });
   }
 
   function currentTaskCount(nextFilter: TaskFilter) {
@@ -243,17 +294,17 @@
   }
 
   function hideContextMenu() {
-    contextMenu = { open: false, x: 0, y: 0, target: null };
+    contextMenu = { open: false, x: 0, y: 0, target: null, sourceElement: null };
   }
 
-  function showDownloadTaskContextMenu(event: MouseEvent, task: DownloadTaskDto) {
+  function showDownloadTaskContextMenu(event: MouseEvent | KeyboardEvent, task: DownloadTaskDto) {
     event.preventDefault();
-    contextMenu = { open: true, x: event.clientX, y: event.clientY, target: { kind: 'download-task', task } };
+    contextMenu = { open: true, ...keyboardMenuAnchor(event), target: { kind: 'download-task', task } };
   }
 
-  function showDownloadGroupContextMenu(event: MouseEvent, group: DownloadTaskGroup) {
+  function showDownloadGroupContextMenu(event: MouseEvent | KeyboardEvent, group: DownloadTaskGroup) {
     event.preventDefault();
-    contextMenu = { open: true, x: event.clientX, y: event.clientY, target: { kind: 'download-group', group } };
+    contextMenu = { open: true, ...keyboardMenuAnchor(event), target: { kind: 'download-group', group } };
   }
 
   function getContextMenuItems(): ContextMenuItem[] {
@@ -637,6 +688,7 @@
         {$t('tasks.title')}
       </h1>
       <button
+        bind:this={taskMenuTrigger}
         class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
         onclick={refresh}
         title={$t('common.refresh')}
@@ -648,7 +700,15 @@
     <div class="relative">
       <button
         class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
-        onclick={() => (menuOpen = !menuOpen)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onclick={() => toggleTaskMenu(true)}
+        onkeydown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (!menuOpen) toggleTaskMenu(true);
+          }
+        }}
         title={$t('tasks.moreActions')}
       >
         <Icon name="moreVert" size="20px" />
@@ -656,21 +716,21 @@
 
       {#if menuOpen}
         <div class="fixed inset-0 z-10" onclick={() => (menuOpen = false)} role="presentation"></div>
-        <div class="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container py-1 shadow-lg">
-          <button class="task-menu-item text-md3-on-surface" onclick={handlePauseAll} disabled={busy}>
+        <div data-task-menu tabindex="-1" class="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container py-1 shadow-lg" role="menu" onkeydown={handleTaskMenuKeydown}>
+          <button data-menu-item tabindex="0" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handlePauseAll} disabled={busy}>
             <Icon name="pause" size="16px" /> {$t('tasks.pauseAll')}
           </button>
-          <button class="task-menu-item text-md3-on-surface" onclick={handleResumeAll} disabled={busy}>
+          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handleResumeAll} disabled={busy}>
             <Icon name="resume" size="16px" /> {$t('tasks.resumeAllPaused')}
           </button>
-          <button class="task-menu-item text-md3-on-surface" onclick={handleCancelPending} disabled={busy}>
+          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handleCancelPending} disabled={busy}>
             <Icon name="cancel" size="16px" /> {$t('tasks.cancelAllPending')}
           </button>
           <div class="my-1 border-t border-md3-outline"></div>
-          <button class="task-menu-item text-md3-success" onclick={handleClearCompleted} disabled={busy || completedOrCancelledCount === 0}>
+          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-success" onclick={handleClearCompleted} disabled={busy || completedOrCancelledCount === 0}>
             <Icon name="clearAll" size="16px" /> {$t('tasks.clearCompleted')}
           </button>
-          <button class="task-menu-item text-md3-error" onclick={handleClearFailed} disabled={busy || failedOrCancelledCount === 0}>
+          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-error" onclick={handleClearFailed} disabled={busy || failedOrCancelledCount === 0}>
             <Icon name="deleteSweep" size="16px" /> {$t('tasks.clearFailed')}
           </button>
         </div>
@@ -678,12 +738,14 @@
     </div>
   </div>
 
-  <div class="task-tabs" role="tablist" aria-label={$t('tasks.title')}>
+  <div class="task-tabs" role="tablist" tabindex="-1" aria-label={$t('tasks.title')} onkeydown={handleTabKeydown}>
     {#each tabs as tab}
       <button
+        data-tab-item
         type="button"
         role="tab"
         aria-selected={activeTab === tab.key}
+        tabindex={activeTab === tab.key ? 0 : -1}
         class="task-tab"
         class:task-tab-active={activeTab === tab.key}
         onclick={() => switchTab(tab.key)}
@@ -699,9 +761,11 @@
       <Icon name="filterList" size="16px" />
       {$t('files.filter')}
     </span>
-    <div class="flex flex-wrap gap-1.5">
+    <div class="flex flex-wrap gap-1.5" role="toolbar" tabindex="-1" aria-label={$t('files.filter')} onkeydown={handleFilterKeydown}>
       {#each filters as f}
         <button
+          data-filter-item
+          tabindex={filter === f.key ? 0 : -1}
           class="rounded-full px-3.5 py-1.5 text-xs font-medium transition-all"
           class:bg-md3-primary={filter === f.key}
           class:text-md3-on-primary={filter === f.key}
@@ -732,6 +796,8 @@
           viewportClass="task-list-viewport"
           contentClass="task-list-content"
           itemClass="task-list-item"
+          keyboardNavigation
+          keyboardTargetSelector="button"
         >
           {#snippet children(row)}
             {#if row.kind === 'group'}
@@ -788,6 +854,8 @@
         viewportClass="task-list-viewport"
         contentClass="task-list-content"
         itemClass="task-list-item"
+        keyboardNavigation
+        keyboardTargetSelector="button"
       >
         {#snippet children(task)}
           <UploadTaskCard
@@ -818,6 +886,7 @@
   x={contextMenu.x}
   y={contextMenu.y}
   items={contextMenuItems}
+  sourceElement={contextMenu.sourceElement}
   onClose={hideContextMenu}
 />
 

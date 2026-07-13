@@ -15,13 +15,14 @@ vi.mock('svelte-i18n', () => ({
 
 afterEach(cleanup);
 
-function renderTable() {
+function renderTable(folders = [{ id: 'folder-1', name: 'Folder', created_time: null }]) {
   const onFolderClick = vi.fn();
   const onMarqueeSelection = vi.fn();
+  const onRowKeydown = vi.fn();
   const result = render(FileTable, {
     props: {
       loading: false,
-      folders: [{ id: 'folder-1', name: 'Folder', created_time: null }],
+      folders,
       documents: [],
       marqueeEnabled: true,
       selectMode: false,
@@ -35,7 +36,7 @@ function renderTable() {
       onDocumentClick: vi.fn(),
       onFolderActivate: vi.fn(),
       onDocumentActivate: vi.fn(),
-      onRowKeydown: vi.fn(),
+      onRowKeydown,
       onBlankClick: vi.fn(),
       onBlankContextMenu: vi.fn(),
       onFolderContextMenu: vi.fn(),
@@ -63,7 +64,7 @@ function renderTable() {
     },
   });
 
-  return { ...result, viewport, typeCell, setPointerCapture, onFolderClick, onMarqueeSelection };
+  return { ...result, viewport, typeCell, setPointerCapture, onFolderClick, onMarqueeSelection, onRowKeydown };
 }
 
 describe('FileTable marquee activation', () => {
@@ -147,5 +148,39 @@ describe('FileTable column resizing', () => {
     const contentStyle = container.querySelector<HTMLElement>('.file-table-content')!.getAttribute('style');
     expect(contentStyle).toContain('--file-name-width: 340px');
     expect(contentStyle).toContain('--file-modified-width: 128px');
+  });
+});
+
+describe('FileTable keyboard navigation', () => {
+  it('enters the table at the first row when the document has lost row focus', async () => {
+    const { container, onRowKeydown } = renderTable([
+      { id: 'folder-1', name: 'First', created_time: null },
+      { id: 'folder-2', name: 'Second', created_time: null },
+    ]);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+
+    expect(document.activeElement).toBe(document.body);
+    await fireEvent.keyDown(document.body, { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(rows[0]);
+    expect(onRowKeydown).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'ArrowDown' }),
+      expect.objectContaining({ kind: 'folder', folder: expect.objectContaining({ id: 'folder-1' }) }),
+    );
+  });
+
+  it('uses a roving tab stop and moves to the next row with ArrowDown', async () => {
+    const { container, onRowKeydown } = renderTable([
+      { id: 'folder-1', name: 'First', created_time: null },
+      { id: 'folder-2', name: 'Second', created_time: null },
+    ]);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+    expect(rows.map((row) => row.tabIndex)).toEqual([0, -1]);
+
+    rows[0].focus();
+    await fireEvent.keyDown(rows[0], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(rows[1]);
+    expect(rows[1].tabIndex).toBe(0);
+    expect(onRowKeydown).toHaveBeenCalledWith(expect.objectContaining({ key: 'ArrowDown' }), expect.objectContaining({ kind: 'folder' }));
   });
 });

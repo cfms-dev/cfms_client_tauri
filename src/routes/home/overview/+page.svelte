@@ -181,6 +181,7 @@
       loadingLabel={$t('common.loadingEllipsis')}
       clearLabel={$t('home.clearFavorites')}
       removeLabel={$t('home.removeShortcut')}
+      showOpenIndicator={false}
       unavailableLabel={$t('home.unavailable')}
       {openingId}
       meta={(item) => item.type === 'directory' ? $t('files.directory') : $t('files.document')}
@@ -206,11 +207,6 @@
 
   .blueprint-hero {
     position: relative;
-    border: 1px solid var(--explorer-border);
-    border-radius: var(--explorer-radius-large);
-    background:
-      radial-gradient(circle at 88% 20%, var(--explorer-accent-soft), transparent 38%),
-      var(--explorer-surface-raised);
   }
 
   .blueprint-status-chip {

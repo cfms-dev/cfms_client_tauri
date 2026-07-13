@@ -41,6 +41,8 @@
   <aside
     class="explorer-details-pane"
     aria-label={model?.title ?? emptyTitle}
+    data-keyboard-region="details"
+    tabindex="-1"
     transition:detailsPaneTransition
   >
     <header class="explorer-details-header">

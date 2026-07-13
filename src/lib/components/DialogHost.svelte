@@ -48,7 +48,7 @@
             bind:this={inputElement}
             bind:value={inputValue}
             rows="9"
-            class="min-h-44 w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
+            class="min-h-44 w-full resize-y rounded-md border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
             placeholder={dialogStore.current.placeholder}
           ></textarea>
         {:else}
@@ -56,25 +56,25 @@
             bind:this={inputElement}
             bind:value={inputValue}
             type={dialogStore.current.inputType}
-            class="w-full rounded-lg border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
+            class="w-full rounded-md border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
             placeholder={dialogStore.current.placeholder}
           />
         {/if}
       {/if}
 
-      <div class="flex justify-end gap-2">
+      <div class="flex justify-end gap-2 border-t border-md3-outline pt-4">
         <button
           type="button"
-          class="rounded-full px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
+          class="rounded-md border border-md3-outline bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-highest hover:text-md3-on-surface"
           onclick={close}
         >
           {dialogStore.current.cancelLabel}
         </button>
         <button
           type="submit"
-          class={`rounded-full px-4 py-2 text-sm font-medium transition-all hover:brightness-110 ${
+          class={`rounded-md px-4 py-2 text-sm font-medium transition-all hover:brightness-110 ${
             dialogStore.current.danger
-              ? 'bg-md3-error-container text-md3-on-error-container'
+              ? 'bg-md3-error-action text-md3-on-error-action'
               : 'bg-md3-primary text-md3-on-primary'
           }`}
         >

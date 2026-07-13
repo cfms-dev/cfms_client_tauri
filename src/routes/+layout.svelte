@@ -14,17 +14,21 @@
 
   import "../app.css";
   import type { Snippet } from "svelte";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { afterNavigate, goto } from "$app/navigation";
   import { _ as t } from "svelte-i18n";
   import { onBackButtonPress } from "@tauri-apps/api/app";
   import { initEventListeners } from "$lib/events";
   import { initI18n } from "$lib/i18n";
-  import { initNavigationHistory, navigateUp } from "$lib/navigation";
+  import { initNavigationHistory, navigateUp, parentRouteFor } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
   import { screenProtectionStore } from "$lib/screen-protection.svelte";
-  import { isAppLockShortcut, isFindShortcut } from "$lib/keyboard";
+  import {
+    cycleKeyboardRegion,
+    dispatchKeyboardCommand,
+    registerKeyboardCommands,
+  } from "$lib/keyboard";
   import {
     authStore,
     serverStateStore,
@@ -40,10 +44,25 @@
   import DialogHost from "$lib/components/DialogHost.svelte";
   import NewUpdatePrompt from "$lib/components/NewUpdatePrompt.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
+  import KeyboardShortcutHelp from "$lib/components/KeyboardShortcutHelp.svelte";
 
   let { children }: { children: Snippet } = $props();
   let lastRecordedActivityAt = 0;
+  let keyboardHelpOpen = $state(false);
   initNavigationHistory();
+
+  afterNavigate((navigation) => {
+    if (!navigation.from || navigation.from.url.pathname === navigation.to?.url.pathname) return;
+    void tick().then(() => {
+      const heading = document.querySelector<HTMLElement>(
+        '.explorer-content h1, #app-main-content main h1, #app-main-content h1',
+      );
+      if (!heading) return;
+      heading.tabIndex = -1;
+      heading.dataset.programmaticFocus = 'true';
+      heading.focus({ preventScroll: true });
+    });
+  });
 
   // Routes that don't require any connection/auth.
   const PUBLIC_ROUTES = ["/connect", "/connect/disclaimer", "/init"];
@@ -207,14 +226,87 @@
   });
 
   onMount(() => {
-    const preventNativeFindShortcut = (event: KeyboardEvent) => {
-      if (isFindShortcut(event)) {
-        event.preventDefault();
-      }
+    const unregisterCommands = registerKeyboardCommands([
+      {
+        id: 'global.home',
+        label: () => $t('keyboard.goHome'),
+        shortcuts: [{ key: '1', primary: true }],
+        scope: 'global',
+        enabled: () => authStore.isLoggedIn && !appLockStore.locked,
+        allowInEditable: true,
+        handler: () => goto('/home/overview'),
+      },
+      {
+        id: 'global.files',
+        label: () => $t('keyboard.goFiles'),
+        shortcuts: [{ key: '2', primary: true }],
+        scope: 'global',
+        enabled: () => authStore.isLoggedIn && !appLockStore.locked,
+        allowInEditable: true,
+        handler: () => goto('/home/files'),
+      },
+      {
+        id: 'global.tasks',
+        label: () => $t('keyboard.goTasks'),
+        shortcuts: [{ key: '3', primary: true }],
+        scope: 'global',
+        enabled: () => authStore.isLoggedIn && !appLockStore.locked,
+        allowInEditable: true,
+        handler: () => goto('/home/tasks'),
+      },
+      {
+        id: 'global.settings',
+        label: () => $t('keyboard.goSettings'),
+        shortcuts: [{ key: ',', primary: true }],
+        scope: 'global',
+        enabled: () => !appLockStore.locked,
+        allowInEditable: true,
+        handler: () => goto('/home/settings'),
+      },
+      {
+        id: 'global.back',
+        label: () => $t('keyboard.goBack'),
+        shortcuts: [{ key: 'ArrowLeft', alt: true }],
+        scope: 'global',
+        enabled: () => !appLockStore.locked && parentRouteFor(page.url.pathname) !== null,
+        handler: () => navigateUp(page.url.pathname),
+      },
+      {
+        id: 'global.help',
+        label: () => $t('keyboard.openHelp'),
+        shortcuts: [{ key: '/', primary: true }],
+        scope: 'global',
+        enabled: () => !appLockStore.locked,
+        allowInEditable: true,
+        allowInModal: true,
+        handler: () => { keyboardHelpOpen = !keyboardHelpOpen; },
+      },
+      {
+        id: 'global.lock',
+        label: () => $t('keyboard.lockApp'),
+        shortcuts: [{ key: 'l', primary: true }],
+        scope: 'global',
+        enabled: () => authStore.isLoggedIn && appLockStore.canLock && !appLockStore.locked,
+        allowInEditable: true,
+        allowInModal: true,
+        handler: () => { appLockStore.lock(); },
+      },
+      {
+        id: 'global.cycle-region',
+        label: () => $t('keyboard.cycleRegion'),
+        shortcuts: [{ key: 'F6' }, { key: 'F6', shift: true }],
+        scope: 'global',
+        enabled: () => !appLockStore.locked,
+        allowInEditable: true,
+        handler: (event) => { cycleKeyboardRegion(event); },
+      },
+    ]);
+    const openHelp = () => { keyboardHelpOpen = true; };
+    window.addEventListener('cfms:keyboard-shortcuts', openHelp);
+    return () => {
+      unregisterCommands();
+      window.removeEventListener('cfms:keyboard-shortcuts', openHelp);
     };
-
-    document.addEventListener('keydown', preventNativeFindShortcut, true);
-    return () => document.removeEventListener('keydown', preventNativeFindShortcut, true);
   });
 
   onMount(() => {
@@ -321,21 +413,9 @@
     appLockStore.recordActivity();
   }
 
-  function handleAppLockShortcut(event: KeyboardEvent) {
-    if (!isAppLockShortcut(event)) return false;
-    if (!authStore.isLoggedIn || !appLockStore.canLock || appLockStore.locked) return false;
-
-    event.preventDefault();
-    appLockStore.lock();
-    return true;
-  }
-
   function handleWindowKeydown(event: KeyboardEvent) {
-    if (isFindShortcut(event)) {
-      event.preventDefault();
-    }
-    if (handleAppLockShortcut(event)) return;
     recordUserActivity();
+    dispatchKeyboardCommand(event);
   }
 </script>
 
@@ -360,6 +440,7 @@
   class="safe-area-shell flex h-full flex-col"
   class:lockdown-banner-active={showRootLockdownBanner}
 >
+  <a class="keyboard-skip-link" href="#app-main-content">{$t('keyboard.skipToContent')}</a>
   <LockdownBanner active={showRootLockdownBanner} />
   <!--
     Bounded flex slot for the routed content.  `min-h-0` is essential: it lets
@@ -368,17 +449,41 @@
     whole document.  Per-page transitions live in the individual layouts
     (e.g. /home) so navigation doesn't re-mount the entire app shell.
   -->
-  <div class="safe-area-top flex-1 min-h-0">
+  <div
+    id="app-main-content"
+    class="safe-area-top flex-1 min-h-0"
+    data-keyboard-region={page.url.pathname.startsWith('/home') ? undefined : 'main'}
+    tabindex="-1"
+  >
     {@render children()}
   </div>
   <DialogHost />
   <SnackBarHost />
   <NewUpdatePrompt />
   <AppLockOverlay />
+  <KeyboardShortcutHelp open={keyboardHelpOpen} onClose={() => (keyboardHelpOpen = false)} />
 </div>
 
 <style>
   .lockdown-banner-active .safe-area-top {
     padding-top: 0;
   }
+
+  .keyboard-skip-link {
+    position: fixed;
+    top: max(0.5rem, var(--safe-area-top, 0px));
+    left: max(0.5rem, var(--safe-area-left, 0px));
+    z-index: 9999;
+    transform: translateY(-160%);
+    border-radius: 999px;
+    padding: 0.55rem 0.9rem;
+    color: var(--color-md3-on-primary);
+    background: var(--color-md3-primary);
+    box-shadow: var(--explorer-shadow);
+    font-size: 0.8rem;
+    font-weight: 700;
+    transition: transform 140ms ease-out;
+  }
+
+  .keyboard-skip-link:focus { transform: translateY(0); }
 </style>

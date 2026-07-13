@@ -16,6 +16,7 @@
     loadingLabel: string;
     clearLabel: string;
     removeLabel: string;
+    showOpenIndicator?: boolean;
     openingId: string | null;
     meta: (record: FileRecord) => string;
     unavailableLabel: string;
@@ -35,6 +36,7 @@
     loadingLabel,
     clearLabel,
     removeLabel,
+    showOpenIndicator = true,
     openingId,
     meta,
     unavailableLabel,
@@ -77,15 +79,17 @@
     <div class="blueprint-record-list grid gap-1.5 px-4 pb-3 pt-3">
       {#each records as item, index (recordKey(item))}
         {@const unavailable = isUnavailable(item)}
+        {@const opening = openingId === recordKey(item)}
         <div
           class="blueprint-record-shell grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1"
           in:flyScale={staggeredList(index, { y: 8, duration: 260, step: 28 })}
         >
           <button
             type="button"
-            class="blueprint-record-row grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed"
+            class="blueprint-record-row grid w-full items-center gap-3 px-3 py-2.5 text-left transition disabled:cursor-not-allowed"
             class:blueprint-record-row--unavailable={unavailable}
-            disabled={openingId === recordKey(item) || unavailable}
+            class:blueprint-record-row--with-indicator={showOpenIndicator || opening}
+            disabled={opening || unavailable}
             onclick={() => onOpen(item)}
           >
             <span class={item.type === 'directory' ? 'text-cyan-200' : 'text-md3-on-surface-variant'}>
@@ -97,13 +101,15 @@
                 {unavailable ? unavailableLabel : meta(item)}
               </span>
             </span>
-            <span class="text-md3-on-surface-variant">
-              {#if openingId === recordKey(item)}
-                <ProgressRing size={16} strokeWidth={2.4} label={loadingLabel} />
-              {:else}
-                <Icon name={item.type === 'directory' ? 'folderOpen' : 'download'} size="18px" />
-              {/if}
-            </span>
+            {#if showOpenIndicator || opening}
+              <span class="text-md3-on-surface-variant">
+                {#if opening}
+                  <ProgressRing size={16} strokeWidth={2.4} label={loadingLabel} />
+                {:else}
+                  <Icon name={item.type === 'directory' ? 'folderOpen' : 'download'} size="18px" />
+                {/if}
+              </span>
+            {/if}
           </button>
           <IconButton icon="close" label={removeLabel} size={18} onclick={() => onRemove(item)} />
         </div>
@@ -115,9 +121,6 @@
 <style>
   .blueprint-panel {
     position: relative;
-    border: 1px solid var(--explorer-border);
-    border-radius: var(--explorer-radius-medium);
-    background: var(--explorer-surface-raised);
   }
 
   .blueprint-record-list {
@@ -139,6 +142,11 @@
   .blueprint-record-row {
     position: relative;
     z-index: 1;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .blueprint-record-row--with-indicator {
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .blueprint-record-row:hover {

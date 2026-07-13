@@ -53,6 +53,7 @@
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
   import { info } from '@tauri-apps/plugin-log';
+  import { openKeyboardShortcutHelp } from '$lib/keyboard';
 
   let username = $state("");
   let password = $state("");
@@ -538,6 +539,16 @@
 </script>
 
 <div class="auth-shell" class:auth-shell--connect-intro={playConnectTransition}>
+  <button
+    type="button"
+    class="absolute right-4 top-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+    title={$t('keyboard.openHelp')}
+    aria-label={$t('keyboard.openHelp')}
+    aria-keyshortcuts="Control+/ Meta+/"
+    onclick={openKeyboardShortcutHelp}
+  >
+    <Icon name="keyboard" size="18px" />
+  </button>
   <section class="auth-panel">
   <div
     class="auth-form-stage"
@@ -688,7 +699,6 @@
               class="absolute right-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant
                      hover:text-md3-on-surface transition-colors"
               onclick={() => (passwordVisible = !passwordVisible)}
-              tabindex="-1"
               aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
             >
               <Icon

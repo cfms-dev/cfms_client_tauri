@@ -6,10 +6,9 @@
   //
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
-  import { fade } from 'svelte/transition';
   import { onDestroy } from 'svelte';
-  import { flyScale } from '$lib/motion/transitions';
   import Icon from './Icon.svelte';
+  import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
 
@@ -184,55 +183,31 @@
   });
 </script>
 
-<div
-  class="twofa-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-auto p-4 sm:p-6"
-  role="presentation"
-  transition:fade|global={{ duration: 180 }}
-  onclick={handleCancel}
+<ModalFrame
+  title={$t('dialog.twoFactor.title')}
+  maxWidth="max-w-xl"
+  closeLabel={$t('common.close')}
+  dismissible={!busy}
+  onClose={handleCancel}
 >
-  <div
-    class="twofa-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-[560px] overflow-auto rounded-[24px] border border-md3-outline/40 bg-md3-surface-container"
-    role="dialog"
-    aria-modal="true"
-    aria-label={$t('dialog.twoFactor.title')}
-    tabindex="-1"
-    transition:flyScale|global={{ y: 18, duration: 260 }}
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => {
-      if (e.key === 'Escape') handleCancel();
+  <form
+    onsubmit={(event) => {
+      event.preventDefault();
+      handleVerify();
     }}
   >
-    <form
-      onsubmit={(event) => {
-        event.preventDefault();
-        handleVerify();
-      }}
-    >
-      <button
-        type="button"
-        class="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full text-md3-on-surface-variant transition-all hover:bg-white/10 hover:text-md3-on-surface disabled:opacity-50"
-        aria-label={$t('common.close')}
-        onclick={handleCancel}
-        disabled={busy}
-      >
-        <Icon name="close" size="22px" />
-      </button>
-
-      <div class="relative px-5 pb-5 pt-7 sm:px-10 sm:pb-8 sm:pt-9">
-      <div class="twofa-icon mx-auto mb-6 grid h-20 w-20 place-items-center text-md3-primary-emphasis">
-        <Icon name="approvalDelegation" size="64px" />
+    <div class="relative px-5 pb-5 pt-6 sm:px-8 sm:pb-7">
+      <div class="twofa-icon mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-md3-primary-container text-md3-primary-emphasis">
+        <Icon name="approvalDelegation" size="42px" />
       </div>
 
       <div class="mx-auto max-w-[430px] text-center">
-        <h2 class="text-2xl font-bold text-md3-on-surface sm:text-[28px]" style="font-family: var(--font-md3-sans);">
-          {$t('dialog.twoFactor.title')}
-        </h2>
-        <p class="mt-4 text-sm leading-6 text-md3-on-surface-variant sm:text-base">
+        <p class="text-sm leading-6 text-md3-on-surface-variant sm:text-base">
           {description}
         </p>
       </div>
 
-      <div class="mx-auto mt-8 max-w-[460px]">
+      <div class="mx-auto mt-6 max-w-[460px]">
         {#if useRecoveryCode}
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-md3-on-surface-variant">
@@ -304,10 +279,10 @@
         {/if}
       </div>
 
-      <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="mt-7 flex flex-col gap-3 border-t border-md3-outline pt-5 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-md3-primary-emphasis transition-all hover:bg-md3-primary/10 disabled:opacity-50"
+          class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container disabled:opacity-50"
           style="font-family: var(--font-md3-sans);"
           onclick={handleToggle}
           disabled={busy}
@@ -319,7 +294,7 @@
         <div class="flex justify-end gap-2">
           <button
             type="button"
-            class="rounded-full px-5 py-2.5 text-sm font-medium text-md3-on-surface-variant transition-all hover:bg-white/10 hover:text-md3-on-surface disabled:opacity-50"
+            class="rounded-md border border-md3-outline bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-highest hover:text-md3-on-surface disabled:opacity-50"
             style="font-family: var(--font-md3-sans);"
             onclick={handleCancel}
             disabled={busy}
@@ -328,7 +303,7 @@
           </button>
           <button
             type="submit"
-            class="inline-flex min-w-28 items-center justify-center gap-2 rounded-full bg-md3-primary px-5 py-2.5 text-sm font-semibold text-md3-on-primary shadow-lg shadow-md3-primary/25 transition-all hover:brightness-110 disabled:opacity-50"
+            class="inline-flex min-w-28 items-center justify-center gap-2 rounded-md bg-md3-primary px-4 py-2 text-sm font-semibold text-md3-on-primary transition-all hover:brightness-110 disabled:opacity-50"
             style="font-family: var(--font-md3-sans);"
             disabled={busy || !code.trim()}
           >
@@ -342,25 +317,11 @@
           </button>
         </div>
       </div>
-      </div>
-    </form>
-  </div>
-</div>
+    </div>
+  </form>
+</ModalFrame>
 
 <style>
-  .twofa-backdrop {
-    background:
-      radial-gradient(circle at 50% 46%, rgba(143, 180, 255, 0.12), transparent 34rem),
-      rgba(2, 6, 23, 0.54);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-  }
-
-  .twofa-panel {
-    background: var(--color-md3-surface-container);
-    box-shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
-  }
-
   .twofa-icon {
     animation: icon-rise var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate) both;
   }

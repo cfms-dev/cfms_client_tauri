@@ -36,6 +36,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import MdSwitch from "$lib/components/MdSwitch.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
+  import { openKeyboardShortcutHelp } from "$lib/keyboard";
 
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
@@ -43,6 +44,7 @@
   let serverAddressError = $state<string | null>(null);
   let appVersion = $state('');
   let rememberConnectionAddresses = $state(false);
+  let recentAddressActiveIndex = $state(-1);
   let recentConnectionAddresses = $state<string[]>([]);
   let recentAddressesOpen = $state(false);
   let serverAddressField: HTMLDivElement | null = null;
@@ -169,33 +171,53 @@
     }
   }
 
-  /** Navigate to the about/update page when the server is newer. */
+  /** Navigate to the about/update page without marking a toolbar-originated visit. */
   async function goToAbout() {
-    markConnectToUtilityTransition();
     await goto("/home/about");
   }
 
-  async function goToSettings() {
+  async function openUtilityFromToolbar(path: '/home/about' | '/home/settings') {
     markConnectToUtilityTransition();
-    await goto("/home/settings");
+    await goto(path);
   }
 
   function toggleRecentAddresses() {
     if (!canShowRecentAddresses || busy) return;
     recentAddressesOpen = !recentAddressesOpen;
+    if (recentAddressesOpen) {
+      recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
+      serverAddressInput?.focus({ preventScroll: true });
+    }
   }
 
   function chooseRecentAddress(address: string) {
     hostPort = address;
     recentAddressesOpen = false;
+    recentAddressActiveIndex = recentConnectionAddresses.indexOf(address);
+    serverAddressInput?.focus({ preventScroll: true });
   }
 
   function handleServerAddressKeydown(event: KeyboardEvent) {
     if (!canShowRecentAddresses) return;
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       recentAddressesOpen = true;
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const start = recentAddressActiveIndex < 0
+        ? Math.max(0, recentConnectionAddresses.indexOf(hostPort))
+        : recentAddressActiveIndex;
+      recentAddressActiveIndex = (start + delta + recentConnectionAddresses.length) % recentConnectionAddresses.length;
+    } else if (event.key === 'Home' && recentAddressesOpen) {
+      event.preventDefault();
+      recentAddressActiveIndex = 0;
+    } else if (event.key === 'End' && recentAddressesOpen) {
+      event.preventDefault();
+      recentAddressActiveIndex = recentConnectionAddresses.length - 1;
+    } else if (event.key === 'Enter' && recentAddressesOpen && recentAddressActiveIndex >= 0) {
+      event.preventDefault();
+      chooseRecentAddress(recentConnectionAddresses[recentAddressActiveIndex]);
     } else if (event.key === 'Escape') {
+      event.preventDefault();
       recentAddressesOpen = false;
     }
   }
@@ -206,9 +228,19 @@
     <button
       type="button"
       class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      title={$t('keyboard.openHelp')}
+      aria-label={$t('keyboard.openHelp')}
+      aria-keyshortcuts="Control+/ Meta+/"
+      onclick={openKeyboardShortcutHelp}
+    >
+      <Icon name="keyboard" size="18px" />
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
       title={$t('settings.title')}
       aria-label={$t('settings.title')}
-      onclick={goToSettings}
+      onclick={() => openUtilityFromToolbar('/home/settings')}
     >
       <Icon name="settings" size="18px" />
     </button>
@@ -217,7 +249,7 @@
       class="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
       title={$t('more.about')}
       aria-label={$t('more.about')}
-      onclick={goToAbout}
+      onclick={() => openUtilityFromToolbar('/home/about')}
     >
       <Icon name="info" size="18px" />
       {#if appUpdateState.update}
@@ -281,6 +313,7 @@
             <input
               id="serverUrl"
               type="text"
+              data-focus-ring="delegated"
               class="min-w-0 flex-1 pl-1 py-2.5 bg-transparent
                      text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
@@ -293,8 +326,19 @@
               disabled={busy}
               onkeydown={handleServerAddressKeydown}
               onfocus={() => {
-                if (canShowRecentAddresses) recentAddressesOpen = true;
+                if (canShowRecentAddresses) {
+                  recentAddressesOpen = true;
+                  recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
+                }
               }}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-expanded={recentAddressesOpen}
+              aria-controls="recentServerAddressList"
+              aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
+                ? `recent-server-address-${recentAddressActiveIndex}`
+                : undefined}
             />
             {#if canShowRecentAddresses}
               <button
@@ -322,12 +366,15 @@
             >
               {#each recentConnectionAddresses as address}
                 <button
+                  id={`recent-server-address-${recentConnectionAddresses.indexOf(address)}`}
                   type="button"
                   class="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-md3-on-surface
                          transition-colors hover:bg-md3-primary-container/45 focus:bg-md3-primary-container/45
-                         focus:outline-none"
+                         focus:outline-none {recentAddressActiveIndex === recentConnectionAddresses.indexOf(address) ? 'bg-md3-primary-container/45' : ''}"
                   role="option"
                   aria-selected={hostPort === address}
+                  tabindex="-1"
+                  onmouseenter={() => (recentAddressActiveIndex = recentConnectionAddresses.indexOf(address))}
                   onclick={() => chooseRecentAddress(address)}
                 >
                   <Icon name="history" size="16px" />

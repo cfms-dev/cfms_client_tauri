@@ -34,8 +34,10 @@
 
   /* Error — reference ERROR_COLOR #f87171 */
   --color-md3-error: #f87171;
+  --color-md3-error-action: #c42b1c;
   --color-md3-error-container: #7f1d1d;
   --color-md3-on-error: #ffffff;
+  --color-md3-on-error-action: #ffffff;
   --color-md3-on-error-container: #fecaca;
 
   /* Success — reference SUCCESS_COLOR #34d399 */
@@ -463,6 +465,20 @@
 .explorer-shell [tabindex]:focus-visible {
   outline: 2px solid var(--explorer-accent);
   outline-offset: 1px;
+}
+
+:where(button, a[href], input, textarea, select, [role="button"], [role="option"], [role="menuitem"], [role="radio"], [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-md3-primary-emphasis, var(--color-md3-primary));
+  outline-offset: 2px;
+}
+
+:where([data-focus-ring="delegated"]):focus-visible {
+  outline: none;
+}
+
+[data-programmatic-focus="true"]:focus,
+#app-main-content:focus {
+  outline: none !important;
 }
 
 .explorer-shell ::selection {

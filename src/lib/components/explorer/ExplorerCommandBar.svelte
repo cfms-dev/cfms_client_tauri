@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { CommandAction } from '$lib/explorer/types';
+  import { focusRovingItem } from '$lib/keyboard';
 
   let {
     actions,
@@ -17,6 +18,7 @@
   const actionSignature = $derived(
     visibleActions.map((action) => `${action.id}:${action.label}:${action.compact ? 1 : 0}`).join('|'),
   );
+  const firstEnabledActionIndex = $derived(visibleActions.findIndex((action) => !action.disabled));
 
   let commandBarElement = $state<HTMLDivElement | null>(null);
   let measurementElement = $state<HTMLDivElement | null>(null);
@@ -71,6 +73,14 @@
     event.preventDefault();
     commandBarElement.scrollLeft += delta;
   }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (!commandBarElement) return;
+    focusRovingItem(event, commandBarElement, {
+      selector: '[data-command-item]',
+      orientation: 'horizontal',
+    });
+  }
 </script>
 
 <div
@@ -79,20 +89,25 @@
   class:explorer-command-bar--labels-collapsed={labelsCollapsed}
   class:explorer-command-bar--scrollable={scrollableOverflow}
   role="toolbar"
+  tabindex="-1"
   aria-label={ariaLabel}
+  data-keyboard-region="toolbar"
   onwheel={handleWheel}
+  onkeydown={handleKeydown}
 >
-  {#each visibleActions as action (action.id)}
+  {#each visibleActions as action, index (action.id)}
     {#if action.dividerBefore}
       <span class="explorer-command-divider" aria-hidden="true"></span>
     {/if}
     <button
+      data-command-item
       type="button"
       class="explorer-command-button"
       class:explorer-command-button--compact={action.compact || labelsCollapsed}
       data-active={action.active ? 'true' : undefined}
       data-tone={action.tone ?? 'default'}
       disabled={action.disabled}
+      tabindex={index === firstEnabledActionIndex ? 0 : -1}
       title={action.label}
       aria-label={action.label}
       aria-pressed={action.active ? 'true' : undefined}

@@ -12,8 +12,8 @@
   import { createAutoSave } from '$lib/settings-autosave.svelte';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import MdRadio from '$lib/components/MdRadio.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '$lib/keyboard';
 
   const behaviorOptions: Array<{ value: RootBackButtonBehavior; labelKey: string; descriptionKey: string }> = [
     {
@@ -101,6 +101,14 @@
     applyBehavior(nextBehavior);
   }
 
+  function handleBehaviorGroupKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-radio-item]',
+      orientation: 'both',
+    });
+    next?.click();
+  }
+
   function isOptionUnavailable(value: RootBackButtonBehavior) {
     return value === 'background' && backgroundBehaviorUnavailable;
   }
@@ -153,10 +161,11 @@
         </div>
       {/if}
 
-      <div class="space-y-2" role="radiogroup" aria-label={$t('settings.behavior.rootBackTitle')}>
+      <div class="space-y-2" role="radiogroup" tabindex="-1" aria-label={$t('settings.behavior.rootBackTitle')} onkeydown={handleBehaviorGroupKeydown}>
         {#each behaviorOptions as option}
           {@const optionUnavailable = isOptionUnavailable(option.value)}
           <div
+            data-radio-item
             class="flex w-full items-start gap-3 px-3 py-2.5 rounded-lg text-left
                    text-sm text-md3-on-surface border transition-all outline-none
                    hover:bg-md3-primary-container/15 focus-visible:ring-2
@@ -168,18 +177,14 @@
             style="font-family: var(--font-md3-sans);"
             role="radio"
             aria-checked={behavior === option.value}
-            aria-disabled={optionUnavailable}
-            tabindex={loading || optionUnavailable ? -1 : 0}
+            aria-disabled={loading || optionUnavailable}
+            tabindex={loading || optionUnavailable ? -1 : behavior === option.value ? 0 : -1}
             onclick={() => applyBehavior(option.value)}
             onkeydown={(event) => handleOptionKeydown(event, option.value)}
           >
-            <MdRadio
-              checked={behavior === option.value}
-              disabled={loading || optionUnavailable}
-              ariaLabel={$t(option.labelKey)}
-              class="mt-0.5 shrink-0"
-              onSelect={() => applyBehavior(option.value)}
-            />
+            <span class="mt-0.5 shrink-0 {behavior === option.value ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}" aria-hidden="true">
+              <Icon name={behavior === option.value ? 'radioChecked' : 'radioUnchecked'} size="22px" />
+            </span>
             <span class="min-w-0">
               <span class="block font-medium">{$t(option.labelKey)}</span>
               <span class="block text-xs text-md3-on-surface-variant mt-1">

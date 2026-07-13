@@ -9,6 +9,7 @@
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '$lib/keyboard';
 
   const channels: UpdateChannel[] = ['stable', 'beta', 'alpha'];
 
@@ -65,6 +66,14 @@
   function resetChannel() {
     applyChannel('stable');
   }
+
+  function handleChannelKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-radio-item]',
+      orientation: 'both',
+    });
+    next?.click();
+  }
 </script>
 
 <div class="channel-page">
@@ -82,13 +91,15 @@
       <p>{channelDescription}</p>
     </div>
 
-    <div class="channel-list" role="radiogroup" aria-label={$t('settings.updates.updateChannel')}>
+    <div class="channel-list" role="radiogroup" tabindex="-1" aria-label={$t('settings.updates.updateChannel')} onkeydown={handleChannelKeydown}>
       {#each channels as item}
         <button
+          data-radio-item
           class="channel-row"
           class:active={channel === item}
           role="radio"
           aria-checked={channel === item}
+          tabindex={channel === item ? 0 : -1}
           disabled={loading}
           onclick={() => applyChannel(item)}
         >

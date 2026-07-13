@@ -41,6 +41,7 @@
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
+  import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
   type ManageTabKey = 'accounts' | 'groups' | 'logs';
 
@@ -121,7 +122,8 @@
     x: number;
     y: number;
     target: ManageContextTarget | null;
-  }>({ open: false, x: 0, y: 0, target: null });
+    sourceElement: HTMLElement | null;
+  }>({ open: false, x: 0, y: 0, target: null, sourceElement: null });
 
   const isAdmin = $derived(
     authStore.permissions.some((p) =>
@@ -202,6 +204,16 @@
     if (isAdmin) loadActiveTab();
     void document.fonts?.ready.then(() => updateIdentityColumnWidths());
   });
+
+  onMount(() => registerKeyboardCommands({
+    id: 'manage.refresh',
+    label: () => $t('common.refresh'),
+    group: () => $t('manage.title'),
+    shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
+    scope: 'page',
+    enabled: () => isAdmin && busyKey === null,
+    handler: loadActiveTab,
+  }));
 
   function hasAnyPermission(...permissions: string[]) {
     return permissions.some((permission) => authStore.permissions.includes(permission));
@@ -285,6 +297,14 @@
     loadActiveTab();
   }
 
+  function handleManageTabKeydown(event: KeyboardEvent) {
+    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
+      selector: '[data-tab-item]',
+      orientation: 'horizontal',
+    });
+    next?.click();
+  }
+
   function loadActiveTab() {
     hideContextMenu();
     expandedActionRow = null;
@@ -299,25 +319,23 @@
   }
 
   function hideContextMenu() {
-    contextMenu = { open: false, x: 0, y: 0, target: null };
+    contextMenu = { open: false, x: 0, y: 0, target: null, sourceElement: null };
   }
 
-  function showUserContextMenu(event: MouseEvent, user: ManagedUser) {
+  function showUserContextMenu(event: MouseEvent | KeyboardEvent, user: ManagedUser) {
     event.preventDefault();
     contextMenu = {
       open: true,
-      x: event.clientX,
-      y: event.clientY,
+      ...keyboardMenuAnchor(event),
       target: { kind: 'user', user },
     };
   }
 
-  function showGroupContextMenu(event: MouseEvent, group: ManagedGroup) {
+  function showGroupContextMenu(event: MouseEvent | KeyboardEvent, group: ManagedGroup) {
     event.preventDefault();
     contextMenu = {
       open: true,
-      x: event.clientX,
-      y: event.clientY,
+      ...keyboardMenuAnchor(event),
       target: { kind: 'group', group },
     };
   }
@@ -935,9 +953,13 @@
       {$t('manage.noPermission')}
     </div>
   {:else}
-    <div class="flex gap-1 bg-md3-surface-container-high/50 rounded-xl p-1 w-fit">
+    <div class="flex gap-1 bg-md3-surface-container-high/50 rounded-xl p-1 w-fit" role="tablist" tabindex="-1" aria-label={$t('manage.title')} onkeydown={handleManageTabKeydown}>
       {#each tabs as tab}
         <button
+          data-tab-item
+          role="tab"
+          aria-selected={activeTab === tab.key}
+          tabindex={activeTab === tab.key ? 0 : -1}
           class="px-4 py-1.5 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5"
           class:bg-md3-primary-container={activeTab === tab.key}
           class:text-md3-on-primary-container={activeTab === tab.key}
@@ -1015,6 +1037,12 @@
                   title={$t('tasks.moreActions')}
                   aria-label={$t('tasks.moreActions')}
                   onclick={() => toggleActionRow(actionKey)}
+                  onkeydown={(event) => {
+                    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+                      event.preventDefault();
+                      showUserContextMenu(event, user);
+                    }
+                  }}
                 >
                   <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
                 </button>
@@ -1109,6 +1137,12 @@
                   title={$t('tasks.moreActions')}
                   aria-label={$t('tasks.moreActions')}
                   onclick={() => toggleActionRow(actionKey)}
+                  onkeydown={(event) => {
+                    if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
+                      event.preventDefault();
+                      showGroupContextMenu(event, group);
+                    }
+                  }}
                 >
                   <Icon name={expandedActionRow === actionKey ? 'expandLess' : 'moreVert'} size="20px" />
                 </button>
@@ -1238,6 +1272,7 @@
   x={contextMenu.x}
   y={contextMenu.y}
   items={contextMenuItems}
+  sourceElement={contextMenu.sourceElement}
   onClose={hideContextMenu}
 />
 
