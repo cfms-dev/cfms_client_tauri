@@ -19,6 +19,7 @@
     classifyUploadPath,
     getDocument,
     getRevision,
+    inspectUploadDirectoryConflicts,
     createDirectory,
     deleteDirectory,
     deleteDocument,
@@ -44,11 +45,13 @@
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
+    type DirectoryFileConflictResolution,
     type DownloadBatchMetadata,
     type RevisionEntry,
     type SearchDirectoryEntry,
     type SearchDocumentEntry,
     type SearchFilesResponse,
+    type UploadConflictStrategy,
     type UploadRevisionProgressEvent,
     type UserPreference,
   } from '$lib/api';
@@ -116,6 +119,13 @@
     type FileManagerShortcut,
   } from '$lib/keyboard';
   import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
+  import {
+    createUploadConflictResolver,
+    partitionUploadConflicts,
+    type UploadCandidate,
+    type UploadConflictAction,
+    type UploadConflictDecision,
+  } from '$lib/files/upload-conflicts';
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
   import type { CommandAction, FileDetailModel } from '$lib/explorer/types';
@@ -126,6 +136,11 @@
   type SearchResultRow =
     | { kind: 'directory'; directory: SearchDirectoryEntry }
     | { kind: 'document'; document: SearchDocumentEntry };
+
+  type PendingUploadConflict = UploadCandidate & {
+    directoryPath?: string;
+    relativePath?: string;
+  };
 
   const SERVER_SEARCH_PAGE_SIZE = 128;
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
@@ -1967,19 +1982,12 @@
     const files = Array.isArray(selected) ? selected : [selected];
     if (files.length === 0) return;
 
-    const targetFolderId = currentFolderId;
-    for (const filePath of files) {
-      scheduleUpload(
-        filePath,
-        (uploadId, uploadName) => uploadDocumentFile(
-          targetFolderId,
-          filePath,
-          uploadId,
-          'overwrite',
-          uploadName,
-        ),
-      );
-    }
+    const candidates = files.map<UploadCandidate>((filePath) => ({
+      sourcePath: filePath,
+      name: uploadDisplayName(filePath),
+      kind: 'file',
+    }));
+    await queueUploadCandidates(currentFolderId, candidates);
   }
 
   async function handleUploadFolder() {
@@ -1999,18 +2007,11 @@
     }
     if (!selected || Array.isArray(selected)) return;
 
-    const targetFolderId = currentFolderId;
-    scheduleUpload(
-      selected,
-      (uploadId, uploadName) => uploadDirectory(
-        targetFolderId,
-        selected,
-        uploadId,
-        'overwrite',
-        uploadName,
-      ),
-      displayName,
-    );
+    await queueUploadCandidates(currentFolderId, [{
+      sourcePath: selected,
+      name: displayName?.trim() || uploadDisplayName(selected),
+      kind: 'directory',
+    }]);
   }
 
   const DROP_BATCH_DEDUP_WINDOW_MS = 1000;
@@ -2031,38 +2032,24 @@
     lastDropBatchAt = now;
 
     const targetFolderId = currentFolderId;
-    let queued = 0;
     let unsupported = 0;
+    const candidates: UploadCandidate[] = [];
 
     for (const path of uniquePaths) {
       const kind = await droppedUploadKind(path);
-      if (kind === 'directory') {
-        scheduleUpload(
-          path,
-          (uploadId, uploadName) => uploadDirectory(
-            targetFolderId,
-            path,
-            uploadId,
-            'overwrite',
-            uploadName,
-          ),
-        );
-        queued += 1;
-      } else if (kind === 'file') {
-        scheduleUpload(
-          path,
-          (uploadId, uploadName) => uploadDocumentFile(
-            targetFolderId,
-            path,
-            uploadId,
-            'overwrite',
-            uploadName,
-          ),
-        );
-        queued += 1;
+      if (kind) {
+        candidates.push({
+          sourcePath: path,
+          name: uploadDisplayName(path),
+          kind,
+        });
       } else {
         unsupported += 1;
       }
+    }
+
+    if (candidates.length > 0) {
+      await queueUploadCandidates(targetFolderId, candidates);
     }
 
     if (unsupported > 0) {
@@ -2158,6 +2145,160 @@
       handlePickerError(fallbackErr);
       return null;
     }
+  }
+
+  async function queueUploadCandidates(
+    targetFolderId: string | null,
+    candidates: UploadCandidate[],
+  ) {
+    if (candidates.length === 0) return;
+
+    let listing;
+    try {
+      listing = await listDirectory(targetFolderId);
+    } catch (err) {
+      error = formatError(err);
+      return;
+    }
+
+    const fileCandidates = candidates.filter((candidate) => candidate.kind === 'file');
+    const directoryCandidates = candidates.filter((candidate) => candidate.kind === 'directory');
+    const { available: availableFiles, conflicting: conflictingFiles } = partitionUploadConflicts(
+      fileCandidates,
+      listing.folders,
+      listing.documents,
+    );
+    const directoryResolutions = new Map<string, DirectoryFileConflictResolution[]>();
+    const decisions: UploadConflictDecision<PendingUploadConflict>[] = [];
+    const resolver = createUploadConflictResolver<PendingUploadConflict>(
+      async (candidate, index) => {
+        const resolution = await dialogStore.choose<UploadConflictAction>({
+          title: $t('files.uploadConflictTitle'),
+          message: $t('files.uploadConflictMessage'),
+          detailLabel: $t('files.uploadConflictProgress', {
+            values: { current: index + 1 },
+          }),
+          details: [{
+            label: candidate.name,
+            meta: candidate.relativePath
+              ? $t('files.uploadConflictDirectoryFile', {
+                  values: { path: candidate.relativePath },
+                })
+              : $t('files.uploadConflictFile'),
+            badge: $t('files.uploadConflictBadge'),
+            kind: candidate.kind,
+          }],
+          applyToAllLabel: $t('files.uploadConflictApplyRemaining'),
+          choices: [
+            {
+              value: 'overwrite',
+              label: $t('files.uploadConflictOverwrite'),
+              description: $t('files.uploadConflictOverwriteHint'),
+              icon: 'refresh',
+              intent: 'danger',
+            },
+            {
+              value: 'keep_both',
+              label: $t('files.uploadConflictKeepBoth'),
+              description: $t('files.uploadConflictKeepBothHint'),
+              icon: 'edit',
+              intent: 'primary',
+            },
+            {
+              value: 'skip',
+              label: $t('files.uploadConflictSkip'),
+              description: $t('files.uploadConflictSkipHint'),
+              icon: 'block',
+              intent: 'neutral',
+            },
+          ],
+          cancelLabel: $t('common.cancel'),
+        });
+
+        return resolution
+          ? { action: resolution.value, applyToRemaining: resolution.applyToAll }
+          : null;
+      },
+    );
+
+    for (const candidate of conflictingFiles) {
+      const decision = await resolver.resolve(candidate);
+      if (!decision) return;
+      decisions.push(decision);
+    }
+
+    for (const directory of directoryCandidates) {
+      directoryResolutions.set(directory.sourcePath, []);
+      try {
+        await inspectUploadDirectoryConflicts(
+          targetFolderId,
+          directory.sourcePath,
+          directory.name,
+          async (conflict) => {
+            const decision = await resolver.resolve({
+              sourcePath: directory.sourcePath,
+              name: conflict.name,
+              kind: 'file',
+              directoryPath: directory.sourcePath,
+              relativePath: conflict.relativePath,
+            });
+            if (decision) decisions.push(decision);
+          },
+        );
+      } catch (err) {
+        error = formatError(err);
+        return;
+      }
+      if (resolver.cancelled) return;
+    }
+
+    for (const candidate of availableFiles) {
+      scheduleUploadCandidate(targetFolderId, candidate, 'fail');
+    }
+    for (const { candidate, action } of decisions) {
+      if (candidate.directoryPath && candidate.relativePath) {
+        directoryResolutions.get(candidate.directoryPath)?.push({
+          relativePath: candidate.relativePath,
+          conflictStrategy: action,
+        });
+      } else if (action !== 'skip') {
+        scheduleUploadCandidate(targetFolderId, candidate, action);
+      }
+    }
+    for (const candidate of directoryCandidates) {
+      scheduleUploadCandidate(
+        targetFolderId,
+        candidate,
+        'fail',
+        directoryResolutions.get(candidate.sourcePath) ?? [],
+      );
+    }
+  }
+
+  function scheduleUploadCandidate(
+    targetFolderId: string | null,
+    candidate: UploadCandidate,
+    conflictStrategy: UploadConflictStrategy,
+    conflictResolutions: DirectoryFileConflictResolution[] = [],
+  ) {
+    const action = candidate.kind === 'directory'
+      ? (uploadId: string, uploadName: string) => uploadDirectory(
+          targetFolderId,
+          candidate.sourcePath,
+          uploadId,
+          conflictStrategy,
+          uploadName,
+          conflictResolutions,
+        )
+      : (uploadId: string, uploadName: string) => uploadDocumentFile(
+          targetFolderId,
+          candidate.sourcePath,
+          uploadId,
+          conflictStrategy,
+          uploadName,
+        );
+
+    scheduleUpload(candidate.sourcePath, action, candidate.name);
   }
 
   function scheduleUpload(

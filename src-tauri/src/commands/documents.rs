@@ -580,6 +580,96 @@ pub async fn upload_document_file<R: Runtime>(
     }))
 }
 
+/// Inspect file-level conflicts that would occur while merging a local directory.
+#[tauri::command]
+pub async fn inspect_upload_directory_conflicts<R: Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    state: tauri::State<'_, AppHandleState>,
+    parent_id: Option<String>,
+    directory_path: String,
+    upload_name: Option<String>,
+    on_conflict: Channel<DirectoryUploadConflictEvent>,
+) -> Result<(), String> {
+    let source = prepare_upload_directory_source(&app_handle, directory_path)?;
+    let root = source.path.clone();
+    let root_name = clean_optional_upload_name(upload_name)
+        .or_else(|| source.display_name.clone())
+        .or_else(|| {
+            root.file_name()
+                .and_then(|name| name.to_str())
+                .map(ToOwned::to_owned)
+        })
+        .ok_or_else(|| "Selected directory has no valid name".to_string())?;
+
+    let parent_listing = fetch_all_listing_pages(
+        &state,
+        "list_directory",
+        serde_json::json!({ "folder_id": non_empty_optional(parent_id) }),
+    )
+    .await?;
+    let Some(remote_root_id) = parent_listing
+        .folders
+        .iter()
+        .find(|folder| folder.name == root_name)
+        .map(|folder| folder.id.clone())
+    else {
+        on_conflict
+            .send(DirectoryUploadConflictEvent::Finished)
+            .map_err(|e| format!("Failed to finish upload conflict scan: {e}"))?;
+        return Ok(());
+    };
+
+    let mut stack = vec![(std::path::PathBuf::new(), remote_root_id)];
+    while let Some((local_relative, remote_id)) = stack.pop() {
+        let listing = fetch_all_listing_pages(
+            &state,
+            "list_directory",
+            serde_json::json!({ "folder_id": remote_id }),
+        )
+        .await?;
+        let local_directory = root.join(&local_relative);
+        let children = std::fs::read_dir(&local_directory).map_err(|e| {
+            format!("Failed to read directory {}: {e}", local_directory.display())
+        })?;
+
+        for child in children {
+            let child = child.map_err(|e| format!("Failed to read directory entry: {e}"))?;
+            let path = child.path();
+            let Some(name) = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(ToOwned::to_owned)
+            else {
+                continue;
+            };
+            let relative = local_relative.join(&name);
+
+            if path.is_dir() {
+                if let Some(folder) = listing.folders.iter().find(|folder| folder.name == name) {
+                    stack.push((relative, folder.id.clone()));
+                }
+            } else if path.is_file()
+                && (listing.documents.iter().any(|document| document.title == name)
+                    || listing.folders.iter().any(|folder| folder.name == name))
+            {
+                on_conflict
+                    .send(DirectoryUploadConflictEvent::Conflict(
+                        DirectoryUploadConflict {
+                            relative_path: relative_upload_path(&relative),
+                            name,
+                        },
+                    ))
+                    .map_err(|e| format!("Failed to report upload conflict: {e}"))?;
+            }
+        }
+    }
+
+    on_conflict
+        .send(DirectoryUploadConflictEvent::Finished)
+        .map_err(|e| format!("Failed to finish upload conflict scan: {e}"))?;
+    Ok(())
+}
+
 /// Upload a local directory recursively, preserving its directory structure.
 #[tauri::command]
 pub async fn upload_directory<R: Runtime>(
@@ -589,6 +679,7 @@ pub async fn upload_directory<R: Runtime>(
     directory_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
+    conflict_resolutions: Option<Vec<DirectoryFileConflictResolution>>,
     upload_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let source = prepare_upload_directory_source(&app_handle, directory_path)?;
@@ -606,13 +697,19 @@ pub async fn upload_directory<R: Runtime>(
         })
         .ok_or_else(|| "Selected directory has no valid name".to_string())?;
 
-    let root_id = create_server_directory(&state, parent_id, root_name, true).await?;
+    let conflict_strategy = conflict_strategy.unwrap_or_default();
+    let conflict_resolutions = conflict_resolutions
+        .unwrap_or_default()
+        .into_iter()
+        .map(|resolution| (resolution.relative_path, resolution.conflict_strategy))
+        .collect::<std::collections::HashMap<_, _>>();
+    let root_result = create_server_directory(&state, parent_id, root_name, true).await?;
+    let root_id = root_result.id;
     let entries = collect_directory_entries(&root)?;
     let total_files = entries.iter().filter(|entry| entry.is_file()).count();
     let mut uploaded_files = 0usize;
     let mut dir_ids = std::collections::HashMap::<std::path::PathBuf, String>::new();
     dir_ids.insert(std::path::PathBuf::new(), root_id.clone());
-    let conflict_strategy = conflict_strategy.unwrap_or_default();
     let mut transfer_session = UploadTransferSession::new();
 
     for entry in entries {
@@ -645,7 +742,7 @@ pub async fn upload_directory<R: Runtime>(
             };
             let id =
                 match create_server_directory(&state, Some(parent_server_id), name, true).await {
-                    Ok(id) => id,
+                    Ok(result) => result.id,
                     Err(err) => {
                         transfer_session.close().await;
                         return Err(err);
@@ -666,6 +763,10 @@ pub async fn upload_directory<R: Runtime>(
                     return Err("Missing parent directory while uploading".to_string());
                 }
             };
+            let entry_conflict_strategy = conflict_resolutions
+                .get(&relative_upload_path(&relative))
+                .copied()
+                .unwrap_or(conflict_strategy);
             if let Err(err) = upload_local_file(
                 &app_handle,
                 &state,
@@ -673,7 +774,7 @@ pub async fn upload_directory<R: Runtime>(
                 entry,
                 None,
                 upload_id.clone(),
-                conflict_strategy,
+                entry_conflict_strategy,
                 &mut transfer_session,
             )
             .await
@@ -692,6 +793,7 @@ pub async fn upload_directory<R: Runtime>(
         "directory_id": root_id,
         "total_files": total_files,
         "uploaded_files": uploaded_files,
+        "skipped": false,
     }))
 }
 

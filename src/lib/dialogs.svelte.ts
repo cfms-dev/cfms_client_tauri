@@ -1,3 +1,5 @@
+import type { IconName } from "$lib/icons";
+
 export interface ConfirmDialogOptions {
   title?: string;
   message: string;
@@ -18,7 +20,37 @@ export interface PromptDialogOptions {
   selectOnOpen?: boolean;
 }
 
-type DialogKind = "confirm" | "prompt";
+export interface ChoiceDialogOption<T extends string = string> {
+  value: T;
+  label: string;
+  description?: string;
+  icon?: IconName;
+  intent?: "primary" | "neutral" | "danger";
+}
+
+export interface ChoiceDialogDetail {
+  label: string;
+  meta?: string;
+  badge?: string;
+  kind?: "file" | "directory";
+}
+
+export interface ChoiceDialogOptions<T extends string = string> {
+  title?: string;
+  message: string;
+  choices: ChoiceDialogOption<T>[];
+  details?: ChoiceDialogDetail[];
+  detailLabel?: string;
+  applyToAllLabel?: string;
+  cancelLabel?: string;
+}
+
+export interface ChoiceDialogResult<T extends string = string> {
+  value: T;
+  applyToAll: boolean;
+}
+
+type DialogKind = "confirm" | "prompt" | "choice";
 
 export interface DialogRequest {
   id: number;
@@ -33,7 +65,11 @@ export interface DialogRequest {
   multiline: boolean;
   inputType: string;
   selectOnOpen: boolean;
-  resolve: (value: boolean | string | null) => void;
+  choices: ChoiceDialogOption[];
+  details: ChoiceDialogDetail[];
+  detailLabel: string;
+  applyToAllLabel: string;
+  resolve: (value: boolean | string | ChoiceDialogResult | null) => void;
 }
 
 class DialogStoreImpl {
@@ -59,6 +95,10 @@ class DialogStoreImpl {
         multiline: false,
         inputType: "text",
         selectOnOpen: false,
+        choices: [],
+        details: [],
+        detailLabel: "",
+        applyToAllLabel: "",
         resolve: (value) => resolve(value === true),
       });
     });
@@ -82,12 +122,44 @@ class DialogStoreImpl {
         multiline: normalized.multiline ?? false,
         inputType: normalized.inputType ?? "text",
         selectOnOpen: normalized.selectOnOpen ?? false,
+        choices: [],
+        details: [],
+        detailLabel: "",
+        applyToAllLabel: "",
         resolve: (value) => resolve(typeof value === "string" ? value : null),
       });
     });
   }
 
-  resolve(value: boolean | string | null) {
+  choose<T extends string>(options: ChoiceDialogOptions<T>): Promise<ChoiceDialogResult<T> | null> {
+    return new Promise((resolve) => {
+      this.enqueue({
+        id: this.nextId++,
+        kind: "choice",
+        title: options.title ?? "Choose an action",
+        message: options.message,
+        defaultValue: "",
+        placeholder: "",
+        confirmLabel: "",
+        cancelLabel: options.cancelLabel ?? "Cancel",
+        danger: false,
+        multiline: false,
+        inputType: "text",
+        selectOnOpen: false,
+        choices: options.choices,
+        details: options.details ?? [],
+        detailLabel: options.detailLabel ?? "",
+        applyToAllLabel: options.applyToAllLabel ?? "",
+        resolve: (value) => resolve(
+          value && typeof value === "object"
+            ? value as ChoiceDialogResult<T>
+            : null,
+        ),
+      });
+    });
+  }
+
+  resolve(value: boolean | string | ChoiceDialogResult | null) {
     const request = this.current;
     if (!request) return;
     this.current = null;

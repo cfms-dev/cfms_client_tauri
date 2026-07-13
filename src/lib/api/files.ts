@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
-import { invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
+import { Channel, invoke } from '@tauri-apps/api/core';
+import type { AccessEntry, AccessEntityType, AccessType, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -253,7 +253,7 @@ export async function uploadDocumentFile(
   parentId: string | null,
   filePath: string,
   uploadId: string,
-  conflictStrategy: UploadConflictStrategy = "overwrite",
+  conflictStrategy: UploadConflictStrategy = "fail",
   uploadName?: string,
 ): Promise<{
   upload_id: string;
@@ -276,21 +276,62 @@ export async function uploadDirectory(
   parentId: string | null,
   directoryPath: string,
   uploadId: string,
-  conflictStrategy: UploadConflictStrategy = "overwrite",
+  conflictStrategy: UploadConflictStrategy = "fail",
   uploadName?: string,
+  conflictResolutions: DirectoryFileConflictResolution[] = [],
 ): Promise<{
   upload_id: string;
   directory_id: string;
   total_files: number;
   uploaded_files: number;
+  skipped: boolean;
 }> {
   return invoke("upload_directory", {
     parentId,
     directoryPath,
     uploadId,
     conflictStrategy,
+    conflictResolutions,
     uploadName: uploadName ?? null,
   });
+}
+
+export async function inspectUploadDirectoryConflicts(
+  parentId: string | null,
+  directoryPath: string,
+  uploadName?: string,
+  onConflict?: (conflict: DirectoryUploadConflict) => void | Promise<void>,
+): Promise<void> {
+  type ConflictEvent =
+    | { event: 'Conflict'; data: DirectoryUploadConflict }
+    | { event: 'Finished' };
+
+  let pendingConflict = Promise.resolve();
+  let handlerError: unknown;
+  let finishScan!: () => void;
+  const scanFinished = new Promise<void>((resolve) => {
+    finishScan = resolve;
+  });
+  const conflictChannel = new Channel<ConflictEvent>((event) => {
+    if (event.event === 'Finished') {
+      void pendingConflict.then(finishScan);
+      return;
+    }
+    pendingConflict = pendingConflict
+      .then(() => onConflict?.(event.data))
+      .catch((error) => {
+        handlerError ??= error;
+      });
+  });
+
+  await invoke("inspect_upload_directory_conflicts", {
+    parentId,
+    directoryPath,
+    uploadName: uploadName ?? null,
+    onConflict: conflictChannel,
+  });
+  await scanFinished;
+  if (handlerError) throw handlerError;
 }
 
 export async function selectUploadDirectory(): Promise<SelectedUploadDirectory> {

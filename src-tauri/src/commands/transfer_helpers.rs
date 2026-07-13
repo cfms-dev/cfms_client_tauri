@@ -120,12 +120,16 @@ impl UploadTransferSession {
     }
 }
 
+struct CreateServerDirectoryResult {
+    id: String,
+}
+
 async fn create_server_directory(
     state: &AppHandleState,
     parent_id: Option<String>,
     name: String,
     exists_ok: bool,
-) -> Result<String, String> {
+) -> Result<CreateServerDirectoryResult, String> {
     let (conn, username, token) = get_connection_auth(state).await?;
     let resp = send_action_request(
         &conn,
@@ -145,18 +149,23 @@ async fn create_server_directory(
         && resp.data.get("type").and_then(|v| v.as_str()) == Some("directory")
         && let Some(id) = resp.data.get("id").and_then(|v| v.as_str())
     {
-        return Ok(id.to_string());
+        return Ok(CreateServerDirectoryResult {
+            id: id.to_string(),
+        });
     }
 
     if resp.code != 200 {
         return Err(format!("Server returned {}: {}", resp.code, resp.message));
     }
 
-    resp.data
+    let id = resp
+        .data
         .get("id")
         .and_then(|v| v.as_str())
         .map(ToOwned::to_owned)
-        .ok_or_else(|| "Server response missing directory id".to_string())
+        .ok_or_else(|| "Server response missing directory id".to_string())?;
+
+    Ok(CreateServerDirectoryResult { id })
 }
 
 fn clean_optional_upload_name(name: Option<String>) -> Option<String> {
@@ -295,7 +304,7 @@ async fn upload_local_file<R: Runtime>(
         return Err("Selected path is not a file".to_string());
     }
 
-    let file_name = upload_name
+    let mut file_name = upload_name
         .or_else(|| {
             source
                 .file_name()
@@ -323,7 +332,7 @@ async fn upload_local_file<R: Runtime>(
             return Err(err);
         }
     };
-    let create_resp = match send_action_request(
+    let mut create_resp = match send_action_request(
         &conn,
         "create_document",
         serde_json::json!({
@@ -342,6 +351,35 @@ async fn upload_local_file<R: Runtime>(
             return Err(err);
         }
     };
+
+    if create_resp.code == 409 && matches!(conflict_strategy, UploadConflictStrategy::KeepBoth) {
+        for suffix in 1..=10_000 {
+            let candidate = suffixed_upload_name(&file_name, suffix);
+            create_resp = match send_action_request(
+                &conn,
+                "create_document",
+                serde_json::json!({
+                    "title": candidate,
+                    "folder_id": non_empty_optional(parent_id.clone()),
+                    "access_rules": {},
+                }),
+                &username,
+                &token,
+            )
+            .await
+            {
+                Ok(response) => response,
+                Err(err) => {
+                    state.active_uploads.unregister(&upload_id);
+                    return Err(err);
+                }
+            };
+            if create_resp.code != 409 {
+                file_name = candidate;
+                break;
+            }
+        }
+    }
 
     let mut overwritten = false;
     let (task_id, document_id, skipped) = if create_resp.code == 409 {
@@ -678,6 +716,26 @@ async fn server_action_bool(
     Ok(true)
 }
 
+fn suffixed_upload_name(name: &str, suffix: usize) -> String {
+    let path = std::path::Path::new(name);
+    let extension = path.extension().and_then(|value| value.to_str());
+    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or(name);
+    match extension {
+        Some(extension) if !stem.is_empty() => format!("{stem} ({suffix}).{extension}"),
+        _ => format!("{name} ({suffix})"),
+    }
+}
+
+fn relative_upload_path(path: &std::path::Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => Some(value.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
     let mut folders = Vec::new();
     let mut documents = Vec::new();
@@ -844,6 +902,18 @@ mod protocol_v15_tests {
         assert_eq!(split["page_size"], 64);
         assert_eq!(split["next_cursor"], "cursor");
         assert_eq!(split["has_more"], true);
+    }
+
+    #[test]
+    fn keep_both_suffix_preserves_file_extension() {
+        assert_eq!(suffixed_upload_name("report.pdf", 2), "report (2).pdf");
+        assert_eq!(suffixed_upload_name("README", 1), "README (1)");
+    }
+
+    #[test]
+    fn relative_upload_paths_use_protocol_separators() {
+        let path = std::path::Path::new("nested").join("reports").join("summary.txt");
+        assert_eq!(relative_upload_path(&path), "nested/reports/summary.txt");
     }
 }
 

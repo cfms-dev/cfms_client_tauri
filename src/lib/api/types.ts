@@ -292,7 +292,17 @@ export interface UploadRevisionProgressEvent {
   progress: number;
 }
 
-export type UploadConflictStrategy = "fail" | "skip" | "overwrite";
+export type UploadConflictStrategy = "fail" | "skip" | "overwrite" | "keep_both";
+
+export interface DirectoryUploadConflict {
+  relativePath: string;
+  name: string;
+}
+
+export interface DirectoryFileConflictResolution {
+  relativePath: string;
+  conflictStrategy: UploadConflictStrategy;
+}
 
 export interface UploadProgressEvent {
   upload_id: string;

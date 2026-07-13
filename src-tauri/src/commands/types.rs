@@ -63,6 +63,28 @@ pub enum UploadConflictStrategy {
     Fail,
     Skip,
     Overwrite,
+    KeepBoth,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryFileConflictResolution {
+    relative_path: String,
+    conflict_strategy: UploadConflictStrategy,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryUploadConflict {
+    relative_path: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "event", content = "data")]
+pub enum DirectoryUploadConflictEvent {
+    Conflict(DirectoryUploadConflict),
+    Finished,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -406,6 +406,7 @@ pub fn run() {
             commands::delete_revision,
             commands::upload_new_revision,
             commands::upload_document_file,
+            commands::inspect_upload_directory_conflicts,
             commands::upload_directory,
             commands::select_upload_directory,
             commands::classify_upload_path,
