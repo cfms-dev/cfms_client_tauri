@@ -4,6 +4,30 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.32.0
+**Released on:** 2026-07-13
+
+**Title:** Re-design Application UI
+
+### Improved
+- Unify workspace and authentication palette
+- Standardize compact action buttons
+- Unify dialogs and interactions
+
+### Added
+- Refine workspace navigation and file details
+- Add incremental upload conflict resolution
+- Introduce desktop workspace
+
+### Fixed
+- Polish lockdown and focus feedback
+
+### Maintenance
+- Pin pnpm for CI workflows
+- Update dependencies
+
+--- 
+
 ## v0.31.0
 **Released on:** 2026-07-13
 
