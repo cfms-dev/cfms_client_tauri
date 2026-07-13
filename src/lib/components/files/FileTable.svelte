@@ -37,6 +37,7 @@
     onGoToParent,
     onFolderClick,
     onDocumentClick,
+    onBlankContextMenu,
     onFolderContextMenu,
     onDocumentContextMenu,
   }: {
@@ -53,6 +54,7 @@
     onGoToParent: () => void;
     onFolderClick: (folder: ServerDirectoryEntry) => void;
     onDocumentClick: (document: ServerDocumentEntry) => void;
+    onBlankContextMenu: (event: MouseEvent) => void;
     onFolderContextMenu: (event: MouseEvent, folder: ServerDirectoryEntry) => void;
     onDocumentContextMenu: (event: MouseEvent, document: ServerDocumentEntry) => void;
   } = $props();
@@ -157,6 +159,12 @@
       `transform: translateY(${virtualItem.start}px);`,
     ].join(' ');
   }
+
+  function handleBlankContextMenu(event: MouseEvent) {
+    const target = event.target;
+    if (target instanceof Element && target.closest('[data-file-table-row]')) return;
+    onBlankContextMenu(event);
+  }
 </script>
 
 {#if loading}
@@ -207,27 +215,30 @@
         </button>
       </div>
 
-      {#if folders.length === 0 && documents.length === 0 && !canGoToParent}
-        <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
-          {$t('files.empty')}
-        </p>
-      {/if}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="file-table-list-space" oncontextmenu={handleBlankContextMenu}>
+        {#if folders.length === 0 && documents.length === 0 && !canGoToParent}
+          <p class="px-4 py-12 text-center text-sm text-md3-on-surface-variant">
+            {$t('files.empty')}
+          </p>
+        {/if}
 
-      {#if rowCount > 0}
-        <div
-          class="file-table-row-space"
-          class:is-virtualized={virtualized}
-          style={virtualized ? `height: ${$rowVirtualizer.getTotalSize()}px;` : undefined}
-        >
-        {#each renderedRows as rendered (rowKey(rendered.row))}
-          {@const row = rendered.row}
-          {#if row.kind === 'parent'}
-            <button
-              class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-md3-outline/50 px-4 text-left text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container/20"
-              class:border-b={folders.length > 0 || documents.length > 0}
-              style={rowStyle(rendered.virtualItem)}
-              onclick={onGoToParent}
-            >
+        {#if rowCount > 0}
+          <div
+            class="file-table-row-space"
+            class:is-virtualized={virtualized}
+            style={virtualized ? `height: ${$rowVirtualizer.getTotalSize()}px;` : undefined}
+          >
+          {#each renderedRows as rendered (rowKey(rendered.row))}
+            {@const row = rendered.row}
+            {#if row.kind === 'parent'}
+              <button
+                data-file-table-row
+                class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-md3-outline/50 px-4 text-left text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container/20"
+                class:border-b={folders.length > 0 || documents.length > 0}
+                style={rowStyle(rendered.virtualItem)}
+                onclick={onGoToParent}
+              >
               <span class="self-center text-md3-primary-emphasis" aria-hidden="true">
                 <Icon name="arrowUpward" size="20px" />
               </span>
@@ -236,14 +247,15 @@
               </span>
               <span class="self-center text-right text-xs text-md3-on-surface-variant">—</span>
               <span class="self-center text-right text-xs text-md3-on-surface-variant">—</span>
-            </button>
-          {:else if row.kind === 'folder'}
-            <button
-              class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors hover:bg-md3-primary-container/20"
-              style={rowStyle(rendered.virtualItem)}
-              onclick={() => onFolderClick(row.folder)}
-              oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
-            >
+              </button>
+            {:else if row.kind === 'folder'}
+              <button
+                data-file-table-row
+                class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors hover:bg-md3-primary-container/20"
+                style={rowStyle(rendered.virtualItem)}
+                onclick={() => onFolderClick(row.folder)}
+                oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
+              >
               {#if selectMode}
                 <span
                   class="self-center {selectedFolderIds.has(row.folder.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
@@ -263,14 +275,15 @@
               <span class="self-center text-right text-xs text-md3-on-surface-variant">
                 {formatDate(row.folder.created_time)}
               </span>
-            </button>
-          {:else}
-            <button
-              class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors last:border-b-0 hover:bg-md3-surface-container-high/30"
-              style={rowStyle(rendered.virtualItem)}
-              onclick={() => onDocumentClick(row.document)}
-              oncontextmenu={(event) => onDocumentContextMenu(event, row.document)}
-            >
+              </button>
+            {:else}
+              <button
+                data-file-table-row
+                class="grid h-[42px] w-full grid-cols-[auto_minmax(260px,1fr)_100px_160px] gap-3 border-b border-md3-outline/50 px-4 text-left transition-colors last:border-b-0 hover:bg-md3-surface-container-high/30"
+                style={rowStyle(rendered.virtualItem)}
+                onclick={() => onDocumentClick(row.document)}
+                oncontextmenu={(event) => onDocumentContextMenu(event, row.document)}
+              >
               {#if selectMode}
                 <span
                   class="self-center {selectedDocumentIds.has(row.document.id) ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}"
@@ -292,11 +305,12 @@
               <span class="self-center text-right text-xs text-md3-on-surface-variant">
                 {formatDate(row.document.last_modified)}
               </span>
-            </button>
-          {/if}
-        {/each}
-        </div>
-      {/if}
+              </button>
+            {/if}
+          {/each}
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
@@ -309,6 +323,10 @@
   .file-table-scroll-viewport.is-virtualized {
     max-height: calc(100vh - 15rem);
     overflow-y: auto;
+  }
+
+  .file-table-list-space {
+    min-height: 12rem;
   }
 
   .file-table-row-space.is-virtualized {

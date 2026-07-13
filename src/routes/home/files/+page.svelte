@@ -150,7 +150,7 @@
     open: boolean;
     x: number;
     y: number;
-    kind: 'folder' | 'document' | null;
+    kind: 'folder' | 'document' | 'current-directory' | null;
     item: ServerDirectoryEntry | ServerDocumentEntry | null;
   }>({ open: false, x: 0, y: 0, kind: null, item: null });
   let detailTitle = $state<string | null>(null);
@@ -605,7 +605,85 @@
     contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'document', item: doc };
   }
 
+  function showCurrentDirectoryContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'current-directory', item: null };
+  }
+
+  function currentDirectoryName() {
+    return navHistory[navHistory.length - 1]?.label
+      ?? navigationRootLabel
+      ?? $t('files.title');
+  }
+
   function getContextMenuItems(): ContextMenuItem[] {
+    if (contextMenu.kind === 'current-directory') {
+      const directoryId = currentFolderId;
+      const directoryName = currentDirectoryName();
+      return [
+        {
+          id: 'refresh-current-directory',
+          label: $t('common.refresh'),
+          icon: 'refresh',
+          onSelect: async () => {
+            await loadDirectory(currentFolderId);
+          },
+        },
+        { type: 'divider' },
+        {
+          id: 'create-directory-here',
+          label: $t('files.createFolder'),
+          icon: 'createNewFolder',
+          onSelect: handleCreateFolder,
+        },
+        {
+          id: 'upload-files-here',
+          label: $t('files.uploadFiles'),
+          icon: 'uploadFile',
+          onSelect: handleUploadFiles,
+        },
+        {
+          id: 'upload-folder-here',
+          label: $t('files.uploadFolder'),
+          icon: 'folderUpload',
+          onSelect: handleUploadFolder,
+        },
+        { type: 'divider', hidden: directoryId === null },
+        {
+          id: 'authorize-current-directory',
+          label: $t('files.authorize'),
+          icon: 'lockPerson',
+          hidden: directoryId === null,
+          requiredPermissions: ['manage_access'],
+          onSelect: () => handleAuthorize('directory', directoryId!, directoryName),
+        },
+        {
+          id: 'view-current-directory-access',
+          label: $t('files.viewAccessEntries'),
+          icon: 'listAlt',
+          hidden: directoryId === null,
+          requiredPermissions: ['view_access_entries'],
+          onSelect: () => handleViewAccessEntries('directory', directoryId!, directoryName),
+        },
+        {
+          id: 'current-directory-rules',
+          label: $t('files.setPermissions'),
+          icon: 'settings',
+          hidden: directoryId === null,
+          requiredPermissions: ['set_access_rules'],
+          onSelect: () => handleSetAccessRules('directory', directoryId!, directoryName),
+        },
+        { type: 'divider', hidden: directoryId === null },
+        {
+          id: 'current-directory-properties',
+          label: $t('files.properties'),
+          icon: 'info',
+          hidden: directoryId === null,
+          onSelect: () => handleDirectoryProperties(directoryId!, directoryName, null),
+        },
+      ];
+    }
+
     if (!contextMenu.kind || !contextMenu.item) return [];
 
     if (contextMenu.kind === 'document') {
@@ -965,14 +1043,22 @@
   }
 
   async function handleFolderProperties(folder: ServerDirectoryEntry) {
+    await handleDirectoryProperties(folder.id, folder.name, folder.created_time);
+  }
+
+  async function handleDirectoryProperties(
+    directoryId: string,
+    fallbackName: string,
+    fallbackCreatedTime: number | null,
+  ) {
     await runFileAction(async () => {
-      const info = await getDirectoryInfo(folder.id);
+      const info = await getDirectoryInfo(directoryId);
       detailTitle = $t('files.directoryDetails');
       detailRows = [
-        { label: $t('files.directoryId'), value: info.directory_id ?? folder.id },
-        { label: $t('files.directoryName'), value: info.name ?? folder.name },
+        { label: $t('files.directoryId'), value: info.directory_id ?? directoryId },
+        { label: $t('files.directoryName'), value: info.name ?? fallbackName },
         { label: $t('files.childCount'), value: String(info.count_of_child ?? '-') },
-        { label: $t('files.created'), value: formatDate(info.created_time ?? folder.created_time) },
+        { label: $t('files.created'), value: formatDate(info.created_time ?? fallbackCreatedTime) },
         { label: $t('files.parentId'), value: info.parent_id ?? '-' },
         { label: $t('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
       ];
@@ -2606,6 +2692,7 @@
     onGoToParent={handleGoToParent}
     onFolderClick={handleFolderClick}
     onDocumentClick={handleDocumentClick}
+    onBlankContextMenu={showCurrentDirectoryContextMenu}
     onFolderContextMenu={showFolderContextMenu}
     onDocumentContextMenu={showDocumentContextMenu}
   />
