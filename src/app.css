@@ -383,14 +383,14 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Explorer workspace — scoped Fluent-inspired tokens
+ * Workspace palette — shared by the explorer and authentication flows
  *
  * The authenticated workspace intentionally has a denser, Windows 11 file
- * manager visual language. These variables are scoped so the connection and
- * authentication flows keep their existing Material presentation.
+ * manager visual language. Connection and authentication keep their Material
+ * structure while sharing these colours, surfaces, and semantic states.
  * --------------------------------------------------------------------------- */
 
-.explorer-shell {
+:where(.explorer-shell, .workspace-palette) {
   --explorer-background: #0f1115;
   --explorer-surface: #17191d;
   --explorer-surface-raised: #20232a;
@@ -439,7 +439,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  .explorer-shell {
+  :where(.explorer-shell, .workspace-palette) {
     --explorer-background: #f3f3f3;
     --explorer-surface: #fafafa;
     --explorer-surface-raised: #ffffff;

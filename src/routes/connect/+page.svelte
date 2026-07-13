@@ -223,7 +223,7 @@
   }
 </script>
 
-<div class="connect-auth-shell" class:connect-auth-shell--login-return={playLoginReturnTransition}>
+<div class="connect-auth-shell workspace-palette" class:connect-auth-shell--login-return={playLoginReturnTransition}>
   <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
     <button
       type="button"
@@ -281,7 +281,7 @@
 
       <!-- Connect form — MD3 card -->
       <form
-        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+        class="connect-form-card backdrop-blur-sm rounded-xl
              border border-md3-outline p-6 space-y-4"
         onsubmit={(e) => {
           e.preventDefault();
@@ -290,71 +290,66 @@
       >
       <!-- Server URL — MD3 outlined text field -->
       <div>
-        <label
-          for="serverUrl"
-          class="block text-sm font-medium mb-1.5 text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('connect.serverAddress')}
-        </label>
         <div class="relative" bind:this={serverAddressField}>
           <div
-            class="flex items-center rounded-xl border {serverAddressError ? 'border-md3-error' : 'border-md3-outline'}
-                      bg-md3-field focus-within:ring-2 focus-within:ring-md3-primary
-                      focus-within:border-transparent transition-colors overflow-hidden"
+            class="server-address-field"
+            class:server-address-field--error={Boolean(serverAddressError)}
           >
-            <span
-              class="pl-3.5 py-2.5 text-sm text-md3-on-surface-variant
-                         select-none font-mono shrink-0"
-              style="font-family: var(--font-md3-sans);"
-            >
-              wss://
-            </span>
-            <input
-              id="serverUrl"
-              type="text"
-              data-focus-ring="delegated"
-              class="min-w-0 flex-1 pl-1 py-2.5 bg-transparent
-                     text-md3-on-surface text-sm
-                     placeholder:text-md3-on-surface-variant
-                     focus:outline-none transition-colors"
-              class:pr-3.5={!canShowRecentAddresses}
-              class:pr-2={canShowRecentAddresses}
-              placeholder="localhost:5104"
-              bind:value={hostPort}
-              bind:this={serverAddressInput}
-              disabled={busy}
-              onkeydown={handleServerAddressKeydown}
-              onfocus={() => {
-                if (canShowRecentAddresses) {
-                  recentAddressesOpen = true;
-                  recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
-                }
-              }}
-              role="combobox"
-              aria-autocomplete="list"
-              aria-haspopup="listbox"
-              aria-expanded={recentAddressesOpen}
-              aria-controls="recentServerAddressList"
-              aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
-                ? `recent-server-address-${recentAddressActiveIndex}`
-                : undefined}
-            />
-            {#if canShowRecentAddresses}
-              <button
-                type="button"
-                class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
-                       transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
-                       disabled:opacity-50"
-                aria-label={$t('connect.recentAddresses')}
+            <label class="server-address-label" for="serverUrl">
+              {$t('connect.serverAddress')}
+            </label>
+            <div class="server-address-input-row">
+              <span
+                class="server-address-prefix select-none shrink-0"
+              >
+                wss://
+              </span>
+              <input
+                id="serverUrl"
+                type="text"
+                data-focus-ring="delegated"
+                class="server-address-input min-w-0 flex-1 bg-transparent
+                       text-md3-on-surface text-sm
+                       placeholder:text-md3-on-surface-variant
+                       focus:outline-none transition-colors"
+                class:pr-3.5={!canShowRecentAddresses}
+                class:pr-2={canShowRecentAddresses}
+                placeholder="localhost:5104"
+                bind:value={hostPort}
+                bind:this={serverAddressInput}
+                disabled={busy}
+                onkeydown={handleServerAddressKeydown}
+                onfocus={() => {
+                  if (canShowRecentAddresses) {
+                    recentAddressesOpen = true;
+                    recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
+                  }
+                }}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-haspopup="listbox"
                 aria-expanded={recentAddressesOpen}
                 aria-controls="recentServerAddressList"
-                disabled={busy}
-                onclick={toggleRecentAddresses}
-              >
-                <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
-              </button>
-            {/if}
+                aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
+                  ? `recent-server-address-${recentAddressActiveIndex}`
+                  : undefined}
+              />
+              {#if canShowRecentAddresses}
+                <button
+                  type="button"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
+                         transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
+                         disabled:opacity-50"
+                  aria-label={$t('connect.recentAddresses')}
+                  aria-expanded={recentAddressesOpen}
+                  aria-controls="recentServerAddressList"
+                  disabled={busy}
+                  onclick={toggleRecentAddresses}
+                >
+                  <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
+                </button>
+              {/if}
+            </div>
           </div>
 
           {#if canShowRecentAddresses && recentAddressesOpen}
@@ -442,24 +437,22 @@
         </div>
       {/if}
 
-      <!-- Connect button — MD3 filled primary -->
-      <button
-        type="submit"
-        class="w-full py-2.5 px-4 rounded-full font-medium
-               bg-md3-primary text-md3-on-primary
-               hover:brightness-110
-               disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-        style="font-family: var(--font-md3-sans);"
-        disabled={busy}
-      >
-        {#if busy}
-          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.connecting')} />
-          {$t('common.connecting')}
-        {:else}
-          <Icon name="connect" size="20px" />
-          {$t('connect.connect')}
-        {/if}
-      </button>
+      <!-- Compact primary action, matching the workspace command language. -->
+      <div class="connect-submit-row">
+        <button
+          type="submit"
+          class="connect-submit-button"
+          disabled={busy}
+        >
+          {#if busy}
+            <ProgressRing size={17} strokeWidth={2.5} label={$t('common.connecting')} />
+            {$t('common.connecting')}
+          {:else}
+            <Icon name="connect" size="18px" />
+            {$t('connect.connect')}
+          {/if}
+        </button>
+      </div>
       </form>
 
       <p class="mt-4 text-center text-xs text-md3-on-surface-variant">
@@ -483,6 +476,7 @@
     display: flex;
     min-height: 100%;
     overflow: hidden;
+    background: var(--explorer-background);
   }
 
   .connect-auth-panel {
@@ -495,18 +489,143 @@
     justify-content: center;
     padding: 1.5rem;
     background:
-      linear-gradient(
-        135deg,
-        var(--color-md3-bg-gradient-start) 0%,
-        var(--color-md3-bg-gradient-mid-1) 28%,
-        var(--color-md3-bg-gradient-mid-2) 58%,
-        var(--color-md3-bg-gradient-end) 100%
-      );
+      radial-gradient(
+        circle at 12% 10%,
+        color-mix(in srgb, var(--explorer-accent) 8%, transparent),
+        transparent 38%
+      ),
+      var(--explorer-background);
   }
 
   .connect-form-stage {
     width: 100%;
     max-width: 420px;
+  }
+
+  .connect-form-card {
+    background: var(--explorer-surface);
+  }
+
+  .connect-submit-row {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.125rem;
+  }
+
+  .connect-submit-button {
+    display: inline-flex;
+    min-height: 40px;
+    min-width: 116px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid transparent;
+    border-radius: var(--explorer-radius-medium);
+    padding: 0.5rem 1.125rem;
+    color: var(--explorer-accent);
+    background: transparent;
+    font-family: var(--font-md3-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease,
+      transform 120ms ease;
+  }
+
+  .connect-submit-button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--explorer-accent) 52%, var(--explorer-border));
+    background: color-mix(in srgb, var(--explorer-accent) 18%, var(--explorer-surface-raised));
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+      0 4px 12px color-mix(in srgb, var(--explorer-accent) 10%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .connect-submit-button:active:not(:disabled) {
+    box-shadow: none;
+    transform: scale(0.98);
+  }
+
+  .connect-submit-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  .server-address-field {
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    border: 1px solid var(--explorer-border);
+    border-radius: 12px;
+    padding: 0;
+    background: var(--explorer-surface-raised);
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .server-address-field:focus-within {
+    border-color: var(--explorer-accent);
+    box-shadow: inset 0 0 0 1px var(--explorer-accent);
+  }
+
+  .server-address-field--error {
+    border-color: var(--explorer-danger);
+  }
+
+  .server-address-field--error:focus-within {
+    border-color: var(--explorer-danger);
+    box-shadow: inset 0 0 0 1px var(--explorer-danger);
+  }
+
+  .server-address-label {
+    position: absolute;
+    top: 0;
+    left: 0.75rem;
+    z-index: 1;
+    transform: translateY(-50%);
+    padding: 0 0.35rem;
+    color: var(--explorer-text-muted);
+    background: var(--explorer-surface);
+    font-family: var(--font-md3-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25;
+    transition: color 120ms ease;
+  }
+
+  .server-address-field:focus-within .server-address-label {
+    color: var(--explorer-accent);
+  }
+
+  .server-address-field--error .server-address-label,
+  .server-address-field--error:focus-within .server-address-label {
+    color: var(--explorer-danger);
+  }
+
+  .server-address-input-row {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .server-address-prefix {
+    padding-left: 0.875rem;
+    color: var(--explorer-text-muted);
+    font-family: var(--font-md3-sans);
+    font-size: 0.875rem;
+  }
+
+  .server-address-input {
+    height: 42px;
+    padding-left: 0.25rem;
+    font-family: var(--font-md3-sans);
   }
 
   .connect-auth-visual {
@@ -515,7 +634,7 @@
     min-width: 0;
     flex: 0 0 0;
     overflow: hidden;
-    background: #0e1217;
+    background: var(--explorer-background);
   }
 
   .connect-auth-visual-image {

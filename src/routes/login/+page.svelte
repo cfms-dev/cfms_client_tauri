@@ -539,7 +539,7 @@
   }
 </script>
 
-<div class="auth-shell" class:auth-shell--connect-intro={playConnectTransition}>
+<div class="auth-shell workspace-palette" class:auth-shell--connect-intro={playConnectTransition}>
   <button
     type="button"
     class="absolute right-4 top-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
@@ -867,7 +867,7 @@
     display: flex;
     min-height: 100%;
     overflow: hidden;
-    background: #0e1217;
+    background: var(--explorer-background);
   }
 
   .auth-panel {
@@ -880,13 +880,12 @@
     justify-content: center;
     padding: 3rem 1.25rem;
     background:
-      linear-gradient(
-        135deg,
-        var(--color-md3-bg-gradient-start) 0%,
-        var(--color-md3-bg-gradient-mid-1) 28%,
-        var(--color-md3-bg-gradient-mid-2) 58%,
-        var(--color-md3-bg-gradient-end) 100%
-      );
+      radial-gradient(
+        circle at 12% 10%,
+        color-mix(in srgb, var(--explorer-accent) 8%, transparent),
+        transparent 38%
+      ),
+      var(--explorer-background);
   }
 
   .auth-form-stage {
@@ -900,7 +899,7 @@
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
-    background: #0e1217;
+    background: var(--explorer-background);
   }
 
   .auth-visual-image {
