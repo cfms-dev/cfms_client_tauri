@@ -27,6 +27,7 @@
   import {
     cycleKeyboardRegion,
     dispatchKeyboardCommand,
+    KEYBOARD_HELP_SHORTCUTS,
     registerKeyboardCommands,
   } from "$lib/keyboard";
   import {
@@ -279,7 +280,7 @@
       {
         id: 'global.help',
         label: () => $t('keyboard.openHelp'),
-        shortcuts: [{ key: '/', primary: true }],
+        shortcuts: KEYBOARD_HELP_SHORTCUTS,
         scope: 'global',
         enabled: () => !appLockStore.locked,
         allowInEditable: true,

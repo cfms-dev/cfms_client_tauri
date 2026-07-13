@@ -19,9 +19,16 @@
   import Icon from '$lib/components/Icon.svelte';
   import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import ShortcutKeys from '$lib/components/ShortcutKeys.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { WorkspaceNavItem } from '$lib/explorer/types';
-  import { focusRovingItem, openKeyboardShortcutHelp, registerKeyboardCommands } from '$lib/keyboard';
+  import {
+    focusRovingItem,
+    KEYBOARD_HELP_SHORTCUTS,
+    openKeyboardShortcutHelp,
+    registerKeyboardCommands,
+  } from '$lib/keyboard';
+  import { supportsKeyboardShortcuts } from '$lib/platform';
 
   let { children }: { children: Snippet } = $props();
 
@@ -37,6 +44,8 @@
   let routeReloadToken = $state(0);
   let accountTriggerElement = $state<HTMLButtonElement | null>(null);
   let enteredFromConnectToolbar = $state(browser ? consumeConnectToUtilityTransition() : false);
+
+  const showKeyboardShortcutEntry = supportsKeyboardShortcuts();
 
   const activeTaskCount = $derived(downloadStore.activeTasks.length + uploadStore.activeTasks.length);
   const accountDisplayName = $derived(
@@ -425,15 +434,6 @@
             <button data-menu-item role="menuitem" tabindex="-1" disabled={accountActionBusy} onclick={handleDisconnect}>
               <Icon name="connect" size="18px" /><span>{$t('lockdown.disconnect')}</span>
             </button>
-            <button
-              data-menu-item
-              role="menuitem"
-              tabindex="-1"
-              aria-keyshortcuts="Control+/ Meta+/"
-              onclick={() => { closeAccountMenu(); openKeyboardShortcutHelp(); }}
-            >
-              <Icon name="keyboard" size="18px" /><span>{$t('keyboard.openHelp')}</span>
-            </button>
           </div>
         {/if}
       </div>
@@ -489,6 +489,20 @@
         {/if}
       </nav>
 
+      {#if showKeyboardShortcutEntry}
+        <button
+          data-nav-item
+          type="button"
+          tabindex="-1"
+          class="explorer-nav-item explorer-keyboard-shortcuts"
+          aria-keyshortcuts="Control+/ Meta+/"
+          onclick={openKeyboardShortcutHelp}
+        >
+          <Icon name="keyboard" size="19px" /><span>{$t('keyboard.openHelp')}</span>
+          <ShortcutKeys shortcuts={KEYBOARD_HELP_SHORTCUTS} compact />
+        </button>
+      {/if}
+
       <nav class="explorer-navigation-bottom">
         {#each bottomNavigation as item (item.id)}
           <button data-nav-item tabindex={isActive(item) ? 0 : -1} class="explorer-nav-item" class:explorer-nav-item--active={isActive(item)} aria-current={isActive(item) ? 'page' : undefined} aria-keyshortcuts={navigationShortcut(item)} onclick={() => navigate(item.href)}>
@@ -499,7 +513,13 @@
       </nav>
     </aside>
 
-    <main id="workspace-main-content" class="explorer-content" data-keyboard-region="main" tabindex="-1">
+    <main
+      id="workspace-main-content"
+      class="explorer-content"
+      data-keyboard-region="main"
+      data-programmatic-focus="true"
+      tabindex="-1"
+    >
       {#key `${$page.url.pathname}:${routeReloadToken}`}
         <div class="explorer-route-view">
           {@render children()}
@@ -536,14 +556,14 @@
   }
 
   .explorer-mobile-menu { display: none; width: 34px; padding: 0; }
-  .explorer-route-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text); font-size: 0.9rem; font-weight: 600; }
+  .explorer-route-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text); font-family: var(--font-md3-sans); font-size: 0.9rem; font-weight: 600; }
   .explorer-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
   .explorer-public-utility-close { width: 34px; margin-left: auto; padding-inline: 0; }
   .explorer-lockdown-button { width: 34px; padding-inline: 0; }
   .explorer-lockdown-button[data-active="true"] { color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 14%, transparent); }
   .explorer-account-wrap { position: relative; }
   .explorer-account-wrap::after { position: absolute; top: 100%; right: 0; left: 0; height: 0.45rem; content: ''; }
-  .explorer-account-trigger { display: flex; max-width: 230px; align-items: center; gap: 0.55rem; border: 1px solid transparent; border-radius: 999px; padding: 0.3rem 0.5rem; color: var(--explorer-text); text-align: left; transition: background 120ms ease, border-color 120ms ease; }
+  .explorer-account-trigger { display: flex; max-width: 230px; align-items: center; gap: 0.55rem; border: 1px solid transparent; border-radius: 999px; padding: 0.3rem 0.5rem; color: var(--explorer-text); font-family: var(--font-md3-sans); text-align: left; transition: background 120ms ease, border-color 120ms ease; }
   .explorer-account-trigger:hover { border-color: var(--explorer-border); background: var(--explorer-surface-hover); }
   .explorer-account-trigger > strong { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; font-weight: 600; }
   .explorer-connection-dot { width: 8px; height: 8px; flex: none; border-radius: 999px; background: var(--explorer-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--explorer-danger) 15%, transparent); }

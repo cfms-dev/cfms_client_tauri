@@ -123,8 +123,8 @@
 <div class="workspace-page blueprint-home mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
   <section class="blueprint-hero overflow-hidden">
     <div class="relative z-10 grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
-      <div class="min-w-0">
-        <h1 class="text-[clamp(1.75rem,7vw,3.25rem)] font-semibold leading-tight text-md3-on-surface" style="font-family: var(--font-md3-serif);">
+      <div class="blueprint-hero-copy min-w-0">
+        <h1 class="text-[clamp(1.75rem,7vw,3.25rem)] font-semibold leading-tight text-md3-on-surface">
           {$t('home.workspace')}
         </h1>
         <p class="mt-3 max-w-xl text-sm text-md3-on-surface-variant sm:text-base">
@@ -200,9 +200,12 @@
   }
 
   .blueprint-home h1 {
-    font-family: var(--font-md3-sans) !important;
     font-size: clamp(1.45rem, 4vw, 2.2rem);
     letter-spacing: -0.025em;
+  }
+
+  .blueprint-hero-copy {
+    font-family: var(--font-md3-sans);
   }
 
   .blueprint-hero {

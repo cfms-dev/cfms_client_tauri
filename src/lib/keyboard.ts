@@ -12,6 +12,10 @@ export interface ShortcutSpec {
   shift?: boolean;
 }
 
+export const KEYBOARD_HELP_SHORTCUTS = [
+  { key: '/', primary: true },
+] as const satisfies readonly ShortcutSpec[];
+
 export interface KeyboardCommand {
   id: string;
   label: string | (() => string);

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import ShortcutKeys from '$lib/components/ShortcutKeys.svelte';
   import {
     commandGroup,
     commandLabel,
-    formatShortcut,
     keyboardCommands,
     type KeyboardCommand,
   } from '$lib/keyboard';
@@ -49,11 +49,7 @@
           {#each uniqueCommands(globalCommands) as command (command.id)}
             <div class="shortcut-row">
               <span>{commandLabel(command)}</span>
-              <span class="shortcut-keys" aria-label={command.shortcuts.map((item) => formatShortcut(item)).join(', ')}>
-                {#each command.shortcuts as shortcut}
-                  <kbd>{formatShortcut(shortcut)}</kbd>
-                {/each}
-              </span>
+              <ShortcutKeys shortcuts={command.shortcuts} />
             </div>
           {/each}
         </div>
@@ -66,11 +62,7 @@
             {#each uniqueCommands(pageCommands) as command (command.id)}
               <div class="shortcut-row">
                 <span>{commandLabel(command)}</span>
-                <span class="shortcut-keys" aria-label={command.shortcuts.map((item) => formatShortcut(item)).join(', ')}>
-                  {#each command.shortcuts as shortcut}
-                    <kbd>{formatShortcut(shortcut)}</kbd>
-                  {/each}
-                </span>
+                <ShortcutKeys shortcuts={command.shortcuts} />
               </div>
             {/each}
           </div>
@@ -88,6 +80,4 @@
   .shortcut-list { overflow: hidden; border: 1px solid var(--color-md3-outline); border-radius: var(--explorer-radius-medium, 10px); }
   .shortcut-row { display: flex; min-height: 45px; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--color-md3-outline); padding: 0.55rem 0.75rem; color: var(--color-md3-on-surface); font-size: 0.84rem; }
   .shortcut-row:last-child { border-bottom: 0; }
-  .shortcut-keys { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; }
-  kbd { min-width: 2rem; border: 1px solid var(--color-md3-outline-variant); border-radius: 5px; padding: 0.18rem 0.42rem; color: var(--color-md3-on-surface-variant); background: var(--color-md3-surface-container-high); box-shadow: 0 1px 0 color-mix(in srgb, var(--color-md3-on-surface) 18%, transparent); font: 600 0.72rem/1.4 var(--font-md3-mono, monospace); text-align: center; }
 </style>
