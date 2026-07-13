@@ -7,7 +7,7 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 ## v0.31.0
 **Released on:** 2026-07-13
 
-**Title:** Replace hardcoded root path with ROOT_DIRECTORY_ID constant a...
+**Title:** Context Menu for Empty Spaces in File Explorer
 
 ### Added
 - Replace hardcoded root path with ROOT_DIRECTORY_ID constant across components
