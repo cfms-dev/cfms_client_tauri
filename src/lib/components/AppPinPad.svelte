@@ -102,6 +102,7 @@
     max-inline-size: var(--app-pin-pad-width, 390px);
     flex-direction: column;
     align-items: center;
+    font-family: var(--font-md3-serif);
   }
 
   .app-pin-pad[data-tone='surface'] {

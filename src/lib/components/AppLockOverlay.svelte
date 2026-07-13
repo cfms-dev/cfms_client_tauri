@@ -359,6 +359,7 @@
     padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
     padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
+    font-family: var(--font-md3-serif);
     background:
       linear-gradient(145deg, rgba(14, 19, 50, 0.98), rgba(43, 16, 55, 0.98) 58%, rgba(30, 20, 39, 0.98)),
       radial-gradient(circle at 18% 14%, rgba(103, 80, 164, 0.28), transparent 34%);
