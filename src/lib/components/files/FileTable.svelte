@@ -325,10 +325,6 @@
     overflow-y: auto;
   }
 
-  .file-table-list-space {
-    min-height: 12rem;
-  }
-
   .file-table-row-space.is-virtualized {
     position: relative;
   }

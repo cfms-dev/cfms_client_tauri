@@ -610,6 +610,11 @@
     contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'current-directory', item: null };
   }
 
+  function showFilesPageBlankContextMenu(e: MouseEvent) {
+    if (e.target !== e.currentTarget) return;
+    showCurrentDirectoryContextMenu(e);
+  }
+
   function currentDirectoryName() {
     return navHistory[navHistory.length - 1]?.label
       ?? navigationRootLabel
@@ -2304,6 +2309,7 @@
   onMount(() => {
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
+    let disposed = false;
     const handleOutsidePointerDown = (event: PointerEvent) => {
       if (!searchPreview.open || !searchPreviewRoot || !(event.target instanceof Node)) return;
       if (!searchPreviewRoot.contains(event.target)) {
@@ -2319,6 +2325,7 @@
     window.addEventListener('scroll', handleSearchPreviewViewportChange, true);
     window.addEventListener('keydown', handleFindShortcut, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
+      if (disposed) return;
       uploadProgress = {
         documentId: event.payload.document_id,
         taskId: event.payload.task_id,
@@ -2327,9 +2334,14 @@
         progress: event.payload.progress,
       };
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unlisten = fn;
     });
     getCurrentWebview().onDragDropEvent((event) => {
+      if (disposed) return;
       if (event.payload.type === 'enter' || event.payload.type === 'over') {
         handleNativeDragEnter();
       } else if (event.payload.type === 'drop') {
@@ -2340,9 +2352,14 @@
         handleNativeDragLeave();
       }
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       nativeDragDropAvailable = true;
       unlistenDragDrop = fn;
     }).catch(() => {
+      if (disposed) return;
       nativeDragDropAvailable = false;
       /* HTML5 drag/drop remains as a best-effort fallback. */
     });
@@ -2355,6 +2372,8 @@
     loadDirectory(initialFolder);
     reloadUserPreference();
     return () => {
+      disposed = true;
+      nativeDragDropAvailable = false;
       document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
       window.removeEventListener('resize', handleSearchPreviewViewportChange);
       window.removeEventListener('scroll', handleSearchPreviewViewportChange, true);
@@ -2363,7 +2382,6 @@
       clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
-      nativeDragDropAvailable = false;
     };
   });
 
@@ -2373,6 +2391,7 @@
   class="files-page relative p-6 space-y-4"
   role="region"
   aria-label={$t('files.title')}
+  oncontextmenu={showFilesPageBlankContextMenu}
   ondragenter={handleHtmlDragEnter}
   ondragover={handleHtmlDragOver}
   ondragleave={handleHtmlDragLeave}
@@ -2699,6 +2718,10 @@
 </div>
 
 <style>
+  .files-page {
+    min-height: calc(100dvh - 2.5rem);
+  }
+
   .drop-upload-overlay {
     animation: drop-upload-in 180ms var(--motion-easing-emphasized-decelerate) both;
   }
