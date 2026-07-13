@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.32.0</string>
+	<string>0.32.1</string>
 	<key>CFBundleVersion</key>
-	<string>32000</string>
+	<string>32001</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock CFMS Client when biometric app lock is enabled.</string>
 	<key>LSRequiresIPhoneOS</key>

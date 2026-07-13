@@ -4,6 +4,29 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.32.1
+**Released on:** 2026-07-13
+
+**Title:** Bugfix
+
+### Added
+- Adjust the style of the connect button and add a vibrant transform animation
+- Implement MdOutlinedField component for consistent input styling
+
+### Fixed
+- Unify PIN screen typography
+- Restore full-screen PIN setup
+- Scope screenshot protection per user
+- Improve authentication fields and guarded actions
+- Respect system chrome and table width
+- Add tone prop to ProgressRing and update usage in login page
+
+### Improved
+- Implement progressive directory loading and sorting
+- Improve navigation drawer touch targets
+
+--- 
+
 ## v0.32.0
 **Released on:** 2026-07-13
 
