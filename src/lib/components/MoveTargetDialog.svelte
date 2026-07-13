@@ -15,6 +15,7 @@
     type DirectoryBreadcrumbSegment,
   } from '$lib/file-browser';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -292,17 +293,11 @@
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline/60 p-4">
-      <button
-        type="button"
-        class="rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={moving}
-        onclick={onCancel}
-      >
+      <DialogActionButton disabled={moving} onclick={onCancel}>
         {$t('common.cancel')}
-      </button>
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+      </DialogActionButton>
+      <DialogActionButton
+        variant="primary"
         disabled={!canMoveHere}
         onclick={handleMoveHere}
       >
@@ -312,7 +307,7 @@
           <Icon name="driveFileMove" size="16px" />
         {/if}
         {$t('files.moveHere')}
-      </button>
+      </DialogActionButton>
     </div>
   </div>
 </ModalFrame>

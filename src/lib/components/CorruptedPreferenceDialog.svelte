@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
 
@@ -113,9 +114,7 @@
               <p class="text-xs leading-5 text-md3-error">{recoveryError}</p>
             {/if}
             <div class="flex justify-end gap-2">
-              <button
-                type="button"
-                class="rounded-full px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
+              <DialogActionButton
                 onclick={() => {
                   showRecovery = false;
                   recoveryError = null;
@@ -124,17 +123,17 @@
                 disabled={recoveryBusy}
               >
                 {$t('common.cancel')}
-              </button>
-              <button
+              </DialogActionButton>
+              <DialogActionButton
                 type="submit"
-                class="flex items-center gap-2 rounded-full bg-md3-tertiary px-4 py-2 text-sm font-medium text-md3-on-tertiary transition-all hover:brightness-110 disabled:opacity-60"
+                variant="tonal"
                 disabled={recoveryBusy}
               >
                 <Icon name="lockOpen" size="16px" />
                 {recoveryBusy
                   ? $t('dialog.corruptedPreference.recovering')
                   : $t('dialog.corruptedPreference.recoverSubmit')}
-              </button>
+              </DialogActionButton>
             </div>
           </form>
         {:else}
@@ -158,23 +157,17 @@
     </p>
 
     <div class="flex justify-end gap-2">
-      <button
-        type="button"
-        class="rounded-full px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
-        onclick={onCancel}
-        disabled={recoveryBusy}
-      >
+      <DialogActionButton onclick={onCancel} disabled={recoveryBusy}>
         {$t('dialog.corruptedPreference.cancel')}
-      </button>
-      <button
-        type="button"
-        class="flex items-center gap-2 rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110"
+      </DialogActionButton>
+      <DialogActionButton
+        variant="primary"
         onclick={onDelete}
         disabled={recoveryBusy}
       >
         <Icon name="delete" size="16px" />
         {$t('dialog.corruptedPreference.delete')}
-      </button>
+      </DialogActionButton>
     </div>
   </div>
 </ModalFrame>

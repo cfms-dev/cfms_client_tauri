@@ -8,6 +8,7 @@
   } from '$lib/app-lock.svelte';
   import { authStore, notificationStore, serverStateStore } from '$lib/stores.svelte';
   import AppPinPad from '$lib/components/AppPinPad.svelte';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
@@ -529,14 +530,9 @@
       />
 
       <div class="mt-5 flex w-full justify-end border-t border-md3-outline pt-4">
-        <button
-          type="button"
-          class="pin-setup-cancel"
-          onclick={() => closePinSetup()}
-          disabled={busy === 'pin'}
-        >
+        <DialogActionButton onclick={() => closePinSetup()} disabled={busy === 'pin'}>
           {$t('common.cancel')}
-        </button>
+        </DialogActionButton>
       </div>
     </div>
   </ModalFrame>
@@ -583,31 +579,4 @@
     color: var(--color-md3-error);
   }
 
-  .pin-setup-cancel {
-    display: inline-flex;
-    min-block-size: 42px;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: var(--explorer-radius-small, 6px);
-    background: var(--color-md3-surface-container-high);
-    color: var(--color-md3-on-surface-variant);
-    padding: 0.5rem 0.9rem;
-    font-size: 0.875rem;
-    font-weight: 650;
-    transition:
-      background-color 160ms var(--motion-easing-standard),
-      opacity 160ms var(--motion-easing-standard);
-  }
-
-  .pin-setup-cancel:hover:not(:disabled) {
-    color: var(--color-md3-on-surface);
-    background: var(--color-md3-surface-container-highest);
-  }
-
-  .pin-setup-cancel:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
 </style>

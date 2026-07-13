@@ -47,6 +47,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import DialogActionButton from "$lib/components/DialogActionButton.svelte";
   import ModalFrame from "$lib/components/ModalFrame.svelte";
   import CorruptedPreferenceDialog from "$lib/components/CorruptedPreferenceDialog.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
@@ -850,13 +851,12 @@
       </div>
 
       <div class="flex justify-end">
-        <button
-          type="button"
-          class="rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110"
+        <DialogActionButton
+          variant="primary"
           onclick={() => (showForgotPasswordDialog = false)}
         >
           {$t('dialog.forgotPassword.confirm')}
-        </button>
+        </DialogActionButton>
       </div>
     </div>
   </ModalFrame>

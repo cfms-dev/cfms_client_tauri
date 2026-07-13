@@ -10,6 +10,7 @@
   // and PasswdDialogController in controllers/dialogs/passwd.py.
 
   import { untrack } from 'svelte';
+  import DialogActionButton from './DialogActionButton.svelte';
   import Icon from './Icon.svelte';
   import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
@@ -292,25 +293,12 @@
 
       <!-- Actions -->
       <div class="flex items-center justify-end gap-3 pt-2 pb-4">
-        <button
-          type="button"
-          class="py-2 px-5 rounded-full font-medium text-sm
-                 border border-md3-outline text-md3-on-surface-variant
-                 hover:bg-md3-surface-container-high
-                 disabled:opacity-50 transition-all"
-          style="font-family: var(--font-md3-sans);"
-          onclick={handleCancel}
-          disabled={busy}
-        >
+        <DialogActionButton onclick={handleCancel} disabled={busy}>
           {$t('common.cancel')}
-        </button>
-        <button
+        </DialogActionButton>
+        <DialogActionButton
           type="submit"
-          class="py-2 px-5 rounded-full font-medium text-sm
-                 bg-md3-primary text-md3-on-primary
-                 hover:brightness-110
-                 disabled:opacity-50 transition-all flex items-center gap-2"
-          style="font-family: var(--font-md3-sans);"
+          variant="primary"
           disabled={busy || !oldPassword || !newPassword}
         >
           {#if busy}
@@ -320,7 +308,7 @@
             <Icon name="done" size="16px" />
             {$t('dialog.changePassword.title')}
           {/if}
-        </button>
+        </DialogActionButton>
       </div>
     </form>
 </ModalFrame>

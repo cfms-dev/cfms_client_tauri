@@ -1,5 +1,6 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
@@ -225,17 +226,12 @@
     {/if}
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline/60 pt-4">
-      <button
-        type="button"
-        class="rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={busy}
-        onclick={onClose}
-      >
+      <DialogActionButton disabled={busy} onclick={onClose}>
         {$t('common.cancel')}
-      </button>
-      <button
+      </DialogActionButton>
+      <DialogActionButton
         type="submit"
-        class="inline-flex items-center gap-2 rounded-full bg-md3-error-action px-4 py-2 text-sm font-medium text-md3-on-error-action transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        variant="danger"
         disabled={busy}
       >
         {#if busy}
@@ -245,7 +241,7 @@
           <Icon name="block" size="16px" />
           {$t('manage.blockUser')}
         {/if}
-      </button>
+      </DialogActionButton>
     </div>
   </form>
 </ModalFrame>

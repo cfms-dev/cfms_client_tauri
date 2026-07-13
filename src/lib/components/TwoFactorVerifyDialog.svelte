@@ -7,6 +7,7 @@
   // Reference: reference/src/include/ui/controls/dialogs/twofa_verify.py
 
   import { onDestroy } from 'svelte';
+  import DialogActionButton from './DialogActionButton.svelte';
   import Icon from './Icon.svelte';
   import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
@@ -282,31 +283,19 @@
       </div>
 
       <div class="mt-7 flex flex-col gap-3 border-t border-md3-outline pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-md3-primary-emphasis transition-colors hover:bg-md3-primary-container disabled:opacity-50"
-          style="font-family: var(--font-md3-sans);"
-          onclick={handleToggle}
-          disabled={busy}
-        >
+        <DialogActionButton onclick={handleToggle} disabled={busy}>
           <Icon name={useRecoveryCode ? 'pin' : 'password'} size="18px" />
           {toggleLabel}
-        </button>
+        </DialogActionButton>
 
         <div class="flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded-md border border-md3-outline bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-highest hover:text-md3-on-surface disabled:opacity-50"
-            style="font-family: var(--font-md3-sans);"
-            onclick={handleCancel}
-            disabled={busy}
-          >
+          <DialogActionButton onclick={handleCancel} disabled={busy}>
             {$t('common.cancel')}
-          </button>
-          <button
+          </DialogActionButton>
+          <DialogActionButton
             type="submit"
-            class="inline-flex min-w-28 items-center justify-center gap-2 rounded-md bg-md3-primary px-4 py-2 text-sm font-semibold text-md3-on-primary transition-all hover:brightness-110 disabled:opacity-50"
-            style="font-family: var(--font-md3-sans);"
+            variant="primary"
+            class="min-w-24"
             disabled={busy || !code.trim()}
           >
             {#if busy}
@@ -316,7 +305,7 @@
               <Icon name="check" size="18px" />
               {$t('dialog.twoFactor.verify')}
             {/if}
-          </button>
+          </DialogActionButton>
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@
     type AccessGrantFormValue,
   } from '$lib/access-grants';
   import { ACCESS_OPERATIONS } from '$lib/access-rules';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
@@ -392,17 +393,11 @@
   </div>
 
   <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline px-5 py-4">
-    <button
-      type="button"
-      class="cancel-button"
-      onclick={onCancel}
-      disabled={saving}
-    >
+    <DialogActionButton onclick={onCancel} disabled={saving}>
       {$t('common.cancel')}
-    </button>
-    <button
-      type="button"
-      class="filled-button"
+    </DialogActionButton>
+    <DialogActionButton
+      variant="primary"
       onclick={submitGrant}
       disabled={saving}
     >
@@ -413,15 +408,14 @@
         <Icon name="lockPerson" size="17px" />
         {$t('files.grantAccessAction')}
       {/if}
-    </button>
+    </DialogActionButton>
   </div>
 </div>
 
 <style>
   .choice-button,
   .access-button,
-  .filled-button,
-  .cancel-button {
+  .filled-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -460,16 +454,6 @@
     border-radius: 9999px;
     background: var(--color-md3-primary);
     color: var(--color-md3-on-primary);
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .cancel-button {
-    min-height: 2.35rem;
-    border-radius: 9999px;
-    background: var(--color-md3-surface-container-high);
-    color: var(--color-md3-on-surface-variant);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 500;
@@ -538,7 +522,6 @@
   .choice-button:disabled,
   .access-button:disabled,
   .filled-button:disabled,
-  .cancel-button:disabled,
   .field:disabled,
   .date-field input:disabled {
     cursor: not-allowed;

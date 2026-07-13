@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -252,17 +253,11 @@
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline/60 p-4">
-      <button
-        type="button"
-        class="rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={saving}
-        onclick={onClose}
-      >
+      <DialogActionButton disabled={saving} onclick={onClose}>
         {$t('common.cancel')}
-      </button>
-      <button
-        type="button"
-        class="inline-flex items-center gap-2 rounded-full bg-md3-primary px-4 py-2 text-sm font-medium text-md3-on-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+      </DialogActionButton>
+      <DialogActionButton
+        variant="primary"
         disabled={loading || saving || Boolean(error)}
         onclick={save}
       >
@@ -273,7 +268,7 @@
           <Icon name="done" size="16px" />
           {saveLabel || $t('common.save')}
         {/if}
-      </button>
+      </DialogActionButton>
     </div>
   </div>
 </ModalFrame>

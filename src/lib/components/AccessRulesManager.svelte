@@ -18,6 +18,7 @@
     type ConditionType,
     type MatchMode,
   } from '$lib/access-rules';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
@@ -513,17 +514,11 @@
   {/if}
 
   <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline px-5 py-4">
-    <button
-      type="button"
-      class="rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface-variant transition-all hover:brightness-110 disabled:opacity-50"
-      onclick={onCancel}
-      disabled={saving}
-    >
+    <DialogActionButton onclick={onCancel} disabled={saving}>
       {$t('common.cancel')}
-    </button>
-    <button
-      type="button"
-      class="filled-button"
+    </DialogActionButton>
+    <DialogActionButton
+      variant="primary"
       onclick={submitRules}
       disabled={saving}
     >
@@ -534,7 +529,7 @@
         <Icon name="done" size="17px" />
         {$t('common.save')}
       {/if}
-    </button>
+    </DialogActionButton>
   </div>
 </div>
 

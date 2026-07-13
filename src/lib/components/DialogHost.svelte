@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import Icon from '$lib/components/Icon.svelte';
+  import DialogActionButton from '$lib/components/DialogActionButton.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import { dialogStore } from '$lib/dialogs.svelte';
 
@@ -152,27 +153,16 @@
           </label>
         {/if}
         <div class={dialogStore.current.kind === 'choice' ? 'ml-auto flex justify-end gap-2' : 'flex justify-end gap-2'}>
-          <button
-            type="button"
-            class={`rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${dialogStore.current.kind === 'choice'
-              ? 'text-md3-primary hover:bg-md3-primary/10'
-              : 'border border-md3-outline bg-md3-surface-container-high text-md3-on-surface-variant hover:bg-md3-surface-container-highest hover:text-md3-on-surface'
-            }`}
-            onclick={close}
-          >
+          <DialogActionButton onclick={close}>
             {dialogStore.current.cancelLabel}
-          </button>
+          </DialogActionButton>
           {#if dialogStore.current.kind !== 'choice'}
-            <button
+            <DialogActionButton
               type="submit"
-              class={`rounded-md px-4 py-2 text-sm font-medium transition-all hover:brightness-110 ${
-                dialogStore.current.danger
-                  ? 'bg-md3-error-action text-md3-on-error-action'
-                  : 'bg-md3-primary text-md3-on-primary'
-              }`}
+              variant={dialogStore.current.danger ? 'danger' : 'primary'}
             >
               {dialogStore.current.confirmLabel}
-            </button>
+            </DialogActionButton>
           {/if}
         </div>
       </div>
