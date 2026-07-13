@@ -5,6 +5,7 @@ import { loadUserPreference, saveUserPreference, setAndroidContentProtected } fr
 import type { UserPreference } from '$lib/api';
 
 const DEFAULT_SCREENSHOT_PROTECTION = true;
+const PRIVACY_PREFERENCE_VERSION = 1;
 
 class ScreenProtectionStoreImpl {
   userEnabled = $state(DEFAULT_SCREENSHOT_PROTECTION);
@@ -14,36 +15,55 @@ class ScreenProtectionStoreImpl {
   private scopeKey: string | null = null;
   private applied: boolean | null = null;
   private operationId = 0;
+  private initializationId = 0;
 
   async init(scopeKey: string) {
     if (this.initialized && this.scopeKey === scopeKey) return;
 
+    const initializationId = ++this.initializationId;
     this.scopeKey = scopeKey;
     this.initialized = false;
     this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
 
     try {
       const preferences = await loadUserPreference();
+      if (initializationId !== this.initializationId || this.scopeKey !== scopeKey) return;
       this.userEnabled = normalizePreference(preferences);
     } catch {
+      if (initializationId !== this.initializationId || this.scopeKey !== scopeKey) return;
       this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
     } finally {
-      this.initialized = true;
+      if (initializationId === this.initializationId && this.scopeKey === scopeKey) {
+        this.initialized = true;
+      }
     }
   }
 
   async setUserEnabled(enabled: boolean) {
+    const scopeKey = this.scopeKey;
+    if (!scopeKey || !this.initialized) {
+      throw new Error('Screenshot protection preferences are not initialized for this user.');
+    }
+
     const preferences = await loadUserPreference();
+    if (this.scopeKey !== scopeKey) {
+      throw new Error('The active user changed while loading screenshot protection preferences.');
+    }
     const next: UserPreference = {
       ...preferences,
-      screenshot_protection_enabled: enabled,
+      privacy: {
+        version: PRIVACY_PREFERENCE_VERSION,
+        screenshot_protection_enabled: enabled,
+      },
     };
     await saveUserPreference(next);
+    if (this.scopeKey !== scopeKey) return;
     this.userEnabled = enabled;
     this.initialized = true;
   }
 
   resetForSignedOut() {
+    this.initializationId += 1;
     this.scopeKey = null;
     this.initialized = false;
     this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
@@ -70,7 +90,14 @@ class ScreenProtectionStoreImpl {
 export const screenProtectionStore = new ScreenProtectionStoreImpl();
 
 function normalizePreference(preferences: UserPreference) {
-  return preferences.screenshot_protection_enabled !== false;
+  const privacy = preferences.privacy;
+  if (
+    privacy?.version !== PRIVACY_PREFERENCE_VERSION
+    || typeof privacy.screenshot_protection_enabled !== 'boolean'
+  ) {
+    return DEFAULT_SCREENSHOT_PROTECTION;
+  }
+  return privacy.screenshot_protection_enabled;
 }
 
 function isNativeProtectionAvailable() {

@@ -486,8 +486,13 @@ export interface UserPreference {
   external_storage_path: string;
   app_lock?: unknown;
   root_back_button_behavior?: "background" | "exit" | null;
-  screenshot_protection_enabled?: boolean;
+  privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;
+}
+
+export interface PrivacyPreference {
+  version: 1;
+  screenshot_protection_enabled: boolean;
 }
 
 export interface TaskConcurrencyPreference {

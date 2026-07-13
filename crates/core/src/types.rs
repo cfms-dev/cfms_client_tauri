@@ -417,10 +417,10 @@ pub struct UserPreference {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_back_button_behavior: Option<String>,
 
-    /// Whether the native window should block screenshots and screen recording
-    /// during an authenticated session. Forced sensitive flows ignore this.
-    #[serde(default = "default_screenshot_protection_enabled")]
-    pub screenshot_protection_enabled: bool,
+    /// Versioned per-user privacy settings. Incompatible shapes and versions
+    /// are treated as a fresh installation instead of being migrated.
+    #[serde(default, deserialize_with = "deserialize_privacy_preference")]
+    pub privacy: PrivacyPreference,
 
     /// Per-user task scheduling limits for upload/download queues.
     #[serde(default)]
@@ -438,7 +438,7 @@ impl Default for UserPreference {
             external_storage_path: String::new(),
             app_lock: serde_json::Value::Null,
             root_back_button_behavior: None,
-            screenshot_protection_enabled: default_screenshot_protection_enabled(),
+            privacy: PrivacyPreference::default(),
             task_concurrency: TaskConcurrencyPreference::default(),
         }
     }
@@ -452,8 +452,48 @@ fn default_record_recent_visits() -> bool {
     false
 }
 
-fn default_screenshot_protection_enabled() -> bool {
-    true
+pub const PRIVACY_PREFERENCE_VERSION: u8 = 1;
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PrivacyPreference {
+    pub version: u8,
+    /// Whether the native window should block screenshots and screen recording
+    /// during an authenticated session. Forced sensitive flows ignore this.
+    pub screenshot_protection_enabled: bool,
+}
+
+impl Default for PrivacyPreference {
+    fn default() -> Self {
+        Self {
+            version: PRIVACY_PREFERENCE_VERSION,
+            screenshot_protection_enabled: true,
+        }
+    }
+}
+
+fn deserialize_privacy_preference<'de, D>(deserializer: D) -> Result<PrivacyPreference, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct PersistedPrivacyPreference {
+        version: u8,
+        screenshot_protection_enabled: bool,
+    }
+
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let Ok(persisted) = serde_json::from_value::<PersistedPrivacyPreference>(value) else {
+        return Ok(PrivacyPreference::default());
+    };
+
+    if persisted.version != PRIVACY_PREFERENCE_VERSION {
+        return Ok(PrivacyPreference::default());
+    }
+
+    Ok(PrivacyPreference {
+        version: PRIVACY_PREFERENCE_VERSION,
+        screenshot_protection_enabled: persisted.screenshot_protection_enabled,
+    })
 }
 
 pub const MIN_TASK_CONCURRENCY: u8 = 1;

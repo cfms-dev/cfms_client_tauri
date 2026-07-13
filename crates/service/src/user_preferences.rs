@@ -138,7 +138,7 @@ mod tests {
         assert_eq!(preferences.theme, "light");
         assert!(preferences.favourites.files.is_empty());
         assert!(preferences.favourites.directories.is_empty());
-        assert!(preferences.screenshot_protection_enabled);
+        assert!(preferences.privacy.screenshot_protection_enabled);
     }
 
     #[test]
@@ -166,6 +166,54 @@ mod tests {
         assert_eq!(
             loaded.favourites.files.get("doc-1").map(String::as_str),
             Some("Report.pdf")
+        );
+    }
+
+    #[test]
+    fn legacy_screenshot_setting_is_ignored() {
+        let preferences: UserPreference = serde_json::from_value(serde_json::json!({
+            "screenshot_protection_enabled": false
+        }))
+        .unwrap();
+
+        assert!(preferences.privacy.screenshot_protection_enabled);
+    }
+
+    #[test]
+    fn incompatible_privacy_setting_uses_fresh_defaults() {
+        for privacy in [
+            serde_json::json!(false),
+            serde_json::json!({ "version": 2, "screenshot_protection_enabled": false }),
+            serde_json::json!({ "version": 1, "screenshot_protection_enabled": "false" }),
+        ] {
+            let preferences: UserPreference = serde_json::from_value(serde_json::json!({
+                "privacy": privacy
+            }))
+            .unwrap();
+
+            assert!(preferences.privacy.screenshot_protection_enabled);
+        }
+    }
+
+    #[test]
+    fn current_privacy_setting_roundtrips() {
+        let preferences: UserPreference = serde_json::from_value(serde_json::json!({
+            "privacy": {
+                "version": cfms_core::PRIVACY_PREFERENCE_VERSION,
+                "screenshot_protection_enabled": false
+            }
+        }))
+        .unwrap();
+
+        assert!(!preferences.privacy.screenshot_protection_enabled);
+        let serialized = serde_json::to_value(preferences).unwrap();
+        assert_eq!(
+            serialized["privacy"]["version"],
+            cfms_core::PRIVACY_PREFERENCE_VERSION
+        );
+        assert_eq!(
+            serialized["privacy"]["screenshot_protection_enabled"],
+            false
         );
     }
 

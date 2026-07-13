@@ -19,9 +19,9 @@ pub use error::{Error, Result};
 pub use types::{
     CursorPage, DEFAULT_TASK_CONCURRENCY, DownloadPhase, DownloadProgress, DownloadTaskDto,
     DownloadTaskStatus, Favourites, FileEntry, FileMetadata, ListDirectoryResponse,
-    MAX_TASK_CONCURRENCY, MIN_TASK_CONCURRENCY, Response, ServerDirectoryEntry,
-    ServerDocumentEntry, ServerInfo, ServerListingItem, ServiceEvent, ServiceStatusInfo,
-    TaskConcurrencyPreference, UploadProgress, UserPreference,
+    MAX_TASK_CONCURRENCY, MIN_TASK_CONCURRENCY, PRIVACY_PREFERENCE_VERSION, PrivacyPreference,
+    Response, ServerDirectoryEntry, ServerDocumentEntry, ServerInfo, ServerListingItem,
+    ServiceEvent, ServiceStatusInfo, TaskConcurrencyPreference, UploadProgress, UserPreference,
 };
 
 // ---------------------------------------------------------------------------
