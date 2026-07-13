@@ -68,7 +68,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         with:
-          version: latest
+          version: 11.11.0
 
       - name: Ensure changelog entry
         run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
@@ -233,7 +233,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         with:
-          version: latest
+          version: 11.11.0
 
       - name: Ensure changelog entry
         run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
@@ -310,7 +310,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: latest
+          version: 11.11.0
 
       - name: Ensure changelog entry
         run: pnpm app:changelog -- --version "${{ needs.version.outputs.version }}" --write
@@ -386,7 +386,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         with:
-          version: latest
+          version: 11.11.0
 
       - name: Prepare release notes
         run: |
