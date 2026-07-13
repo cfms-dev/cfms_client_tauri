@@ -60,6 +60,13 @@
   const canShowRecentAddresses = $derived(
     rememberConnectionAddresses && recentConnectionAddresses.length > 0,
   );
+  const hasValidServerAddress = $derived(isServerAddressValid(hostPort));
+
+  function isServerAddressValid(address: string): boolean {
+    const normalizedAddress = address.trim();
+    return normalizedAddress.length > 0
+      && (normalizedAddress.includes(":") || normalizedAddress.includes("."));
+  }
 
   // On mount: close any stale connection.
   onMount(async () => {
@@ -109,7 +116,7 @@
       serverAddressError = $t('connect.serverAddressRequired');
       return false;
     }
-    if (!hostPort.includes(":") && !hostPort.includes(".")) {
+    if (!isServerAddressValid(hostPort)) {
       serverAddressError = $t('connect.serverAddressInvalid');
       return false;
     }
@@ -434,19 +441,26 @@
         </div>
       {/if}
 
-      <!-- Compact primary action, matching the workspace command language. -->
+      <!-- Circular primary action inspired by the classic mobile QQ login control. -->
       <div class="connect-submit-row">
         <button
           type="submit"
           class="connect-submit-button"
-          disabled={busy}
+          class:connect-submit-button--active={hasValidServerAddress}
+          class:connect-submit-button--busy={busy}
+          disabled={busy || !hasValidServerAddress}
+          aria-label={busy ? $t('common.connecting') : $t('connect.connect')}
+          aria-busy={busy}
+          title={busy ? $t('common.connecting') : $t('connect.connect')}
         >
           {#if busy}
-            <ProgressRing size={17} strokeWidth={2.5} label={$t('common.connecting')} />
-            {$t('common.connecting')}
+            <span class="connect-submit-content">
+              <ProgressRing tone="inherit" size={26} strokeWidth={2.75} label={$t('common.connecting')} />
+            </span>
           {:else}
-            <Icon name="connect" size="18px" />
-            {$t('connect.connect')}
+            <span class="connect-submit-content connect-submit-arrow">
+              <Icon name="arrowBack" size="24px" />
+            </span>
           {/if}
         </button>
       </div>
@@ -505,51 +519,189 @@
 
   .connect-submit-row {
     display: flex;
-    justify-content: flex-end;
-    padding-top: 0.125rem;
+    justify-content: center;
+    padding-block: 0.875rem 0.25rem;
   }
 
   .connect-submit-button {
+    --connect-button-blue: color-mix(in srgb, var(--color-md3-primary) 62%, #2f80ed);
+    --connect-button-blue-deep: color-mix(in srgb, var(--color-md3-primary) 48%, #2872d8);
+    --connect-button-aqua: color-mix(in srgb, var(--color-md3-primary) 52%, #38cfc5);
+
+    position: relative;
+    isolation: isolate;
     display: inline-flex;
-    min-height: 40px;
-    min-width: 116px;
+    inline-size: 60px;
+    block-size: 60px;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
-    border: 1px solid transparent;
-    border-radius: var(--explorer-radius-medium);
-    padding: 0.5rem 1.125rem;
-    color: var(--explorer-accent);
-    background: transparent;
-    font-family: var(--font-md3-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
-    line-height: 1;
+    overflow: hidden;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    color: color-mix(in srgb, var(--explorer-text-muted) 74%, transparent);
+    background: color-mix(in srgb, var(--explorer-surface-raised) 90%, white 10%);
+    box-shadow: 0 4px 12px color-mix(in srgb, black 12%, transparent);
     transition:
-      background-color 120ms ease,
-      border-color 120ms ease,
-      color 120ms ease,
-      box-shadow 120ms ease,
-      transform 120ms ease;
+      background-color 220ms var(--motion-easing-standard),
+      color 180ms var(--motion-easing-standard),
+      box-shadow 260ms var(--motion-easing-standard),
+      transform 180ms var(--motion-easing-emphasized-decelerate);
   }
 
-  .connect-submit-button:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--explorer-accent) 52%, var(--explorer-border));
-    background: color-mix(in srgb, var(--explorer-accent) 18%, var(--explorer-surface-raised));
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
-      0 4px 12px color-mix(in srgb, var(--explorer-accent) 10%, transparent);
-    transform: translateY(-1px);
+  .connect-submit-button::before {
+    position: absolute;
+    z-index: 0;
+    inset: -32%;
+    border-radius: 50%;
+    background:
+      radial-gradient(
+        ellipse at 27% 34%,
+        color-mix(in srgb, var(--connect-button-aqua) 76%, var(--connect-button-blue)) 0 14%,
+        transparent 42%
+      ),
+      radial-gradient(
+        ellipse at 73% 68%,
+        color-mix(in srgb, var(--connect-button-blue-deep) 78%, var(--connect-button-blue)) 0 18%,
+        transparent 46%
+      ),
+      conic-gradient(
+        from 24deg at 48% 52%,
+        var(--connect-button-blue-deep),
+        var(--connect-button-blue) 24%,
+        color-mix(in srgb, var(--connect-button-aqua) 68%, var(--connect-button-blue)) 42%,
+        var(--connect-button-blue) 61%,
+        var(--connect-button-blue-deep) 82%,
+        var(--connect-button-blue-deep)
+      );
+    content: '';
+    filter: blur(5px) saturate(1.08);
+    opacity: 0;
+    transform: translate3d(-2%, 1%, 0) rotate(0deg) scale(1.04, 0.98);
+    transition: opacity 320ms var(--motion-easing-standard);
+    will-change: transform;
+  }
+
+  .connect-submit-button::after {
+    position: absolute;
+    z-index: 0;
+    inset: -22%;
+    border-radius: 43% 57% 61% 39% / 55% 42% 58% 45%;
+    background:
+      radial-gradient(
+        ellipse at 34% 31%,
+        color-mix(in srgb, white 18%, var(--connect-button-aqua)) 0 12%,
+        transparent 38%
+      ),
+      radial-gradient(
+        ellipse at 68% 72%,
+        color-mix(in srgb, var(--connect-button-blue-deep) 62%, transparent) 0 16%,
+        transparent 44%
+      );
+    content: '';
+    filter: blur(6px);
+    mix-blend-mode: soft-light;
+    opacity: 0;
+    transform: translate3d(2%, -2%, 0) rotate(0deg) scale(1.02);
+    transition: opacity 420ms var(--motion-easing-standard);
+    will-change: transform, border-radius;
+  }
+
+  .connect-submit-button--active {
+    color: white;
+    background: var(--connect-button-blue);
+    box-shadow: 0 9px 22px color-mix(in srgb, var(--connect-button-blue-deep) 22%, transparent);
+  }
+
+  .connect-submit-button--active::before {
+    opacity: 0.94;
+    animation: connect-button-fluid-base 8.6s ease-in-out infinite;
+  }
+
+  .connect-submit-button--active::after {
+    opacity: 0.72;
+    animation: connect-button-fluid-highlight 6.3s ease-in-out infinite;
+  }
+
+  .connect-submit-content {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    color: inherit;
+  }
+
+  .connect-submit-arrow {
+    transform: rotate(180deg);
+    transition: transform 220ms var(--motion-easing-emphasized-decelerate);
+  }
+
+  .connect-submit-button--active:hover:not(:disabled) {
+    box-shadow: 0 12px 26px color-mix(in srgb, var(--connect-button-blue-deep) 28%, transparent);
+    transform: translateY(-1px) scale(1.018);
+  }
+
+  .connect-submit-button--active:hover:not(:disabled) .connect-submit-arrow {
+    transform: translateX(2px) rotate(180deg);
   }
 
   .connect-submit-button:active:not(:disabled) {
-    box-shadow: none;
-    transform: scale(0.98);
+    transform: scale(0.94);
   }
 
   .connect-submit-button:disabled {
     cursor: not-allowed;
-    opacity: 0.48;
+  }
+
+  .connect-submit-button:disabled:not(.connect-submit-button--active) {
+    opacity: 0.68;
+  }
+
+  .connect-submit-button--busy {
+    cursor: progress;
+  }
+
+  @keyframes connect-button-fluid-base {
+    0% {
+      transform: translate3d(-2%, 1%, 0) rotate(0deg) scale(1.04, 0.98);
+    }
+
+    23% {
+      transform: translate3d(3%, -3%, 0) rotate(78deg) scale(1.12, 1.02);
+    }
+
+    49% {
+      transform: translate3d(2%, 3%, 0) rotate(176deg) scale(1.01, 1.11);
+    }
+
+    74% {
+      transform: translate3d(-3%, 2%, 0) rotate(269deg) scale(1.09, 1);
+    }
+
+    100% {
+      transform: translate3d(-2%, 1%, 0) rotate(360deg) scale(1.04, 0.98);
+    }
+  }
+
+  @keyframes connect-button-fluid-highlight {
+    0% {
+      border-radius: 43% 57% 61% 39% / 55% 42% 58% 45%;
+      transform: translate3d(2%, -2%, 0) rotate(0deg) scale(1.02);
+    }
+
+    31% {
+      border-radius: 58% 42% 38% 62% / 44% 61% 39% 56%;
+      transform: translate3d(-4%, 2%, 0) rotate(-104deg) scale(1.1, 0.96);
+    }
+
+    67% {
+      border-radius: 39% 61% 54% 46% / 62% 38% 57% 43%;
+      transform: translate3d(3%, 4%, 0) rotate(-238deg) scale(0.97, 1.12);
+    }
+
+    100% {
+      border-radius: 43% 57% 61% 39% / 55% 42% 58% 45%;
+      transform: translate3d(2%, -2%, 0) rotate(-360deg) scale(1.02);
+    }
   }
 
   .server-address-prefix {
@@ -667,6 +819,18 @@
     .connect-auth-shell--login-return .connect-auth-visual,
     .connect-auth-shell--login-return .connect-auth-visual-image,
     .connect-form-stage--login-return {
+      animation: none !important;
+    }
+
+    .connect-submit-button,
+    .connect-submit-button::before,
+    .connect-submit-button::after,
+    .connect-submit-arrow {
+      transition: none !important;
+    }
+
+    .connect-submit-button--active::before,
+    .connect-submit-button--active::after {
       animation: none !important;
     }
   }
