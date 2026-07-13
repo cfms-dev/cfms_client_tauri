@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import FileTable from './FileTable.svelte';
 
@@ -15,15 +15,19 @@ vi.mock('svelte-i18n', () => ({
 
 afterEach(cleanup);
 
-function renderTable(folders = [{ id: 'folder-1', name: 'Folder', created_time: null }]) {
+function renderTable(
+  folders = [{ id: 'folder-1', name: 'Folder', created_time: null }],
+  documents: Array<{ id: string; title: string; size: number | null; last_modified: number | null }> = [],
+) {
   const onFolderClick = vi.fn();
   const onMarqueeSelection = vi.fn();
   const onRowKeydown = vi.fn();
   const result = render(FileTable, {
     props: {
       loading: false,
+      resetKey: 0,
       folders,
-      documents: [],
+      documents,
       marqueeEnabled: true,
       selectMode: false,
       selectedFolderIds: new Set<string>(),
@@ -48,6 +52,8 @@ function renderTable(folders = [{ id: 'folder-1', name: 'Folder', created_time: 
   const typeCell = result.container.querySelector<HTMLElement>('[data-marquee-start]')!;
   const setPointerCapture = vi.fn();
   Object.defineProperties(viewport, {
+    clientHeight: { configurable: true, value: 520 },
+    clientWidth: { configurable: true, value: 800 },
     setPointerCapture: { configurable: true, value: setPointerCapture },
     hasPointerCapture: { configurable: true, value: () => false },
     releasePointerCapture: { configurable: true, value: vi.fn() },
@@ -56,13 +62,15 @@ function renderTable(folders = [{ id: 'folder-1', name: 'Folder', created_time: 
       value: () => ({ left: 0, top: 0, right: 800, bottom: 500, width: 800, height: 500 }),
     },
   });
-  Object.defineProperties(typeCell, {
-    getClientRects: { configurable: true, value: () => [{ left: 600 }] },
-    getBoundingClientRect: {
-      configurable: true,
-      value: () => ({ left: 600, top: 36, right: 712, bottom: 76, width: 112, height: 40 }),
-    },
-  });
+  if (typeCell) {
+    Object.defineProperties(typeCell, {
+      getClientRects: { configurable: true, value: () => [{ left: 600 }] },
+      getBoundingClientRect: {
+        configurable: true,
+        value: () => ({ left: 600, top: 36, right: 712, bottom: 76, width: 112, height: 40 }),
+      },
+    });
+  }
 
   return { ...result, viewport, typeCell, setPointerCapture, onFolderClick, onMarqueeSelection, onRowKeydown };
 }
@@ -106,7 +114,17 @@ describe('FileTable marquee activation', () => {
     });
 
     expect(setPointerCapture).toHaveBeenCalledWith(8);
-    expect(onMarqueeSelection).toHaveBeenCalledWith(expect.any(Set), expect.any(Set), 'updating');
+    expect(onMarqueeSelection).not.toHaveBeenCalled();
+
+    await fireEvent.pointerUp(typeCell, {
+      pointerId: 8,
+      pointerType: 'mouse',
+      isPrimary: true,
+      clientX: 630,
+      clientY: 66,
+    });
+    expect(onMarqueeSelection).toHaveBeenCalledOnce();
+    expect(onMarqueeSelection).toHaveBeenCalledWith(expect.any(Set), expect.any(Set));
   });
 });
 
@@ -184,5 +202,93 @@ describe('FileTable keyboard navigation', () => {
     expect(document.activeElement).toBe(rows[1]);
     expect(rows[1].tabIndex).toBe(0);
     expect(onRowKeydown).toHaveBeenCalledWith(expect.objectContaining({ key: 'ArrowDown' }), expect.objectContaining({ kind: 'folder' }));
+  });
+
+  it('moves by one viewport page without constructing a row-key array', async () => {
+    const folders = Array.from({ length: 20 }, (_, index) => ({
+      id: `folder-${index}`,
+      name: `Folder ${index}`,
+      created_time: null,
+    }));
+    const { container } = renderTable(folders);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+
+    rows[0].focus();
+    await fireEvent.keyDown(rows[0], { key: 'PageDown' });
+
+    expect(document.activeElement).toBe(rows[12]);
+  });
+
+  it('does not reset scroll position when a row is focused or clicked', async () => {
+    const { container, viewport } = renderTable();
+    const row = container.querySelector<HTMLButtonElement>('[data-file-table-row]')!;
+    viewport.scrollTop = 240;
+
+    row.focus();
+    await fireEvent.click(row);
+
+    expect(viewport.scrollTop).toBe(240);
+  });
+});
+
+describe('FileTable viewport anchoring', () => {
+  it('keeps the first row at the same position when a page is appended at zero scroll', async () => {
+    const { component, container, viewport } = renderTable([
+      { id: 'folder-1', name: 'First', created_time: null },
+      { id: 'folder-2', name: 'Second', created_time: null },
+    ]);
+    const header = container.querySelector<HTMLElement>('.file-table-header')!;
+    const listSpace = container.querySelector<HTMLElement>('.file-table-list-space')!;
+    Object.defineProperties(header, {
+      offsetHeight: { configurable: true, value: 36 },
+    });
+    Object.defineProperties(listSpace, {
+      offsetTop: { configurable: true, value: 36 },
+    });
+    viewport.scrollTop = 0;
+
+    const anchor = component.captureViewportAnchor();
+    expect(anchor).toEqual({ key: 'folder:folder-1', offset: 0 });
+
+    await component.restoreViewportAnchor(0, anchor!.offset);
+    expect(viewport.scrollTop).toBe(0);
+  });
+
+  it('preserves the anchored row offset when its sorted index changes', async () => {
+    const { component, container, viewport } = renderTable([
+      { id: 'folder-1', name: 'First', created_time: null },
+      { id: 'folder-2', name: 'Second', created_time: null },
+      { id: 'folder-3', name: 'Third', created_time: null },
+    ]);
+    const header = container.querySelector<HTMLElement>('.file-table-header')!;
+    const listSpace = container.querySelector<HTMLElement>('.file-table-list-space')!;
+    Object.defineProperties(header, {
+      offsetHeight: { configurable: true, value: 36 },
+    });
+    Object.defineProperties(listSpace, {
+      offsetTop: { configurable: true, value: 36 },
+    });
+    viewport.scrollTop = 17;
+
+    const anchor = component.captureViewportAnchor();
+    expect(anchor).toEqual({ key: 'folder:folder-1', offset: 17 });
+
+    await component.restoreViewportAnchor(2, anchor!.offset);
+    expect(viewport.scrollTop).toBe(97);
+  });
+});
+
+describe('FileTable large directory virtualization', () => {
+  it.each([10_000, 50_000])('keeps DOM rows bounded for %i entries', async (count) => {
+    const documents = Array.from({ length: count }, (_, index) => ({
+      id: `document-${index}`,
+      title: `Document ${index}`,
+      size: index,
+      last_modified: index,
+    }));
+    const { container, viewport } = renderTable([], documents);
+    await fireEvent.scroll(viewport);
+    await waitFor(() => expect(container.querySelectorAll('[data-file-table-row]').length).toBeGreaterThan(0));
+    expect(container.querySelectorAll('[data-file-table-row]').length).toBeLessThanOrEqual(40);
   });
 });

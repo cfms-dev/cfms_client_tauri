@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
+import type { AccessEntry, AccessEntityType, AccessType, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -19,6 +19,14 @@ export async function listDirectory(
   folderId: string | null,
 ): Promise<ListDirectoryResponse> {
   return invoke("list_directory", { folderId });
+}
+
+export async function listDirectoryPage(
+  folderId: string | null,
+  cursor: string | null = null,
+  pageSize = 128,
+): Promise<ListDirectoryPageResponse> {
+  return invoke("list_directory_page", { folderId, cursor, pageSize });
 }
 
 /** Request a document download from the CFMS server.

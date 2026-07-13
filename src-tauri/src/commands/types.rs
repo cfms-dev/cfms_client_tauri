@@ -115,6 +115,16 @@ struct ListingCursorPage {
     parent_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ListDirectoryPageDto {
+    pub folders: Vec<cfms_core::ServerDirectoryEntry>,
+    pub documents: Vec<cfms_core::ServerDocumentEntry>,
+    pub parent_id: Option<String>,
+    pub page_size: u32,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
 #[derive(Debug, Clone)]
 struct UploadFileResult {
     upload_id: String,

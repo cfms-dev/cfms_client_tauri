@@ -3,10 +3,16 @@
     primary,
     secondary = '',
     tone = 'default',
+    actionLabel = '',
+    actionBusy = false,
+    onAction,
   }: {
     primary: string;
     secondary?: string;
     tone?: 'default' | 'success' | 'danger';
+    actionLabel?: string;
+    actionBusy?: boolean;
+    onAction?: () => void;
   } = $props();
 </script>
 
@@ -15,6 +21,11 @@
   {#if secondary}
     <span class="explorer-status-separator" aria-hidden="true"></span>
     <span class="explorer-status-secondary">{secondary}</span>
+  {/if}
+  {#if actionLabel && onAction}
+    <button type="button" class="explorer-status-action" disabled={actionBusy} onclick={onAction}>
+      {actionLabel}
+    </button>
   {/if}
 </footer>
 
@@ -50,5 +61,26 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .explorer-status-action {
+    margin-left: auto;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.2rem 0.65rem;
+    color: currentColor;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .explorer-status-action:hover:not(:disabled) {
+    background: color-mix(in srgb, currentColor 20%, transparent);
+  }
+
+  .explorer-status-action:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
 </style>

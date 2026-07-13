@@ -754,6 +754,22 @@ fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
     }
 }
 
+fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
+    let page_size = page.page_size;
+    let next_cursor = page.next_cursor.clone();
+    let has_more = page.has_more;
+    let split = split_listing_page(page);
+
+    ListDirectoryPageDto {
+        folders: split.folders,
+        documents: split.documents,
+        parent_id: split.parent_id,
+        page_size,
+        next_cursor,
+        has_more,
+    }
+}
+
 fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingCursorPage) {
     target.parent_id = page.parent_id.clone();
     let split = split_listing_page(page);
@@ -878,6 +894,48 @@ mod protocol_v15_tests {
         assert_eq!(split.documents.len(), 1);
         assert_eq!(split.documents[0].title, "File");
         assert_eq!(split.parent_id.as_deref(), Some("/"));
+    }
+
+    #[test]
+    fn split_listing_page_dto_preserves_cursor_metadata() {
+        let page: ListingCursorPage = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "directory", "id": "dir", "name": "Folder", "created_time": 1.0 },
+                    { "type": "document", "id": "doc", "title": "File", "size": 5, "last_modified": 2.0 }
+                ],
+                "page_size": 128,
+                "next_cursor": "next-page",
+                "has_more": true,
+                "parent_id": "parent"
+            }"#,
+        )
+        .unwrap();
+
+        let split = split_listing_page_dto(page);
+
+        assert_eq!(split.folders.len(), 1);
+        assert_eq!(split.documents.len(), 1);
+        assert_eq!(split.parent_id.as_deref(), Some("parent"));
+        assert_eq!(split.page_size, 128);
+        assert_eq!(split.next_cursor.as_deref(), Some("next-page"));
+        assert!(split.has_more);
+    }
+
+    #[test]
+    fn directory_page_size_is_clamped_to_protocol_limits() {
+        assert_eq!(directory_page_size(None), SERVER_CURSOR_PAGE_SIZE);
+        assert_eq!(directory_page_size(Some(0)), 1);
+        assert_eq!(directory_page_size(Some(32)), 32);
+        assert_eq!(directory_page_size(Some(10_000)), SERVER_CURSOR_PAGE_SIZE);
+    }
+
+    #[test]
+    fn invalid_listing_page_returns_a_descriptive_error() {
+        let error = parse_listing_page_dto(serde_json::json!({ "has_more": false }))
+            .expect_err("missing page fields must fail");
+
+        assert!(error.starts_with("Invalid list_directory page response:"));
     }
 
     #[test]

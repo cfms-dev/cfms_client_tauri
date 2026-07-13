@@ -36,6 +36,53 @@ pub async fn list_directory(
     .await
 }
 
+/// Fetch a single cursor page from a server-side directory listing.
+///
+/// The existing `list_directory` command remains available for callers that
+/// require a complete response. Interactive file browsing uses this command so
+/// the Webview can display the first page while later pages are still loading.
+#[tauri::command]
+pub async fn list_directory_page(
+    state: tauri::State<'_, AppHandleState>,
+    folder_id: Option<String>,
+    cursor: Option<String>,
+    page_size: Option<u32>,
+) -> Result<ListDirectoryPageDto, String> {
+    let raw = server_action_json(
+        &state,
+        "list_directory",
+        serde_json::json!({
+            "folder_id": folder_id,
+            "cursor": cursor,
+            "page_size": directory_page_size(page_size),
+        }),
+    )
+    .await?;
+    parse_listing_page_dto(raw)
+}
+
+fn directory_page_size(page_size: Option<u32>) -> u32 {
+    page_size
+        .unwrap_or(SERVER_CURSOR_PAGE_SIZE)
+        .clamp(1, SERVER_CURSOR_PAGE_SIZE)
+}
+
+fn parse_listing_page_dto(raw: serde_json::Value) -> Result<ListDirectoryPageDto, String> {
+    let page: ListingCursorPage = serde_json::from_value(raw)
+        .map_err(|e| format!("Invalid list_directory page response: {e}"))?;
+    if !(1..=SERVER_CURSOR_PAGE_SIZE).contains(&page.page_size) {
+        return Err(format!(
+            "Invalid list_directory page response: page_size must be between 1 and {SERVER_CURSOR_PAGE_SIZE}"
+        ));
+    }
+    if page.has_more && page.next_cursor.is_none() {
+        return Err(
+            "Invalid list_directory page response: has_more requires next_cursor".to_string(),
+        );
+    }
+    Ok(split_listing_page_dto(page))
+}
+
 /// Request a document download from the CFMS server.
 ///
 /// Sends the `get_document` action, receives a download task from the server,

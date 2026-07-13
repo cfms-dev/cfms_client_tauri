@@ -155,6 +155,8 @@ export interface ListDirectoryResponse {
   parent_id: string | null;
 }
 
+export interface ListDirectoryPageResponse extends ListDirectoryResponse, CursorPageMeta {}
+
 export interface SearchDirectoryEntry extends ServerDirectoryEntry {
   parent_id?: string | null;
 }

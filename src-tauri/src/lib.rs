@@ -357,6 +357,7 @@ pub fn run() {
             commands::clear_failed_tasks,
             commands::scan_directory,
             commands::list_directory,
+            commands::list_directory_page,
             commands::get_document,
             commands::ensure_download_subdirectory,
             commands::get_setting,

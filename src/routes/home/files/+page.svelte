@@ -6,7 +6,7 @@
   //
   // Reference: get_directory / get_document in reference/src/include/ui/util/path.py
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -15,6 +15,7 @@
   import { _ as t } from 'svelte-i18n';
   import {
     listDirectory,
+    listDirectoryPage,
     loadUserPreference,
     classifyUploadPath,
     getDocument,
@@ -74,7 +75,10 @@
     setDownloadBatchPhase,
     waitForDownloadBatchResume,
   } from '$lib/download-batch-control';
-  import FileTable, { type FileTableRow } from '$lib/components/files/FileTable.svelte';
+  import FileTable, {
+    type FileTableRow,
+    type FileTableViewportAnchor,
+  } from '$lib/components/files/FileTable.svelte';
   import ExplorerCommandBar from '$lib/components/explorer/ExplorerCommandBar.svelte';
   import ExplorerDetailsPane from '$lib/components/explorer/ExplorerDetailsPane.svelte';
   import ExplorerStatusBar from '$lib/components/explorer/ExplorerStatusBar.svelte';
@@ -108,8 +112,14 @@
   } from '$lib/file-preferences';
   import { formatBytes, formatDate, formatError, formatUnknown, isPickerCancel } from '$lib/files/formatting';
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
-  import { sortFileEntries, type SortDirection, type SortField } from '$lib/files/sorting';
-  import { shouldDeferFileSort, sortFileEntriesAsync } from '$lib/files/sort-worker-client';
+  import type { SortDirection, SortField } from '$lib/files/sorting';
+  import {
+    createProgressiveDirectorySorter,
+    type ProgressiveDirectorySorter,
+    type ProgressiveSortSnapshot,
+  } from '$lib/files/sort-worker-client';
+  import { DIRECTORY_PAGE_SIZE } from '$lib/files/progressive-listing';
+  import { DirectoryLoadController } from '$lib/files/directory-load-controller';
   import {
     fileManagerShortcutFor,
     isFindShortcut,
@@ -129,7 +139,13 @@
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
   import type { CommandAction, FileDetailModel } from '$lib/explorer/types';
-  import { fileSelectionKey, parseFileSelectionKey, selectFileRange } from '$lib/explorer/file-selection';
+  import {
+    fileSelectionKey,
+    isAllVisibleSelected,
+    parseFileSelectionKey,
+    selectedDocumentSize as sumDocumentSelectionSize,
+    selectFileRangeByIndex,
+  } from '$lib/explorer/file-selection';
   import { isMobilePlatform } from '$lib/platform';
   import { authStore, floatingProgressStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
 
@@ -148,6 +164,18 @@
   const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
   const SORT_FIELDS: SortField[] = ['name', 'modified', 'size'];
 
+  type DirectoryLoadPhase = 'idle' | 'initial-loading' | 'loading-more' | 'complete' | 'partial-error';
+
+  type FileListIndex = {
+    folderById: Map<string, ServerDirectoryEntry>;
+    documentById: Map<string, ServerDocumentEntry>;
+    folderIds: string[];
+    documentIds: string[];
+    keyToIndex: Map<string, number>;
+    documentSizeById: Map<string, number>;
+    totalDocumentSize: number;
+  };
+
   type DownloadQueueItem = {
     document: Pick<ServerDocumentEntry, 'id' | 'title'>;
     pathParts: string[];
@@ -159,6 +187,11 @@
   let documents = $state<ServerDocumentEntry[]>([]);
   let parentId = $state<string | null>(null);
   let loading = $state(false);
+  let directoryLoadPhase = $state<DirectoryLoadPhase>('idle');
+  let directoryLoadError = $state<string | null>(null);
+  let directoryLoadedCount = $state(0);
+  let directoryNextCursor = $state<string | null>(null);
+  let fileTableResetKey = $state(0);
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
   let searchQuery = $state('');
@@ -175,14 +208,25 @@
   let selectMode = $state(false);
   let selectedFolderIds = $state<Set<string>>(new Set());
   let selectedDocumentIds = $state<Set<string>>(new Set());
+  let selectedDocumentSize = $state(0);
+  let selectionRevision = $state(0);
   let sortField = $state<SortField>('name');
   let sortDirection = $state<SortDirection>('asc');
-  let sortRequestId = 0;
+  let sortRevision = 0;
+  let directoryGeneration = 0;
+  const directoryLoader = new DirectoryLoadController(listDirectoryPage);
+  let directorySorter: ProgressiveDirectorySorter | null = null;
+  let fileTable: {
+    captureViewportAnchor: () => FileTableViewportAnchor | null;
+    restoreViewportAnchor: (index: number, offset: number) => Promise<void>;
+  } | null = null;
+  let fileListIndex = $state<FileListIndex>(createFileListIndex([], []));
+  let resolveFirstDirectorySnapshot: ((value: boolean) => void) | null = null;
+  let firstDirectorySnapshotGeneration = 0;
   let focusedItemKey = $state<string | null>(null);
   let selectionAnchorKey = $state<string | null>(null);
   let coarsePointer = $state(false);
   let marqueeSelectionEnabled = $state(false);
-  let marqueeSelectionActive = $state(false);
   let detailsOpen = $state(false);
   let detailModel = $state<FileDetailModel | null>(null);
   let detailRequestId = 0;
@@ -377,11 +421,6 @@
     return undefined;
   });
   const canGoToParent = $derived(parentTargetId !== undefined);
-  const orderedSelectionKeys = $derived([
-    ...folders.map((folder) => fileSelectionKey('folder', folder.id)),
-    ...documents.map((document) => fileSelectionKey('document', document.id)),
-  ]);
-
   $effect(() => {
     if (!status) return;
     notificationStore.success(status);
@@ -396,79 +435,158 @@
 
   // --- Data loading ---
 
-  function applyDirectoryEntries(
+  function createFileListIndex(
     nextFolders: ServerDirectoryEntry[],
     nextDocuments: ServerDocumentEntry[],
-  ) {
-    const requestId = ++sortRequestId;
-    if (shouldDeferFileSort(nextFolders.length, nextDocuments.length)) {
-      folders = nextFolders;
-      documents = nextDocuments;
-      queueDirectorySort(requestId, nextFolders, nextDocuments, true);
-      return;
-    }
-
-    const sorted = sortFileEntries(nextFolders, nextDocuments, sortField, sortDirection);
-    if (requestId !== sortRequestId) return;
-    folders = sorted.folders;
-    documents = sorted.documents;
-  }
-
-  function sortCurrentDirectory(deferUntilPaint = false) {
-    const requestId = ++sortRequestId;
-    queueDirectorySort(requestId, folders, documents, deferUntilPaint);
-  }
-
-  function queueDirectorySort(
-    requestId: number,
-    sourceFolders: ServerDirectoryEntry[],
-    sourceDocuments: ServerDocumentEntry[],
-    deferUntilPaint: boolean,
-  ) {
-    const field = sortField;
-    const direction = sortDirection;
-
-    const performSort = async () => {
-      try {
-        const sorted = await sortFileEntriesAsync(sourceFolders, sourceDocuments, field, direction);
-        if (requestId !== sortRequestId || field !== sortField || direction !== sortDirection) return;
-        folders = sorted.folders;
-        documents = sorted.documents;
-      } catch (err) {
-        console.warn('Background file sort failed; falling back to main-thread sorting.', err);
-        if (requestId !== sortRequestId || field !== sortField || direction !== sortDirection) return;
-        const sorted = sortFileEntries(sourceFolders, sourceDocuments, field, direction);
-        folders = sorted.folders;
-        documents = sorted.documents;
-      }
+  ): FileListIndex {
+    const folderById = new Map<string, ServerDirectoryEntry>();
+    const documentById = new Map<string, ServerDocumentEntry>();
+    const folderIds = new Array<string>(nextFolders.length);
+    const documentIds = new Array<string>(nextDocuments.length);
+    const keyToIndex = new Map<string, number>();
+    const documentSizeById = new Map<string, number>();
+    let totalDocumentSize = 0;
+    nextFolders.forEach((folder, index) => {
+      folderById.set(folder.id, folder);
+      folderIds[index] = folder.id;
+      keyToIndex.set(fileSelectionKey('folder', folder.id), index);
+    });
+    nextDocuments.forEach((document, index) => {
+      const size = document.size ?? 0;
+      documentById.set(document.id, document);
+      documentIds[index] = document.id;
+      documentSizeById.set(document.id, size);
+      keyToIndex.set(fileSelectionKey('document', document.id), nextFolders.length + index);
+      totalDocumentSize += size;
+    });
+    return {
+      folderById,
+      documentById,
+      folderIds,
+      documentIds,
+      keyToIndex,
+      documentSizeById,
+      totalDocumentSize,
     };
+  }
 
-    if (deferUntilPaint && typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          void performSort();
-        }, 0);
-      });
-      return;
+  function markFilePerformance(name: string) {
+    if (typeof performance === 'undefined') return;
+    performance.mark(name);
+  }
+
+  function handleDirectorySnapshot(snapshot: ProgressiveSortSnapshot) {
+    if (snapshot.generation !== directoryGeneration || snapshot.revision !== sortRevision) return;
+    const viewportAnchor = directoryLoadedCount > 0 ? fileTable?.captureViewportAnchor() ?? null : null;
+    folders = snapshot.folders;
+    documents = snapshot.documents;
+    fileListIndex = createFileListIndex(snapshot.folders, snapshot.documents);
+    directoryLoadedCount = snapshot.loadedCount;
+    loading = false;
+    markFilePerformance('files:sort-snapshot-applied');
+    if (snapshot.complete) {
+      directoryLoadPhase = 'complete';
+      directoryNextCursor = null;
+      markFilePerformance('files:list-complete');
+    } else if (directoryLoadPhase !== 'partial-error') {
+      directoryLoadPhase = 'loading-more';
+    }
+    if (snapshot.loadedCount <= DIRECTORY_PAGE_SIZE) {
+      void tick().then(() => markFilePerformance('files:first-batch-visible'));
     }
 
-    void performSort();
+    if (firstDirectorySnapshotGeneration === snapshot.generation) {
+      resolveFirstDirectorySnapshot?.(true);
+      resolveFirstDirectorySnapshot = null;
+    }
+    if (viewportAnchor) {
+      const anchorIndex = fileListIndex.keyToIndex.get(viewportAnchor.key);
+      if (anchorIndex !== undefined) {
+        void tick().then(() => fileTable?.restoreViewportAnchor(anchorIndex, viewportAnchor.offset));
+      }
+    }
+  }
+
+  function handleDirectorySorterError(sortError: unknown) {
+    directoryLoadError = formatError(sortError);
+    directoryLoadPhase = directoryLoadedCount > 0 ? 'partial-error' : 'idle';
+    loading = false;
+    resolveFirstDirectorySnapshot?.(false);
+    resolveFirstDirectorySnapshot = null;
+  }
+
+  async function continueDirectoryLoad(generation: number, cursor: string | null) {
+    if (!cursor || generation !== directoryGeneration) return;
+    directoryLoadPhase = 'loading-more';
+    directoryNextCursor = cursor;
+    const result = await directoryLoader.continue(
+      generation,
+      currentFolderId,
+      cursor,
+      DIRECTORY_PAGE_SIZE,
+      (pageResponse) => {
+        const complete = !pageResponse.has_more;
+        directorySorter?.append(
+          generation,
+          sortRevision,
+          pageResponse.folders,
+          pageResponse.documents,
+          complete,
+        );
+        directoryNextCursor = pageResponse.next_cursor;
+      },
+    );
+    if (result.status !== 'partial-error' || generation !== directoryGeneration) return;
+    directoryNextCursor = result.cursor;
+    directoryLoadError = formatError(result.error);
+    directoryLoadPhase = 'partial-error';
+    directorySorter?.resort(generation, sortRevision, sortField, sortDirection);
+  }
+
+  function retryDirectoryLoad() {
+    if (directoryLoadPhase !== 'partial-error' || !directoryNextCursor) return;
+    directoryLoadError = null;
+    void continueDirectoryLoad(directoryGeneration, directoryNextCursor);
   }
 
   async function loadDirectory(folderId: string | null, preserveOnError = false): Promise<boolean> {
+    const generation = directoryLoader.begin();
+    directoryGeneration = generation;
+    const revision = ++sortRevision;
     loading = true;
+    directoryLoadPhase = 'initial-loading';
+    directoryLoadError = null;
+    directoryLoadedCount = 0;
+    directoryNextCursor = null;
+    fileTableResetKey += 1;
     error = null;
-    selectedFolderIds = new Set();
-    selectedDocumentIds = new Set();
+    commitSelection(new Set(), new Set());
     try {
       const normalizedFolderId = normalizeDirectoryId(folderId);
-      const resp = await listDirectory(normalizedFolderId);
+      directorySorter?.reset(generation, revision, sortField, sortDirection);
+      markFilePerformance('files:list-request-start');
+      const resp = await directoryLoader.requestPage(generation, normalizedFolderId, null, DIRECTORY_PAGE_SIZE);
+      if (!resp || generation !== directoryGeneration) return false;
       currentFolderId = normalizedFolderId;
-      applyDirectoryEntries(resp.folders, resp.documents);
       parentId = normalizeDirectoryId(resp.parent_id);
+      directoryNextCursor = resp.next_cursor;
+      const firstSnapshot = new Promise<boolean>((resolve) => {
+        firstDirectorySnapshotGeneration = generation;
+        resolveFirstDirectorySnapshot = resolve;
+      });
+      directorySorter?.append(generation, revision, resp.folders, resp.documents, !resp.has_more);
+      const firstVisible = await firstSnapshot;
+      if (!firstVisible || generation !== directoryGeneration) return false;
+      if (resp.has_more) {
+        if (!resp.next_cursor) throw new Error('Directory page reported more items without a cursor.');
+        void continueDirectoryLoad(generation, resp.next_cursor);
+      }
       return true;
     } catch (e) {
+      if (generation !== directoryGeneration) return false;
       error = String(e);
+      directoryLoadError = formatError(e);
+      directoryLoadPhase = 'idle';
       if (!preserveOnError) {
         folders = [];
         documents = [];
@@ -476,7 +594,7 @@
       }
       return false;
     } finally {
-      loading = false;
+      if (generation === directoryGeneration && directoryLoadPhase === 'idle') loading = false;
     }
   }
 
@@ -556,40 +674,68 @@
 
   // --- Selection ---
 
+  function sumSelectedDocumentSize(ids: ReadonlySet<string>) {
+    return sumDocumentSelectionSize(ids, fileListIndex.documentSizeById);
+  }
+
+  function commitSelection(
+    nextFolders: Set<string>,
+    nextDocuments: Set<string>,
+    documentSize = sumSelectedDocumentSize(nextDocuments),
+  ) {
+    selectedFolderIds = nextFolders;
+    selectedDocumentIds = nextDocuments;
+    selectedDocumentSize = documentSize;
+    selectionRevision += 1;
+  }
+
   function toggleSelectFolder(id: string) {
     const next = new Set(selectedFolderIds);
     if (next.has(id)) next.delete(id); else next.add(id);
-    selectedFolderIds = next;
+    commitSelection(next, selectedDocumentIds, selectedDocumentSize);
   }
 
   function toggleSelectDocument(id: string) {
     const next = new Set(selectedDocumentIds);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    selectedDocumentIds = next;
+    const wasSelected = next.delete(id);
+    if (!wasSelected) next.add(id);
+    const size = fileListIndex.documentSizeById.get(id) ?? 0;
+    commitSelection(selectedFolderIds, next, selectedDocumentSize + (wasSelected ? -size : size));
   }
 
   function clearSelection() {
-    selectedFolderIds = new Set();
-    selectedDocumentIds = new Set();
-    focusedItemKey = null;
-    selectionAnchorKey = null;
+    commitSelection(new Set(), new Set(), 0);
     focusedItemKey = null;
     selectionAnchorKey = null;
     selectMode = false;
   }
 
   function deselectAll() {
-    selectedFolderIds = new Set();
-    selectedDocumentIds = new Set();
+    commitSelection(new Set(), new Set(), 0);
     focusedItemKey = null;
     selectionAnchorKey = null;
   }
 
   function selectAllVisible() {
-    selectedFolderIds = new Set(folders.map((folder) => folder.id));
-    selectedDocumentIds = new Set(documents.map((doc) => doc.id));
-    focusedItemKey = orderedSelectionKeys.at(-1) ?? null;
-    selectionAnchorKey = orderedSelectionKeys[0] ?? null;
+    commitSelection(
+      new Set(fileListIndex.folderById.keys()),
+      new Set(fileListIndex.documentById.keys()),
+      fileListIndex.totalDocumentSize,
+    );
+    const firstFolder = folders[0];
+    const firstDocument = documents[0];
+    const lastDocument = documents.at(-1);
+    const lastFolder = folders.at(-1);
+    selectionAnchorKey = firstFolder
+      ? fileSelectionKey('folder', firstFolder.id)
+      : firstDocument
+        ? fileSelectionKey('document', firstDocument.id)
+        : null;
+    focusedItemKey = lastDocument
+      ? fileSelectionKey('document', lastDocument.id)
+      : lastFolder
+        ? fileSelectionKey('folder', lastFolder.id)
+        : null;
   }
 
   function toggleAllVisibleSelection() {
@@ -611,18 +757,36 @@
   );
   const totalVisibleSelectable = $derived(folders.length + documents.length);
   const allVisibleSelected = $derived(
-    totalVisibleSelectable > 0
-      && folders.every((folder) => selectedFolderIds.has(folder.id))
-      && documents.every((doc) => selectedDocumentIds.has(doc.id)),
+    isAllVisibleSelected(folders.length, documents.length, {
+      folders: selectedFolderIds,
+      documents: selectedDocumentIds,
+    }),
   );
-  const selectedFolder = $derived(
-    totalSelected === 1 ? folders.find((folder) => selectedFolderIds.has(folder.id)) ?? null : null,
+  const selectedFolder = $derived.by(() => {
+    if (totalSelected !== 1 || selectedFolderIds.size !== 1) return null;
+    const id = selectedFolderIds.values().next().value;
+    return id ? fileListIndex.folderById.get(id) ?? null : null;
+  });
+  const selectedDocument = $derived.by(() => {
+    if (totalSelected !== 1 || selectedDocumentIds.size !== 1) return null;
+    const id = selectedDocumentIds.values().next().value;
+    return id ? fileListIndex.documentById.get(id) ?? null : null;
+  });
+  const statusBarPrimary = $derived(
+    directoryLoadPhase === 'complete' || directoryLoadPhase === 'idle'
+      ? $t('workspace.itemCount', { values: { count: totalVisibleSelectable } })
+      : $t('workspace.itemsLoaded', { values: { count: directoryLoadedCount } }),
   );
-  const selectedDocument = $derived(
-    totalSelected === 1 ? documents.find((document) => selectedDocumentIds.has(document.id)) ?? null : null,
-  );
-  const selectedDocumentSize = $derived(
-    documents.reduce((total, document) => selectedDocumentIds.has(document.id) ? total + (document.size ?? 0) : total, 0),
+  const statusBarSecondary = $derived(
+    directoryLoadPhase === 'partial-error'
+      ? `${$t('workspace.loadingInterrupted')}${directoryLoadError ? `: ${directoryLoadError}` : ''}`
+      : totalSelected > 0
+        ? `${$t('workspace.selectedItems', { values: { count: totalSelected } })}${selectedDocumentSize > 0 ? ` · ${formatBytes(selectedDocumentSize)}` : ''}`
+        : directoryLoadPhase === 'initial-loading'
+        ? $t('workspace.loadingDirectory')
+        : directoryLoadPhase === 'loading-more'
+          ? $t('workspace.loadingMoreItems')
+          : '',
   );
   const fileCommandActions = $derived.by<CommandAction[]>(() => [
     { id: 'new-folder', label: $t('files.createFolder'), icon: 'createNewFolder', run: handleCreateFolder },
@@ -706,9 +870,9 @@
   ]);
 
   $effect(() => {
-    const signature = `${detailsOpen}:${marqueeSelectionActive}:${[...selectedFolderIds].join(',')}:${[...selectedDocumentIds].join(',')}`;
-    signature;
-    if (!detailsOpen || marqueeSelectionActive) {
+    const open = detailsOpen;
+    selectionRevision;
+    if (!open) {
       detailRequestId += 1;
       return;
     }
@@ -770,21 +934,24 @@
       return;
     }
 
-    selectedFolderIds = new Set(kind === 'folder' ? [id] : []);
-    selectedDocumentIds = new Set(kind === 'document' ? [id] : []);
+    commitSelection(
+      new Set(kind === 'folder' ? [id] : []),
+      new Set(kind === 'document' ? [id] : []),
+    );
     selectionAnchorKey = key;
   }
 
   function selectRange(anchorKey: string, targetKey: string, preserveExisting: boolean) {
-    const next = selectFileRange(
-      orderedSelectionKeys,
+    const next = selectFileRangeByIndex(
+      fileListIndex.folderIds,
+      fileListIndex.documentIds,
+      fileListIndex.keyToIndex,
       anchorKey,
       targetKey,
       { folders: selectedFolderIds, documents: selectedDocumentIds },
       preserveExisting,
     );
-    selectedFolderIds = next.folders;
-    selectedDocumentIds = next.documents;
+    commitSelection(next.folders, next.documents);
     focusedItemKey = targetKey;
   }
 
@@ -854,8 +1021,8 @@
   }
 
   function canDeleteSelection() {
-    return [...selectedFolderIds].every(() => hasPermission('delete_directory'))
-      && [...selectedDocumentIds].every(() => hasPermission('delete_document'));
+    return (selectedFolderIds.size === 0 || hasPermission('delete_directory'))
+      && (selectedDocumentIds.size === 0 || hasPermission('delete_document'));
   }
 
   async function handleRenameSelected() {
@@ -936,8 +1103,7 @@
       return;
     }
     if (!selectedFolderIds.has(folder.id)) {
-      selectedFolderIds = new Set([folder.id]);
-      selectedDocumentIds = new Set();
+      commitSelection(new Set([folder.id]), new Set(), 0);
       focusedItemKey = `folder:${folder.id}`;
       selectionAnchorKey = focusedItemKey;
     }
@@ -952,8 +1118,7 @@
       return;
     }
     if (!selectedDocumentIds.has(doc.id)) {
-      selectedFolderIds = new Set();
-      selectedDocumentIds = new Set([doc.id]);
+      commitSelection(new Set(), new Set([doc.id]), doc.size ?? 0);
       focusedItemKey = `document:${doc.id}`;
       selectionAnchorKey = focusedItemKey;
     }
@@ -2799,12 +2964,13 @@
   function setSort(field: SortField) {
     if (sortField === field) {
       sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-      sortCurrentDirectory(shouldDeferFileSort(folders.length, documents.length));
-      return;
+    } else {
+      sortField = field;
+      sortDirection = field === 'name' ? 'asc' : 'desc';
     }
-    sortField = field;
-    sortDirection = field === 'name' ? 'asc' : 'desc';
-    sortCurrentDirectory(shouldDeferFileSort(folders.length, documents.length));
+    sortRevision += 1;
+    fileTableResetKey += 1;
+    directorySorter?.resort(directoryGeneration, sortRevision, sortField, sortDirection);
   }
 
   function sortIcon(field: SortField): IconName {
@@ -2815,20 +2981,22 @@
   function applyMarqueeSelection(
     keys: Set<string>,
     baseKeys: Set<string>,
-    phase: 'updating' | 'complete',
   ) {
     const folders = new Set<string>();
     const documents = new Set<string>();
-    for (const key of [...baseKeys, ...keys]) {
+    const addKey = (key: string) => {
       const item = parseFileSelectionKey(key);
-      if (!item) continue;
+      if (!item) return;
       if (item.kind === 'folder') folders.add(item.id);
       else documents.add(item.id);
+    };
+    for (const key of baseKeys) addKey(key);
+    let lastKey: string | null = null;
+    for (const key of keys) {
+      addKey(key);
+      lastKey = key;
     }
-    selectedFolderIds = folders;
-    selectedDocumentIds = documents;
-    marqueeSelectionActive = phase === 'updating';
-    const lastKey = [...keys].at(-1) ?? null;
+    commitSelection(folders, documents);
     focusedItemKey = lastKey;
     selectionAnchorKey = lastKey;
   }
@@ -2866,6 +3034,7 @@
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
     let disposed = false;
+    directorySorter = createProgressiveDirectorySorter(handleDirectorySnapshot, handleDirectorySorterError);
     const unregisterKeyboardCommands = registerKeyboardCommands([
       {
         id: 'files.find',
@@ -3009,6 +3178,11 @@
     reloadUserPreference();
     return () => {
       disposed = true;
+      directoryGeneration = directoryLoader.invalidate();
+      resolveFirstDirectorySnapshot?.(false);
+      resolveFirstDirectorySnapshot = null;
+      directorySorter?.dispose();
+      directorySorter = null;
       nativeDragDropAvailable = false;
       document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
       window.removeEventListener('resize', handleSearchPreviewViewportChange);
@@ -3317,9 +3491,11 @@
 
   <div class="files-content-row">
     <FileTable
+      bind:this={fileTable}
       {loading}
       {folders}
       {documents}
+      resetKey={fileTableResetKey}
       marqueeEnabled={marqueeSelectionEnabled}
       {selectMode}
       {selectedFolderIds}
@@ -3349,10 +3525,11 @@
   </div>
 
   <ExplorerStatusBar
-    primary={$t('workspace.itemCount', { values: { count: totalVisibleSelectable } })}
-    secondary={totalSelected > 0
-      ? `${$t('workspace.selectedItems', { values: { count: totalSelected } })}${selectedDocumentSize > 0 ? ` · ${formatBytes(selectedDocumentSize)}` : ''}`
-      : ''}
+    primary={statusBarPrimary}
+    secondary={statusBarSecondary}
+    tone={directoryLoadPhase === 'partial-error' ? 'danger' : 'default'}
+    actionLabel={directoryLoadPhase === 'partial-error' && directoryNextCursor ? $t('workspace.continueLoading') : ''}
+    onAction={retryDirectoryLoad}
   />
 </div>
 

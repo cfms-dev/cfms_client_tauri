@@ -13,7 +13,7 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   const ROW_HEIGHT = 40;
-  const OVERSCAN_ROWS = 10;
+  const OVERSCAN_ROWS = 6;
   const DEFAULT_VIEWPORT_HEIGHT = 520;
   const VIRTUALIZATION_THRESHOLD = 160;
   const MARQUEE_DRAG_THRESHOLD = 4;
@@ -34,13 +34,18 @@
     | { kind: 'folder'; folder: ServerDirectoryEntry }
     | { kind: 'document'; document: ServerDocumentEntry };
 
-  type RenderedFileTableRow = { row: FileTableRow; virtualItem: VirtualItem | null };
-  type MarqueeSelectionPhase = 'updating' | 'complete';
+  export type FileTableViewportAnchor = {
+    key: string;
+    offset: number;
+  };
+
+  type RenderedFileTableRow = { row: FileTableRow; index: number; virtualItem: VirtualItem | null };
 
   let {
     loading,
     folders,
     documents,
+    resetKey,
     marqueeEnabled,
     selectMode,
     selectedFolderIds,
@@ -62,6 +67,7 @@
     loading: boolean;
     folders: ServerDirectoryEntry[];
     documents: ServerDocumentEntry[];
+    resetKey: number;
     marqueeEnabled: boolean;
     selectMode: boolean;
     selectedFolderIds: Set<string>;
@@ -69,7 +75,7 @@
     sortTitle: (field: SortField) => string;
     sortIcon: (field: SortField) => IconName;
     onSort: (field: SortField) => void;
-    onMarqueeSelection: (keys: Set<string>, baseKeys: Set<string>, phase: MarqueeSelectionPhase) => void;
+    onMarqueeSelection: (keys: Set<string>, baseKeys: Set<string>) => void;
     onFolderClick: (event: MouseEvent, folder: ServerDirectoryEntry) => void;
     onDocumentClick: (event: MouseEvent, document: ServerDocumentEntry) => void;
     onFolderActivate: (folder: ServerDirectoryEntry) => void;
@@ -82,6 +88,7 @@
   } = $props();
 
   let scrollViewport = $state<HTMLDivElement | null>(null);
+  let tableHeader = $state<HTMLDivElement | null>(null);
   let listSpace = $state<HTMLDivElement | null>(null);
   let marquee = $state<{
     pointerId: number;
@@ -93,6 +100,7 @@
     startContentY: number;
     active: boolean;
     baseKeys: Set<string>;
+    previewKeys: Set<string>;
   } | null>(null);
   let marqueeStyle = $state('');
   let columnWidths = $state<FileColumnWidths | null>(null);
@@ -116,20 +124,31 @@
     initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
   });
 
-  const rowsIdentity = $derived([
-    folders.length,
-    folders[0]?.id ?? '',
-    folders.at(-1)?.id ?? '',
-    documents.length,
-    documents[0]?.id ?? '',
-    documents.at(-1)?.id ?? '',
-  ].join('|'));
-  const virtualItems = $derived(virtualized ? $rowVirtualizer.getVirtualItems() : []);
+  const virtualItems = $derived.by<VirtualItem[]>(() => {
+    if (!virtualized) return [];
+    const measuredItems = $rowVirtualizer.getVirtualItems();
+    if (measuredItems.length > 0) return measuredItems;
+
+    // Keep the first batch visible while the browser's first ResizeObserver
+    // measurement is pending (and in non-layout test environments).
+    const fallbackCount = Math.min(
+      rowCount,
+      Math.ceil(DEFAULT_VIEWPORT_HEIGHT / ROW_HEIGHT) + OVERSCAN_ROWS * 2,
+    );
+    return Array.from({ length: fallbackCount }, (_, index) => ({
+      key: index,
+      index,
+      start: index * ROW_HEIGHT,
+      end: (index + 1) * ROW_HEIGHT,
+      size: ROW_HEIGHT,
+      lane: 0,
+    }));
+  });
   const renderedRows = $derived.by<RenderedFileTableRow[]>(() => {
     if (virtualized) {
-      return virtualItems.map((virtualItem) => ({ row: getRowAt(virtualItem.index), virtualItem }));
+      return virtualItems.map((virtualItem) => ({ row: getRowAt(virtualItem.index), index: virtualItem.index, virtualItem }));
     }
-    return Array.from({ length: rowCount }, (_, index) => ({ row: getRowAt(index), virtualItem: null }));
+    return Array.from({ length: rowCount }, (_, index) => ({ row: getRowAt(index), index, virtualItem: null }));
   });
   const columnGridStyle = $derived(columnWidths
     ? [
@@ -158,10 +177,12 @@
   });
 
   $effect(() => {
-    rowsIdentity;
-    if (scrollViewport) scrollViewport.scrollTop = 0;
-    const keys = new Set(Array.from({ length: rowCount }, (_, index) => rowKey(getRowAt(index))));
-    if (!activeRowKey || !keys.has(activeRowKey)) activeRowKey = rowCount > 0 ? rowKey(getRowAt(0)) : null;
+    resetKey;
+    const element = scrollViewport;
+    untrack(() => {
+      if (element) element.scrollTop = 0;
+      activeRowKey = rowCount > 0 ? rowKey(getRowAt(0)) : null;
+    });
   });
 
   function getRowAt(index: number): FileTableRow {
@@ -180,6 +201,10 @@
   }
 
   function isSelected(row: FileTableRow) {
+    if (marquee?.active) {
+      const key = rowSelectionKey(row);
+      return marquee.previewKeys.has(key) || marquee.baseKeys.has(key);
+    }
     if (row.kind === 'folder') return selectedFolderIds.has(row.folder.id);
     if (row.kind === 'document') return selectedDocumentIds.has(row.document.id);
     return false;
@@ -234,11 +259,11 @@
   }
 
   function selectionSnapshot(preserveExisting: boolean) {
-    if (!preserveExisting) return new Set<string>();
-    return new Set([
-      ...[...selectedFolderIds].map((id) => fileSelectionKey('folder', id)),
-      ...[...selectedDocumentIds].map((id) => fileSelectionKey('document', id)),
-    ]);
+    const keys = new Set<string>();
+    if (!preserveExisting) return keys;
+    for (const id of selectedFolderIds) keys.add(fileSelectionKey('folder', id));
+    for (const id of selectedDocumentIds) keys.add(fileSelectionKey('document', id));
+    return keys;
   }
 
   function viewportContentPoint(clientX: number, clientY: number) {
@@ -265,6 +290,7 @@
       startContentY: start.y,
       active: false,
       baseKeys: selectionSnapshot(event.ctrlKey || event.metaKey),
+      previewKeys: new Set(),
     };
   }
 
@@ -284,15 +310,14 @@
       // Wait until the gesture is unquestionably a marquee drag.
       scrollViewport?.setPointerCapture(event.pointerId);
       suppressClick = true;
-      onMarqueeSelection(new Set(), marquee.baseKeys, 'updating');
     }
 
     event.preventDefault();
-    updateMarqueeSelection('updating');
+    updateMarqueeSelection();
     queueMarqueeAutoScroll();
   }
 
-  function updateMarqueeSelection(phase: MarqueeSelectionPhase) {
+  function updateMarqueeSelection() {
     if (!scrollViewport || !listSpace || !marquee?.active) return;
     const bounds = scrollViewport.getBoundingClientRect();
     const current = viewportContentPoint(marquee.currentClientX, marquee.currentClientY);
@@ -316,7 +341,7 @@
         keys.add(rowSelectionKey(getRowAt(index)));
       }
     }
-    onMarqueeSelection(keys, marquee.baseKeys, phase);
+    marquee.previewKeys = keys;
   }
 
   function queueMarqueeAutoScroll() {
@@ -333,7 +358,7 @@
       const previousTop = scrollViewport.scrollTop;
       scrollViewport.scrollBy(horizontalDelta, verticalDelta);
       if (scrollViewport.scrollLeft !== previousLeft || scrollViewport.scrollTop !== previousTop) {
-        updateMarqueeSelection('updating');
+        updateMarqueeSelection();
         queueMarqueeAutoScroll();
       }
     });
@@ -343,7 +368,8 @@
     if (!scrollViewport || !marquee || marquee.pointerId !== event.pointerId) return;
     if (marquee.active) {
       event.preventDefault();
-      updateMarqueeSelection('complete');
+      updateMarqueeSelection();
+      onMarqueeSelection(marquee.previewKeys, marquee.baseKeys);
       suppressClick = true;
       window.setTimeout(() => { suppressClick = false; }, 0);
     }
@@ -396,7 +422,7 @@
     void focusRow(event, getRowAt(0), 0);
   }
 
-  async function handleKeyboardNavigation(event: KeyboardEvent, row: FileTableRow) {
+  async function handleKeyboardNavigation(event: KeyboardEvent, row: FileTableRow, currentIndex: number) {
     if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
       event.preventDefault();
       if (row.kind === 'folder') onFolderContextMenu(event, row.folder);
@@ -406,8 +432,6 @@
 
     if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'].includes(event.key) && scrollViewport) {
       event.preventDefault();
-      const keys = Array.from({ length: rowCount }, (_, index) => rowKey(getRowAt(index)));
-      const currentIndex = Math.max(0, keys.indexOf(rowKey(row)));
       const pageSize = Math.max(1, Math.floor(scrollViewport.clientHeight / ROW_HEIGHT) - 1);
       let targetIndex = currentIndex;
       if (event.key === 'ArrowDown') targetIndex += 1;
@@ -422,6 +446,30 @@
       return;
     }
     onRowKeydown(event, row);
+  }
+
+  export function captureViewportAnchor(): FileTableViewportAnchor | null {
+    if (!scrollViewport || rowCount === 0) return null;
+    const listTop = listSpace?.offsetTop ?? 0;
+    const stickyHeaderHeight = tableHeader?.offsetHeight ?? 0;
+    const visibleListTop = Math.max(listTop, scrollViewport.scrollTop + stickyHeaderHeight);
+    const index = Math.max(0, Math.min(rowCount - 1, Math.floor((visibleListTop - listTop) / ROW_HEIGHT)));
+    return {
+      key: rowKey(getRowAt(index)),
+      offset: visibleListTop - (listTop + index * ROW_HEIGHT),
+    };
+  }
+
+  export async function restoreViewportAnchor(index: number, offset: number) {
+    if (!scrollViewport || rowCount === 0) return;
+    const boundedIndex = Math.max(0, Math.min(rowCount - 1, index));
+    const listTop = listSpace?.offsetTop ?? 0;
+    const stickyHeaderHeight = tableHeader?.offsetHeight ?? 0;
+    scrollViewport.scrollTop = Math.max(
+      0,
+      listTop + boundedIndex * ROW_HEIGHT + offset - stickyHeaderHeight,
+    );
+    await tick();
   }
 
   function readColumnWidths(target: HTMLElement): FileColumnWidths | null {
@@ -524,7 +572,7 @@
       onpointercancel={finishMarquee}
     >
       <div class="file-table-content" style={columnGridStyle}>
-        <div class="file-table-grid file-table-header" class:is-column-resizing={columnResize !== null}>
+        <div bind:this={tableHeader} class="file-table-grid file-table-header" class:is-column-resizing={columnResize !== null}>
           <span aria-hidden="true"></span>
           <div class="file-table-column-header" data-file-column="name">
             <button class="file-table-sort-button" type="button" title={sortTitle('name')} onclick={() => onSort('name')}>
@@ -593,17 +641,17 @@
               {#if row.kind === 'folder'}
                 <button
                   data-file-table-row
-                  data-file-row-index={rendered.virtualItem?.index ?? folders.indexOf(row.folder)}
+                  data-file-row-index={rendered.index}
                   data-selection-key={fileSelectionKey('folder', row.folder.id)}
                   type="button"
-                  class="file-table-grid file-table-row"
+                  class="file-table-grid file-table-row file-table-row--folder"
                   class:file-table-row--selected={isSelected(row)}
                   aria-pressed={isSelected(row)}
                   tabindex={activeRowKey === rowKey(row) ? 0 : -1}
                   style={rowStyle(rendered.virtualItem)}
                   onclick={(event) => handleRowClick(event, row)}
                   ondblclick={() => onFolderActivate(row.folder)}
-                  onkeydown={(event) => handleKeyboardNavigation(event, row)}
+                  onkeydown={(event) => handleKeyboardNavigation(event, row, rendered.index)}
                   onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
                 >
@@ -618,7 +666,7 @@
               {:else}
                 <button
                   data-file-table-row
-                  data-file-row-index={rendered.virtualItem?.index ?? folders.length + documents.indexOf(row.document)}
+                  data-file-row-index={rendered.index}
                   data-selection-key={fileSelectionKey('document', row.document.id)}
                   type="button"
                   class="file-table-grid file-table-row"
@@ -628,7 +676,7 @@
                   style={rowStyle(rendered.virtualItem)}
                   onclick={(event) => handleRowClick(event, row)}
                   ondblclick={() => onDocumentActivate(row.document)}
-                  onkeydown={(event) => handleKeyboardNavigation(event, row)}
+                  onkeydown={(event) => handleKeyboardNavigation(event, row, rendered.index)}
                   onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onDocumentContextMenu(event, row.document)}
                 >
@@ -686,7 +734,7 @@
   .file-table-row--selected { background: var(--explorer-surface-selected); box-shadow: inset 2px 0 0 var(--explorer-accent); }
   .file-table-row--selected:hover { background: color-mix(in srgb, var(--explorer-surface-selected) 80%, var(--explorer-surface-hover)); }
   .file-table-icon { display: inline-flex; color: var(--explorer-text-muted); }
-  .file-table-folder-name, .file-table-row:has(.file-table-folder-name) .file-table-icon { color: #ffca4b; }
+  .file-table-folder-name, .file-table-row--folder .file-table-icon { color: #ffca4b; }
   .file-table-icon--selected { color: var(--explorer-accent) !important; }
   .file-table-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.81rem; }
   .file-table-modified, .file-table-type, .file-table-size { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text-muted); font-size: 0.74rem; }
