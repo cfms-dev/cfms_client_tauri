@@ -4,6 +4,7 @@
     strokeWidth?: number;
     class?: string;
     label?: string;
+    tone?: 'primary' | 'inherit';
   }
 
   let {
@@ -11,6 +12,7 @@
     strokeWidth = 3,
     class: className = '',
     label = 'Loading',
+    tone = 'primary',
   }: Props = $props();
 
   const normalizedSize = $derived(
@@ -21,7 +23,8 @@
 </script>
 
 <span
-  class="md-progress-ring inline-flex items-center justify-center text-md3-primary-emphasis {className}"
+  class="md-progress-ring inline-flex items-center justify-center {className}"
+  class:md-progress-ring--inherit={tone === 'inherit'}
   style="width: {normalizedSize}; height: {normalizedSize};"
   role="status"
   aria-label={label}
@@ -51,6 +54,10 @@
 <style>
   .md-progress-ring {
     color: var(--color-md3-primary-emphasis);
+  }
+
+  .md-progress-ring--inherit {
+    color: inherit;
   }
 
   .md-progress-ring svg {

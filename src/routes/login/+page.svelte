@@ -785,7 +785,7 @@
             disabled={busy}
           >
             {#if busy}
-              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.signingIn')} />
+              <ProgressRing tone="inherit" size={18} strokeWidth={2.5} label={$t('common.signingIn')} />
               {$t('common.signingIn')}
             {:else}
               <Icon name="login" size="20px" />
