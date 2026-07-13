@@ -299,7 +299,7 @@
             disabled={busy || !code.trim()}
           >
             {#if busy}
-              <ProgressRing size={16} strokeWidth={2.4} label={$t('common.verifying')} />
+              <ProgressRing tone="inherit" size={16} strokeWidth={2.4} label={$t('common.verifying')} />
               {$t('common.verifying')}
             {:else}
               <Icon name="check" size="18px" />

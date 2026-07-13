@@ -608,7 +608,7 @@
 
       <!-- Login form — MD3 card -->
       <form
-        class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+        class="login-form-card backdrop-blur-sm rounded-xl
                border border-md3-outline p-6 space-y-4"
         onsubmit={(e) => {
           e.preventDefault();
@@ -617,43 +617,37 @@
       >
         <!-- Username -->
         <div>
-          <label
-            for="username"
-            class="block text-sm font-medium mb-1.5 text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
+          <div
+            class="login-text-field"
+            class:login-text-field--error={Boolean(fieldErrors.username)}
           >
-            {$t('login.username')}
-          </label>
-          <div class="relative">
-            <span
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant"
-            >
-              <Icon name="accountCircle" size="18px" />
-            </span>
-            <input
-              id="username"
-              type="text"
-              class="w-full pl-10 pr-3.5 py-2.5 rounded-xl border
-                     {fieldErrors.username
-                ? 'border-md3-error'
-                : 'border-md3-outline'}
-                     bg-md3-field text-md3-on-surface text-sm
-                     placeholder:text-md3-on-surface-variant
-                     transition-colors"
-              placeholder={$t('login.usernamePlaceholder')}
-              bind:value={username}
-              bind:this={usernameInput}
-              disabled={busy}
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-              onkeydown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  passwordInput?.focus();
-                }
-              }}
-            />
+            <label class="login-text-field__label" for="username">
+              {$t('login.username')}
+            </label>
+            <div class="login-text-field__input-row">
+              <span class="login-text-field__leading-icon">
+                <Icon name="accountCircle" size="18px" />
+              </span>
+              <input
+                id="username"
+                type="text"
+                data-focus-ring="delegated"
+                class="login-text-field__input"
+                placeholder={$t('login.usernamePlaceholder')}
+                bind:value={username}
+                bind:this={usernameInput}
+                disabled={busy}
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                onkeydown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    passwordInput?.focus();
+                  }
+                }}
+              />
+            </div>
           </div>
           {#if fieldErrors.username}
             <p class="text-xs text-md3-error mt-1 ml-1">
@@ -664,47 +658,40 @@
 
         <!-- Password -->
         <div>
-          <label
-            for="password"
-            class="block text-sm font-medium mb-1.5 text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
+          <div
+            class="login-text-field"
+            class:login-text-field--error={Boolean(fieldErrors.password)}
           >
-            {$t('login.password')}
-          </label>
-          <div class="relative">
-            <span
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant"
-            >
-              <Icon name="password" size="18px" />
-            </span>
-            <input
-              id="password"
-              type={passwordVisible ? "text" : "password"}
-              class="w-full pl-10 pr-10 py-2.5 rounded-xl border
-                     {fieldErrors.password
-                ? 'border-md3-error'
-                : 'border-md3-outline'}
-                     bg-md3-field text-md3-on-surface text-sm
-                     placeholder:text-md3-on-surface-variant
-                     transition-colors"
-              placeholder={$t('login.passwordPlaceholder')}
-              bind:value={password}
-              bind:this={passwordInput}
-              disabled={busy}
-              autocomplete="current-password"
-            />
-            <button
-              type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-md3-on-surface-variant
-                     hover:text-md3-on-surface transition-colors"
-              onclick={() => (passwordVisible = !passwordVisible)}
-              aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
-            >
-              <Icon
-                name={passwordVisible ? "visibility" : "visibility"}
-                size="18px"
+            <label class="login-text-field__label" for="password">
+              {$t('login.password')}
+            </label>
+            <div class="login-text-field__input-row">
+              <span class="login-text-field__leading-icon">
+                <Icon name="password" size="18px" />
+              </span>
+              <input
+                id="password"
+                type={passwordVisible ? "text" : "password"}
+                data-focus-ring="delegated"
+                class="login-text-field__input"
+                placeholder={$t('login.passwordPlaceholder')}
+                bind:value={password}
+                bind:this={passwordInput}
+                disabled={busy}
+                autocomplete="current-password"
               />
-            </button>
+              <button
+                type="button"
+                class="login-text-field__trailing-button"
+                onclick={() => (passwordVisible = !passwordVisible)}
+                aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
+              >
+                <Icon
+                  name={passwordVisible ? "visibility" : "visibility"}
+                  size="18px"
+                />
+              </button>
+            </div>
           </div>
           {#if fieldErrors.password}
             <p class="text-xs text-md3-error mt-1 ml-1">
@@ -863,6 +850,114 @@
 {/if}
 
 <style>
+  .login-form-card {
+    background: var(--explorer-surface);
+  }
+
+  .login-text-field {
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    border: 1px solid var(--explorer-border);
+    border-radius: 12px;
+    padding: 0;
+    background: var(--explorer-surface-raised);
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+
+  .login-text-field:focus-within {
+    border-color: var(--explorer-accent);
+    box-shadow: inset 0 0 0 1px var(--explorer-accent);
+  }
+
+  .login-text-field--error,
+  .login-text-field--error:focus-within {
+    border-color: var(--explorer-danger);
+    box-shadow: inset 0 0 0 1px var(--explorer-danger);
+  }
+
+  .login-text-field__label {
+    position: absolute;
+    top: 0;
+    left: 0.75rem;
+    z-index: 1;
+    transform: translateY(-50%);
+    padding: 0 0.35rem;
+    color: var(--explorer-text-muted);
+    background: var(--explorer-surface);
+    font-family: var(--font-md3-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25;
+    transition: color 120ms ease;
+  }
+
+  .login-text-field:focus-within .login-text-field__label {
+    color: var(--explorer-accent);
+  }
+
+  .login-text-field--error .login-text-field__label,
+  .login-text-field--error:focus-within .login-text-field__label {
+    color: var(--explorer-danger);
+  }
+
+  .login-text-field__input-row {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .login-text-field__leading-icon {
+    display: inline-flex;
+    flex: none;
+    padding-left: 0.75rem;
+    color: var(--explorer-text-muted);
+  }
+
+  .login-text-field__input {
+    min-width: 0;
+    height: 42px;
+    flex: 1 1 auto;
+    border: 0;
+    background: transparent;
+    color: var(--explorer-text);
+    padding: 0 0.875rem 0 0.625rem;
+    font-family: var(--font-md3-sans);
+    font-size: 0.875rem;
+    outline: none;
+  }
+
+  .login-text-field__input::placeholder {
+    color: var(--explorer-text-muted);
+  }
+
+  .login-text-field__input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .login-text-field__trailing-button {
+    display: inline-flex;
+    width: 42px;
+    height: 42px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    color: var(--explorer-text-muted);
+    transition:
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .login-text-field__trailing-button:hover {
+    color: var(--explorer-text);
+    background: var(--explorer-surface-hover);
+  }
+
   .auth-shell {
     display: flex;
     min-height: 100%;

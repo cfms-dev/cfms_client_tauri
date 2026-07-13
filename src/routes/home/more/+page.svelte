@@ -44,7 +44,7 @@
     { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
     { label: $t('files.trash'), description: $t('more.trashDescription'),
-      icon: 'delete', href: '/home/trash' },
+      icon: 'delete', href: '/home/trash', hidden: !authStore.permissions.includes('list_deleted_items') },
     { label: $t('more.management'), description: $t('more.managementDescription'),
       icon: 'adminPanelSettings', href: '/home/manage', hidden: !isAdmin },
     { label: $t('more.about'), description: $t('more.aboutDescription'),

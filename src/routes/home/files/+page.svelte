@@ -865,6 +865,7 @@
       icon: 'deleteSweep',
       compact: true,
       dividerBefore: true,
+      disabled: batchBusy || !hasPermission('list_deleted_items'),
       run: handleNavigateTrash,
     },
   ]);

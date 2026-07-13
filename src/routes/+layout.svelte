@@ -178,6 +178,17 @@
       }
     }
 
+    // The recycle bin exposes deleted-item metadata and must not be reachable
+    // through a manually entered URL without the corresponding server grant.
+    if (
+      authStore.isLoggedIn
+      && path === "/home/trash"
+      && !authStore.permissions.includes("list_deleted_items")
+    ) {
+      goto("/home/files", { replaceState: true });
+      return;
+    }
+
     // 5. If fully authenticated and on connect or login, go to home.
     if (serverStateStore.connected && authStore.isLoggedIn && !authStore.postLoginPending) {
       if (path === "/connect" || path === "/login") {
