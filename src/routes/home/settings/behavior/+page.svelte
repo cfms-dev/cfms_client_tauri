@@ -168,8 +168,7 @@
             data-radio-item
             class="flex w-full items-start gap-3 px-3 py-2.5 rounded-lg text-left
                    text-sm text-md3-on-surface border transition-all outline-none
-                   hover:bg-md3-primary-container/15 focus-visible:ring-2
-                   focus-visible:ring-md3-primary/50
+                   hover:bg-md3-primary-container/15
                    {behavior === option.value
                      ? 'border-md3-primary bg-md3-primary-container/15'
                      : 'border-md3-outline/50 bg-md3-surface-container-high/40'}

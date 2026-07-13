@@ -19,15 +19,29 @@
       return { duration: 0 };
     }
 
-    const height = node.scrollHeight;
     return {
       duration: 300,
       easing: (value) => 1 - Math.pow(1 - value, 3),
       css: (progress, inverse) => `
-        max-height: ${progress * height}px;
         opacity: ${progress};
         transform: translate3d(0, ${inverse * -100}%, 0);
-        overflow: hidden;
+      `,
+    };
+  }
+
+  function liftToTop(node: HTMLElement): TransitionConfig {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return { duration: 0 };
+    }
+
+    return {
+      duration: 250,
+      easing: (value) => value * value,
+      css: (progress, inverse) => `
+        position: absolute;
+        inset: 0 0 auto;
+        opacity: ${progress};
+        transform: translate3d(0, ${inverse * -100}%, 0);
       `,
     };
   }
@@ -39,7 +53,8 @@
            px-4 py-2.5 text-center text-sm font-semibold
            flex items-center justify-center gap-2"
     style="font-family: var(--font-md3-sans);"
-    transition:dropFromTop
+    in:dropFromTop
+    out:liftToTop
   >
     <Icon name="warning" size="18px" />
     <span style="font-family: var(--font-md3-serif);">
@@ -50,40 +65,45 @@
 
 <style>
   .lockdown-banner {
+    position: relative;
+    isolation: isolate;
     width: 100%;
+    height: calc(var(--lockdown-banner-content-height) + var(--safe-area-top, 0px));
     flex: none;
     padding-top: calc(0.625rem + var(--safe-area-top, 0px));
-    background-color: rgb(220 38 38 / 0);
+    will-change: opacity, transform;
+  }
+
+  .lockdown-banner::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background-color: rgb(220 38 38);
+    content: '';
     animation: lockdown-banner-pulse 3s linear infinite;
-    will-change: max-height, opacity, transform;
+    will-change: opacity;
   }
 
   @keyframes lockdown-banner-pulse {
-    0% {
-      background-color: rgb(220 38 38 / 0);
-    }
-
+    0%,
     46.67% {
-      background-color: rgb(220 38 38 / 0);
+      opacity: 0;
     }
 
-    50% {
-      background-color: rgb(220 38 38 / 1);
-    }
-
+    50%,
     96.67% {
-      background-color: rgb(220 38 38 / 1);
+      opacity: 1;
     }
 
     100% {
-      background-color: rgb(220 38 38 / 0);
+      opacity: 0;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .lockdown-banner {
+    .lockdown-banner::before {
       animation: none;
-      background-color: rgb(220 38 38 / 1);
+      opacity: 1;
     }
   }
 </style>

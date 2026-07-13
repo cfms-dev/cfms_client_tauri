@@ -172,8 +172,6 @@ export const zh_CN = {
     toggleAction: '切换锁定模式',
     enableAction: '启用锁定',
     disableAction: '停用锁定',
-    enabled: '服务器锁定已启用。',
-    disabled: '服务器锁定已停用。',
     quitHint: '移动系统可能限制应用主动退出。若应用仍保持打开，请改用断开连接或退出登录。',
     banner: '系统封锁',
   },

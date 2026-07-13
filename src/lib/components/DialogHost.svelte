@@ -110,6 +110,7 @@
           {#each dialogStore.current.choices as choice, index (choice.value)}
             <button
               type="button"
+              data-focus-ring="delegated"
               class={`group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-md3-primary ${
                 index > 0 ? 'border-t border-md3-outline' : ''
               } bg-md3-surface-container-low hover:bg-md3-primary-container/25`}
@@ -135,10 +136,11 @@
           <label class="group flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-xs text-md3-on-surface-variant">
             <input
               type="checkbox"
+              data-focus-ring="delegated"
               class="peer sr-only"
               bind:checked={applyChoiceToAll}
             />
-            <span class={`grid size-5 shrink-0 place-items-center rounded border transition-colors ${applyChoiceToAll
+            <span class={`grid size-5 shrink-0 place-items-center rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-md3-primary ${applyChoiceToAll
               ? 'border-md3-primary bg-md3-primary text-md3-on-primary'
               : 'border-md3-outline bg-md3-surface-container-high group-hover:border-md3-primary'
             }`} aria-hidden="true">

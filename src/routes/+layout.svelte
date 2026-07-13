@@ -49,6 +49,7 @@
   let { children }: { children: Snippet } = $props();
   let lastRecordedActivityAt = 0;
   let keyboardHelpOpen = $state(false);
+  let hasShownLockdownBanner = $state(false);
   initNavigationHistory();
 
   afterNavigate((navigation) => {
@@ -90,6 +91,10 @@
   const desiredScreenProtection = $derived(
     forcedScreenProtection || (authStore.isLoggedIn && screenProtectionStore.userEnabled),
   );
+
+  $effect(() => {
+    if (showRootLockdownBanner) hasShownLockdownBanner = true;
+  });
 
   // ---------------------------------------------------------------------------
   // Auth guard — runs reactively whenever the URL or auth state changes.
@@ -439,6 +444,7 @@
 <div
   class="safe-area-shell flex h-full flex-col"
   class:lockdown-banner-active={showRootLockdownBanner}
+  class:lockdown-banner-releasing={hasShownLockdownBanner && !showRootLockdownBanner}
 >
   <a class="keyboard-skip-link" href="#app-main-content">{$t('keyboard.skipToContent')}</a>
   <LockdownBanner active={showRootLockdownBanner} />
@@ -465,8 +471,46 @@
 </div>
 
 <style>
+  .safe-area-shell {
+    position: relative;
+    /* Keep this in sync with the banner's one-line content box. The safe-area
+       inset is transferred from the route content to the banner separately. */
+    --lockdown-banner-content-height: 2.5rem;
+  }
+
   .lockdown-banner-active .safe-area-top {
     padding-top: 0;
+    animation: lockdown-content-push
+      var(--motion-duration-medium2)
+      var(--motion-easing-emphasized-decelerate);
+  }
+
+  .lockdown-banner-releasing .safe-area-top {
+    animation: lockdown-content-release
+      var(--motion-duration-medium1)
+      var(--motion-easing-emphasized-accelerate);
+  }
+
+  @keyframes lockdown-content-push {
+    from {
+      /* The banner takes its final space in one layout pass. Moving the route
+         layer back to its old position makes the visual push compositor-only. */
+      transform: translate3d(0, calc(-1 * var(--lockdown-banner-content-height)), 0);
+    }
+
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes lockdown-content-release {
+    from {
+      transform: translate3d(0, var(--lockdown-banner-content-height), 0);
+    }
+
+    to {
+      transform: translate3d(0, 0, 0);
+    }
   }
 
   .keyboard-skip-link {
@@ -486,4 +530,11 @@
   }
 
   .keyboard-skip-link:focus { transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lockdown-banner-active .safe-area-top,
+    .lockdown-banner-releasing .safe-area-top {
+      animation: none;
+    }
+  }
 </style>

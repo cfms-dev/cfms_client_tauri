@@ -638,7 +638,6 @@
                 : 'border-md3-outline'}
                      bg-md3-field text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
-                     focus:ring-2 focus:ring-md3-primary focus:border-transparent
                      transition-colors"
               placeholder={$t('login.usernamePlaceholder')}
               bind:value={username}
@@ -686,7 +685,6 @@
                 : 'border-md3-outline'}
                      bg-md3-field text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
-                     focus:ring-2 focus:ring-md3-primary focus:border-transparent
                      transition-colors"
               placeholder={$t('login.passwordPlaceholder')}
               bind:value={password}

@@ -1230,7 +1230,6 @@
                       <button
                         class="max-w-36 rounded-md px-1 py-0.5 text-left leading-relaxed transition-colors
                                hover:bg-md3-primary-container/30 hover:text-md3-primary-emphasis
-                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-md3-primary
                                sm:max-w-64 {isAuditIdExpanded(entry.id) ? 'break-all text-md3-on-surface' : 'truncate'}"
                         title={entry.id}
                         aria-label={isAuditIdExpanded(entry.id)

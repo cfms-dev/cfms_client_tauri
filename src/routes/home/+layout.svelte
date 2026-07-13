@@ -185,7 +185,6 @@
     try {
       await setLockdown(nextStatus);
       serverStateStore.lockdown = nextStatus;
-      notificationStore.success(nextStatus ? $t('lockdown.enabled') : $t('lockdown.disabled'));
     } catch (error) {
       notificationStore.error(error instanceof Error ? error.message : String(error));
     } finally {

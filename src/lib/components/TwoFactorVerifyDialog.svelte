@@ -216,6 +216,7 @@
             <!-- svelte-ignore a11y_autofocus -->
             <input
               bind:this={codeInput}
+              data-focus-ring="delegated"
               type="text"
               inputmode="text"
               class="w-full rounded-2xl border bg-md3-field/90 py-3.5 pl-12 pr-4 text-sm text-md3-on-surface outline-none transition-all placeholder:text-md3-on-surface-variant
@@ -242,6 +243,7 @@
             <!-- svelte-ignore a11y_autofocus -->
             <input
               bind:this={codeInput}
+              data-focus-ring="delegated"
               class="code-input"
               type="text"
               inputmode="numeric"

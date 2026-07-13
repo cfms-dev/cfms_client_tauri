@@ -176,8 +176,6 @@ export const en = {
     toggleAction: 'Toggle lockdown mode',
     enableAction: 'Enable Lockdown',
     disableAction: 'Disable Lockdown',
-    enabled: 'Server lockdown enabled.',
-    disabled: 'Server lockdown disabled.',
     quitHint:
       'Exit requests may be limited by the mobile operating system. Disconnect or log out if the app remains open.',
     banner: 'System Lockdown',

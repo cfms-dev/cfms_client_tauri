@@ -357,28 +357,28 @@
           {$t('files.authorizationStartDate')}
           <span class="date-field">
             <Icon name="calendarToday" size="17px" />
-            <input type="date" bind:value={startDate} disabled={saving} />
+            <input type="date" data-focus-ring="delegated" bind:value={startDate} disabled={saving} />
           </span>
         </label>
         <label class="field-label">
           {$t('files.authorizationStartTime')}
           <span class="date-field">
             <Icon name="accessTime" size="17px" />
-            <input type="time" bind:value={startTime} disabled={saving} />
+            <input type="time" data-focus-ring="delegated" bind:value={startTime} disabled={saving} />
           </span>
         </label>
         <label class="field-label">
           {$t('files.authorizationEndDate')}
           <span class="date-field">
             <Icon name="calendarToday" size="17px" />
-            <input type="date" bind:value={endDate} disabled={saving} />
+            <input type="date" data-focus-ring="delegated" bind:value={endDate} disabled={saving} />
           </span>
         </label>
         <label class="field-label">
           {$t('files.authorizationEndTime')}
           <span class="date-field">
             <Icon name="accessTime" size="17px" />
-            <input type="time" bind:value={endTime} disabled={saving} />
+            <input type="time" data-focus-ring="delegated" bind:value={endTime} disabled={saving} />
           </span>
         </label>
       </div>

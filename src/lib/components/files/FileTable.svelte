@@ -533,6 +533,7 @@
             <button
               class="file-table-resize-handle"
               type="button"
+              data-focus-ring="delegated"
               aria-label={$t('files.resizeColumn', { values: { column: $t('files.name') } })}
               title={$t('files.resizeColumn', { values: { column: $t('files.name') } })}
               onpointerdown={(event) => handleColumnResizePointerDown(event, 0)}
@@ -549,6 +550,7 @@
             <button
               class="file-table-resize-handle"
               type="button"
+              data-focus-ring="delegated"
               aria-label={$t('files.resizeColumn', { values: { column: $t('files.modified') } })}
               title={$t('files.resizeColumn', { values: { column: $t('files.modified') } })}
               onpointerdown={(event) => handleColumnResizePointerDown(event, 1)}
@@ -563,6 +565,7 @@
             <button
               class="file-table-resize-handle"
               type="button"
+              data-focus-ring="delegated"
               aria-label={$t('files.resizeColumn', { values: { column: $t('workspace.type') } })}
               title={$t('files.resizeColumn', { values: { column: $t('workspace.type') } })}
               onpointerdown={(event) => handleColumnResizePointerDown(event, 2)}

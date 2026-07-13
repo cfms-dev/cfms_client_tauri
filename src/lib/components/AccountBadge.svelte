@@ -27,7 +27,7 @@
 <div class="flex items-center gap-4">
   <button
     type="button"
-    class="relative rounded-full transition-transform hover:scale-[1.03] active:scale-95 focus:outline-none focus:ring-2 focus:ring-md3-primary disabled:cursor-not-allowed disabled:opacity-60"
+    class="relative rounded-full transition-transform hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
     title={$t('avatar.change')}
     aria-label={$t('avatar.change')}
     disabled={!authStore.isLoggedIn || avatarBusy || !onAvatarClick}
