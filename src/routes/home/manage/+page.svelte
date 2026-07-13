@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import {
     blockUser,
@@ -30,7 +29,6 @@
     type UserBlockTarget,
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
-  import { navigateUp } from '$lib/navigation';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import CreateUserAccountDialog from '$lib/components/CreateUserAccountDialog.svelte';
@@ -910,18 +908,8 @@
   }
 </script>
 
-<div class="space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]">
+<div class="workspace-page space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]">
   <div bind:this={identityMeasureHost} class="identity-measure-host" aria-hidden="true"></div>
-
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
 
   <div class="flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">

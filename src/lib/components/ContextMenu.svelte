@@ -43,15 +43,16 @@
     void tick().then(() => {
       if (!menuEl || !open) return;
 
-      const rect = menuEl.getBoundingClientRect();
+      const width = menuEl.offsetWidth;
+      const height = menuEl.offsetHeight;
       const padding = 8;
-      const adjustedX = Math.max(padding, Math.min(nextX, window.innerWidth - rect.width - padding));
-      const adjustedY = Math.max(padding, Math.min(nextY, window.innerHeight - rect.height - padding));
+      const adjustedX = Math.max(padding, Math.min(nextX, window.innerWidth - width - padding));
+      const adjustedY = Math.max(padding, Math.min(nextY, window.innerHeight - height - padding));
 
       menuX = adjustedX;
       menuY = adjustedY;
-      originX = nextX > adjustedX + rect.width / 2 ? 'right' : 'left';
-      originY = nextY > adjustedY + rect.height / 2 ? 'bottom' : 'top';
+      originX = nextX > adjustedX + width / 2 ? 'right' : 'left';
+      originY = nextY > adjustedY + height / 2 ? 'bottom' : 'top';
       menuEl.focus();
     });
   });
@@ -118,6 +119,10 @@
 
 <style>
   .context-menu-surface {
+    max-height: calc(100dvh - 16px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     will-change: opacity, transform, filter;
   }
 

@@ -225,6 +225,7 @@ export async function setFavoriteRecord(
     favourites,
   };
   await saveUserPreference(next);
+  notifyFavoritesChanged();
   return next;
 }
 
@@ -239,7 +240,14 @@ export async function clearFavoriteRecords(scope: FilePreferenceScope): Promise<
     },
   };
   await saveUserPreference(next);
+  notifyFavoritesChanged();
   return next;
+}
+
+function notifyFavoritesChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cfms:favorites-changed'));
+  }
 }
 
 export function isFavoriteRecord(preferences: UserPreference | null, record: FileRecord): boolean {

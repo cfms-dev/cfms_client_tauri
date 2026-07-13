@@ -115,6 +115,9 @@
 <style>
   .blueprint-panel {
     position: relative;
+    border: 1px solid var(--explorer-border);
+    border-radius: var(--explorer-radius-medium);
+    background: var(--explorer-surface-raised);
   }
 
   .blueprint-record-list {
@@ -139,7 +142,11 @@
   }
 
   .blueprint-record-row:hover {
-    opacity: 0.86;
+    background: var(--explorer-surface-hover);
+  }
+
+  .blueprint-record-row {
+    border-radius: var(--explorer-radius-small);
   }
 
   .blueprint-record-row--unavailable {

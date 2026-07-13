@@ -379,3 +379,169 @@
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Explorer workspace — scoped Fluent-inspired tokens
+ *
+ * The authenticated workspace intentionally has a denser, Windows 11 file
+ * manager visual language. These variables are scoped so the connection and
+ * authentication flows keep their existing Material presentation.
+ * --------------------------------------------------------------------------- */
+
+.explorer-shell {
+  --explorer-background: #0f1115;
+  --explorer-surface: #17191d;
+  --explorer-surface-raised: #20232a;
+  --explorer-surface-hover: #292d35;
+  --explorer-surface-selected: #343840;
+  --explorer-border: rgba(255, 255, 255, 0.11);
+  --explorer-border-strong: rgba(255, 255, 255, 0.18);
+  --explorer-text: #f5f5f5;
+  --explorer-text-muted: #b4b8c1;
+  --explorer-accent: #60cdff;
+  --explorer-accent-soft: rgba(96, 205, 255, 0.16);
+  --explorer-danger: #ff99a4;
+  --explorer-success: #6ccb8e;
+  --explorer-warning: #f5d47a;
+  --explorer-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+  --explorer-radius-small: 5px;
+  --explorer-radius-medium: 8px;
+  --explorer-radius-large: 12px;
+  color: var(--explorer-text);
+  background: var(--explorer-background);
+  font-family: var(--font-md3-sans);
+  color-scheme: dark;
+
+  /* Existing feature components remain functional while inheriting the new
+     workspace palette. This lets dialogs and complex management controls be
+     migrated without duplicating their behavior. */
+  --color-md3-primary: var(--explorer-accent);
+  --color-md3-primary-emphasis: var(--explorer-accent);
+  --color-md3-primary-container: var(--explorer-accent-soft);
+  --color-md3-on-primary: var(--explorer-background);
+  --color-md3-on-primary-container: var(--explorer-text);
+  --color-md3-surface: var(--explorer-background);
+  --color-md3-surface-container: var(--explorer-surface);
+  --color-md3-surface-container-high: var(--explorer-surface-raised);
+  --color-md3-surface-container-highest: var(--explorer-surface-hover);
+  --color-md3-outline: var(--explorer-border);
+  --color-md3-outline-variant: var(--explorer-border-strong);
+  --color-md3-on-surface: var(--explorer-text);
+  --color-md3-on-surface-variant: var(--explorer-text-muted);
+  --color-md3-error: var(--explorer-danger);
+  --color-md3-error-container: color-mix(in srgb, var(--explorer-danger) 14%, transparent);
+  --color-md3-on-error-container: var(--explorer-danger);
+  --color-md3-success: var(--explorer-success);
+  --color-md3-warning: var(--explorer-warning);
+  --color-md3-field: var(--explorer-surface-raised);
+}
+
+@media (prefers-color-scheme: light) {
+  .explorer-shell {
+    --explorer-background: #f3f3f3;
+    --explorer-surface: #fafafa;
+    --explorer-surface-raised: #ffffff;
+    --explorer-surface-hover: #ececec;
+    --explorer-surface-selected: #e3e3e3;
+    --explorer-border: rgba(0, 0, 0, 0.10);
+    --explorer-border-strong: rgba(0, 0, 0, 0.16);
+    --explorer-text: #1a1a1a;
+    --explorer-text-muted: #5d5d5d;
+    --explorer-accent: #0067c0;
+    --explorer-accent-soft: rgba(0, 103, 192, 0.12);
+    --explorer-danger: #c42b1c;
+    --explorer-success: #0f7b3e;
+    --explorer-warning: #8a5d00;
+    --explorer-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+    color-scheme: light;
+  }
+}
+
+.explorer-shell button:focus-visible,
+.explorer-shell a:focus-visible,
+.explorer-shell input:focus-visible,
+.explorer-shell [tabindex]:focus-visible {
+  outline: 2px solid var(--explorer-accent);
+  outline-offset: 1px;
+}
+
+.explorer-shell ::selection {
+  color: var(--explorer-text);
+  background: var(--explorer-accent-soft);
+}
+
+.explorer-surface {
+  border: 1px solid var(--explorer-border);
+  border-radius: var(--explorer-radius-medium);
+  background: color-mix(in srgb, var(--explorer-surface-raised) 94%, transparent);
+}
+
+.explorer-shell .workspace-page {
+  color: var(--explorer-text);
+  background: var(--explorer-background);
+}
+
+.explorer-shell .workspace-page h1,
+.explorer-shell .workspace-page h2,
+.explorer-shell .workspace-page h3 {
+  font-family: var(--font-md3-sans);
+  letter-spacing: -0.01em;
+}
+
+.explorer-shell .workspace-page .rounded-xl {
+  border-radius: var(--explorer-radius-medium);
+}
+
+.explorer-command-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  border-radius: var(--explorer-radius-small);
+  padding: 0.35rem 0.65rem;
+  color: var(--explorer-text);
+  background: transparent;
+  font-size: 0.8125rem;
+  line-height: 1;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.explorer-command-button:hover:not(:disabled) {
+  border-color: var(--explorer-border);
+  background: var(--explorer-surface-hover);
+}
+
+.explorer-command-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.explorer-command-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.explorer-command-button[data-active="true"] {
+  color: var(--explorer-accent);
+  background: var(--explorer-accent-soft);
+}
+
+.explorer-command-button[data-tone="danger"] {
+  color: var(--explorer-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explorer-shell *,
+  .explorer-shell *::before,
+  .explorer-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

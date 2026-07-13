@@ -12,7 +12,6 @@
     type DeletedDocumentEntry,
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
-  import { navigateUp } from '$lib/navigation';
   import { authStore, floatingProgressStore, notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
@@ -301,17 +300,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4">
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={() => navigateUp(page.url.pathname)}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
+<div class="workspace-page p-4 sm:p-6 space-y-4">
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
       <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">

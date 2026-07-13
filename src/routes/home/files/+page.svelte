@@ -71,7 +71,10 @@
     setDownloadBatchPhase,
     waitForDownloadBatchResume,
   } from '$lib/download-batch-control';
-  import FileTable from '$lib/components/files/FileTable.svelte';
+  import FileTable, { type FileTableRow } from '$lib/components/files/FileTable.svelte';
+  import ExplorerCommandBar from '$lib/components/explorer/ExplorerCommandBar.svelte';
+  import ExplorerDetailsPane from '$lib/components/explorer/ExplorerDetailsPane.svelte';
+  import ExplorerStatusBar from '$lib/components/explorer/ExplorerStatusBar.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import MdCheckbox from '$lib/components/MdCheckbox.svelte';
@@ -104,10 +107,13 @@
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
   import { sortFileEntries, type SortDirection, type SortField } from '$lib/files/sorting';
   import { shouldDeferFileSort, sortFileEntriesAsync } from '$lib/files/sort-worker-client';
-  import { isFindShortcut } from '$lib/keyboard';
+  import { fileManagerShortcutFor, isFindShortcut } from '$lib/keyboard';
   import { isAndroidTreeUri, uploadDisplayName } from '$lib/files/upload-names';
   import { shortIdentifier } from '$lib/identifiers';
   import type { IconName } from '$lib/icons';
+  import type { CommandAction, FileDetailModel } from '$lib/explorer/types';
+  import { fileSelectionKey, parseFileSelectionKey, selectFileRange } from '$lib/explorer/file-selection';
+  import { isMobilePlatform } from '$lib/platform';
   import { authStore, floatingProgressStore, notificationStore, serverStateStore, uploadStore } from '$lib/stores.svelte';
 
   type SearchResultRow =
@@ -118,6 +124,7 @@
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
   const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
   const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
+  const SORT_FIELDS: SortField[] = ['name', 'modified', 'size'];
 
   type DownloadQueueItem = {
     document: Pick<ServerDocumentEntry, 'id' | 'title'>;
@@ -149,13 +156,21 @@
   let sortField = $state<SortField>('name');
   let sortDirection = $state<SortDirection>('asc');
   let sortRequestId = 0;
+  let focusedItemKey = $state<string | null>(null);
+  let selectionAnchorKey = $state<string | null>(null);
+  let coarsePointer = $state(false);
+  let marqueeSelectionEnabled = $state(false);
+  let marqueeSelectionActive = $state(false);
+  let detailsOpen = $state(false);
+  let detailModel = $state<FileDetailModel | null>(null);
+  let detailRequestId = 0;
 
   // Context menu state
   let contextMenu = $state<{
     open: boolean;
     x: number;
     y: number;
-    kind: 'folder' | 'document' | 'current-directory' | null;
+    kind: 'folder' | 'document' | 'selection' | 'current-directory' | null;
     item: ServerDirectoryEntry | ServerDocumentEntry | null;
   }>({ open: false, x: 0, y: 0, kind: null, item: null });
   let detailTitle = $state<string | null>(null);
@@ -338,6 +353,10 @@
     return undefined;
   });
   const canGoToParent = $derived(parentTargetId !== undefined);
+  const orderedSelectionKeys = $derived([
+    ...folders.map((folder) => fileSelectionKey('folder', folder.id)),
+    ...documents.map((document) => fileSelectionKey('document', document.id)),
+  ]);
 
   $effect(() => {
     if (!status) return;
@@ -528,17 +547,25 @@
   function clearSelection() {
     selectedFolderIds = new Set();
     selectedDocumentIds = new Set();
+    focusedItemKey = null;
+    selectionAnchorKey = null;
+    focusedItemKey = null;
+    selectionAnchorKey = null;
     selectMode = false;
   }
 
   function deselectAll() {
     selectedFolderIds = new Set();
     selectedDocumentIds = new Set();
+    focusedItemKey = null;
+    selectionAnchorKey = null;
   }
 
   function selectAllVisible() {
     selectedFolderIds = new Set(folders.map((folder) => folder.id));
     selectedDocumentIds = new Set(documents.map((doc) => doc.id));
+    focusedItemKey = orderedSelectionKeys.at(-1) ?? null;
+    selectionAnchorKey = orderedSelectionKeys[0] ?? null;
   }
 
   function toggleAllVisibleSelection() {
@@ -564,6 +591,105 @@
       && folders.every((folder) => selectedFolderIds.has(folder.id))
       && documents.every((doc) => selectedDocumentIds.has(doc.id)),
   );
+  const selectedFolder = $derived(
+    totalSelected === 1 ? folders.find((folder) => selectedFolderIds.has(folder.id)) ?? null : null,
+  );
+  const selectedDocument = $derived(
+    totalSelected === 1 ? documents.find((document) => selectedDocumentIds.has(document.id)) ?? null : null,
+  );
+  const selectedDocumentSize = $derived(
+    documents.reduce((total, document) => selectedDocumentIds.has(document.id) ? total + (document.size ?? 0) : total, 0),
+  );
+  const fileCommandActions = $derived.by<CommandAction[]>(() => [
+    { id: 'new-folder', label: $t('files.createFolder'), icon: 'createNewFolder', run: handleCreateFolder },
+    { id: 'upload-files', label: $t('files.uploadFiles'), icon: 'uploadFile', run: handleUploadFiles },
+    { id: 'upload-folder', label: $t('files.uploadFolder'), icon: 'folderUpload', run: handleUploadFolder },
+    {
+      id: 'download-selected',
+      label: $t('files.downloadSelected'),
+      icon: 'download',
+      visible: totalSelected > 0,
+      disabled: batchBusy,
+      dividerBefore: true,
+      run: handleDownloadSelected,
+    },
+    {
+      id: 'rename-selected',
+      label: $t('files.rename'),
+      icon: 'edit',
+      visible: totalSelected === 1,
+      disabled: batchBusy || !canRenameSelected(),
+      run: handleRenameSelected,
+    },
+    {
+      id: 'move-selected',
+      label: $t('files.moveSelected'),
+      icon: 'driveFileMove',
+      visible: totalSelected > 0,
+      disabled: batchBusy || !hasPermission('move'),
+      run: handleMoveSelected,
+    },
+    {
+      id: 'delete-selected',
+      label: $t('common.delete'),
+      icon: 'delete',
+      tone: 'danger',
+      visible: totalSelected > 0,
+      disabled: batchBusy || !canDeleteSelection(),
+      run: handleDeleteSelected,
+    },
+    {
+      id: 'selection-mode',
+      label: $t('files.select'),
+      icon: 'checklist',
+      compact: true,
+      active: selectMode,
+      dividerBefore: true,
+      run: toggleSelectMode,
+    },
+    {
+      id: 'select-all',
+      label: allVisibleSelected ? $t('files.selectNone') : $t('files.selectAll'),
+      icon: allVisibleSelected ? 'clearAll' : 'selectAll',
+      active: allVisibleSelected,
+      visible: selectMode,
+      disabled: totalVisibleSelectable === 0,
+      run: toggleAllVisibleSelection,
+    },
+    {
+      id: 'jump',
+      label: $t('files.jumpToDirectory'),
+      icon: 'folderEye',
+      compact: true,
+      run: handleJumpToDirectory,
+    },
+    {
+      id: 'details',
+      label: $t('workspace.details'),
+      icon: 'info',
+      compact: true,
+      active: detailsOpen,
+      run: () => { detailsOpen = !detailsOpen; },
+    },
+    {
+      id: 'trash',
+      label: $t('workspace.recycleBin'),
+      icon: 'deleteSweep',
+      compact: true,
+      dividerBefore: true,
+      run: handleNavigateTrash,
+    },
+  ]);
+
+  $effect(() => {
+    const signature = `${detailsOpen}:${marqueeSelectionActive}:${[...selectedFolderIds].join(',')}:${[...selectedDocumentIds].join(',')}`;
+    signature;
+    if (!detailsOpen || marqueeSelectionActive) {
+      detailRequestId += 1;
+      return;
+    }
+    void loadSelectionDetails();
+  });
 
   // --- Download ---
 
@@ -576,21 +702,188 @@
     }
   }
 
-  // --- Document row click: download (normal) or toggle selection ---
-  function handleDocumentClick(doc: ServerDocumentEntry) {
+  function handleDocumentClick(event: MouseEvent, doc: ServerDocumentEntry) {
+    if (coarsePointer && !selectMode) {
+      void handleDownload(doc);
+      return;
+    }
+    selectRow(event, 'document', doc.id);
+  }
+
+  function handleFolderClick(event: MouseEvent, folder: ServerDirectoryEntry) {
+    if (coarsePointer && !selectMode) {
+      void handleNavigate(folder.id, folder.name);
+      return;
+    }
+    selectRow(event, 'folder', folder.id);
+  }
+
+  function handleDocumentActivate(doc: ServerDocumentEntry) {
+    if (!coarsePointer && !selectMode) void handleDownload(doc);
+  }
+
+  function handleFolderActivate(folder: ServerDirectoryEntry) {
+    if (!coarsePointer && !selectMode) void handleNavigate(folder.id, folder.name);
+  }
+
+  function selectRow(event: Pick<MouseEvent, 'ctrlKey' | 'metaKey' | 'shiftKey'>, kind: 'folder' | 'document', id: string) {
+    const key = fileSelectionKey(kind, id);
+    focusedItemKey = key;
     if (selectMode) {
-      toggleSelectDocument(doc.id);
-    } else {
-      handleDownload(doc);
+      if (kind === 'folder') toggleSelectFolder(id); else toggleSelectDocument(id);
+      selectionAnchorKey = key;
+      return;
+    }
+
+    if (event.shiftKey && selectionAnchorKey) {
+      selectRange(selectionAnchorKey, key, event.ctrlKey || event.metaKey);
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      if (kind === 'folder') toggleSelectFolder(id); else toggleSelectDocument(id);
+      selectionAnchorKey = key;
+      return;
+    }
+
+    selectedFolderIds = new Set(kind === 'folder' ? [id] : []);
+    selectedDocumentIds = new Set(kind === 'document' ? [id] : []);
+    selectionAnchorKey = key;
+  }
+
+  function selectRange(anchorKey: string, targetKey: string, preserveExisting: boolean) {
+    const next = selectFileRange(
+      orderedSelectionKeys,
+      anchorKey,
+      targetKey,
+      { folders: selectedFolderIds, documents: selectedDocumentIds },
+      preserveExisting,
+    );
+    selectedFolderIds = next.folders;
+    selectedDocumentIds = next.documents;
+    focusedItemKey = targetKey;
+  }
+
+  function handleFileRowKeydown(event: KeyboardEvent, row: FileTableRow) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (row.kind === 'folder') void handleNavigate(row.folder.id, row.folder.name);
+      else void handleDownload(row.document);
+      return;
+    }
+
+    if (event.key === ' ') {
+      event.preventDefault();
+      const id = row.kind === 'folder' ? row.folder.id : row.document.id;
+      selectRow({ ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey }, row.kind, id);
     }
   }
 
-  // --- Folder row click: navigate (normal) or toggle selection ---
-  function handleFolderClick(folder: ServerDirectoryEntry) {
-    if (selectMode) {
-      toggleSelectFolder(folder.id);
-    } else {
-      handleNavigate(folder.id, folder.name);
+  function handleFilePageShortcut(event: KeyboardEvent) {
+    const target = event.target;
+    if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (hasBlockingFilesDialog()) return;
+    const shortcut = fileManagerShortcutFor(event);
+    if (!shortcut) return;
+
+    if (shortcut === 'go-parent') {
+      event.preventDefault();
+      if (canGoToParent && !loading) void handleGoToParent();
+    } else if (shortcut === 'refresh') {
+      event.preventDefault();
+      if (!loading) void loadDirectory(currentFolderId, true);
+    } else if (shortcut === 'create-folder') {
+      event.preventDefault();
+      if (!loading && !batchBusy) void handleCreateFolder();
+    } else if (shortcut === 'select-all') {
+      event.preventDefault();
+      selectAllVisible();
+    } else if (shortcut === 'clear-selection' && totalSelected > 0) {
+      event.preventDefault();
+      deselectAll();
+    } else if (shortcut === 'delete-selection' && totalSelected > 0 && canDeleteSelection()) {
+      event.preventDefault();
+      void handleDeleteSelected();
+    } else if (shortcut === 'rename-selection' && totalSelected === 1 && canRenameSelected()) {
+      event.preventDefault();
+      void handleRenameSelected();
+    }
+  }
+
+  function hasPermission(...permissions: string[]) {
+    return authStore.permissions.includes('manage_system') || permissions.some((permission) => authStore.permissions.includes(permission));
+  }
+
+  function canRenameSelected() {
+    return selectedFolder ? hasPermission('rename_directory') : selectedDocument ? hasPermission('rename_document') : false;
+  }
+
+  function canDeleteSelection() {
+    return [...selectedFolderIds].every(() => hasPermission('delete_directory'))
+      && [...selectedDocumentIds].every(() => hasPermission('delete_document'));
+  }
+
+  async function handleRenameSelected() {
+    if (selectedFolder) await handleRenameFolder(selectedFolder);
+    else if (selectedDocument) await handleRenameDocument(selectedDocument);
+  }
+
+  async function loadSelectionDetails() {
+    const requestId = ++detailRequestId;
+    if (totalSelected === 0) {
+      detailModel = null;
+      return;
+    }
+    if (totalSelected > 1) {
+      detailModel = {
+        title: $t('workspace.selectedItems', { values: { count: totalSelected } }),
+        icon: 'checklist',
+        rows: [
+          { label: $t('files.directory'), value: String(selectedFolderIds.size) },
+          { label: $t('files.document'), value: String(selectedDocumentIds.size) },
+          { label: $t('files.size'), value: formatBytes(selectedDocumentSize) },
+        ],
+      };
+      return;
+    }
+
+    const selectedName = selectedFolder?.name ?? selectedDocument?.title ?? '';
+    detailModel = { title: selectedName, icon: selectedFolder ? 'folder' : 'filePresent', loading: true, rows: [] };
+    try {
+      if (selectedFolder) {
+        const info = await getDirectoryInfo(selectedFolder.id);
+        if (requestId !== detailRequestId) return;
+        detailModel = {
+          title: info.name ?? selectedFolder.name,
+          subtitle: $t('files.directory'),
+          icon: 'folder',
+          rows: [
+            { label: $t('files.directoryId'), value: info.directory_id ?? selectedFolder.id },
+            { label: $t('files.childCount'), value: String(info.count_of_child ?? '-') },
+            { label: $t('files.created'), value: formatDate(info.created_time ?? selectedFolder.created_time) },
+            { label: $t('files.parentId'), value: info.parent_id ?? '-' },
+          ],
+        };
+      } else if (selectedDocument) {
+        const info = await getDocumentInfo(selectedDocument.id);
+        if (requestId !== detailRequestId) return;
+        detailModel = {
+          title: info.title ?? selectedDocument.title,
+          subtitle: $t('files.document'),
+          icon: 'filePresent',
+          rows: [
+            { label: $t('files.documentId'), value: info.document_id ?? selectedDocument.id },
+            { label: $t('files.size'), value: formatBytes(info.size ?? selectedDocument.size) },
+            { label: $t('files.created'), value: formatDate(info.created_time ?? null) },
+            { label: $t('files.modified'), value: formatDate(info.last_modified ?? selectedDocument.last_modified) },
+            { label: $t('files.creator'), value: info.metadata?.creator ?? '-' },
+            { label: $t('files.tags'), value: formatList(info.metadata?.tags) },
+          ],
+        };
+      }
+    } catch (detailError) {
+      if (requestId !== detailRequestId) return;
+      detailModel = { title: selectedName, icon: selectedFolder ? 'folder' : 'filePresent', error: formatError(detailError), rows: [] };
     }
   }
 
@@ -602,11 +895,31 @@
 
   function showFolderContextMenu(e: MouseEvent, folder: ServerDirectoryEntry) {
     e.preventDefault();
+    if (selectedFolderIds.has(folder.id) && totalSelected > 1) {
+      contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'selection', item: null };
+      return;
+    }
+    if (!selectedFolderIds.has(folder.id)) {
+      selectedFolderIds = new Set([folder.id]);
+      selectedDocumentIds = new Set();
+      focusedItemKey = `folder:${folder.id}`;
+      selectionAnchorKey = focusedItemKey;
+    }
     contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'folder', item: folder };
   }
 
   function showDocumentContextMenu(e: MouseEvent, doc: ServerDocumentEntry) {
     e.preventDefault();
+    if (selectedDocumentIds.has(doc.id) && totalSelected > 1) {
+      contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'selection', item: null };
+      return;
+    }
+    if (!selectedDocumentIds.has(doc.id)) {
+      selectedFolderIds = new Set();
+      selectedDocumentIds = new Set([doc.id]);
+      focusedItemKey = `document:${doc.id}`;
+      selectionAnchorKey = focusedItemKey;
+    }
     contextMenu = { open: true, x: e.clientX, y: e.clientY, kind: 'document', item: doc };
   }
 
@@ -627,6 +940,34 @@
   }
 
   function getContextMenuItems(): ContextMenuItem[] {
+    if (contextMenu.kind === 'selection') {
+      return [
+        {
+          id: 'download-selection',
+          label: $t('files.downloadSelected'),
+          icon: 'download',
+          disabled: batchBusy,
+          onSelect: handleDownloadSelected,
+        },
+        {
+          id: 'move-selection',
+          label: $t('files.moveSelected'),
+          icon: 'driveFileMove',
+          disabled: batchBusy || !hasPermission('move'),
+          onSelect: handleMoveSelected,
+        },
+        { type: 'divider' },
+        {
+          id: 'delete-selection',
+          label: $t('common.delete'),
+          icon: 'delete',
+          disabled: batchBusy || !canDeleteSelection(),
+          danger: true,
+          onSelect: handleDeleteSelected,
+        },
+      ];
+    }
+
     if (contextMenu.kind === 'current-directory') {
       const directoryId = currentFolderId ?? ROOT_DIRECTORY_ID;
       const directoryName = currentDirectoryName();
@@ -2284,6 +2625,33 @@
     return sortDirection === 'asc' ? 'arrowUpward' : 'arrowDownward';
   }
 
+  function applyMarqueeSelection(
+    keys: Set<string>,
+    baseKeys: Set<string>,
+    phase: 'updating' | 'complete',
+  ) {
+    const folders = new Set<string>();
+    const documents = new Set<string>();
+    for (const key of [...baseKeys, ...keys]) {
+      const item = parseFileSelectionKey(key);
+      if (!item) continue;
+      if (item.kind === 'folder') folders.add(item.id);
+      else documents.add(item.id);
+    }
+    selectedFolderIds = folders;
+    selectedDocumentIds = documents;
+    marqueeSelectionActive = phase === 'updating';
+    const lastKey = [...keys].at(-1) ?? null;
+    focusedItemKey = lastKey;
+    selectionAnchorKey = lastKey;
+  }
+
+  function sortFieldIcon(field: SortField): IconName {
+    if (field === 'name') return 'sortByAlpha';
+    if (field === 'modified') return 'calendarToday';
+    return 'storage';
+  }
+
   function sortTitle(field: SortField) {
     const label = field === 'name'
       ? $t('files.sortByName')
@@ -2311,6 +2679,12 @@
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
     let disposed = false;
+    coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+    try {
+      marqueeSelectionEnabled = !isMobilePlatform();
+    } catch {
+      marqueeSelectionEnabled = !coarsePointer;
+    }
     const handleOutsidePointerDown = (event: PointerEvent) => {
       if (!searchPreview.open || !searchPreviewRoot || !(event.target instanceof Node)) return;
       if (!searchPreviewRoot.contains(event.target)) {
@@ -2325,6 +2699,7 @@
     window.addEventListener('resize', handleSearchPreviewViewportChange);
     window.addEventListener('scroll', handleSearchPreviewViewportChange, true);
     window.addEventListener('keydown', handleFindShortcut, true);
+    window.addEventListener('keydown', handleFilePageShortcut, true);
     listen<UploadRevisionProgressEvent>('cfms:upload-revision-progress', (event) => {
       if (disposed) return;
       uploadProgress = {
@@ -2379,6 +2754,7 @@
       window.removeEventListener('resize', handleSearchPreviewViewportChange);
       window.removeEventListener('scroll', handleSearchPreviewViewportChange, true);
       window.removeEventListener('keydown', handleFindShortcut, true);
+      window.removeEventListener('keydown', handleFilePageShortcut, true);
       clearSearchPreviewDebounce();
       clearSearchPreviewPanelPosition();
       if (unlisten) unlisten();
@@ -2389,7 +2765,7 @@
 </script>
 
 <div
-  class="files-page relative p-6 space-y-4"
+  class="files-page relative"
   role="region"
   aria-label={$t('files.title')}
   oncontextmenu={showFilesPageBlankContextMenu}
@@ -2414,31 +2790,17 @@
     </div>
   {/if}
 
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('files.title')}
-  </h1>
-
-  <!-- Top toolbar -->
-  <div class="flex flex-wrap items-center gap-1.5">
-    <IconButton icon="createNewFolder" label={$t('files.createFolder')} onclick={handleCreateFolder} />
-    <IconButton icon="uploadFile" label={$t('files.uploadFiles')} onclick={handleUploadFiles} />
+  <div class="files-navigation-row">
     <IconButton
-      icon="folderUpload"
-      label={$t('files.uploadFolder')}
-      onclick={handleUploadFolder}
-      badge={uploadActiveCount}
+      icon="arrowUpward"
+      label={$t('files.parentDirectory')}
+      disabled={!canGoToParent}
+      onclick={handleGoToParent}
     />
-    <IconButton
-      icon="checklist"
-      label={$t('files.select')}
-      active={selectMode}
-      onclick={toggleSelectMode}
-    />
-    <IconButton icon="deleteSweep" label={$t('files.recycleBin')} onclick={handleNavigateTrash} />
-    <IconButton icon="folderEye" label={$t('files.jumpToDirectory')} onclick={handleJumpToDirectory} />
-
-    <!-- Spacer -->
-    <span class="flex-1"></span>
+    <div class="files-address-bar">
+      <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+    </div>
+    <span class="files-navigation-spacer" aria-hidden="true"></span>
 
     <!-- Search -->
     <div bind:this={searchPreviewRoot} class="relative">
@@ -2642,85 +3004,191 @@
     <IconButton icon="refresh" label={$t('common.refresh')} onclick={() => loadDirectory(currentFolderId)} />
   </div>
 
-  <!-- Selection toolbar -->
-  {#if selectMode}
-    <div class="flex items-center gap-2 bg-md3-primary-container/30 rounded-xl
-                border border-md3-primary/20 px-3 py-2">
-      <span class="text-xs text-md3-on-surface-variant">
-        {$t('files.selected', { values: { count: totalSelected } })}
-      </span>
-      <IconButton
-        icon={allVisibleSelected ? 'clearAll' : 'selectAll'}
-        label={allVisibleSelected ? $t('files.selectNone') : $t('files.selectAll')}
-        active={allVisibleSelected}
-        disabled={totalVisibleSelectable === 0}
-        onclick={toggleAllVisibleSelection}
-        class="!h-8 !w-8"
-        size={17}
-      />
-      <IconButton
-        icon="delete"
-        label={$t('common.delete')}
-        tone="danger"
-        disabled={totalSelected === 0 || batchBusy}
-        onclick={handleDeleteSelected}
-        class="!h-8 !w-8"
-        size={17}
-      />
-      <IconButton
-        icon="download"
-        label={$t('files.downloadSelected')}
-        disabled={totalSelected === 0 || batchBusy}
-        onclick={handleDownloadSelected}
-        class="!h-8 !w-8"
-        size={17}
-      />
-      <IconButton
-        icon="driveFileMove"
-        label={$t('files.moveSelected')}
-        disabled={totalSelected === 0 || batchBusy}
-        onclick={handleMoveSelected}
-        class="!h-8 !w-8"
-        size={17}
-      />
-      <IconButton
-        icon="close"
-        label={$t('common.clear')}
-        onclick={clearSelection}
-        class="!h-8 !w-8"
-        size={17}
-      />
+  <div class="files-command-row">
+    <div class="files-primary-actions">
+      <ExplorerCommandBar actions={fileCommandActions} ariaLabel={$t('workspace.commandBar')} />
     </div>
-  {/if}
-
-  <!-- Breadcrumb -->
-  <div class="pt-2">
-    <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+    <div
+      class="files-sort-actions"
+      role="toolbar"
+      aria-label={$t('workspace.sort')}
+    >
+      {#each SORT_FIELDS as field}
+        <button
+          type="button"
+          class="explorer-command-button explorer-command-button--compact files-sort-button"
+          data-active={sortField === field ? 'true' : undefined}
+          title={sortTitle(field as SortField)}
+          aria-label={sortTitle(field as SortField)}
+          aria-pressed={sortField === field}
+          onclick={() => setSort(field as SortField)}
+        >
+          <Icon name={sortFieldIcon(field)} size="17px" />
+          {#if sortField === field}
+            <span class="files-sort-direction" aria-hidden="true">
+              <Icon name={sortDirection === 'asc' ? 'arrowUpward' : 'arrowDownward'} size="10px" />
+            </span>
+          {/if}
+        </button>
+      {/each}
+    </div>
   </div>
 
-  <FileTable
-    {loading}
-    {folders}
-    {documents}
-    {canGoToParent}
-    {selectMode}
-    {selectedFolderIds}
-    {selectedDocumentIds}
-    {sortTitle}
-    {sortIcon}
-    onSort={setSort}
-    onGoToParent={handleGoToParent}
-    onFolderClick={handleFolderClick}
-    onDocumentClick={handleDocumentClick}
-    onBlankContextMenu={showCurrentDirectoryContextMenu}
-    onFolderContextMenu={showFolderContextMenu}
-    onDocumentContextMenu={showDocumentContextMenu}
+  <div class="files-content-row">
+    <FileTable
+      {loading}
+      {folders}
+      {documents}
+      marqueeEnabled={marqueeSelectionEnabled}
+      {selectMode}
+      {selectedFolderIds}
+      {selectedDocumentIds}
+      {sortTitle}
+      {sortIcon}
+      onSort={setSort}
+      onMarqueeSelection={applyMarqueeSelection}
+      onFolderClick={handleFolderClick}
+      onDocumentClick={handleDocumentClick}
+      onFolderActivate={handleFolderActivate}
+      onDocumentActivate={handleDocumentActivate}
+      onRowKeydown={handleFileRowKeydown}
+      onBlankClick={deselectAll}
+      onBlankContextMenu={showCurrentDirectoryContextMenu}
+      onFolderContextMenu={showFolderContextMenu}
+      onDocumentContextMenu={showDocumentContextMenu}
+    />
+    <ExplorerDetailsPane
+      open={detailsOpen}
+      model={detailModel}
+      emptyTitle={$t('files.properties')}
+      emptyLabel={$t('workspace.selectForDetails')}
+      closeLabel={$t('workspace.closeDetails')}
+      onClose={() => (detailsOpen = false)}
+    />
+  </div>
+
+  <ExplorerStatusBar
+    primary={$t('workspace.itemCount', { values: { count: totalVisibleSelectable } })}
+    secondary={totalSelected > 0
+      ? `${$t('workspace.selectedItems', { values: { count: totalSelected } })}${selectedDocumentSize > 0 ? ` · ${formatBytes(selectedDocumentSize)}` : ''}`
+      : ''}
   />
 </div>
 
 <style>
   .files-page {
-    min-height: calc(100dvh - 2.5rem);
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--explorer-text);
+    background: var(--explorer-background);
+  }
+
+  .files-navigation-row {
+    position: relative;
+    z-index: 24;
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    gap: 0.45rem;
+    border-bottom: 1px solid var(--explorer-border);
+    padding: 0.55rem 0.7rem;
+    background: var(--explorer-surface-raised);
+  }
+
+  .files-address-bar {
+    display: flex;
+    min-width: 180px;
+    max-width: 760px;
+    flex: 1;
+    align-items: center;
+    min-height: 36px;
+    overflow-x: auto;
+    border: 1px solid var(--explorer-border);
+    border-radius: var(--explorer-radius-small);
+    padding: 0.35rem 0.7rem;
+    background: var(--explorer-surface);
+  }
+
+  .files-navigation-spacer {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .files-navigation-row :global(.md-icon-button) {
+    border-radius: var(--explorer-radius-small);
+    color: var(--explorer-text-muted);
+  }
+
+  .files-navigation-row :global(input) {
+    width: min(260px, 22vw);
+    border-color: var(--explorer-border) !important;
+    border-radius: var(--explorer-radius-small) !important;
+    color: var(--explorer-text) !important;
+    background: var(--explorer-surface) !important;
+  }
+
+  .files-command-row {
+    position: relative;
+    z-index: 20;
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    gap: 0.7rem;
+    overflow: hidden;
+    border-bottom: 1px solid var(--explorer-border);
+    padding: 0.35rem 0.7rem;
+    background: var(--explorer-surface);
+  }
+
+  .files-primary-actions {
+    display: flex;
+    min-width: 34px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .files-sort-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.1rem;
+    margin-left: auto;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .files-sort-button {
+    position: relative;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    overflow: hidden;
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  .files-sort-direction {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    display: grid;
+    width: 13px;
+    height: 13px;
+    place-items: center;
+    border-radius: 999px;
+    color: var(--explorer-accent);
+    background: var(--explorer-surface-raised);
+    pointer-events: none;
+  }
+
+  .files-content-row {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
   }
 
   .drop-upload-overlay {
@@ -2783,6 +3251,29 @@
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (max-width: 720px) {
+    .files-navigation-row {
+      min-height: 52px;
+      flex-wrap: nowrap;
+      padding: 0.4rem;
+    }
+
+    .files-address-bar {
+      min-width: 0;
+      max-width: none;
+      padding-inline: 0.45rem;
+    }
+
+    .files-navigation-spacer {
+      display: none;
+    }
+
+    .files-command-row {
+      min-height: 44px;
+      padding-inline: 0.4rem;
     }
   }
 </style>

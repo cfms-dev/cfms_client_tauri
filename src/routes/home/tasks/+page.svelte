@@ -630,7 +630,7 @@
   }
 </script>
 
-<div class="min-w-0 space-y-4 p-4 sm:p-6">
+<div class="workspace-page min-w-0 space-y-4 p-4 sm:p-6">
   <div class="flex items-center justify-between gap-3">
     <div class="flex min-w-0 items-center gap-3">
       <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">

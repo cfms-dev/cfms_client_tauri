@@ -61,7 +61,7 @@
   }
 
   const showRootLockdownBanner = $derived(
-    serverStateStore.lockdown && !page.url.pathname.startsWith(HOME_PREFIX),
+    serverStateStore.lockdown && page.url.pathname !== LOCKDOWN_ROUTE,
   );
   const forcedScreenProtection = $derived(
     appLockStore.locked
@@ -356,7 +356,10 @@
 
   Each route area provides its own chrome (tab bar, AppBar, etc.).
 -->
-<div class="safe-area-shell flex h-full flex-col">
+<div
+  class="safe-area-shell flex h-full flex-col"
+  class:lockdown-banner-active={showRootLockdownBanner}
+>
   <LockdownBanner active={showRootLockdownBanner} />
   <!--
     Bounded flex slot for the routed content.  `min-h-0` is essential: it lets
@@ -373,3 +376,9 @@
   <NewUpdatePrompt />
   <AppLockOverlay />
 </div>
+
+<style>
+  .lockdown-banner-active .safe-area-top {
+    padding-top: 0;
+  }
+</style>

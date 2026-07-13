@@ -10,19 +10,11 @@
   import { _ as t } from 'svelte-i18n';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import { appUpdateState } from '$lib/app-update-state.svelte';
-  import {
-    changePassword,
-    clearAuthSession,
-    downloadAvatar,
-    getUserAvatar,
-    setUserAvatar,
-    type ServerDocumentEntry,
-  } from '$lib/api';
+  import { changePassword, clearAuthSession } from '$lib/api';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
   import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import ServerDocumentPicker from '$lib/components/ServerDocumentPicker.svelte';
-  import { isImageDocumentName } from '$lib/image-documents';
+  import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { IconName } from '$lib/icons';
 
   const isAdmin = $derived(
@@ -33,7 +25,6 @@
 
   let showChangePassword = $state(false);
   let showAvatarPicker = $state(false);
-  let savingAvatar = $state(false);
 
   interface MenuEntry {
     label: string;
@@ -79,43 +70,19 @@
     await goto('/login', { replaceState: true });
   }
 
-  async function handleSelectAvatar(document: ServerDocumentEntry) {
-    const username = authStore.username;
-    if (!username || savingAvatar) return;
-    savingAvatar = true;
-
-    try {
-      const success = await setUserAvatar(username, document.id);
-      if (!success) throw new Error($t('avatar.setFailed'));
-
-      const taskData = await getUserAvatar(username);
-      if (taskData) {
-        const path = await downloadAvatar(taskData, username, true);
-        if (path) authStore.avatarPath = path;
-      }
-
-      showAvatarPicker = false;
-      notificationStore.success($t('avatar.updated'));
-    } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      savingAvatar = false;
-    }
-  }
 </script>
 
-<div class="p-6 space-y-6 max-w-lg mx-auto">
+<div class="workspace-page account-page p-4 sm:p-6 space-y-5 max-w-4xl mx-auto">
   <!-- Account badge -->
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5">
     <AccountBadge
-      avatarBusy={savingAvatar}
       onAvatarClick={() => (showAvatarPicker = true)}
     />
   </div>
 
   <!-- Menu entries -->
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+  <div class="account-menu-grid bg-md3-surface-container/70 backdrop-blur-sm rounded-lg
               border border-md3-outline overflow-hidden">
     {#each visibleMenuEntries as entry, i}
       <button
@@ -153,6 +120,20 @@
   </div>
 </div>
 
+<style>
+  .account-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-menu-grid > button { border-right: 1px solid var(--explorer-border); }
+
+  @media (max-width: 700px) {
+    .account-menu-grid { grid-template-columns: minmax(0, 1fr); }
+    .account-menu-grid > button { border-right: 0; }
+  }
+</style>
+
 <!-- Change Password dialog (logged-in self-change). -->
 {#if showChangePassword}
   <ChangePasswordDialog
@@ -164,12 +145,5 @@
 {/if}
 
 {#if showAvatarPicker}
-  <ServerDocumentPicker
-    title={$t('avatar.selectTitle')}
-    documentFilter={(document) => isImageDocumentName(document.title)}
-    onSelect={handleSelectAvatar}
-    onCancel={() => {
-      if (!savingAvatar) showAvatarPicker = false;
-    }}
-  />
+  <UserAvatarPicker onClose={() => (showAvatarPicker = false)} />
 {/if}

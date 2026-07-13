@@ -6,37 +6,21 @@
   // Reference: SettingsModel in reference/src/include/ui/models/settings/overview.py
 
   import { goto } from '$app/navigation';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
-  import { navigateUp } from '$lib/navigation';
   import { getVisibleSettingsEntries } from '$lib/settings-entries';
   import Icon from '$lib/components/Icon.svelte';
 
   const visibleEntries = $derived(getVisibleSettingsEntries({ isLoggedIn: authStore.isLoggedIn }));
 
-  function goBack() {
-    void navigateUp(page.url.pathname);
-  }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
-  <!-- Back button -->
-  <button
-    class="flex items-center gap-1.5 text-sm text-md3-on-surface-variant
-           hover:text-md3-on-surface transition-colors"
-    style="font-family: var(--font-md3-sans);"
-    onclick={goBack}
-  >
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
+<div class="workspace-page p-4 sm:p-6 space-y-4 max-w-4xl mx-auto">
   <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
     {$t('settings.title')}
   </h1>
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
+  <div class="settings-grid bg-md3-surface-container/70 backdrop-blur-sm rounded-lg
               border border-md3-outline overflow-hidden">
     {#each visibleEntries as entry, i}
       <button
@@ -65,3 +49,19 @@
     {/each}
   </div>
 </div>
+
+<style>
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-grid > button {
+    border-right: 1px solid var(--explorer-border);
+  }
+
+  @media (max-width: 700px) {
+    .settings-grid { grid-template-columns: minmax(0, 1fr); }
+    .settings-grid > button { border-right: 0; }
+  }
+</style>

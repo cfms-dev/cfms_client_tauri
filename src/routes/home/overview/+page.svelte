@@ -120,7 +120,7 @@
   }
 </script>
 
-<div class="blueprint-home mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
+<div class="workspace-page blueprint-home mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
   <section class="blueprint-hero overflow-hidden">
     <div class="relative z-10 grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
       <div class="min-w-0">
@@ -198,8 +198,19 @@
     position: relative;
   }
 
+  .blueprint-home h1 {
+    font-family: var(--font-md3-sans) !important;
+    font-size: clamp(1.45rem, 4vw, 2.2rem);
+    letter-spacing: -0.025em;
+  }
+
   .blueprint-hero {
     position: relative;
+    border: 1px solid var(--explorer-border);
+    border-radius: var(--explorer-radius-large);
+    background:
+      radial-gradient(circle at 88% 20%, var(--explorer-accent-soft), transparent 38%),
+      var(--explorer-surface-raised);
   }
 
   .blueprint-status-chip {

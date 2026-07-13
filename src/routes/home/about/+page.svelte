@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { protocolVersion } from '$lib/api';
   import { loadAppVersion } from '$lib/app-info';
-  import { navigateUp } from '$lib/navigation';
   import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
   import ChangelogPanel from '$lib/components/ChangelogPanel.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -21,17 +19,9 @@
     }
   });
 
-  function goBack() {
-    void navigateUp(page.url.pathname);
-  }
 </script>
 
 <div class="about-page">
-  <button class="back-button" onclick={goBack}>
-    <Icon name="arrowBack" size="18px" />
-    {$t('common.back')}
-  </button>
-
   <header class="page-header">
     <h1>{$t('about.title')}</h1>
     <p>{$t('about.productName')}</p>
@@ -65,25 +55,11 @@
 
 <style>
   .about-page {
-    width: min(720px, calc(100vw - 3rem));
+    width: min(720px, calc(100% - 2rem));
     margin: 0 auto;
     padding: 2rem 0 3rem;
     display: grid;
     gap: 1.5rem;
-  }
-
-  .back-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: fit-content;
-    color: var(--color-md3-on-surface-variant);
-    font: 0.875rem var(--font-md3-sans);
-    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .back-button:hover {
-    color: var(--color-md3-on-surface);
   }
 
   .page-header {
