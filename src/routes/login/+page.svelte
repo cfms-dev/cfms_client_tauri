@@ -48,6 +48,7 @@
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import DialogActionButton from "$lib/components/DialogActionButton.svelte";
+  import MdOutlinedField from "$lib/components/MdOutlinedField.svelte";
   import ModalFrame from "$lib/components/ModalFrame.svelte";
   import CorruptedPreferenceDialog from "$lib/components/CorruptedPreferenceDialog.svelte";
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
@@ -617,38 +618,34 @@
       >
         <!-- Username -->
         <div>
-          <div
-            class="login-text-field"
-            class:login-text-field--error={Boolean(fieldErrors.username)}
+          <MdOutlinedField
+            inputId="username"
+            label={$t('login.username')}
+            error={Boolean(fieldErrors.username)}
           >
-            <label class="login-text-field__label" for="username">
-              {$t('login.username')}
-            </label>
-            <div class="login-text-field__input-row">
-              <span class="login-text-field__leading-icon">
-                <Icon name="accountCircle" size="18px" />
-              </span>
-              <input
-                id="username"
-                type="text"
-                data-focus-ring="delegated"
-                class="login-text-field__input"
-                placeholder={$t('login.usernamePlaceholder')}
-                bind:value={username}
-                bind:this={usernameInput}
-                disabled={busy}
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-                onkeydown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    passwordInput?.focus();
-                  }
-                }}
-              />
-            </div>
-          </div>
+            <span class="login-text-field__leading-icon">
+              <Icon name="accountCircle" size="18px" />
+            </span>
+            <input
+              id="username"
+              type="text"
+              data-focus-ring="delegated"
+              class="login-text-field__input"
+              placeholder={$t('login.usernamePlaceholder')}
+              bind:value={username}
+              bind:this={usernameInput}
+              disabled={busy}
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              onkeydown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  passwordInput?.focus();
+                }
+              }}
+            />
+          </MdOutlinedField>
           {#if fieldErrors.username}
             <p class="text-xs text-md3-error mt-1 ml-1">
               {fieldErrors.username}
@@ -658,41 +655,37 @@
 
         <!-- Password -->
         <div>
-          <div
-            class="login-text-field"
-            class:login-text-field--error={Boolean(fieldErrors.password)}
+          <MdOutlinedField
+            inputId="password"
+            label={$t('login.password')}
+            error={Boolean(fieldErrors.password)}
           >
-            <label class="login-text-field__label" for="password">
-              {$t('login.password')}
-            </label>
-            <div class="login-text-field__input-row">
-              <span class="login-text-field__leading-icon">
-                <Icon name="password" size="18px" />
-              </span>
-              <input
-                id="password"
-                type={passwordVisible ? "text" : "password"}
-                data-focus-ring="delegated"
-                class="login-text-field__input"
-                placeholder={$t('login.passwordPlaceholder')}
-                bind:value={password}
-                bind:this={passwordInput}
-                disabled={busy}
-                autocomplete="current-password"
+            <span class="login-text-field__leading-icon">
+              <Icon name="password" size="18px" />
+            </span>
+            <input
+              id="password"
+              type={passwordVisible ? "text" : "password"}
+              data-focus-ring="delegated"
+              class="login-text-field__input"
+              placeholder={$t('login.passwordPlaceholder')}
+              bind:value={password}
+              bind:this={passwordInput}
+              disabled={busy}
+              autocomplete="current-password"
+            />
+            <button
+              type="button"
+              class="login-text-field__trailing-button"
+              onclick={() => (passwordVisible = !passwordVisible)}
+              aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
+            >
+              <Icon
+                name={passwordVisible ? "visibility" : "visibility"}
+                size="18px"
               />
-              <button
-                type="button"
-                class="login-text-field__trailing-button"
-                onclick={() => (passwordVisible = !passwordVisible)}
-                aria-label={passwordVisible ? $t('login.hidePassword') : $t('login.showPassword')}
-              >
-                <Icon
-                  name={passwordVisible ? "visibility" : "visibility"}
-                  size="18px"
-                />
-              </button>
-            </div>
-          </div>
+            </button>
+          </MdOutlinedField>
           {#if fieldErrors.password}
             <p class="text-xs text-md3-error mt-1 ml-1">
               {fieldErrors.password}
@@ -852,63 +845,6 @@
 <style>
   .login-form-card {
     background: var(--explorer-surface);
-  }
-
-  .login-text-field {
-    position: relative;
-    min-width: 0;
-    margin: 0;
-    border: 1px solid var(--explorer-border);
-    border-radius: 12px;
-    padding: 0;
-    background: var(--explorer-surface-raised);
-    transition:
-      border-color 120ms ease,
-      box-shadow 120ms ease;
-  }
-
-  .login-text-field:focus-within {
-    border-color: var(--explorer-accent);
-    box-shadow: inset 0 0 0 1px var(--explorer-accent);
-  }
-
-  .login-text-field--error,
-  .login-text-field--error:focus-within {
-    border-color: var(--explorer-danger);
-    box-shadow: inset 0 0 0 1px var(--explorer-danger);
-  }
-
-  .login-text-field__label {
-    position: absolute;
-    top: 0;
-    left: 0.75rem;
-    z-index: 1;
-    transform: translateY(-50%);
-    padding: 0 0.35rem;
-    color: var(--explorer-text-muted);
-    background: var(--explorer-surface);
-    font-family: var(--font-md3-sans);
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.25;
-    transition: color 120ms ease;
-  }
-
-  .login-text-field:focus-within .login-text-field__label {
-    color: var(--explorer-accent);
-  }
-
-  .login-text-field--error .login-text-field__label,
-  .login-text-field--error:focus-within .login-text-field__label {
-    color: var(--explorer-danger);
-  }
-
-  .login-text-field__input-row {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    overflow: hidden;
-    border-radius: inherit;
   }
 
   .login-text-field__leading-icon {

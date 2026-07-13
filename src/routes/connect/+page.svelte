@@ -34,6 +34,7 @@
     serverStateStore,
   } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
+  import MdOutlinedField from "$lib/components/MdOutlinedField.svelte";
   import MdSwitch from "$lib/components/MdSwitch.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import { openKeyboardShortcutHelp } from "$lib/keyboard";
@@ -291,66 +292,62 @@
       <!-- Server URL — MD3 outlined text field -->
       <div>
         <div class="relative" bind:this={serverAddressField}>
-          <div
-            class="server-address-field"
-            class:server-address-field--error={Boolean(serverAddressError)}
+          <MdOutlinedField
+            inputId="serverUrl"
+            label={$t('connect.serverAddress')}
+            error={Boolean(serverAddressError)}
           >
-            <label class="server-address-label" for="serverUrl">
-              {$t('connect.serverAddress')}
-            </label>
-            <div class="server-address-input-row">
-              <span
-                class="server-address-prefix select-none shrink-0"
-              >
-                wss://
-              </span>
-              <input
-                id="serverUrl"
-                type="text"
-                data-focus-ring="delegated"
-                class="server-address-input min-w-0 flex-1 bg-transparent
-                       text-md3-on-surface text-sm
-                       placeholder:text-md3-on-surface-variant
-                       focus:outline-none transition-colors"
-                class:pr-3.5={!canShowRecentAddresses}
-                class:pr-2={canShowRecentAddresses}
-                placeholder="localhost:5104"
-                bind:value={hostPort}
-                bind:this={serverAddressInput}
-                disabled={busy}
-                onkeydown={handleServerAddressKeydown}
-                onfocus={() => {
-                  if (canShowRecentAddresses) {
-                    recentAddressesOpen = true;
-                    recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
-                  }
-                }}
-                role="combobox"
-                aria-autocomplete="list"
-                aria-haspopup="listbox"
+            <span
+              class="server-address-prefix select-none shrink-0"
+            >
+              wss://
+            </span>
+            <input
+              id="serverUrl"
+              type="text"
+              data-focus-ring="delegated"
+              class="server-address-input min-w-0 flex-1 bg-transparent
+                     text-md3-on-surface text-sm
+                     placeholder:text-md3-on-surface-variant
+                     focus:outline-none transition-colors"
+              class:pr-3.5={!canShowRecentAddresses}
+              class:pr-2={canShowRecentAddresses}
+              placeholder="localhost:5104"
+              bind:value={hostPort}
+              bind:this={serverAddressInput}
+              disabled={busy}
+              onkeydown={handleServerAddressKeydown}
+              onfocus={() => {
+                if (canShowRecentAddresses) {
+                  recentAddressesOpen = true;
+                  recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
+                }
+              }}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-expanded={recentAddressesOpen}
+              aria-controls="recentServerAddressList"
+              aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
+                ? `recent-server-address-${recentAddressActiveIndex}`
+                : undefined}
+            />
+            {#if canShowRecentAddresses}
+              <button
+                type="button"
+                class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
+                       transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
+                       disabled:opacity-50"
+                aria-label={$t('connect.recentAddresses')}
                 aria-expanded={recentAddressesOpen}
                 aria-controls="recentServerAddressList"
-                aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
-                  ? `recent-server-address-${recentAddressActiveIndex}`
-                  : undefined}
-              />
-              {#if canShowRecentAddresses}
-                <button
-                  type="button"
-                  class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
-                         transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
-                         disabled:opacity-50"
-                  aria-label={$t('connect.recentAddresses')}
-                  aria-expanded={recentAddressesOpen}
-                  aria-controls="recentServerAddressList"
-                  disabled={busy}
-                  onclick={toggleRecentAddresses}
-                >
-                  <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
-                </button>
-              {/if}
-            </div>
-          </div>
+                disabled={busy}
+                onclick={toggleRecentAddresses}
+              >
+                <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
+              </button>
+            {/if}
+          </MdOutlinedField>
 
           {#if canShowRecentAddresses && recentAddressesOpen}
             <div
@@ -553,66 +550,6 @@
   .connect-submit-button:disabled {
     cursor: not-allowed;
     opacity: 0.48;
-  }
-
-  .server-address-field {
-    position: relative;
-    min-width: 0;
-    margin: 0;
-    border: 1px solid var(--explorer-border);
-    border-radius: 12px;
-    padding: 0;
-    background: var(--explorer-surface-raised);
-    transition:
-      border-color 120ms ease,
-      box-shadow 120ms ease;
-  }
-
-  .server-address-field:focus-within {
-    border-color: var(--explorer-accent);
-    box-shadow: inset 0 0 0 1px var(--explorer-accent);
-  }
-
-  .server-address-field--error {
-    border-color: var(--explorer-danger);
-  }
-
-  .server-address-field--error:focus-within {
-    border-color: var(--explorer-danger);
-    box-shadow: inset 0 0 0 1px var(--explorer-danger);
-  }
-
-  .server-address-label {
-    position: absolute;
-    top: 0;
-    left: 0.75rem;
-    z-index: 1;
-    transform: translateY(-50%);
-    padding: 0 0.35rem;
-    color: var(--explorer-text-muted);
-    background: var(--explorer-surface);
-    font-family: var(--font-md3-sans);
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.25;
-    transition: color 120ms ease;
-  }
-
-  .server-address-field:focus-within .server-address-label {
-    color: var(--explorer-accent);
-  }
-
-  .server-address-field--error .server-address-label,
-  .server-address-field--error:focus-within .server-address-label {
-    color: var(--explorer-danger);
-  }
-
-  .server-address-input-row {
-    display: flex;
-    min-height: 42px;
-    align-items: center;
-    overflow: hidden;
-    border-radius: inherit;
   }
 
   .server-address-prefix {
