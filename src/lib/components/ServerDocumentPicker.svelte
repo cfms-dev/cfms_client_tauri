@@ -9,6 +9,7 @@
   import {
     formatDirectoryPath,
     normalizeDirectoryId,
+    ROOT_DIRECTORY_ID,
     type DirectoryBreadcrumbSegment,
   } from '$lib/file-browser';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
@@ -99,7 +100,7 @@
   }
 
   async function navigateByBreadcrumb(targetId: string) {
-    if (targetId === '/') {
+    if (targetId === ROOT_DIRECTORY_ID) {
       await navigateToRoot();
       return;
     }

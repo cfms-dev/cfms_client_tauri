@@ -238,6 +238,7 @@ export const zh_CN = {
   },
   files: {
     title: '文件管理',
+    rootDirectory: '根目录',
     createFolder: '创建文件夹',
     newFolder: '新建文件夹',
     newFolderPrompt: '新文件夹名称：',

@@ -1,5 +1,8 @@
 export type DirectoryId = string | null;
 
+/** Server-side object identifier used when an API targets the root directory itself. */
+export const ROOT_DIRECTORY_ID = '/';
+
 export interface DirectoryBreadcrumbSegment {
   label: string;
   id: string;
@@ -8,7 +11,7 @@ export interface DirectoryBreadcrumbSegment {
 export function normalizeDirectoryId(value: string | null | undefined): DirectoryId {
   if (value === null || value === undefined) return null;
   const trimmed = value.trim();
-  return trimmed === '' || trimmed === '/' ? null : trimmed;
+  return trimmed === '' || trimmed === ROOT_DIRECTORY_ID ? null : trimmed;
 }
 
 export function sameDirectoryId(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -16,8 +19,8 @@ export function sameDirectoryId(a: string | null | undefined, b: string | null |
 }
 
 export function formatDirectoryPath(segments: DirectoryBreadcrumbSegment[]): string {
-  if (segments.length === 0) return '/';
-  return `/${segments.map((segment) => segment.label).join('/')}`;
+  if (segments.length === 0) return ROOT_DIRECTORY_ID;
+  return `${ROOT_DIRECTORY_ID}${segments.map((segment) => segment.label).join(ROOT_DIRECTORY_ID)}`;
 }
 
 export function excludedDirectorySet(ids: Array<string | null | undefined>): Set<string> {

@@ -10,6 +10,7 @@
     excludedDirectorySet,
     formatDirectoryPath,
     normalizeDirectoryId,
+    ROOT_DIRECTORY_ID,
     sameDirectoryId,
     type DirectoryBreadcrumbSegment,
   } from '$lib/file-browser';
@@ -142,7 +143,7 @@
   }
 
   async function navigateByBreadcrumb(targetId: string) {
-    if (targetId === '/') {
+    if (targetId === ROOT_DIRECTORY_ID) {
       await navigateToRoot();
       return;
     }

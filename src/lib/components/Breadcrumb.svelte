@@ -9,6 +9,7 @@
 
   import Icon from './Icon.svelte';
   import { _ as t } from 'svelte-i18n';
+  import { ROOT_DIRECTORY_ID } from '$lib/file-browser';
   import { flyScale, staggeredList } from '$lib/motion/transitions';
 
   interface Props {
@@ -23,7 +24,7 @@
   <!-- Root -->
   <button
     class="text-md3-primary-emphasis hover:underline font-medium transition-colors"
-    onclick={() => onNavigate("/")}
+    onclick={() => onNavigate(ROOT_DIRECTORY_ID)}
     transition:flyScale={staggeredList(0, { y: 4, duration: 220, step: 28 })}
   >
     <Icon name="home" size="16px" />

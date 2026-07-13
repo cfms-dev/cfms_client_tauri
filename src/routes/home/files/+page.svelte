@@ -85,7 +85,12 @@
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
-  import { normalizeDirectoryId, sameDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/file-browser';
+  import {
+    normalizeDirectoryId,
+    ROOT_DIRECTORY_ID,
+    sameDirectoryId,
+    type DirectoryBreadcrumbSegment,
+  } from '$lib/file-browser';
   import {
     directoryToRecord,
     documentToRecord,
@@ -274,7 +279,7 @@
   );
   const moveInitialBreadcrumb = $derived<DirectoryBreadcrumbSegment[]>(
     breadcrumbSegments
-      .filter((segment) => segment.path !== '/')
+      .filter((segment) => segment.path !== ROOT_DIRECTORY_ID)
       .map((segment) => ({ label: segment.label, id: segment.path })),
   );
   const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
@@ -452,8 +457,8 @@
   }
 
   async function handleBreadcrumbNavigate(targetId: string) {
-    // "/" means root
-    if (targetId === '/') {
+    // ROOT_DIRECTORY_ID means root
+    if (targetId === ROOT_DIRECTORY_ID) {
       navigationRootId = null;
       navigationRootLabel = null;
       navHistory = [];
@@ -489,7 +494,7 @@
     const value = await dialogStore.prompt({
       title: $t('files.jumpToDirectory'),
       message: $t('files.jumpToDirectoryPrompt'),
-      defaultValue: currentFolderId ?? '/',
+      defaultValue: currentFolderId ?? ROOT_DIRECTORY_ID,
       confirmLabel: $t('common.open'),
       cancelLabel: $t('common.cancel'),
       selectOnOpen: true,
@@ -618,12 +623,12 @@
   function currentDirectoryName() {
     return navHistory[navHistory.length - 1]?.label
       ?? navigationRootLabel
-      ?? $t('files.title');
+      ?? $t('files.rootDirectory');
   }
 
   function getContextMenuItems(): ContextMenuItem[] {
     if (contextMenu.kind === 'current-directory') {
-      const directoryId = currentFolderId;
+      const directoryId = currentFolderId ?? ROOT_DIRECTORY_ID;
       const directoryName = currentDirectoryName();
       return [
         {
@@ -653,38 +658,34 @@
           icon: 'folderUpload',
           onSelect: handleUploadFolder,
         },
-        { type: 'divider', hidden: directoryId === null },
+        { type: 'divider' },
         {
           id: 'authorize-current-directory',
           label: $t('files.authorize'),
           icon: 'lockPerson',
-          hidden: directoryId === null,
           requiredPermissions: ['manage_access'],
-          onSelect: () => handleAuthorize('directory', directoryId!, directoryName),
+          onSelect: () => handleAuthorize('directory', directoryId, directoryName),
         },
         {
           id: 'view-current-directory-access',
           label: $t('files.viewAccessEntries'),
           icon: 'listAlt',
-          hidden: directoryId === null,
           requiredPermissions: ['view_access_entries'],
-          onSelect: () => handleViewAccessEntries('directory', directoryId!, directoryName),
+          onSelect: () => handleViewAccessEntries('directory', directoryId, directoryName),
         },
         {
           id: 'current-directory-rules',
           label: $t('files.setPermissions'),
           icon: 'settings',
-          hidden: directoryId === null,
           requiredPermissions: ['set_access_rules'],
-          onSelect: () => handleSetAccessRules('directory', directoryId!, directoryName),
+          onSelect: () => handleSetAccessRules('directory', directoryId, directoryName),
         },
-        { type: 'divider', hidden: directoryId === null },
+        { type: 'divider' },
         {
           id: 'current-directory-properties',
           label: $t('files.properties'),
           icon: 'info',
-          hidden: directoryId === null,
-          onSelect: () => handleDirectoryProperties(directoryId!, directoryName, null),
+          onSelect: () => handleDirectoryProperties(directoryId, directoryName, null),
         },
       ];
     }
@@ -2263,7 +2264,7 @@
   }
 
   function handleNavigateTrash() {
-    const folder = currentFolderId ?? '/';
+    const folder = currentFolderId ?? ROOT_DIRECTORY_ID;
     goto(`/home/trash?folder=${encodeURIComponent(folder)}`);
   }
 

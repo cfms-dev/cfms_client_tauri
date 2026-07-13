@@ -243,6 +243,7 @@ export const en = {
   },
   files: {
     title: 'File Management',
+    rootDirectory: 'Root directory',
     createFolder: 'Create folder',
     newFolder: 'New Folder',
     newFolderPrompt: 'New folder name:',
