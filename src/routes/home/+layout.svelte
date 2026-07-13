@@ -607,10 +607,54 @@
 
   @media (max-width: 820px) {
     .explorer-mobile-menu { display: inline-flex; }
-    .explorer-navigation { position: absolute; top: 0; bottom: 0; left: 0; transform: translateX(-102%); box-shadow: var(--explorer-shadow); transition: transform 180ms cubic-bezier(0.1, 0.9, 0.2, 1); }
+    .explorer-navigation {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: min(86vw, 320px);
+      min-width: min(86vw, 320px);
+      transform: translateX(-102%);
+      border-right-color: var(--explorer-border-strong);
+      border-radius: 0 20px 20px 0;
+      padding: 0.75rem 0.7rem max(0.75rem, var(--safe-area-bottom));
+      background: color-mix(in srgb, var(--explorer-surface-raised) 96%, transparent);
+      box-shadow: var(--explorer-shadow);
+      backdrop-filter: blur(24px) saturate(1.2);
+      transition: transform 220ms var(--motion-easing-emphasized-decelerate);
+    }
     .explorer-navigation--open { transform: translateX(0); }
-    .explorer-drawer-scrim { position: absolute; inset: 0; z-index: 34; display: block; border: 0; background: rgba(0, 0, 0, 0.42); backdrop-filter: blur(2px); }
+    .explorer-navigation-main { padding-block: 0.1rem; }
+    .explorer-navigation-bottom { gap: 0.2rem; padding-top: 0.6rem; }
+    .explorer-nav-item {
+      min-height: 48px;
+      gap: 0.7rem;
+      border-radius: 14px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.84rem;
+      touch-action: manipulation;
+      transition: background 120ms ease, transform 120ms ease;
+    }
+    .explorer-nav-item--active::before { top: 12px; bottom: 12px; left: 3px; }
+    .explorer-nav-section { margin-top: 0.8rem; padding-top: 0.75rem; }
+    .explorer-nav-section-title { padding: 0 0.75rem 0.45rem; }
+    .explorer-drawer-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 34;
+      display: block;
+      border: 0;
+      background: rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(2px);
+      animation: drawer-scrim-in 180ms ease-out both;
+    }
+
+    @media (hover: none) {
+      .explorer-nav-item:active { transform: scale(0.985); }
+    }
   }
+
+  @keyframes drawer-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 
   @media (max-width: 540px) {
     .explorer-topbar { min-height: 44px; padding-inline: 0.45rem; }
