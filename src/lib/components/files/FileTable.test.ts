@@ -147,7 +147,9 @@ describe('FileTable column resizing', () => {
 
     const contentStyle = container.querySelector<HTMLElement>('.file-table-content')!.getAttribute('style');
     expect(contentStyle).toContain('--file-name-width: 340px');
+    expect(contentStyle).toContain('--file-name-min-width: 340px');
     expect(contentStyle).toContain('--file-modified-width: 128px');
+    expect(contentStyle).not.toContain('--file-table-content-width');
   });
 });
 

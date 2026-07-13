@@ -134,10 +134,10 @@
   const columnGridStyle = $derived(columnWidths
     ? [
         `--file-name-width:${columnWidths.name}px`,
+        `--file-name-min-width:${columnWidths.name}px`,
         `--file-modified-width:${columnWidths.modified}px`,
         `--file-type-width:${columnWidths.type}px`,
         `--file-size-width:${columnWidths.size}px`,
-        `--file-table-content-width:calc(28px + ${columnWidths.name + columnWidths.modified + columnWidths.type + columnWidths.size}px + 2.2rem + 1.4rem)`,
       ].join(';')
     : '');
 
@@ -658,7 +658,19 @@
   .file-table-shell { position: relative; min-width: 0; flex: 1; overflow: hidden; background: var(--explorer-background); }
   .file-table-scroll-viewport { position: relative; width: 100%; height: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; }
   .file-table-scroll-viewport.is-marquee-selecting { cursor: crosshair; user-select: none; }
-  .file-table-content { width: max(100%, var(--file-table-content-width, 650px)); min-width: 650px; min-height: 100%; }
+  .file-table-content {
+    --file-name-min-width: 240px;
+    --file-modified-width: 168px;
+    --file-type-width: 112px;
+    --file-size-width: 100px;
+    --file-table-content-width: calc(
+      28px + var(--file-name-min-width) + var(--file-modified-width) +
+      var(--file-type-width) + var(--file-size-width) + 2.2rem + 1.4rem
+    );
+    width: max(100%, var(--file-table-content-width));
+    min-width: var(--file-table-content-width);
+    min-height: 100%;
+  }
   .file-table-grid { display: grid; grid-template-columns: 28px var(--file-name-width, minmax(240px, 1fr)) var(--file-modified-width, 168px) var(--file-type-width, 112px) var(--file-size-width, 100px); align-items: center; gap: 0.55rem; }
   .file-table-header { position: sticky; top: 0; z-index: 10; min-height: 36px; border-bottom: 1px solid var(--explorer-border-strong); padding: 0 0.7rem; color: var(--explorer-text); background: var(--explorer-surface-raised); font-size: 0.75rem; }
   .file-table-column-header { position: relative; display: flex; min-width: 0; height: 100%; align-items: center; border-right: 1px solid var(--explorer-border); }

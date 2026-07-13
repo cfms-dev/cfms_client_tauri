@@ -519,18 +519,34 @@
     top: max(0.5rem, var(--safe-area-top, 0px));
     left: max(0.5rem, var(--safe-area-left, 0px));
     z-index: 9999;
-    transform: translateY(-160%);
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
     border-radius: 999px;
-    padding: 0.55rem 0.9rem;
+    padding: 0;
+    clip-path: inset(50%);
     color: var(--color-md3-on-primary);
     background: var(--color-md3-primary);
     box-shadow: var(--explorer-shadow);
     font-size: 0.8rem;
     font-weight: 700;
-    transition: transform 140ms ease-out;
+    white-space: nowrap;
   }
 
-  .keyboard-skip-link:focus { transform: translateY(0); }
+  .keyboard-skip-link:focus-visible {
+    width: auto;
+    height: auto;
+    overflow: visible;
+    padding: 0.55rem 0.9rem;
+    clip-path: none;
+  }
+
+  /* Touch navigation does not need a keyboard-only skip control. Keeping it
+     out of the mobile layout also guarantees it cannot overlap system chrome
+     when a WebView reports an incomplete safe-area inset. */
+  @media (hover: none) and (pointer: coarse) {
+    .keyboard-skip-link { display: none; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .lockdown-banner-active .safe-area-top,
