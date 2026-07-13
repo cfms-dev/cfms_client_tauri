@@ -4,6 +4,21 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.31.0
+**Released on:** 2026-07-13
+
+**Title:** Replace hardcoded root path with ROOT_DIRECTORY_ID constant a...
+
+### Added
+- Replace hardcoded root path with ROOT_DIRECTORY_ID constant across components
+- Adjust blank context menu position for files page
+- Add directory background context menu
+
+### Fixed
+- Remove upload success snackbars
+
+--- 
+
 ## v0.30.1
 **Released on:** 2026-07-08
 
