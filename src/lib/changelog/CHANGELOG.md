@@ -4,6 +4,25 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.32.2
+**Released on:** 2026-07-14
+
+**Title:** Implement connection cancellation feature and UI updates
+
+### Fixed
+- Update Breadcrumb component styles for better layout and accessibility
+- Improve ExplorerStatusBar styles and structure
+- Refine busy button transition
+- Allow default WSS port
+- Gate connect animation by WebView support
+- Validate server addresses rigorously
+
+### Added
+- Implement connection cancellation feature and UI updates
+- Enhance connect button with busy state animations and styles
+
+--- 
+
 ## v0.32.1
 **Released on:** 2026-07-13
 
