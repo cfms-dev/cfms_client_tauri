@@ -445,17 +445,20 @@
         <button
           type="submit"
           class="connect-submit-button"
-          class:connect-submit-button--active={hasValidServerAddress && !busy}
+          class:connect-submit-button--active={hasValidServerAddress}
           class:connect-submit-button--busy={busy}
           disabled={busy || !hasValidServerAddress}
           aria-label={busy ? $t('common.connecting') : $t('connect.connect')}
           aria-busy={busy}
           title={busy ? $t('common.connecting') : $t('connect.connect')}
         >
+          <span class="connect-submit-effects" aria-hidden="true"></span>
           {#if busy}
-            <ProgressRing tone="inherit" size={26} strokeWidth={2.75} label={$t('common.connecting')} />
+            <span class="connect-submit-busy-fill" aria-hidden="true"></span>
+            <span class="connect-submit-progress">
+              <ProgressRing tone="inherit" size={48} strokeWidth={4.5} label={$t('common.connecting')} />
+            </span>
           {:else}
-            <span class="connect-submit-effects" aria-hidden="true"></span>
             <span class="connect-submit-content connect-submit-arrow">
               <Icon name="arrowBack" size="24px" />
             </span>
@@ -525,6 +528,9 @@
     --connect-button-blue: #367fdc;
     --connect-button-blue-deep: #286bc9;
     --connect-button-aqua: #38bfc3;
+    --connect-button-busy-purple: #7c4dff;
+    --connect-button-busy-purple-deep: #5e35b1;
+    --connect-button-busy-magenta: #c05cff;
 
     position: relative;
     isolation: isolate;
@@ -575,6 +581,44 @@
     transition: transform 220ms var(--motion-easing-emphasized-decelerate);
   }
 
+  .connect-submit-progress {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: white;
+    pointer-events: none;
+    animation: connect-button-progress-enter 320ms 100ms
+      var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .connect-submit-busy-fill {
+    position: absolute;
+    z-index: 2;
+    inset-inline-start: calc(72% - 9px);
+    inset-block-start: calc(50% - 9px);
+    inline-size: 18px;
+    block-size: 18px;
+    border-radius: 50%;
+    background:
+      radial-gradient(
+        circle at 32% 28%,
+        var(--connect-button-busy-magenta) 0 18%,
+        transparent 52%
+      ),
+      radial-gradient(
+        circle at 70% 72%,
+        var(--connect-button-busy-purple-deep) 0 24%,
+        transparent 62%
+      ),
+      var(--connect-button-busy-purple);
+    pointer-events: none;
+    animation: connect-button-busy-spread 560ms
+      var(--motion-easing-emphasized-decelerate) both;
+    will-change: transform, border-radius;
+  }
+
   .connect-submit-button--active:hover:not(:disabled) {
     box-shadow: 0 12px 26px rgb(40 107 201 / 28%);
     transform: translateY(-1px) scale(1.018);
@@ -592,15 +636,16 @@
     cursor: not-allowed;
   }
 
-  .connect-submit-button:disabled:not(.connect-submit-button--active):not(.connect-submit-button--busy) {
+  .connect-submit-button:disabled:not(.connect-submit-button--active) {
     opacity: 0.68;
   }
 
   .connect-submit-button.connect-submit-button--busy {
-    color: var(--color-md3-primary);
-    background: transparent;
-    box-shadow: none;
     cursor: progress;
+  }
+
+  .connect-submit-button--active.connect-submit-button--busy {
+    box-shadow: 0 9px 22px rgb(94 53 177 / 28%);
   }
 
   /* Only enable the composited fluid layers when the current WebView can
@@ -616,6 +661,9 @@
       --connect-button-blue: color-mix(in srgb, var(--color-md3-primary) 62%, #2f80ed);
       --connect-button-blue-deep: color-mix(in srgb, var(--color-md3-primary) 48%, #2872d8);
       --connect-button-aqua: color-mix(in srgb, var(--color-md3-primary) 52%, #38cfc5);
+      --connect-button-busy-purple: color-mix(in srgb, var(--color-md3-primary) 16%, #7c4dff);
+      --connect-button-busy-purple-deep: color-mix(in srgb, var(--color-md3-primary) 14%, #5e35b1);
+      --connect-button-busy-magenta: color-mix(in srgb, var(--color-md3-primary) 12%, #c05cff);
 
       color: color-mix(in srgb, var(--explorer-text-muted) 74%, transparent);
       background: color-mix(in srgb, var(--explorer-surface-raised) 90%, white 10%);
@@ -707,6 +755,40 @@
 
     .connect-submit-button--active:hover:not(:disabled) {
       box-shadow: 0 12px 26px color-mix(in srgb, var(--connect-button-blue-deep) 28%, transparent);
+    }
+  }
+
+  @keyframes connect-button-busy-spread {
+    0% {
+      border-radius: 52% 48% 46% 54% / 44% 54% 46% 56%;
+      transform: scale(0.08);
+    }
+
+    58% {
+      border-radius: 47% 53% 55% 45% / 54% 46% 52% 48%;
+      transform: scale(6.55, 5.9);
+    }
+
+    78% {
+      border-radius: 51% 49% 48% 52% / 49% 52% 48% 51%;
+      transform: scale(6.15, 6.45);
+    }
+
+    100% {
+      border-radius: 50%;
+      transform: scale(6.35);
+    }
+  }
+
+  @keyframes connect-button-progress-enter {
+    from {
+      opacity: 0;
+      transform: scale(0.84);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -881,6 +963,16 @@
 
     .connect-submit-button--active .connect-submit-effects::before,
     .connect-submit-button--active .connect-submit-effects::after {
+      animation: none !important;
+    }
+
+    .connect-submit-busy-fill {
+      animation: none !important;
+      border-radius: 50%;
+      transform: scale(6.35);
+    }
+
+    .connect-submit-progress {
       animation: none !important;
     }
   }
