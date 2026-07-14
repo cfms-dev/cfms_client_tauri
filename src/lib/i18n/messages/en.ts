@@ -138,7 +138,7 @@ export const en = {
     signInToServer: 'Sign in to {serverName}',
     accountDisabledTitle: 'Your account has been disabled',
     accountDisabledReasonUnavailable: 'The server did not provide more information about why this account was disabled.',
-    accountDisabledContactAdmin: 'If you have questions, contact your system administrator.',
+    accountDisabledContactAdmin: 'The server rejected your login request because your account has been deactivated. This could be due to a number of reasons. If you have questions, contact your system administrator.',
     accountDisabledRequestTime: 'Request time',
     disconnect: 'Disconnect',
     login: 'Login',
