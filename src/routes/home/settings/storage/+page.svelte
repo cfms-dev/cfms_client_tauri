@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
   import {
     loadUserPreference,
@@ -8,6 +7,7 @@
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/settings-autosave.svelte';
+  import { pickDirectory } from '$lib/directory-picker';
   import { notificationStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import MdSwitch from '$lib/components/MdSwitch.svelte';
@@ -83,14 +83,12 @@
     if (!preferences || selectingPath) return;
     selectingPath = true;
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
+      const selected = await pickDirectory({
         title: $t('settings.storage.selectExternalPath'),
         defaultPath: externalStoragePath.trim() || undefined,
       });
-      if (typeof selected === 'string' && selected.trim()) {
-        applyStoragePreference(true, selected);
+      if (selected) {
+        applyStoragePreference(true, selected.path);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);

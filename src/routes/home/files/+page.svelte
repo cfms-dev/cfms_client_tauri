@@ -40,7 +40,6 @@
     setCurrentRevision,
     setDocumentTags,
     searchFiles,
-    selectUploadDirectory,
     uploadDirectory,
     uploadDocumentFile,
     uploadNewRevision,
@@ -95,6 +94,7 @@
   import type { AccessRulesRecord } from '$lib/access-rules';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import { dialogStore } from '$lib/dialogs.svelte';
+  import { pickDirectory, type SelectedDirectory } from '$lib/directory-picker';
   import {
     normalizeDirectoryId,
     ROOT_DIRECTORY_ID,
@@ -2157,25 +2157,20 @@
   }
 
   async function handleUploadFolder() {
-    let selected: string | null;
-    let displayName: string | undefined;
+    let selected: SelectedDirectory | null;
     try {
-      selected = await open({
-        multiple: false,
-        directory: true,
+      selected = await pickDirectory({
         title: $t('files.selectFolderToUpload'),
       });
     } catch (err) {
-      const fallback = await selectAndroidUploadFolderAfterPickerError(err);
-      if (!fallback) return;
-      selected = fallback.uri;
-      displayName = fallback.name;
+      handlePickerError(err);
+      return;
     }
-    if (!selected || Array.isArray(selected)) return;
+    if (!selected) return;
 
     await queueUploadCandidates(currentFolderId, [{
-      sourcePath: selected,
-      name: displayName?.trim() || uploadDisplayName(selected),
+      sourcePath: selected.path,
+      name: selected.name || uploadDisplayName(selected.path),
       kind: 'directory',
     }]);
   }
@@ -2292,25 +2287,6 @@
     return Array.from(event.dataTransfer?.files ?? [])
       .map((file) => (file as File & { path?: string }).path ?? '')
       .filter(Boolean);
-  }
-
-  async function selectAndroidUploadFolderAfterPickerError(err: unknown) {
-    const message = formatError(err);
-    if (isPickerCancel(message)) {
-      return null;
-    }
-
-    if (!message.includes('Folder picker is not implemented')) {
-      error = message;
-      return null;
-    }
-
-    try {
-      return await selectUploadDirectory();
-    } catch (fallbackErr) {
-      handlePickerError(fallbackErr);
-      return null;
-    }
   }
 
   async function queueUploadCandidates(
