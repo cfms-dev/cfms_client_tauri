@@ -934,29 +934,31 @@
 
   .forgot-password-button {
     border: 0;
-    border-radius: 9999px;
     padding: 0.375rem 0.75rem;
     color: var(--explorer-accent);
     background: transparent;
     font-family: var(--font-md3-sans);
     font-size: 0.75rem;
-    font-weight: 650;
+    font-weight: 400;
+    text-decoration-line: underline;
+    text-decoration-color: transparent;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
     transition:
       color var(--motion-duration-short4) var(--motion-easing-standard),
-      background-color var(--motion-duration-short4) var(--motion-easing-standard),
-      box-shadow var(--motion-duration-short4) var(--motion-easing-standard),
-      transform var(--motion-duration-short4) var(--motion-easing-emphasized-decelerate);
+      text-decoration-color var(--motion-duration-short4) var(--motion-easing-standard),
+      text-shadow var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
-  .forgot-password-button:hover:not(:disabled) {
+  .forgot-password-button:hover:not(:disabled),
+  .forgot-password-button:focus-visible:not(:disabled) {
     color: var(--explorer-text);
-    background: var(--explorer-accent-soft);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--explorer-accent) 34%, transparent);
-    transform: translateY(-1px);
+    text-decoration-color: var(--explorer-accent);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--explorer-accent) 45%, transparent);
   }
 
-  .forgot-password-button:active:not(:disabled) {
-    transform: translateY(0) scale(0.97);
+  .forgot-password-button:focus-visible {
+    outline: none;
   }
 
   .forgot-password-button:disabled {
