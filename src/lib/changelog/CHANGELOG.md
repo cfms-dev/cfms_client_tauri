@@ -4,6 +4,23 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.33.0
+**Released on:** 2026-07-14
+
+**Title:** Optimizations for Mobile Application Updates
+
+### Maintenance
+- Update static font assets
+
+### Fixed
+- Revert unexpected UI changes to the original design
+
+### Added
+- Enhance release workflow with architecture-specific APKs and validation script
+- Implement platform-specific directory picker functionality
+
+--- 
+
 ## v0.32.2
 **Released on:** 2026-07-14
 
