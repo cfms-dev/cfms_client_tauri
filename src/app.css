@@ -391,6 +391,8 @@
  * --------------------------------------------------------------------------- */
 
 :where(.explorer-shell, .workspace-palette) {
+  /* Smaller segment of the golden ratio, shared by both auth-route transitions. */
+  --auth-panel-basis: 38.196601125%;
   --explorer-background: #0f1115;
   --explorer-surface: #17191d;
   --explorer-surface-raised: #20232a;

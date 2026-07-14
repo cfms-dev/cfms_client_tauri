@@ -1039,7 +1039,7 @@
 
   @media (min-width: 1024px) {
     .auth-panel {
-      flex-basis: 520px;
+      flex-basis: var(--auth-panel-basis);
       padding-right: 2rem;
       padding-left: 2rem;
     }
@@ -1078,7 +1078,7 @@
       flex-basis: 100%;
     }
     to {
-      flex-basis: 520px;
+      flex-basis: var(--auth-panel-basis);
     }
   }
 
@@ -1088,7 +1088,7 @@
       opacity: 0.96;
     }
     to {
-      flex-basis: calc(100% - 520px);
+      flex-basis: calc(100% - var(--auth-panel-basis));
       opacity: 1;
     }
   }

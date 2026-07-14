@@ -950,7 +950,7 @@
 
   @keyframes connect-panel-expand {
     from {
-      flex-basis: 520px;
+      flex-basis: var(--auth-panel-basis);
     }
     to {
       flex-basis: 100%;
@@ -959,7 +959,7 @@
 
   @keyframes connect-visual-collapse {
     from {
-      flex-basis: calc(100% - 520px);
+      flex-basis: calc(100% - var(--auth-panel-basis));
       opacity: 1;
     }
     to {
