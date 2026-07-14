@@ -101,7 +101,7 @@ export const zh_CN = {
     tagline: '连接到 CFMS 服务器以开始使用',
     serverAddress: '服务器地址',
     serverAddressRequired: '请输入服务器地址。',
-    serverAddressInvalid: '请输入“主机:端口”（如 example.com:5104 或 [::1]:5104），端口范围为 1–65535。',
+    serverAddressInvalid: '请输入有效主机；端口可省略（默认 443），显式端口范围为 1–65535（如 example.com、localhost:5104 或 [::1]）。',
     disableSsl: '禁用 SSL 验证（不安全）',
     clientUpdateRequired: '需要更新客户端',
     serverVersionUnsupported: '不支持该服务器版本',

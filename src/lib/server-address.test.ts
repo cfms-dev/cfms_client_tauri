@@ -3,6 +3,13 @@ import { isServerAddressValid, parseServerAddress } from './server-address';
 
 describe('server address parsing', () => {
   it.each([
+    'localhost',
+    'fileserver',
+    'example.com',
+    '127.0.0.1',
+    '[::1]',
+    '[2001:db8::1]',
+    '例子.测试',
     'localhost:5104',
     'fileserver:1',
     'example.com:443',
@@ -25,9 +32,21 @@ describe('server address parsing', () => {
     });
   });
 
+  it('uses the WSS default port when it is omitted', () => {
+    expect(parseServerAddress('localhost')).toEqual({
+      address: 'localhost',
+      host: 'localhost',
+      port: 443,
+    });
+    expect(parseServerAddress('[::1]')).toEqual({
+      address: '[::1]',
+      host: '::1',
+      port: 443,
+    });
+  });
+
   it.each([
     '',
-    'example.com',
     ':5104',
     'example.com:',
     'example.com:0',

@@ -101,7 +101,7 @@ export const en = {
     tagline: 'Connect to a CFMS server to get started',
     serverAddress: 'Server Address',
     serverAddressRequired: 'Server address is required.',
-    serverAddressInvalid: 'Enter host:port (such as example.com:5104 or [::1]:5104), using a port from 1–65535.',
+    serverAddressInvalid: 'Enter a valid host. The port is optional (default 443); explicit ports must be from 1–65535 (such as example.com, localhost:5104, or [::1]).',
     disableSsl: 'Disable SSL verification (Insecure)',
     clientUpdateRequired: 'Client update required',
     serverVersionUnsupported: 'Server version not supported',
