@@ -3332,7 +3332,7 @@
     <span class="files-navigation-spacer" aria-hidden="true"></span>
 
     <!-- Search -->
-    <div bind:this={searchPreviewRoot} class="relative">
+    <div bind:this={searchPreviewRoot} class="files-search relative">
       <form
         class="flex gap-2"
         onsubmit={(e) => { e.preventDefault(); openSearchDialog(true); }}
@@ -3664,8 +3664,8 @@
   .files-address-bar {
     display: flex;
     min-width: 180px;
-    max-width: 760px;
-    flex: 1;
+    width: fit-content;
+    flex: 0 1 auto;
     align-items: center;
     min-height: 36px;
     overflow-x: auto;
@@ -3677,7 +3677,11 @@
 
   .files-navigation-spacer {
     min-width: 0;
-    flex: 1;
+    flex: 1 1 0;
+  }
+
+  .files-search {
+    flex: none;
   }
 
   .files-navigation-row :global(.md-icon-button) {
@@ -3826,7 +3830,9 @@
 
     .files-address-bar {
       min-width: 0;
+      width: auto;
       max-width: none;
+      flex: 1 1 auto;
       padding-inline: 0.45rem;
     }
 
