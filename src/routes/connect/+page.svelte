@@ -445,7 +445,7 @@
         <button
           type="submit"
           class="connect-submit-button"
-          class:connect-submit-button--active={hasValidServerAddress}
+          class:connect-submit-button--active={hasValidServerAddress && !busy}
           class:connect-submit-button--busy={busy}
           disabled={busy || !hasValidServerAddress}
           aria-label={busy ? $t('common.connecting') : $t('connect.connect')}
@@ -453,10 +453,9 @@
           title={busy ? $t('common.connecting') : $t('connect.connect')}
         >
           {#if busy}
-            <span class="connect-submit-content">
-              <ProgressRing tone="inherit" size={26} strokeWidth={2.75} label={$t('common.connecting')} />
-            </span>
+            <ProgressRing tone="inherit" size={26} strokeWidth={2.75} label={$t('common.connecting')} />
           {:else}
+            <span class="connect-submit-effects" aria-hidden="true"></span>
             <span class="connect-submit-content connect-submit-arrow">
               <Icon name="arrowBack" size="24px" />
             </span>
@@ -523,9 +522,9 @@
   }
 
   .connect-submit-button {
-    --connect-button-blue: color-mix(in srgb, var(--color-md3-primary) 62%, #2f80ed);
-    --connect-button-blue-deep: color-mix(in srgb, var(--color-md3-primary) 48%, #2872d8);
-    --connect-button-aqua: color-mix(in srgb, var(--color-md3-primary) 52%, #38cfc5);
+    --connect-button-blue: #367fdc;
+    --connect-button-blue-deep: #286bc9;
+    --connect-button-aqua: #38bfc3;
 
     position: relative;
     isolation: isolate;
@@ -538,9 +537,9 @@
     border: 0;
     border-radius: 50%;
     padding: 0;
-    color: color-mix(in srgb, var(--explorer-text-muted) 74%, transparent);
-    background: color-mix(in srgb, var(--explorer-surface-raised) 90%, white 10%);
-    box-shadow: 0 4px 12px color-mix(in srgb, black 12%, transparent);
+    color: var(--explorer-text-muted);
+    background: var(--explorer-surface-raised);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
     transition:
       background-color 220ms var(--motion-easing-standard),
       color 180ms var(--motion-easing-standard),
@@ -548,78 +547,20 @@
       transform 180ms var(--motion-easing-emphasized-decelerate);
   }
 
-  .connect-submit-button::before {
+  .connect-submit-effects {
     position: absolute;
     z-index: 0;
-    inset: -32%;
+    inset: 0;
+    display: none;
+    overflow: hidden;
     border-radius: 50%;
-    background:
-      radial-gradient(
-        ellipse at 27% 34%,
-        color-mix(in srgb, var(--connect-button-aqua) 76%, var(--connect-button-blue)) 0 14%,
-        transparent 42%
-      ),
-      radial-gradient(
-        ellipse at 73% 68%,
-        color-mix(in srgb, var(--connect-button-blue-deep) 78%, var(--connect-button-blue)) 0 18%,
-        transparent 46%
-      ),
-      conic-gradient(
-        from 24deg at 48% 52%,
-        var(--connect-button-blue-deep),
-        var(--connect-button-blue) 24%,
-        color-mix(in srgb, var(--connect-button-aqua) 68%, var(--connect-button-blue)) 42%,
-        var(--connect-button-blue) 61%,
-        var(--connect-button-blue-deep) 82%,
-        var(--connect-button-blue-deep)
-      );
-    content: '';
-    filter: blur(5px) saturate(1.08);
-    opacity: 0;
-    transform: translate3d(-2%, 1%, 0) rotate(0deg) scale(1.04, 0.98);
-    transition: opacity 320ms var(--motion-easing-standard);
-    will-change: transform;
-  }
-
-  .connect-submit-button::after {
-    position: absolute;
-    z-index: 0;
-    inset: -22%;
-    border-radius: 43% 57% 61% 39% / 55% 42% 58% 45%;
-    background:
-      radial-gradient(
-        ellipse at 34% 31%,
-        color-mix(in srgb, white 18%, var(--connect-button-aqua)) 0 12%,
-        transparent 38%
-      ),
-      radial-gradient(
-        ellipse at 68% 72%,
-        color-mix(in srgb, var(--connect-button-blue-deep) 62%, transparent) 0 16%,
-        transparent 44%
-      );
-    content: '';
-    filter: blur(6px);
-    mix-blend-mode: soft-light;
-    opacity: 0;
-    transform: translate3d(2%, -2%, 0) rotate(0deg) scale(1.02);
-    transition: opacity 420ms var(--motion-easing-standard);
-    will-change: transform, border-radius;
+    pointer-events: none;
   }
 
   .connect-submit-button--active {
     color: white;
     background: var(--connect-button-blue);
-    box-shadow: 0 9px 22px color-mix(in srgb, var(--connect-button-blue-deep) 22%, transparent);
-  }
-
-  .connect-submit-button--active::before {
-    opacity: 0.94;
-    animation: connect-button-fluid-base 8.6s ease-in-out infinite;
-  }
-
-  .connect-submit-button--active::after {
-    opacity: 0.72;
-    animation: connect-button-fluid-highlight 6.3s ease-in-out infinite;
+    box-shadow: 0 9px 22px rgb(40 107 201 / 22%);
   }
 
   .connect-submit-content {
@@ -635,7 +576,7 @@
   }
 
   .connect-submit-button--active:hover:not(:disabled) {
-    box-shadow: 0 12px 26px color-mix(in srgb, var(--connect-button-blue-deep) 28%, transparent);
+    box-shadow: 0 12px 26px rgb(40 107 201 / 28%);
     transform: translateY(-1px) scale(1.018);
   }
 
@@ -651,12 +592,122 @@
     cursor: not-allowed;
   }
 
-  .connect-submit-button:disabled:not(.connect-submit-button--active) {
+  .connect-submit-button:disabled:not(.connect-submit-button--active):not(.connect-submit-button--busy) {
     opacity: 0.68;
   }
 
-  .connect-submit-button--busy {
+  .connect-submit-button.connect-submit-button--busy {
+    color: var(--color-md3-primary);
+    background: transparent;
+    box-shadow: none;
     cursor: progress;
+  }
+
+  /* Only enable the composited fluid layers when the current WebView can
+     parse every rendering primitive they rely on. The nested clipping layer
+     avoids old compositor bugs where a filtered pseudo-element escapes a
+     rounded overflow clip and paints as a square. */
+  @supports (color: color-mix(in srgb, white, black))
+    and (background: conic-gradient(from 0deg, red, blue))
+    and (filter: blur(1px))
+    and (clip-path: circle(50% at 50% 50%))
+    and (mix-blend-mode: soft-light) {
+    .connect-submit-button {
+      --connect-button-blue: color-mix(in srgb, var(--color-md3-primary) 62%, #2f80ed);
+      --connect-button-blue-deep: color-mix(in srgb, var(--color-md3-primary) 48%, #2872d8);
+      --connect-button-aqua: color-mix(in srgb, var(--color-md3-primary) 52%, #38cfc5);
+
+      color: color-mix(in srgb, var(--explorer-text-muted) 74%, transparent);
+      background: color-mix(in srgb, var(--explorer-surface-raised) 90%, white 10%);
+      box-shadow: 0 4px 12px color-mix(in srgb, black 12%, transparent);
+    }
+
+    .connect-submit-effects {
+      clip-path: circle(50% at 50% 50%);
+      contain: paint;
+    }
+
+    .connect-submit-effects::before {
+      position: absolute;
+      z-index: 0;
+      inset: -32%;
+      border-radius: 50%;
+      background:
+        radial-gradient(
+          ellipse at 27% 34%,
+          color-mix(in srgb, var(--connect-button-aqua) 76%, var(--connect-button-blue)) 0 14%,
+          transparent 42%
+        ),
+        radial-gradient(
+          ellipse at 73% 68%,
+          color-mix(in srgb, var(--connect-button-blue-deep) 78%, var(--connect-button-blue)) 0 18%,
+          transparent 46%
+        ),
+        conic-gradient(
+          from 24deg at 48% 52%,
+          var(--connect-button-blue-deep),
+          var(--connect-button-blue) 24%,
+          color-mix(in srgb, var(--connect-button-aqua) 68%, var(--connect-button-blue)) 42%,
+          var(--connect-button-blue) 61%,
+          var(--connect-button-blue-deep) 82%,
+          var(--connect-button-blue-deep)
+        );
+      content: '';
+      filter: blur(5px) saturate(1.08);
+      opacity: 0;
+      transform: translate3d(-2%, 1%, 0) rotate(0deg) scale(1.04, 0.98);
+      transition: opacity 320ms var(--motion-easing-standard);
+      will-change: transform;
+    }
+
+    .connect-submit-effects::after {
+      position: absolute;
+      z-index: 0;
+      inset: -22%;
+      border-radius: 43% 57% 61% 39% / 55% 42% 58% 45%;
+      background:
+        radial-gradient(
+          ellipse at 34% 31%,
+          color-mix(in srgb, white 18%, var(--connect-button-aqua)) 0 12%,
+          transparent 38%
+        ),
+        radial-gradient(
+          ellipse at 68% 72%,
+          color-mix(in srgb, var(--connect-button-blue-deep) 62%, transparent) 0 16%,
+          transparent 44%
+        );
+      content: '';
+      filter: blur(6px);
+      mix-blend-mode: soft-light;
+      opacity: 0;
+      transform: translate3d(2%, -2%, 0) rotate(0deg) scale(1.02);
+      transition: opacity 420ms var(--motion-easing-standard);
+      will-change: transform, border-radius;
+    }
+
+    .connect-submit-button--active {
+      color: white;
+      background: var(--connect-button-blue);
+      box-shadow: 0 9px 22px color-mix(in srgb, var(--connect-button-blue-deep) 22%, transparent);
+    }
+
+    .connect-submit-button--active .connect-submit-effects {
+      display: block;
+    }
+
+    .connect-submit-button--active .connect-submit-effects::before {
+      opacity: 0.94;
+      animation: connect-button-fluid-base 8.6s ease-in-out infinite;
+    }
+
+    .connect-submit-button--active .connect-submit-effects::after {
+      opacity: 0.72;
+      animation: connect-button-fluid-highlight 6.3s ease-in-out infinite;
+    }
+
+    .connect-submit-button--active:hover:not(:disabled) {
+      box-shadow: 0 12px 26px color-mix(in srgb, var(--connect-button-blue-deep) 28%, transparent);
+    }
   }
 
   @keyframes connect-button-fluid-base {
@@ -822,14 +873,14 @@
     }
 
     .connect-submit-button,
-    .connect-submit-button::before,
-    .connect-submit-button::after,
+    .connect-submit-effects::before,
+    .connect-submit-effects::after,
     .connect-submit-arrow {
       transition: none !important;
     }
 
-    .connect-submit-button--active::before,
-    .connect-submit-button--active::after {
+    .connect-submit-button--active .connect-submit-effects::before,
+    .connect-submit-button--active .connect-submit-effects::after {
       animation: none !important;
     }
   }
