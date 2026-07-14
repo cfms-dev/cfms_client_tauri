@@ -4,6 +4,28 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.34.1
+**Released on:** 2026-07-14
+
+**Title:** Improvements on UI Details
+
+### Improved
+- Preserve directory navigation across routes
+- Expand core philosophy and dev guidelines in AGENTS.md
+
+### Fixed
+- Expand address bar for long paths
+- Remove underline from text decoration in login page styles
+- Simplify forgot password hover state
+- Normalize access time to UTC
+- Show request timestamps in UTC
+
+### Added
+- Add reusable AuthServerContext component and integrate into login page
+- Refine connection and login headers
+
+--- 
+
 ## v0.34.0
 **Released on:** 2026-07-14
 
