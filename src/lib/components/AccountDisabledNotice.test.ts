@@ -13,7 +13,7 @@ describe('AccountDisabledNotice', () => {
     username: 'disabled-user',
     description: 'If you have questions, contact your system administrator.',
     requestTimeLabel: 'Request time',
-    requestTime: '7/14/2026, 9:45:00 PM',
+    requestTime: '2026-07-14 21:45:00 UTC',
     backLabel: 'Back',
     reason: 'The server did not provide more information.',
     onBack: vi.fn(),
@@ -27,7 +27,7 @@ describe('AccountDisabledNotice', () => {
     expect(screen.getByText('Sign in to CFMS Server')).toBeTruthy();
     expect(screen.getByText('disabled-user')).toBeTruthy();
     expect(screen.getByText('Request time')).toBeTruthy();
-    expect(screen.getByText('7/14/2026, 9:45:00 PM')).toBeTruthy();
+    expect(screen.getByText('2026-07-14 21:45:00 UTC')).toBeTruthy();
     expect(screen.getByRole('complementary').textContent).toContain(
       'The server did not provide more information.',
     );

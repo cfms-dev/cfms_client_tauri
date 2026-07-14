@@ -169,7 +169,7 @@
 
   .account-disabled-reason p {
     font-size: 0.86rem;
-    font-weight: 520;
+    font-weight: 400;
     line-height: 1.55;
   }
 

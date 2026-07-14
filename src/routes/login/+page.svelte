@@ -56,6 +56,7 @@
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
+  import { formatUtcDateTime } from '$lib/date-time';
   import { flyScale } from '$lib/motion/transitions';
   import { info } from '@tauri-apps/plugin-log';
   import { openKeyboardShortcutHelp } from '$lib/keyboard';
@@ -314,7 +315,7 @@
   const accountDisabledRequestTimeText = $derived.by(() =>
     accountDisabledRequestTime === null
       ? ""
-      : new Date(accountDisabledRequestTime).toLocaleString(),
+      : formatUtcDateTime(accountDisabledRequestTime),
   );
 
   /** Check the local avatar cache for the given username + current server.
