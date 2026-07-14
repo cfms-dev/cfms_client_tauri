@@ -495,6 +495,15 @@ pub fn quit_application(app_handle: tauri::AppHandle) {
 ///
 /// Mirrors `ConnectFormController.action_connect` in
 /// `reference/src/include/controllers/connect.py`.
+const CONNECT_CANCELLED_ERROR: &str = "connection_cancelled";
+
+async fn wait_for_connect_cancellation(cancel_rx: &mut tokio::sync::watch::Receiver<bool>) {
+    if *cancel_rx.borrow() {
+        return;
+    }
+    let _ = cancel_rx.changed().await;
+}
+
 #[tauri::command]
 pub async fn connect(
     app_handle: tauri::AppHandle,
@@ -502,6 +511,8 @@ pub async fn connect(
     url: String,
     disable_ssl_enforcement: bool,
 ) -> Result<serde_json::Value, String> {
+    let (attempt_id, mut cancel_rx) = state.connect_attempts.register();
+
     clear_auth_state(&state).await;
     close_primary_connection(&state).await;
     clear_connection_state(&state).await;
@@ -510,12 +521,45 @@ pub async fn connect(
     // resources live inside the APK and cannot be enumerated through
     // std::fs; ensure_writable_ca_dir seeds AppData from compile-time
     // bundled certificates on first use.
-    let ca_dir = ensure_writable_ca_dir(&app_handle)?;
+    let setup_result: Result<_, String> = (|| {
+        let ca_dir = ensure_writable_ca_dir(&app_handle)?;
+        let connection_settings = ConnectionSettingsDto::load(&state.settings);
+        let proxy_addr = connection_settings.proxy_addr()?;
+        let (client_cert_path, client_key_path) = connection_settings.client_identity_paths();
+        let effective_disable_ssl = disable_ssl_enforcement || is_loopback_wss_url(&url);
+        let tls_config = cfms_transport::tls::build_config_with_identity(
+            &ca_dir,
+            effective_disable_ssl,
+            client_cert_path.as_deref(),
+            client_key_path.as_deref(),
+        )
+        .map_err(|e| format!("TLS config error: {e}"))?;
 
-    let connection_settings = ConnectionSettingsDto::load(&state.settings);
-    let proxy_addr = connection_settings.proxy_addr()?;
-    let (client_cert_path, client_key_path) = connection_settings.client_identity_paths();
-    let effective_disable_ssl = disable_ssl_enforcement || is_loopback_wss_url(&url);
+        Ok((
+            ca_dir,
+            connection_settings,
+            proxy_addr,
+            client_cert_path,
+            client_key_path,
+            effective_disable_ssl,
+            tls_config,
+        ))
+    })();
+    let (
+        ca_dir,
+        connection_settings,
+        proxy_addr,
+        client_cert_path,
+        client_key_path,
+        effective_disable_ssl,
+        tls_config,
+    ) = match setup_result {
+        Ok(setup) => setup,
+        Err(error) => {
+            state.connect_attempts.unregister(attempt_id);
+            return Err(error);
+        }
+    };
 
     tracing::info!(
         "Connecting to {url} (disable_ssl_enforcement={disable_ssl_enforcement}, effective_disable_ssl={effective_disable_ssl}, proxy={}, force_ipv4={})",
@@ -523,30 +567,38 @@ pub async fn connect(
         connection_settings.force_ipv4,
     );
 
-    let tls_config = cfms_transport::tls::build_config_with_identity(
-        &ca_dir,
-        effective_disable_ssl,
-        client_cert_path.as_deref(),
-        client_key_path.as_deref(),
-    )
-    .map_err(|e| format!("TLS config error: {e}"))?;
-
     // Establish connection.
-    let conn = cfms_transport::Connection::connect(
-        &url,
-        tls_config,
-        proxy_addr.as_deref(),
-        connection_settings.force_ipv4,
-    )
-    .await
-    .map_err(|e| format!("Connection failed: {e}"))?;
+    let connect_result = tokio::select! {
+        biased;
+        _ = wait_for_connect_cancellation(&mut cancel_rx) => {
+            Err(CONNECT_CANCELLED_ERROR.to_string())
+        }
+        result = cfms_transport::Connection::connect(
+            &url,
+            tls_config,
+            proxy_addr.as_deref(),
+            connection_settings.force_ipv4,
+        ) => result.map_err(|e| format!("Connection failed: {e}")),
+    };
+    let conn = match connect_result {
+        Ok(conn) => conn,
+        Err(error) => {
+            state.connect_attempts.unregister(attempt_id);
+            return Err(error);
+        }
+    };
 
     // --- Post-connect handshake: request server_info ---
     //
     // This request is sent *without* authentication (username / token are
     // empty) because we haven't logged in yet — exactly matching the Python
     // reference which passes `username=None, token=None` in `_request()`.
-    let server_info: ServerInfo = {
+    let server_info_result = tokio::select! {
+        biased;
+        _ = wait_for_connect_cancellation(&mut cancel_rx) => {
+            Err(CONNECT_CANCELLED_ERROR.to_string())
+        }
+        result = async {
         let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
         let nonce = hex::encode(random_bytes);
 
@@ -581,9 +633,6 @@ pub async fn connect(
             .map_err(|e| format!("Invalid server_info response: {e}"))?;
 
         if response.code != 200 {
-            // Connection is useless without server_info — tear it down.
-            // Use close() directly (not spawn) so conn is consumed cleanly.
-            conn.close().await;
             return Err(format!(
                 "Server returned {} from server_info: {}",
                 response.code, response.message
@@ -591,7 +640,16 @@ pub async fn connect(
         }
 
         serde_json::from_value(response.data)
-            .map_err(|e| format!("Invalid server_info data: {e}"))?
+            .map_err(|e| format!("Invalid server_info data: {e}"))
+        } => result,
+    };
+    let server_info: ServerInfo = match server_info_result {
+        Ok(server_info) => server_info,
+        Err(error) => {
+            state.connect_attempts.unregister(attempt_id);
+            tokio::spawn(async move { conn.close().await });
+            return Err(error);
+        }
     };
 
     // --- Protocol version compatibility check ---
@@ -602,6 +660,7 @@ pub async fn connect(
 
     if server_info.protocol_version != client_protocol {
         // Tear down — cannot communicate with this server.
+        state.connect_attempts.unregister(attempt_id);
         conn.close().await;
 
         if server_info.protocol_version > client_protocol {
@@ -615,6 +674,13 @@ pub async fn connect(
                 server_info.protocol_version, client_protocol
             ));
         }
+    }
+
+    // Atomically win against cancellation before publishing the connection.
+    // A superseded or cancelled attempt must never update shared state.
+    if !state.connect_attempts.claim_completion(attempt_id) {
+        tokio::spawn(async move { conn.close().await });
+        return Err(CONNECT_CANCELLED_ERROR.to_string());
     }
 
     // --- Store connection state ---
@@ -683,6 +749,16 @@ pub async fn connect(
         "protocol_version": server_info.protocol_version,
         "lockdown": server_info.lockdown,
     }))
+}
+
+/// Cancel the connection attempt currently waiting on transport or handshake.
+#[tauri::command]
+pub fn cancel_connect(state: tauri::State<'_, AppHandleState>) -> bool {
+    let cancelled = state.connect_attempts.cancel();
+    if cancelled {
+        tracing::info!("Connection attempt cancellation requested");
+    }
+    cancelled
 }
 
 fn is_loopback_wss_url(url: &str) -> bool {
@@ -860,6 +936,7 @@ fn proxy_rule_scheme(raw: &str) -> Option<&'static str> {
 /// came from.
 #[tauri::command]
 pub async fn disconnect(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
+    state.connect_attempts.cancel();
     clear_auth_state(&state).await;
     close_primary_connection(&state).await;
     clear_connection_state(&state).await;

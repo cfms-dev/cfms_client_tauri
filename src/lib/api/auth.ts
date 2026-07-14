@@ -74,6 +74,11 @@ export async function connect(
   });
 }
 
+/** Cancel the WSS connection attempt currently in progress. */
+export async function cancelConnect(): Promise<boolean> {
+  return invoke("cancel_connect");
+}
+
 /** Close the WSS connection. */
 export async function disconnect(): Promise<void> {
   return invoke("disconnect");

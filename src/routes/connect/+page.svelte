@@ -17,6 +17,7 @@
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
   import {
+    cancelConnect,
     connect,
     disconnect,
     getAuthStatus,
@@ -45,6 +46,7 @@
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
   let busy = $state(false);
+  let cancelRequested = $state(false);
   let serverAddressError = $state<string | null>(null);
   let appVersion = $state('');
   let rememberConnectionAddresses = $state(false);
@@ -145,6 +147,7 @@
   }
 
   async function handleConnect() {
+    if (busy) return;
     if (!validateUrl()) return;
     const parsedAddress = parseServerAddress(hostPort);
     if (!parsedAddress) return;
@@ -169,6 +172,7 @@
       goto("/login");
     } catch (e) {
       const msg = String(e);
+      if (msg === 'connection_cancelled') return;
       const parsed = parseProtocolError(msg);
       if (parsed) {
         protocolError = parsed;
@@ -177,6 +181,19 @@
       }
     } finally {
       busy = false;
+      cancelRequested = false;
+    }
+  }
+
+  async function handleCancelConnect() {
+    if (!busy || cancelRequested) return;
+    cancelRequested = true;
+    try {
+      const cancelled = await cancelConnect();
+      if (!cancelled) cancelRequested = false;
+    } catch (e) {
+      cancelRequested = false;
+      notificationStore.error(String(e));
     }
   }
 
@@ -445,14 +462,16 @@
       <!-- Circular primary action inspired by the classic mobile QQ login control. -->
       <div class="connect-submit-row">
         <button
-          type="submit"
+          type={busy ? 'button' : 'submit'}
           class="connect-submit-button"
           class:connect-submit-button--active={hasValidServerAddress}
           class:connect-submit-button--busy={busy}
-          disabled={busy || !hasValidServerAddress}
-          aria-label={busy ? $t('common.connecting') : $t('connect.connect')}
+          class:connect-submit-button--cancelling={cancelRequested}
+          disabled={cancelRequested || (!busy && !hasValidServerAddress)}
+          aria-label={busy ? $t('common.cancel') : $t('connect.connect')}
           aria-busy={busy}
-          title={busy ? $t('common.connecting') : $t('connect.connect')}
+          title={busy ? $t('common.cancel') : $t('connect.connect')}
+          onclick={busy ? handleCancelConnect : undefined}
         >
           <span class="connect-submit-effects" aria-hidden="true"></span>
           {#if busy}
@@ -463,8 +482,13 @@
             >
               <span class="connect-submit-busy-fill"></span>
             </span>
+          {/if}
+          {#if busy}
             <span class="connect-submit-progress">
-              <ProgressRing tone="inherit" size={42} strokeWidth={4} label={$t('common.connecting')} />
+              <ProgressRing tone="inherit" size={44} strokeWidth={2.5} label={$t('common.connecting')} />
+              <span class="connect-submit-cancel-icon" aria-hidden="true">
+                <Icon name="close" size="22px" />
+              </span>
             </span>
           {:else}
             <span class="connect-submit-content connect-submit-arrow">
@@ -601,6 +625,18 @@
       var(--motion-easing-emphasized-decelerate) both;
   }
 
+  .connect-submit-cancel-icon {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .connect-submit-progress :global(.md-progress-ring) {
+    opacity: 0.78;
+    filter: drop-shadow(0 1px 2px rgb(43 20 85 / 16%));
+  }
+
   .connect-submit-busy-layer {
     position: absolute;
     z-index: 2;
@@ -655,7 +691,11 @@
   }
 
   .connect-submit-button.connect-submit-button--busy {
-    cursor: progress;
+    cursor: pointer;
+  }
+
+  .connect-submit-button.connect-submit-button--cancelling {
+    cursor: wait;
   }
 
   .connect-submit-button--active.connect-submit-button--busy {
