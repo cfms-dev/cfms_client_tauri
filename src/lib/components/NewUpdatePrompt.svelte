@@ -1,14 +1,15 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
+  import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import type { UpdateNotificationCopy } from '$lib/update-notifications';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { notificationStore } from '$lib/stores.svelte';
+  import { flyScale } from '$lib/motion/transitions';
   import Icon from '$lib/components/Icon.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
-  import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
   const promptedVersionKey = 'cfms_update_prompted_version';
@@ -121,22 +122,21 @@
 </script>
 
 {#if visible && update}
-  <ModalFrame
-    title={$t('updatesPrompt.title')}
-    maxWidth="max-w-3xl"
-    closeLabel={$t('common.close')}
-    dismissible={!appUpdateState.installing}
-    onClose={() => {
-      if (!appUpdateState.installing) closePrompt();
-    }}
+  <div
+    class="update-prompt fixed inset-0 z-[80] flex min-h-full items-center justify-center overflow-auto px-5 py-10"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="new-update-title"
+    transition:fade|global={{ duration: 180 }}
   >
-    <div class="prompt-content">
+    <div class="prompt-content" transition:flyScale|global={{ y: 18, duration: 320 }}>
       <div class="release-icon" aria-hidden="true">
-        <Icon name="newReleases" size="42px" />
+        <Icon name="newReleases" size="58px" />
       </div>
 
       <div class="copy">
         <p class="eyebrow">{$t('settings.updates.available')}</p>
+        <h2 id="new-update-title">{$t('updatesPrompt.title')}</h2>
         <p class="subtitle">
           {$t('updatesPrompt.subtitle', {
             values: {
@@ -173,26 +173,39 @@
         </button>
       </div>
     </div>
-  </ModalFrame>
+  </div>
 {/if}
 
 <style>
+  .update-prompt {
+    min-block-size: 100dvh;
+    padding-block-start: calc(var(--safe-area-top, 0px) + 2.5rem);
+    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2.5rem);
+    padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
+    padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
+    background:
+      linear-gradient(145deg, rgba(17, 22, 29, 0.98), rgba(18, 24, 32, 0.98)),
+      var(--color-md3-surface);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
   .prompt-content {
+    width: min(760px, 100%);
     display: grid;
     justify-items: center;
-    gap: 1rem;
-    padding: 1.5rem;
+    gap: 1.05rem;
     text-align: center;
+    transform: translateY(-1.75vh);
   }
 
   .release-icon {
     display: grid;
-    width: 4rem;
-    height: 4rem;
+    width: 4.75rem;
+    height: 4.75rem;
     place-items: center;
-    border-radius: 1rem;
-    color: var(--color-md3-primary-emphasis);
-    background: var(--color-md3-primary-container);
+    color: #b9c5ff;
+    filter: drop-shadow(0 0.7rem 1.6rem rgba(79, 70, 229, 0.18));
   }
 
   .copy {
@@ -202,50 +215,60 @@
   }
 
   .eyebrow,
-  .subtitle {
+  .subtitle,
+  h2 {
     margin: 0;
   }
 
   .eyebrow {
-    color: var(--color-md3-primary-emphasis);
-    font: 750 0.78rem/1.25 var(--font-md3-sans);
+    color: rgba(185, 197, 255, 0.92);
+    font: 800 0.82rem/1.25 var(--font-md3-sans);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
 
+  h2 {
+    color: rgba(248, 250, 252, 0.92);
+    font-family: var(--font-md3-sans);
+    font-size: clamp(2.2rem, 4.4vw, 3rem);
+    font-weight: 850;
+    letter-spacing: 0;
+    line-height: 1.08;
+  }
+
   .subtitle {
-    color: var(--color-md3-on-surface-variant);
+    color: rgba(248, 250, 252, 0.78);
     max-width: 100%;
-    font: 500 0.9375rem/1.55 var(--font-md3-sans);
+    font: 500 1rem/1.55 var(--font-md3-sans);
   }
 
   .notes {
     width: min(720px, 100%);
     max-height: min(34vh, 18rem);
     overflow: auto;
-    border-block: 1px solid var(--color-md3-outline);
+    border-block: 1px solid rgba(226, 232, 240, 0.22);
     margin-top: 0.15rem;
     padding: 1rem 0.9rem 1rem 0;
     text-align: left;
-    color: var(--color-md3-on-surface-variant);
+    color: rgba(248, 250, 252, 0.78);
     scrollbar-gutter: stable;
   }
 
   .notes :global(.markdown-view) {
-    color: var(--color-md3-on-surface-variant);
+    color: rgba(248, 250, 252, 0.78);
     font-size: 0.95rem;
     line-height: 1.7;
   }
 
   .notes :global(.markdown-view :where(h1, h2, h3, h4, h5, h6)) {
-    color: var(--color-md3-on-surface);
+    color: rgba(248, 250, 252, 0.9);
     font-size: 1.05rem;
     line-height: 1.45;
   }
 
   .notes :global(.markdown-view li::marker),
   .notes :global(.markdown-view a) {
-    color: var(--color-md3-primary-emphasis);
+    color: #b9c5ff;
   }
 
   .notes::-webkit-scrollbar {
@@ -254,7 +277,7 @@
 
   .notes::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background: var(--color-md3-on-surface-variant);
+    background: rgba(248, 250, 252, 0.72);
   }
 
   .actions {
@@ -273,7 +296,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.6rem;
-    border-radius: var(--explorer-radius-small, 6px);
+    border-radius: 999px;
     padding: 0 1.15rem;
     font-family: var(--font-md3-sans);
     font-size: 0.9rem;
@@ -325,13 +348,23 @@
   }
 
   @media (max-width: 640px) {
+    .update-prompt {
+      padding-block-start: calc(var(--safe-area-top, 0px) + 2rem);
+      padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
+    }
+
     .prompt-content {
-      padding: 1.25rem;
+      gap: 1rem;
+      transform: none;
     }
 
     .release-icon {
       width: 4.4rem;
       height: 4.4rem;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 10vw, 2.65rem);
     }
 
     .actions {
