@@ -6,6 +6,7 @@
 
 **CFMS Client** is the cross-platform client for the [Confidential File Management System (CFMS)](https://github.com/cfms-dev). It securely connects to CFMS servers, provides controlled access to confidential documents, and manages file transfers. The application targets a native desktop experience and also supports Android.
 
+> [!IMPORTANT]
 > This client is intended only for deployed CFMS servers that you are authorized to access. It is not a general-purpose cloud-drive or file-server client.
 
 ## Features
