@@ -17,7 +17,7 @@
 </script>
 
 <footer class="explorer-status-bar" data-tone={tone} aria-live="polite">
-  <span>{primary}</span>
+  <span class="explorer-status-primary">{primary}</span>
   {#if secondary}
     <span class="explorer-status-separator" aria-hidden="true"></span>
     <span class="explorer-status-secondary">{secondary}</span>
@@ -36,10 +36,17 @@
     align-items: center;
     gap: 0.65rem;
     border-top: 1px solid var(--explorer-border);
-    padding: 0.3rem 0.75rem;
+    padding-block-start: 0.3rem;
+    padding-block-end: max(0.3rem, var(--safe-area-bottom, 0px));
+    padding-inline: 0.75rem;
     color: var(--explorer-text-muted);
     background: var(--explorer-surface);
     font-size: 0.75rem;
+  }
+
+  .explorer-status-primary {
+    flex: none;
+    white-space: nowrap;
   }
 
   .explorer-status-bar[data-tone="success"] {
@@ -64,6 +71,7 @@
   }
 
   .explorer-status-action {
+    flex: none;
     margin-left: auto;
     border: 0;
     border-radius: 999px;
