@@ -1,10 +1,12 @@
 const SERVER_STATUS_PATTERN = /\bServer returned\s+(\d{3,4})\s*:/i;
 const PARENTHESIZED_STATUS_PATTERN = /^\s*\((\d{3,4})\)\s+/;
+const LOGIN_STATUS_PATTERN = /\bLogin failed:\s*\((\d{3,4})\)\s+/i;
 
 /** Extract the server status code preserved in a Tauri command error string. */
 export function serverErrorStatus(error: unknown): number | null {
   const message = error instanceof Error ? error.message : String(error);
   const match = message.match(SERVER_STATUS_PATTERN)
+    ?? message.match(LOGIN_STATUS_PATTERN)
     ?? message.match(PARENTHESIZED_STATUS_PATTERN);
   if (!match) return null;
 

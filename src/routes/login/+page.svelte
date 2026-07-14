@@ -41,12 +41,14 @@
     checkCachedAvatar,
     validateFileShortcuts,
     clearAuthSession,
+    serverErrorStatus,
     type AuthStatus,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import AccountDisabledNotice from "$lib/components/AccountDisabledNotice.svelte";
   import DialogActionButton from "$lib/components/DialogActionButton.svelte";
   import MdOutlinedField from "$lib/components/MdOutlinedField.svelte";
   import ModalFrame from "$lib/components/ModalFrame.svelte";
@@ -54,6 +56,7 @@
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
+  import { flyScale } from '$lib/motion/transitions';
   import { info } from '@tauri-apps/plugin-log';
   import { openKeyboardShortcutHelp } from '$lib/keyboard';
 
@@ -72,6 +75,11 @@
   let corruptedPreferenceCurrentPassword = $state("");
   let fieldErrors = $state<{ username?: string; password?: string }>({});
   let loadingPhase = $state("");
+  let accountDisabled = $state(false);
+  let disabledAccountName = $state("");
+  let accountDisabledReason = $state<string | null>(null);
+  let accountDisabledRequestTime = $state<number | null>(null);
+  let returningFromAccountDisabled = $state(false);
   let usernameInput: HTMLInputElement | null = $state(null);
   let passwordInput: HTMLInputElement | null = $state(null);
   let playConnectTransition = $state(browser ? consumeConnectToLoginTransition() : false);
@@ -303,6 +311,11 @@
   }
 
   const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
+  const accountDisabledRequestTimeText = $derived.by(() =>
+    accountDisabledRequestTime === null
+      ? ""
+      : new Date(accountDisabledRequestTime).toLocaleString(),
+  );
 
   /** Check the local avatar cache for the given username + current server.
    *
@@ -392,6 +405,47 @@
     return msg.includes("Password must be changed before login");
   }
 
+  function isAccountDisabledError(e: unknown): boolean {
+    return serverErrorStatus(e) === 4003;
+  }
+
+  async function enterAccountDisabledState(requestedAt: number) {
+    const accountName = username.trim();
+
+    // A 4003 can also arrive while completing 2FA. Clear any partial native
+    // auth state while preserving the current server connection.
+    try {
+      await clearAuthSession();
+    } catch {
+      /* no partial auth state may have been created yet */
+    }
+
+    authStore.clear();
+    password = "";
+    pendingPassword = "";
+    show2faDialog = false;
+    disabledAccountName = accountName;
+    // Reserved for a future server-provided administrative reason. The UI
+    // supplies localized default copy while this remains null.
+    accountDisabledReason = null;
+    accountDisabledRequestTime = requestedAt;
+    returningFromAccountDisabled = false;
+    accountDisabled = true;
+  }
+
+  async function returnFromAccountDisabled() {
+    returningFromAccountDisabled = true;
+    accountDisabled = false;
+    accountDisabledReason = null;
+    fieldErrors = {};
+    await focusUsernameInput();
+  }
+
+  function finishAccountDisabledReturn() {
+    returningFromAccountDisabled = false;
+    accountDisabledRequestTime = null;
+  }
+
   async function handleLogin() {
     if (!validate()) return;
 
@@ -399,9 +453,11 @@
     successMessage = null;
     passwordChangeRequired = false;
     let postLoginStarted = false;
+    let loginRequestedAt = Date.now();
 
     try {
       await info("Attempting login for user: {username}");
+      loginRequestedAt = Date.now();
       const authResult = await login(username, password);
       await info("Login response received: {authResult}");
 
@@ -430,7 +486,9 @@
 
       await finalizeAuthenticatedLogin(authResult);
     } catch (e) {
-      if (isPasswordChangeRequired(e)) {
+      if (isAccountDisabledError(e)) {
+        await enterAccountDisabledState(loginRequestedAt);
+      } else if (isPasswordChangeRequired(e)) {
         // The server requires a password change before login (4001/4002).
         // Open the self-change dialog directly so the user can resolve it
         // in-app, mirroring the reference's PasswdUserDialog flow.
@@ -474,6 +532,7 @@
     isRecoveryCode: boolean,
   ): Promise<boolean> {
     let authResult;
+    const loginRequestedAt = Date.now();
 
     try {
       authResult = await login(username, pendingPassword, code);
@@ -483,6 +542,10 @@
         return false;
       }
     } catch (e) {
+      if (isAccountDisabledError(e)) {
+        await enterAccountDisabledState(loginRequestedAt);
+        return true;
+      }
       // Let the dialog handle the verification error display.
       return false;
     }
@@ -557,7 +620,21 @@
     class:animate-fade-scale-in={!playConnectTransition}
     class:auth-form-stage--connect-intro={playConnectTransition}
   >
-    {#if busy && loadingPhase}
+    {#if accountDisabled}
+      <div class="auth-state-view" out:flyScale={{ y: -6, duration: 180 }}>
+        <AccountDisabledNotice
+          signInLabel={$t('login.signInToServer', { values: { serverName } })}
+          title={$t('login.accountDisabledTitle')}
+          username={disabledAccountName}
+          description={$t('login.accountDisabledContactAdmin')}
+          requestTimeLabel={$t('login.accountDisabledRequestTime')}
+          requestTime={accountDisabledRequestTimeText}
+          backLabel={$t('common.back')}
+          reason={accountDisabledReason ?? $t('login.accountDisabledReasonUnavailable')}
+          onBack={returnFromAccountDisabled}
+        />
+      </div>
+    {:else if busy && loadingPhase}
       <!-- Data loading state -->
       <div
         class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
@@ -578,6 +655,11 @@
       </div>
     {:else}
       <!-- Login form -->
+      <div
+        class="login-view"
+        in:flyScale={{ y: 8, duration: returningFromAccountDisabled ? 300 : 0 }}
+        onintroend={finishAccountDisabledReturn}
+      >
       <div class="text-center mb-6">
         <!-- Server info -->
         <p
@@ -785,6 +867,7 @@
           </button>
         </div>
       </form>
+      </div>
     {/if}
   </div>
   </section>
@@ -877,21 +960,26 @@
   }
 
   .login-text-field__trailing-button {
+    position: relative;
     display: inline-flex;
     width: 42px;
     height: 42px;
     flex: none;
     align-items: center;
     justify-content: center;
+    border: 0;
+    padding: 0;
     color: var(--explorer-text-muted);
+    background: transparent;
     transition:
       color 120ms ease,
-      background-color 120ms ease;
+      filter 120ms ease;
   }
 
   .login-text-field__trailing-button:hover {
-    color: var(--explorer-text);
-    background: var(--explorer-surface-hover);
+    color: var(--explorer-accent);
+    background: transparent;
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--explorer-accent) 38%, transparent));
   }
 
   .auth-shell {
@@ -920,8 +1008,18 @@
   }
 
   .auth-form-stage {
+    display: grid;
     width: 100%;
     max-width: 360px;
+    align-items: center;
+  }
+
+  .auth-state-view,
+  .login-view {
+    grid-area: 1 / 1;
+    width: 100%;
+    min-width: 0;
+    align-self: center;
   }
 
   .auth-visual {

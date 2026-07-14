@@ -14,3 +14,4 @@ export * from './api/settings';
 export * from './api/mobile';
 export * from './api/avatars';
 export * from './api/preferences';
+export * from './api/server-errors';

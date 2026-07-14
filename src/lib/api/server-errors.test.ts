@@ -5,6 +5,7 @@ describe('server errors', () => {
   it('extracts status codes from generic server command failures', () => {
     expect(serverErrorStatus('Server returned 403: permission denied')).toBe(403);
     expect(serverErrorStatus(new Error('(404) missing'))).toBe(404);
+    expect(serverErrorStatus('Login failed: (4003) User account is not active')).toBe(4003);
   });
 
   it('recognizes both directory and document access-denied formats', () => {
