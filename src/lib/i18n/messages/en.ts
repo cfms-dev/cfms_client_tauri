@@ -98,6 +98,7 @@ export const en = {
     openNavigation: 'Open navigation',
   },
   connect: {
+    title: 'Connect to server',
     tagline: 'Connect to a CFMS server to get started',
     serverAddress: 'Server Address',
     serverAddressRequired: 'Server address is required.',

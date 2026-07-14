@@ -344,6 +344,40 @@
   padding-bottom: var(--safe-area-bottom);
 }
 
+/* Shared top chrome for the unauthenticated routes. Keeping the safe-area
+   offsets here prevents route-specific toolbars from drifting into mobile
+   status bars while preserving the same alignment on desktop. */
+.auth-route-toolbar {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(var(--safe-area-top) + 1rem);
+  inset-inline-end: calc(var(--safe-area-right) + 1rem);
+  display: flex;
+  min-block-size: 2.25rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auth-route-title {
+  position: absolute;
+  z-index: 19;
+  inset-block-start: calc(var(--safe-area-top) + 1rem);
+  inset-inline-start: 50%;
+  display: flex;
+  min-block-size: 2.25rem;
+  max-inline-size: calc(100% - var(--safe-area-left) - var(--safe-area-right) - 2rem);
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--color-md3-on-surface);
+  font-family: var(--font-md3-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
 /* Floating tab bar entrance — gentle rise + fade on mount. */
 @keyframes navbar-in {
   from {

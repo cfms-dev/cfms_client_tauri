@@ -250,7 +250,9 @@
 </script>
 
 <div class="connect-auth-shell workspace-palette" class:connect-auth-shell--login-return={playLoginReturnTransition}>
-  <div class="absolute right-4 top-4 z-20 flex items-center gap-2">
+  <h1 class="auth-route-title">{$t('connect.title')}</h1>
+
+  <div class="auth-route-toolbar">
     <button
       type="button"
       class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
@@ -294,17 +296,6 @@
     class:animate-fade-scale-in={!playLoginReturnTransition}
     class:connect-form-stage--login-return={playLoginReturnTransition}
   >
-      <!-- App title -->
-      <h1
-        class="mb-2 text-center text-2xl font-bold text-md3-on-surface"
-        style="font-family: var(--font-md3-serif);"
-      >
-        CFMS Client
-      </h1>
-      <p class="mb-8 text-center text-xs text-md3-on-surface-variant">
-        {$t('connect.tagline')}
-      </p>
-
       <!-- Connect form — MD3 card -->
       <form
         class="connect-form-card backdrop-blur-sm rounded-xl

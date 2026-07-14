@@ -604,16 +604,18 @@
 </script>
 
 <div class="auth-shell workspace-palette" class:auth-shell--connect-intro={playConnectTransition}>
-  <button
-    type="button"
-    class="absolute right-4 top-4 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-    title={$t('keyboard.openHelp')}
-    aria-label={$t('keyboard.openHelp')}
-    aria-keyshortcuts="Control+/ Meta+/"
-    onclick={openKeyboardShortcutHelp}
-  >
-    <Icon name="keyboard" size="18px" />
-  </button>
+  <div class="auth-route-toolbar">
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+      title={$t('keyboard.openHelp')}
+      aria-label={$t('keyboard.openHelp')}
+      aria-keyshortcuts="Control+/ Meta+/"
+      onclick={openKeyboardShortcutHelp}
+    >
+      <Icon name="keyboard" size="18px" />
+    </button>
+  </div>
   <section class="auth-panel">
   <div
     class="auth-form-stage"
@@ -662,14 +664,8 @@
       >
       <div class="text-center mb-6">
         <!-- Server info -->
-        <p
-          class="text-lg font-bold text-md3-on-surface mb-1"
-          style="font-family: var(--font-md3-sans);"
-        >
+        <p class="login-server-name">
           {serverName}
-        </p>
-        <p class="text-xs text-md3-on-surface-variant">
-          {$t('login.connectedSignIn')}
         </p>
       </div>
 
@@ -859,7 +855,7 @@
         <div class="flex justify-center">
           <button
             type="button"
-            class="px-2 py-1 text-xs font-medium text-md3-primary transition-colors hover:text-md3-primary-emphasis disabled:opacity-50"
+            class="forgot-password-button"
             onclick={() => (showForgotPasswordDialog = true)}
             disabled={busy}
           >
@@ -926,6 +922,46 @@
 {/if}
 
 <style>
+  .login-server-name {
+    margin: 0;
+    color: var(--explorer-text);
+    font-family: var(--font-md3-serif);
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .forgot-password-button {
+    border: 0;
+    border-radius: 9999px;
+    padding: 0.375rem 0.75rem;
+    color: var(--explorer-accent);
+    background: transparent;
+    font-family: var(--font-md3-sans);
+    font-size: 0.75rem;
+    font-weight: 650;
+    transition:
+      color var(--motion-duration-short4) var(--motion-easing-standard),
+      background-color var(--motion-duration-short4) var(--motion-easing-standard),
+      box-shadow var(--motion-duration-short4) var(--motion-easing-standard),
+      transform var(--motion-duration-short4) var(--motion-easing-emphasized-decelerate);
+  }
+
+  .forgot-password-button:hover:not(:disabled) {
+    color: var(--explorer-text);
+    background: var(--explorer-accent-soft);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--explorer-accent) 34%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .forgot-password-button:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+  }
+
+  .forgot-password-button:disabled {
+    opacity: 0.5;
+  }
+
   .login-form-card {
     background: var(--explorer-surface);
   }
@@ -983,6 +1019,7 @@
   }
 
   .auth-shell {
+    position: relative;
     display: flex;
     min-height: 100%;
     overflow: hidden;

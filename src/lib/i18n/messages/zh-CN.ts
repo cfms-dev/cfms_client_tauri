@@ -98,6 +98,7 @@ export const zh_CN = {
     openNavigation: '打开导航',
   },
   connect: {
+    title: '连接到服务器',
     tagline: '连接到 CFMS 服务器以开始使用',
     serverAddress: '服务器地址',
     serverAddressRequired: '请输入服务器地址。',
