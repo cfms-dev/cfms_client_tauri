@@ -4,6 +4,20 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.34.0
+**Released on:** 2026-07-14
+
+**Title:** Further Handling of Common Error Messages
+
+### Added
+- Enhance account disabled message for clarity in English and Chinese
+- Hide progress ring track during connection submission
+- Adjust the ratio of the left and right sections of the login page to the golden ratio
+- Add account disabled notice component and enhance login error handling
+- Implement access denied handling with user-friendly dialogs and notices
+
+--- 
+
 ## v0.33.0
 **Released on:** 2026-07-14
 
