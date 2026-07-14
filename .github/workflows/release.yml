@@ -348,8 +348,17 @@ jobs:
           base64 -d <<< "${{ secrets.ANDROID_KEY_BASE64 }}" > "$RUNNER_TEMP/keystore.jks"
           echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
 
-      - name: Build Tauri Android
-        run: pnpm tauri android build --apk --aab --target aarch64 --target x86_64
+      - name: Build Android release artifacts
+        env:
+          ORG_GRADLE_PROJECT_SplitApks: "true"
+        run: pnpm tauri android build --ci --apk --aab --target aarch64 --target x86_64
+
+      - name: Validate Android release artifacts
+        run: >-
+          python scripts/validate-android-release.py
+          --root src-tauri/gen/android/app/build/outputs
+          --normalize-apks
+          --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7

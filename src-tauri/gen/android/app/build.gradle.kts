@@ -13,6 +13,10 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val splitReleaseApks = providers.gradleProperty("SplitApks")
+    .getOrElse("false")
+    .toBoolean()
+
 android {
     compileSdk = 36
     namespace = "org.crpteam.cfms_client_tauri"
@@ -68,6 +72,17 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    // CI enables ABI splits on the universal flavor so Android compilation,
+    // shrinking, and resource processing are shared by all APK outputs. App
+    // bundles ignore this APK-only configuration and remain universal.
+    splits {
+        abi {
+            isEnable = splitReleaseApks
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = true
+        }
     }
 }
 

@@ -226,13 +226,20 @@ async fn check_android_app_update(
     state: tauri::State<'_, AppHandleState>,
     channel: UpdateChannel,
 ) -> Result<Option<AppUpdateMetadata>, String> {
+    let architecture = AndroidApkArchitecture::from_rust_arch(std::env::consts::ARCH)?;
     let proxy_url = updater_proxy_url(&state)?;
     tracing::info!(
-        "Checking for Android app updates (proxy={})",
+        "Checking for Android app updates (architecture={}, proxy={})",
+        architecture.as_str(),
         describe_update_proxy(proxy_url.as_ref())
     );
     let client = update_http_client(proxy_url.as_ref())?;
-    let release = find_update_release(&client, channel, UpdateAssetKind::AndroidApk).await?;
+    let release = find_update_release(
+        &client,
+        channel,
+        UpdateAssetKind::AndroidApk { architecture },
+    )
+    .await?;
     let Some(release) = release else {
         clear_mobile_pending_update(&state)?;
         return Ok(None);
@@ -244,10 +251,15 @@ async fn check_android_app_update(
         return Ok(None);
     }
 
-    let Some(asset) = select_android_apk_asset(&release) else {
+    let Some(asset) = select_android_apk_asset(&release, architecture) else {
         clear_mobile_pending_update(&state)?;
         return Ok(None);
     };
+    tracing::info!(
+        "Selected Android update asset {} for architecture {}",
+        asset.name,
+        architecture.as_str()
+    );
 
     let digest = asset.digest.as_deref().and_then(parse_asset_digest);
     let file_name = sanitize_update_file_name(&asset.name, &release.tag_name);
@@ -552,10 +564,50 @@ fn sanitize_update_file_name(raw: &str, version: &str) -> String {
 
 #[derive(Debug, Clone, Copy)]
 enum UpdateAssetKind {
+    #[cfg(not(target_os = "android"))]
     DesktopManifest,
     #[cfg(target_os = "android")]
-    AndroidApk,
+    AndroidApk {
+        architecture: AndroidApkArchitecture,
+    },
 }
+
+#[cfg(any(target_os = "android", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AndroidApkArchitecture {
+    Arm64,
+    X86_64,
+}
+
+#[cfg(any(target_os = "android", test))]
+impl AndroidApkArchitecture {
+    fn from_rust_arch(value: &str) -> Result<Self, String> {
+        match value {
+            "aarch64" => Ok(Self::Arm64),
+            "x86_64" => Ok(Self::X86_64),
+            unsupported => Err(format!(
+                "Android updates are not available for unsupported architecture {unsupported}."
+            )),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Arm64 => "arm64-v8a",
+            Self::X86_64 => "x86_64",
+        }
+    }
+
+    fn release_asset_name(self) -> &'static str {
+        match self {
+            Self::Arm64 => "app-arm64-release.apk",
+            Self::X86_64 => "app-x86_64-release.apk",
+        }
+    }
+}
+
+#[cfg(any(target_os = "android", test))]
+const ANDROID_UNIVERSAL_APK_ASSET_NAME: &str = "app-universal-release.apk";
 
 async fn find_update_release(
     client: &reqwest::Client,
@@ -625,16 +677,20 @@ fn describe_update_proxy(proxy_url: Option<&url::Url>) -> String {
 
 fn select_update_asset(
     release: &GithubReleaseDto,
-    channel: UpdateChannel,
+    _channel: UpdateChannel,
     kind: UpdateAssetKind,
 ) -> Option<&GithubAssetDto> {
     match kind {
-        UpdateAssetKind::DesktopManifest => select_update_manifest_asset(release, channel),
+        #[cfg(not(target_os = "android"))]
+        UpdateAssetKind::DesktopManifest => select_update_manifest_asset(release, _channel),
         #[cfg(target_os = "android")]
-        UpdateAssetKind::AndroidApk => select_android_apk_asset(release),
+        UpdateAssetKind::AndroidApk { architecture } => {
+            select_android_apk_asset(release, architecture)
+        }
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn select_update_manifest_asset(
     release: &GithubReleaseDto,
     channel: UpdateChannel,
@@ -695,29 +751,26 @@ fn update_download_file_name(download_url: &url::Url) -> Option<String> {
         .map(|segment| segment.replace("%20", " "))
 }
 
-#[cfg(target_os = "android")]
-fn select_android_apk_asset(release: &GithubReleaseDto) -> Option<&GithubAssetDto> {
+#[cfg(any(target_os = "android", test))]
+fn select_android_apk_asset(
+    release: &GithubReleaseDto,
+    architecture: AndroidApkArchitecture,
+) -> Option<&GithubAssetDto> {
     release
         .assets
         .iter()
-        .filter(|asset| asset.name.to_ascii_lowercase().ends_with(".apk"))
-        .max_by_key(|asset| android_apk_asset_score(&asset.name))
-}
-
-#[cfg(target_os = "android")]
-fn android_apk_asset_score(name: &str) -> u8 {
-    let lower = name.to_ascii_lowercase();
-    let mut score = 0;
-    if lower.contains("universal") {
-        score += 4;
-    }
-    if lower.contains("android") {
-        score += 2;
-    }
-    if !lower.contains("debug") {
-        score += 1;
-    }
-    score
+        .find(|asset| {
+            asset
+                .name
+                .eq_ignore_ascii_case(architecture.release_asset_name())
+        })
+        .or_else(|| {
+            release.assets.iter().find(|asset| {
+                asset
+                    .name
+                    .eq_ignore_ascii_case(ANDROID_UNIVERSAL_APK_ASSET_NAME)
+            })
+        })
 }
 
 fn release_channel(release: &GithubReleaseDto) -> UpdateChannel {
@@ -775,6 +828,96 @@ fn is_release_newer(release_tag: &str, current_version: &str) -> bool {
         return true;
     };
     release_version > current_version
+}
+
+#[cfg(test)]
+mod android_apk_selection_tests {
+    use super::*;
+
+    fn asset(name: &str) -> GithubAssetDto {
+        GithubAssetDto {
+            name: name.to_string(),
+            #[cfg(not(target_os = "android"))]
+            label: None,
+            browser_download_url: format!("https://example.invalid/{name}"),
+            #[cfg(target_os = "android")]
+            digest: None,
+        }
+    }
+
+    fn release(asset_names: &[&str]) -> GithubReleaseDto {
+        GithubReleaseDto {
+            tag_name: "v1.2.3".to_string(),
+            body: None,
+            prerelease: false,
+            html_url: "https://example.invalid/release".to_string(),
+            published_at: None,
+            assets: asset_names.iter().map(|name| asset(name)).collect(),
+        }
+    }
+
+    #[test]
+    fn arm64_asset_wins_over_universal_regardless_of_order() {
+        for asset_names in [
+            ["app-universal-release.apk", "app-arm64-release.apk"],
+            ["app-arm64-release.apk", "app-universal-release.apk"],
+        ] {
+            let release = release(&asset_names);
+            let selected = select_android_apk_asset(&release, AndroidApkArchitecture::Arm64);
+            assert_eq!(
+                selected.map(|asset| asset.name.as_str()),
+                Some("app-arm64-release.apk")
+            );
+        }
+    }
+
+    #[test]
+    fn x86_64_asset_wins_over_universal() {
+        let release = release(&[
+            "app-arm64-release.apk",
+            "app-universal-release.apk",
+            "app-x86_64-release.apk",
+        ]);
+        let selected = select_android_apk_asset(&release, AndroidApkArchitecture::X86_64);
+        assert_eq!(
+            selected.map(|asset| asset.name.as_str()),
+            Some("app-x86_64-release.apk")
+        );
+    }
+
+    #[test]
+    fn universal_asset_is_used_when_target_asset_is_missing() {
+        let release = release(&["app-universal-release.apk"]);
+        let selected = select_android_apk_asset(&release, AndroidApkArchitecture::Arm64);
+        assert_eq!(
+            selected.map(|asset| asset.name.as_str()),
+            Some("app-universal-release.apk")
+        );
+    }
+
+    #[test]
+    fn incompatible_debug_and_unknown_assets_are_rejected() {
+        let release = release(&[
+            "app-x86_64-release.apk",
+            "app-arm64-debug.apk",
+            "cfms-client-arm64.apk",
+            "app-universal-release.aab",
+        ]);
+        assert!(
+            select_android_apk_asset(&release, AndroidApkArchitecture::Arm64).is_none()
+        );
+    }
+
+    #[test]
+    fn rust_architecture_names_map_to_release_contract() {
+        let arm64 = AndroidApkArchitecture::from_rust_arch("aarch64").unwrap();
+        let x86_64 = AndroidApkArchitecture::from_rust_arch("x86_64").unwrap();
+        assert_eq!(arm64, AndroidApkArchitecture::Arm64);
+        assert_eq!(arm64.as_str(), "arm64-v8a");
+        assert_eq!(x86_64, AndroidApkArchitecture::X86_64);
+        assert_eq!(x86_64.as_str(), "x86_64");
+        assert!(AndroidApkArchitecture::from_rust_arch("arm").is_err());
+    }
 }
 
 // ---------------------------------------------------------------------------

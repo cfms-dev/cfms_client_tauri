@@ -238,6 +238,7 @@ struct GithubReleaseDto {
 #[derive(Debug, Clone, Deserialize)]
 struct GithubAssetDto {
     name: String,
+    #[cfg(not(target_os = "android"))]
     label: Option<String>,
     browser_download_url: String,
     #[cfg(target_os = "android")]

@@ -135,6 +135,24 @@ pnpm tauri android dev      # Development build on connected device
 pnpm tauri android build    # Release APK/AAB
 ```
 
+The release workflow publishes four signed Android artifacts:
+
+- `app-arm64-release.apk` for regular 64-bit ARM devices (`arm64-v8a`).
+- `app-x86_64-release.apk` for x86_64 devices and emulators.
+- `app-universal-release.apk` as a compatibility fallback for older clients.
+- `app-universal-release.aab` for app-store distribution.
+
+The release workflow runs one Tauri universal build with Gradle's `SplitApks`
+project property enabling ABI splits for APK output. This shares frontend
+compilation, Rust target builds, Android resource processing, and code shrinking
+across the architecture-specific and universal APKs. Gradle's generated split
+names are normalized to the asset names above; the AAB ignores APK splits and
+remains universal. The workflow then validates that every APK contains only its
+declared native architectures, that package/version/signing metadata match, and
+that each architecture-specific APK is smaller than the universal APK before
+publishing. Android's in-app updater prefers the current runtime architecture and
+falls back to the universal APK when necessary.
+
 ### iOS
 
 ```bash

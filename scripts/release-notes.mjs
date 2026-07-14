@@ -393,11 +393,12 @@ function buildReleaseBody(entry, options) {
     "### Downloads",
     "- Windows: MSI and NSIS installers.",
     "- Linux: AppImage, deb and rpm packages.",
-    "- Android: APK and AAB packages.",
+    "- Android: arm64-v8a and x86_64 APKs, a universal compatibility APK, and a universal AAB.",
     "",
     "### Verification",
     "- SHA-256 checksums are published in `SHA256SUMS.txt`.",
     "- Desktop updater metadata is published in `latest.json`.",
+    "- Android APK architecture contents, package metadata, and signing certificates are validated before publishing.",
   ].filter((line) => line !== null);
 
   if (runUrl || repository) {
