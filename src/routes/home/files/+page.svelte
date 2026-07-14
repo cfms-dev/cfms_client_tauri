@@ -61,6 +61,8 @@
     ServerObjectType,
   } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import AccessDeniedDialog from '$lib/components/AccessDeniedDialog.svelte';
+  import AccessDeniedNotice from '$lib/components/AccessDeniedNotice.svelte';
   import AuthorizeAccessDialog from '$lib/components/AuthorizeAccessDialog.svelte';
   import AccessRulesManager from '$lib/components/AccessRulesManager.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
@@ -120,6 +122,7 @@
   } from '$lib/files/sort-worker-client';
   import { DIRECTORY_PAGE_SIZE } from '$lib/files/progressive-listing';
   import { DirectoryLoadController } from '$lib/files/directory-load-controller';
+  import { isAccessDeniedError } from '$lib/api/server-errors';
   import {
     fileManagerShortcutFor,
     isFindShortcut,
@@ -166,6 +169,18 @@
 
   type DirectoryLoadPhase = 'idle' | 'initial-loading' | 'loading-more' | 'complete' | 'partial-error';
 
+  type DirectoryNavigationSnapshot = {
+    folderId: string | null;
+    navigationRootId: string | null;
+    navigationRootLabel: string | null;
+    navHistory: Array<{ label: string; id: string }>;
+  };
+
+  type DirectoryAccessDeniedState = {
+    folderId: string | null;
+    returnNavigation: DirectoryNavigationSnapshot;
+  };
+
   type FileListIndex = {
     folderById: Map<string, ServerDirectoryEntry>;
     documentById: Map<string, ServerDocumentEntry>;
@@ -191,6 +206,7 @@
   let directoryLoadError = $state<string | null>(null);
   let directoryLoadedCount = $state(0);
   let directoryNextCursor = $state<string | null>(null);
+  let directoryAccessDenied = $state<DirectoryAccessDeniedState | null>(null);
   let fileTableResetKey = $state(0);
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
@@ -214,6 +230,7 @@
   let sortDirection = $state<SortDirection>('asc');
   let sortRevision = 0;
   let directoryGeneration = 0;
+  let activeDirectoryReturnNavigation: DirectoryNavigationSnapshot | null = null;
   const directoryLoader = new DirectoryLoadController(listDirectoryPage);
   let directorySorter: ProgressiveDirectorySorter | null = null;
   let fileTable: {
@@ -230,6 +247,7 @@
   let detailsOpen = $state(false);
   let detailModel = $state<FileDetailModel | null>(null);
   let detailRequestId = 0;
+  let documentAccessDenied = $state<{ name: string; id: string; accessedAt: number } | null>(null);
 
   // Context menu state
   let contextMenu = $state<{
@@ -352,6 +370,44 @@
   // server-side ID so we can jump back to any ancestor.
   let navHistory = $state<Array<{ label: string; id: string }>>([]);
 
+  function captureDirectoryNavigation(): DirectoryNavigationSnapshot {
+    return {
+      folderId: currentFolderId,
+      navigationRootId,
+      navigationRootLabel,
+      navHistory: navHistory.map((entry) => ({ ...entry })),
+    };
+  }
+
+  function captureDeniedReturnNavigation(folderId: string | null): DirectoryNavigationSnapshot {
+    const snapshot = captureDirectoryNavigation();
+    if (!sameDirectoryId(folderId, currentFolderId)) return snapshot;
+
+    if (parentTargetId !== undefined) {
+      return {
+        ...snapshot,
+        folderId: parentTargetId,
+        navHistory: navHistory.slice(0, -1),
+      };
+    }
+
+    if (navigationRootId !== null && sameDirectoryId(currentFolderId, navigationRootId)) {
+      return {
+        folderId: null,
+        navigationRootId: null,
+        navigationRootLabel: null,
+        navHistory: [],
+      };
+    }
+
+    return snapshot;
+  }
+
+  function isDeniedDirectory(folderId: string | null): boolean {
+    return directoryAccessDenied !== null
+      && sameDirectoryId(directoryAccessDenied.folderId, normalizeDirectoryId(folderId));
+  }
+
   const breadcrumbSegments = $derived(
     [
       ...(navigationRootId !== null
@@ -420,7 +476,7 @@
 
     return undefined;
   });
-  const canGoToParent = $derived(parentTargetId !== undefined);
+  const canGoToParent = $derived(directoryAccessDenied !== null || parentTargetId !== undefined);
   $effect(() => {
     if (!status) return;
     notificationStore.success(status);
@@ -537,6 +593,13 @@
       },
     );
     if (result.status !== 'partial-error' || generation !== directoryGeneration) return;
+    if (isAccessDeniedError(result.error)) {
+      showDirectoryAccessDenied(
+        currentFolderId,
+        activeDirectoryReturnNavigation ?? captureDirectoryNavigation(),
+      );
+      return;
+    }
     directoryNextCursor = result.cursor;
     directoryLoadError = formatError(result.error);
     directoryLoadPhase = 'partial-error';
@@ -549,9 +612,35 @@
     void continueDirectoryLoad(directoryGeneration, directoryNextCursor);
   }
 
-  async function loadDirectory(folderId: string | null, preserveOnError = false): Promise<boolean> {
+  function showDirectoryAccessDenied(
+    folderId: string | null,
+    returnNavigation: DirectoryNavigationSnapshot,
+  ) {
+    currentFolderId = normalizeDirectoryId(folderId);
+    folders = [];
+    documents = [];
+    fileListIndex = createFileListIndex([], []);
+    parentId = null;
+    directoryLoadedCount = 0;
+    directoryNextCursor = null;
+    directoryLoadPhase = 'idle';
+    loading = false;
+    directoryAccessDenied = { folderId: currentFolderId, returnNavigation };
+  }
+
+  async function loadDirectory(
+    folderId: string | null,
+    preserveOnError = false,
+    returnNavigation?: DirectoryNavigationSnapshot,
+  ): Promise<boolean> {
+    const normalizedFolderId = normalizeDirectoryId(folderId);
+    const deniedReturnNavigation = returnNavigation
+      ?? (isDeniedDirectory(normalizedFolderId)
+        ? directoryAccessDenied!.returnNavigation
+        : captureDeniedReturnNavigation(normalizedFolderId));
     const generation = directoryLoader.begin();
     directoryGeneration = generation;
+    activeDirectoryReturnNavigation = deniedReturnNavigation;
     const revision = ++sortRevision;
     loading = true;
     directoryLoadPhase = 'initial-loading';
@@ -560,9 +649,9 @@
     directoryNextCursor = null;
     fileTableResetKey += 1;
     error = null;
+    directoryAccessDenied = null;
     commitSelection(new Set(), new Set());
     try {
-      const normalizedFolderId = normalizeDirectoryId(folderId);
       directorySorter?.reset(generation, revision, sortField, sortDirection);
       markFilePerformance('files:list-request-start');
       const resp = await directoryLoader.requestPage(generation, normalizedFolderId, null, DIRECTORY_PAGE_SIZE);
@@ -584,10 +673,14 @@
       return true;
     } catch (e) {
       if (generation !== directoryGeneration) return false;
-      error = String(e);
       directoryLoadError = formatError(e);
       directoryLoadPhase = 'idle';
-      if (!preserveOnError) {
+      if (isAccessDeniedError(e)) {
+        showDirectoryAccessDenied(normalizedFolderId, deniedReturnNavigation);
+      } else {
+        error = String(e);
+      }
+      if (!preserveOnError && !directoryAccessDenied) {
         folders = [];
         documents = [];
         parentId = null;
@@ -603,8 +696,10 @@
   async function handleNavigate(folderId: string, folderName: string) {
     const previousFolderId = currentFolderId;
     const ok = await loadDirectory(folderId);
-    if (ok) {
+    if (ok || isDeniedDirectory(folderId)) {
       navHistory = [...navHistory, { label: folderName, id: folderId }];
+    }
+    if (ok) {
       await rememberVisit(
         currentFilePreferenceScope(),
         {
@@ -620,28 +715,33 @@
   async function handleBreadcrumbNavigate(targetId: string) {
     // ROOT_DIRECTORY_ID means root
     if (targetId === ROOT_DIRECTORY_ID) {
+      const returnNavigation = captureDirectoryNavigation();
       navigationRootId = null;
       navigationRootLabel = null;
       navHistory = [];
-      await loadDirectory(null);
+      await loadDirectory(null, false, returnNavigation);
       return;
     }
     if (sameDirectoryId(targetId, navigationRootId)) {
       const ok = await loadDirectory(navigationRootId);
-      if (ok) navHistory = [];
+      if (ok || isDeniedDirectory(navigationRootId)) navHistory = [];
       return;
     }
     // Truncate history to the clicked segment
     const idx = navHistory.findIndex((h) => h.id === targetId);
     if (idx >= 0) {
       const ok = await loadDirectory(targetId);
-      if (ok) navHistory = navHistory.slice(0, idx + 1);
+      if (ok || isDeniedDirectory(targetId)) navHistory = navHistory.slice(0, idx + 1);
       return;
     }
     await loadDirectory(targetId);
   }
 
   async function handleGoToParent() {
+    if (directoryAccessDenied) {
+      await handleReturnFromDeniedDirectory();
+      return;
+    }
     if (parentTargetId === undefined) return;
     const targetParentId = parentTargetId;
 
@@ -649,6 +749,18 @@
     if (ok && navHistory.length > 0) {
       navHistory = navHistory.slice(0, -1);
     }
+  }
+
+  async function handleReturnFromDeniedDirectory() {
+    const deniedState = directoryAccessDenied;
+    if (!deniedState) return;
+
+    const previous = deniedState.returnNavigation;
+    const ok = await loadDirectory(previous.folderId);
+    if (!ok) return;
+    navigationRootId = previous.navigationRootId;
+    navigationRootLabel = previous.navigationRootLabel;
+    navHistory = previous.navHistory;
   }
 
   async function handleJumpToDirectory() {
@@ -664,12 +776,12 @@
 
     const target = normalizeDirectoryId(value);
     const ok = await loadDirectory(target, true);
-    if (!ok) return;
+    if (!ok && !isDeniedDirectory(target)) return;
 
     navigationRootId = target;
     navigationRootLabel = target === null ? null : shortIdentifier(target);
     navHistory = [];
-    status = $t('files.jumpToDirectorySuccess');
+    if (ok) status = $t('files.jumpToDirectorySuccess');
   }
 
   // --- Selection ---
@@ -887,7 +999,11 @@
       await getDocument(doc.id, doc.title);
       await rememberVisit(currentFilePreferenceScope(), documentToRecord(doc, currentFolderId));
     } catch (e) {
-      error = String(e);
+      if (isAccessDeniedError(e)) {
+        documentAccessDenied = { name: doc.title, id: doc.id, accessedAt: Date.now() };
+      } else {
+        error = String(e);
+      }
     }
   }
 
@@ -2905,10 +3021,12 @@
     closeSearchPreview();
     closeSearchDialog();
     const ok = await loadDirectory(directory.id);
-    if (ok) {
+    if (ok || isDeniedDirectory(directory.id)) {
       navigationRootId = directory.id;
       navigationRootLabel = directory.name;
       navHistory = [];
+    }
+    if (ok) {
       await rememberVisit(currentFilePreferenceScope(), directoryToRecord(directory, null));
     }
   }
@@ -3147,11 +3265,12 @@
     });
     const initialFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
     const initialName = page.url.searchParams.get('name');
+    const initialReturnNavigation = captureDirectoryNavigation();
     if (initialFolder) {
       navigationRootId = initialFolder;
       navigationRootLabel = initialName || shortIdentifier(initialFolder);
     }
-    loadDirectory(initialFolder);
+    loadDirectory(initialFolder, false, initialReturnNavigation);
     reloadUserPreference();
     return () => {
       disposed = true;
@@ -3467,6 +3586,14 @@
   </div>
 
   <div class="files-content-row">
+    {#snippet deniedDirectoryContent()}
+      <AccessDeniedNotice
+        title={$t('files.directoryAccessDeniedTitle')}
+        description={$t('files.directoryAccessDeniedDescription')}
+        actionLabel={$t('files.returnToPreviousDirectory')}
+        onAction={handleReturnFromDeniedDirectory}
+      />
+    {/snippet}
     <FileTable
       bind:this={fileTable}
       {loading}
@@ -3490,6 +3617,7 @@
       onBlankContextMenu={showCurrentDirectoryContextMenu}
       onFolderContextMenu={showFolderContextMenu}
       onDocumentContextMenu={showDocumentContextMenu}
+      emptyContent={directoryAccessDenied ? deniedDirectoryContent : undefined}
     />
     <ExplorerDetailsPane
       open={detailsOpen}
@@ -3722,6 +3850,15 @@
   sourceElement={contextMenu.sourceElement}
   onClose={hideContextMenu}
 />
+
+{#if documentAccessDenied}
+  <AccessDeniedDialog
+    documentName={documentAccessDenied.name}
+    documentId={documentAccessDenied.id}
+    accessedAt={documentAccessDenied.accessedAt}
+    onClose={() => (documentAccessDenied = null)}
+  />
+{/if}
 
 {#if searchDialog.open}
   <ModalFrame

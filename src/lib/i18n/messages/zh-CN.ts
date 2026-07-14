@@ -545,6 +545,13 @@ export const zh_CN = {
     modified: '修改时间',
     resizeColumn: '调整“{column}”列宽',
     empty: '此目录为空。',
+    directoryAccessDeniedTitle: '访问被拒绝',
+    directoryAccessDeniedDescription: '您当前没有权限查看此目录中的内容。',
+    returnToPreviousDirectory: '返回',
+    documentAccessDeniedDialogTitle: '拒绝访问',
+    documentAccessDeniedTitle: '访问被拒绝',
+    documentAccessDeniedDescription: '您当前没有权限访问此文档。如有疑问，请联系您的系统管理员。',
+    accessDeniedAt: '访问时间',
     parentDirectory: '返回上一级',
   },
   tasks: {

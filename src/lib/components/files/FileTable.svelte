@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { createVirtualizer, type VirtualItem } from '@tanstack/svelte-virtual';
   import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
@@ -63,6 +63,7 @@
     onBlankContextMenu,
     onFolderContextMenu,
     onDocumentContextMenu,
+    emptyContent,
   }: {
     loading: boolean;
     folders: ServerDirectoryEntry[];
@@ -85,6 +86,7 @@
     onBlankContextMenu: (event: MouseEvent) => void;
     onFolderContextMenu: (event: MouseEvent | KeyboardEvent, folder: ServerDirectoryEntry) => void;
     onDocumentContextMenu: (event: MouseEvent | KeyboardEvent, document: ServerDocumentEntry) => void;
+    emptyContent?: Snippet;
   } = $props();
 
   let scrollViewport = $state<HTMLDivElement | null>(null);
@@ -632,7 +634,9 @@
 
         <div bind:this={listSpace} class="file-table-list-space">
         {#if folders.length === 0 && documents.length === 0}
-          <p class="file-table-empty">{$t('files.empty')}</p>
+          {#if !emptyContent}
+            <p class="file-table-empty">{$t('files.empty')}</p>
+          {/if}
         {/if}
         {#if rowCount > 0}
           <div class="file-table-row-space" class:is-virtualized={virtualized} style={virtualized ? `height:${$rowVirtualizer.getTotalSize()}px;` : undefined}>
@@ -695,6 +699,11 @@
         </div>
       </div>
     </div>
+    {#if emptyContent && folders.length === 0 && documents.length === 0}
+      <div class="file-table-empty-overlay">
+        {@render emptyContent()}
+      </div>
+    {/if}
     {#if marquee?.active}
       <div class="file-table-marquee" style={marqueeStyle} aria-hidden="true"></div>
     {/if}
@@ -719,6 +728,7 @@
     min-width: var(--file-table-content-width);
     min-height: 100%;
   }
+  .file-table-empty-overlay { position: absolute; z-index: 6; inset: 36px 0 0; display: flex; min-height: 0; align-items: stretch; justify-content: stretch; overflow: hidden; background: var(--explorer-background); }
   .file-table-grid { display: grid; grid-template-columns: 28px var(--file-name-width, minmax(240px, 1fr)) var(--file-modified-width, 168px) var(--file-type-width, 112px) var(--file-size-width, 100px); align-items: center; gap: 0.55rem; }
   .file-table-header { position: sticky; top: 0; z-index: 10; min-height: 36px; border-bottom: 1px solid var(--explorer-border-strong); padding: 0 0.7rem; color: var(--explorer-text); background: var(--explorer-surface-raised); font-size: 0.75rem; }
   .file-table-column-header { position: relative; display: flex; min-width: 0; height: 100%; align-items: center; border-right: 1px solid var(--explorer-border); }

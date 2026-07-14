@@ -550,6 +550,13 @@ export const en = {
     modified: 'Modified',
     resizeColumn: 'Resize {column} column',
     empty: 'This directory is empty.',
+    directoryAccessDeniedTitle: 'Access denied',
+    directoryAccessDeniedDescription: 'You do not currently have permission to view the contents of this directory.',
+    returnToPreviousDirectory: 'Back',
+    documentAccessDeniedDialogTitle: 'Access denied',
+    documentAccessDeniedTitle: 'Access denied',
+    documentAccessDeniedDescription: 'You do not currently have permission to access this document. If you have any questions, please contact your system administrator.',
+    accessDeniedAt: 'Access time',
     parentDirectory: 'Up one level',
   },
   tasks: {
