@@ -24,7 +24,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav
   aria-label={$t('common.breadcrumb')}
-  class="flex items-center gap-1 text-sm no-select"
+  class="flex flex-nowrap items-center gap-1 whitespace-nowrap text-sm no-select"
   tabindex="-1"
   onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, {
     selector: '[data-breadcrumb-item]',
@@ -51,7 +51,7 @@
     </span>
     {#if i === segments.length - 1}
       <span
-        class="inline-flex h-5 items-center leading-5 text-md3-on-surface font-semibold"
+        class="inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-5 text-md3-on-surface font-semibold"
         transition:flyScale={staggeredList(i * 2 + 2, { y: 4, duration: 220, step: 28 })}
       >
         {seg.label}
@@ -60,7 +60,7 @@
       <button
         data-breadcrumb-item
         tabindex="-1"
-        class="inline-flex h-5 items-center leading-5 text-md3-primary-emphasis hover:underline transition-colors"
+        class="inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-5 text-md3-primary-emphasis hover:underline transition-colors"
         onclick={() => onNavigate(seg.path)}
         transition:flyScale={staggeredList(i * 2 + 2, { y: 4, duration: 220, step: 28 })}
       >
