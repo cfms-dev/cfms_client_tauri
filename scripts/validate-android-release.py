@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import hashlib
 import os
 import re
 import subprocess
@@ -184,12 +187,35 @@ def read_package_metadata(aapt: Path, apk: Path) -> PackageMetadata:
     )
 
 
-def read_signer_digest(apksigner: Path, apk: Path) -> str:
-    output = run_tool(apksigner, "verify", "--verbose", "--print-certs", str(apk))
-    match = re.search(r"Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F]+)", output)
-    if match is None:
-        fail(f"apksigner did not report a SHA-256 signer digest for {apk.name}")
-    return match.group(1).lower()
+def certificate_sha256_digests(output: str) -> frozenset[str]:
+    certificate_bodies = re.findall(
+        r"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
+        output,
+        flags=re.DOTALL,
+    )
+    if not certificate_bodies:
+        raise ValueError("no PEM signing certificates were reported")
+
+    digests: set[str] = set()
+    for index, body in enumerate(certificate_bodies, start=1):
+        encoded = "".join(body.split())
+        try:
+            certificate = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise ValueError(f"signing certificate {index} contains invalid PEM data") from error
+        if not certificate:
+            raise ValueError(f"signing certificate {index} is empty")
+        digests.add(hashlib.sha256(certificate).hexdigest())
+
+    return frozenset(digests)
+
+
+def read_signer_digests(apksigner: Path, apk: Path) -> frozenset[str]:
+    output = run_tool(apksigner, "verify", "--verbose", "--print-certs-pem", str(apk))
+    try:
+        return certificate_sha256_digests(output)
+    except ValueError as error:
+        fail(f"could not read signing certificates for {apk.name}: {error}")
 
 
 def format_size(size: int) -> str:
@@ -239,7 +265,7 @@ def main() -> None:
     aapt = find_android_tool("aapt")
     apksigner = find_android_tool("apksigner")
     metadata = {name: read_package_metadata(aapt, path) for name, path in apks.items()}
-    signer_digests = {name: read_signer_digest(apksigner, path) for name, path in apks.items()}
+    signer_digests = {name: read_signer_digests(apksigner, path) for name, path in apks.items()}
     if len(set(metadata.values())) != 1:
         fail(f"APK package metadata differs: {metadata}")
     if len(set(signer_digests.values())) != 1:

@@ -353,6 +353,9 @@ jobs:
           ORG_GRADLE_PROJECT_SplitApks: "true"
         run: pnpm tauri android build --ci --apk --aab --target aarch64 --target x86_64
 
+      - name: Test Android release validator
+        run: python -B -m unittest discover -s scripts/tests -p "test_*.py"
+
       - name: Validate Android release artifacts
         run: >-
           python scripts/validate-android-release.py
