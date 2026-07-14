@@ -623,24 +623,9 @@
     class="auth-form-stage"
     class:animate-fade-scale-in={!playConnectTransition}
     class:auth-form-stage--connect-intro={playConnectTransition}
+    class:auth-form-stage--server-context={accountDisabled || !(busy && loadingPhase)}
   >
-    <AuthServerContext label={$t('login.signInToServer', { values: { serverName } })} />
-
-    <div class="auth-content-stage">
-    {#if accountDisabled}
-      <div class="auth-state-view" out:flyScale={{ y: -6, duration: 180 }}>
-        <AccountDisabledNotice
-          title={$t('login.accountDisabledTitle')}
-          username={disabledAccountName}
-          description={$t('login.accountDisabledContactAdmin')}
-          requestTimeLabel={$t('login.accountDisabledRequestTime')}
-          requestTime={accountDisabledRequestTimeText}
-          backLabel={$t('common.back')}
-          reason={accountDisabledReason ?? $t('login.accountDisabledReasonUnavailable')}
-          onBack={returnFromAccountDisabled}
-        />
-      </div>
-    {:else if busy && loadingPhase}
+    {#if !accountDisabled && busy && loadingPhase}
       <!-- Data loading state -->
       <div
         class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
@@ -660,12 +645,29 @@
         </p>
       </div>
     {:else}
-      <!-- Login form -->
-      <div
-        class="login-view"
-        in:flyScale={{ y: 8, duration: returningFromAccountDisabled ? 300 : 0 }}
-        onintroend={finishAccountDisabledReturn}
-      >
+      <AuthServerContext label={$t('login.signInToServer', { values: { serverName } })} />
+
+      <div class="auth-content-stage">
+      {#if accountDisabled}
+        <div class="auth-state-view" out:flyScale={{ y: -6, duration: 180 }}>
+          <AccountDisabledNotice
+            title={$t('login.accountDisabledTitle')}
+            username={disabledAccountName}
+            description={$t('login.accountDisabledContactAdmin')}
+            requestTimeLabel={$t('login.accountDisabledRequestTime')}
+            requestTime={accountDisabledRequestTimeText}
+            backLabel={$t('common.back')}
+            reason={accountDisabledReason ?? $t('login.accountDisabledReasonUnavailable')}
+            onBack={returnFromAccountDisabled}
+          />
+        </div>
+      {:else}
+        <!-- Login form -->
+        <div
+          class="login-view"
+          in:flyScale={{ y: 8, duration: returningFromAccountDisabled ? 300 : 0 }}
+          onintroend={finishAccountDisabledReturn}
+        >
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
         {#if username.trim()}
@@ -860,9 +862,10 @@
           </button>
         </div>
       </form>
+        </div>
+      {/if}
       </div>
     {/if}
-    </div>
   </div>
   </section>
 
@@ -928,7 +931,7 @@
     font-family: var(--font-md3-sans);
     font-size: 0.75rem;
     font-weight: 400;
-    text-decoration-line: underline;
+    /* text-decoration-line: underline; */
     text-decoration-color: transparent;
     text-decoration-thickness: 1px;
     text-underline-offset: 0.2em;
@@ -1039,8 +1042,13 @@
     display: grid;
     width: 100%;
     max-width: 360px;
+    align-items: center;
+  }
+
+  .auth-form-stage--server-context {
     min-height: min(32rem, calc(100dvh - 6rem));
     grid-template-rows: auto 1fr;
+    align-items: stretch;
   }
 
   .auth-content-stage {
