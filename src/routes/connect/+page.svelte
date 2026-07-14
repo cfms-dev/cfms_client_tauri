@@ -11,6 +11,8 @@
   //            ConnectFormController in reference/src/include/controllers/connect.py
 
   import { onMount, tick } from "svelte";
+  import { cubicInOut } from "svelte/easing";
+  import { fade } from "svelte/transition";
   import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
@@ -454,9 +456,15 @@
         >
           <span class="connect-submit-effects" aria-hidden="true"></span>
           {#if busy}
-            <span class="connect-submit-busy-fill" aria-hidden="true"></span>
+            <span
+              class="connect-submit-busy-layer"
+              aria-hidden="true"
+              out:fade={{ duration: 360, easing: cubicInOut }}
+            >
+              <span class="connect-submit-busy-fill"></span>
+            </span>
             <span class="connect-submit-progress">
-              <ProgressRing tone="inherit" size={48} strokeWidth={4.5} label={$t('common.connecting')} />
+              <ProgressRing tone="inherit" size={42} strokeWidth={4} label={$t('common.connecting')} />
             </span>
           {:else}
             <span class="connect-submit-content connect-submit-arrow">
@@ -593,9 +601,15 @@
       var(--motion-easing-emphasized-decelerate) both;
   }
 
-  .connect-submit-busy-fill {
+  .connect-submit-busy-layer {
     position: absolute;
     z-index: 2;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .connect-submit-busy-fill {
+    position: absolute;
     inset-inline-start: calc(72% - 9px);
     inset-block-start: calc(50% - 9px);
     inline-size: 18px;
