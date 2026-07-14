@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { formatUtcDateTime } from './date-time';
+import { formatLocalDateTimeWithUtcOffset, formatUtcOffset } from './date-time';
 
-describe('UTC date-time formatting', () => {
-  it('uses a fixed layout with an explicit UTC indicator', () => {
-    expect(formatUtcDateTime(new Date('2026-07-14T13:45:06.789Z'))).toBe(
-      '2026-07-14 13:45:06 UTC',
+describe('local date-time formatting with UTC offset', () => {
+  it('uses local wall time and an explicit offset for the represented instant', () => {
+    const date = new Date(2026, 6, 14, 13, 45, 6, 789);
+
+    expect(formatLocalDateTimeWithUtcOffset(date)).toBe(
+      `2026-07-14 13:45:06 UTC${formatUtcOffset(-date.getTimezoneOffset())}`,
     );
   });
 
-  it('formats numeric timestamps as UTC regardless of the host time zone', () => {
-    expect(formatUtcDateTime(Date.UTC(2026, 0, 2, 3, 4, 5))).toBe(
-      '2026-01-02 03:04:05 UTC',
-    );
+  it('uses ISO-style signed offsets with two-digit hours and minutes', () => {
+    expect(formatUtcOffset(480)).toBe('+08:00');
+    expect(formatUtcOffset(-210)).toBe('-03:30');
+    expect(formatUtcOffset(0)).toBe('+00:00');
   });
 
   it('returns an empty value for an invalid timestamp', () => {
-    expect(formatUtcDateTime(Number.NaN)).toBe('');
+    expect(formatLocalDateTimeWithUtcOffset(Number.NaN)).toBe('');
   });
 });

@@ -2,6 +2,7 @@
   import { _ as t } from 'svelte-i18n';
   import AccessDeniedNotice from '$lib/components/AccessDeniedNotice.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import { formatLocalDateTimeWithUtcOffset } from '$lib/date-time';
 
   let {
     documentName,
@@ -17,7 +18,7 @@
 
   const accessDetails = $derived([
     { label: $t('files.documentId'), value: documentId },
-    { label: $t('files.accessDeniedAt'), value: new Date(accessedAt).toLocaleString() },
+    { label: $t('files.accessDeniedAt'), value: formatLocalDateTimeWithUtcOffset(accessedAt) },
   ]);
 </script>
 
