@@ -8,7 +8,6 @@ afterEach(cleanup);
 
 describe('AccountDisabledNotice', () => {
   const baseProps = {
-    signInLabel: 'Sign in to CFMS Server',
     title: 'Your account has been disabled',
     username: 'disabled-user',
     description: 'If you have questions, contact your system administrator.',
@@ -24,7 +23,6 @@ describe('AccountDisabledNotice', () => {
     render(AccountDisabledNotice, { props: { ...baseProps, onBack } });
 
     expect(screen.getByRole('region', { name: 'Your account has been disabled' })).toBeTruthy();
-    expect(screen.getByText('Sign in to CFMS Server')).toBeTruthy();
     expect(screen.getByText('disabled-user')).toBeTruthy();
     expect(screen.getByText('Request time')).toBeTruthy();
     expect(screen.getByText('2026-07-15 05:45:00 UTC+08:00')).toBeTruthy();

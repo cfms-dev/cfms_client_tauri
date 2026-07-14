@@ -2,7 +2,6 @@
   import Icon from '$lib/components/Icon.svelte';
 
   let {
-    signInLabel,
     title,
     username,
     description,
@@ -12,7 +11,6 @@
     reason,
     onBack,
   }: {
-    signInLabel: string;
     title: string;
     username: string;
     description: string;
@@ -25,14 +23,6 @@
 </script>
 
 <section class="account-disabled-notice" aria-labelledby="account-disabled-title" aria-live="polite">
-  <div class="account-disabled-context">
-    <div class="account-disabled-context__label">
-      <Icon name="login" size="19px" />
-      <span>{signInLabel}</span>
-    </div>
-    <div class="account-disabled-context__divider"></div>
-  </div>
-
   <div class="account-disabled-heading">
     <h1 id="account-disabled-title">{title}</h1>
     <div class="account-disabled-identity" title={username}>
@@ -79,41 +69,10 @@
       var(--motion-easing-emphasized-decelerate) both;
   }
 
-  .account-disabled-context {
-    display: grid;
-    width: calc(100% + 2.5rem);
-    gap: 0.8rem;
-    margin-inline: -1.25rem;
-  }
-
-  .account-disabled-context__label {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.55rem;
-    padding-left: 0.75rem;
-    color: var(--explorer-text-muted);
-    font-size: 0.82rem;
-    font-weight: 560;
-    text-align: left;
-  }
-
-  .account-disabled-context__label span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-disabled-context__divider {
-    height: 1px;
-    background: var(--explorer-border-strong);
-  }
-
   .account-disabled-heading {
     display: grid;
     justify-items: center;
     gap: 0.7rem;
-    margin-top: 2rem;
   }
 
   h1,

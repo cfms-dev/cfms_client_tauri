@@ -48,6 +48,7 @@
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
+  import AuthServerContext from "$lib/components/AuthServerContext.svelte";
   import AccountDisabledNotice from "$lib/components/AccountDisabledNotice.svelte";
   import DialogActionButton from "$lib/components/DialogActionButton.svelte";
   import MdOutlinedField from "$lib/components/MdOutlinedField.svelte";
@@ -623,10 +624,12 @@
     class:animate-fade-scale-in={!playConnectTransition}
     class:auth-form-stage--connect-intro={playConnectTransition}
   >
+    <AuthServerContext label={$t('login.signInToServer', { values: { serverName } })} />
+
+    <div class="auth-content-stage">
     {#if accountDisabled}
       <div class="auth-state-view" out:flyScale={{ y: -6, duration: 180 }}>
         <AccountDisabledNotice
-          signInLabel={$t('login.signInToServer', { values: { serverName } })}
           title={$t('login.accountDisabledTitle')}
           username={disabledAccountName}
           description={$t('login.accountDisabledContactAdmin')}
@@ -663,13 +666,6 @@
         in:flyScale={{ y: 8, duration: returningFromAccountDisabled ? 300 : 0 }}
         onintroend={finishAccountDisabledReturn}
       >
-      <div class="text-center mb-6">
-        <!-- Server info -->
-        <p class="login-server-name">
-          {serverName}
-        </p>
-      </div>
-
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
         {#if username.trim()}
@@ -866,6 +862,7 @@
       </form>
       </div>
     {/if}
+    </div>
   </div>
   </section>
 
@@ -923,15 +920,6 @@
 {/if}
 
 <style>
-  .login-server-name {
-    margin: 0;
-    color: var(--explorer-text);
-    font-family: var(--font-md3-serif);
-    font-size: 1.125rem;
-    font-weight: 700;
-    line-height: 1.4;
-  }
-
   .forgot-password-button {
     border: 0;
     padding: 0.375rem 0.75rem;
@@ -1051,7 +1039,14 @@
     display: grid;
     width: 100%;
     max-width: 360px;
-    align-items: center;
+    min-height: min(32rem, calc(100dvh - 6rem));
+    grid-template-rows: auto 1fr;
+  }
+
+  .auth-content-stage {
+    display: grid;
+    min-height: 0;
+    padding-top: 2rem;
   }
 
   .auth-state-view,
@@ -1059,7 +1054,7 @@
     grid-area: 1 / 1;
     width: 100%;
     min-width: 0;
-    align-self: center;
+    align-self: start;
   }
 
   .auth-visual {
