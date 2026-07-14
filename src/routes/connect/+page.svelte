@@ -637,6 +637,10 @@
     filter: drop-shadow(0 1px 2px rgb(43 20 85 / 16%));
   }
 
+  .connect-submit-progress :global(.md-progress-ring__track) {
+    display: none;
+  }
+
   .connect-submit-busy-layer {
     position: absolute;
     z-index: 2;
