@@ -114,6 +114,10 @@
   } from '$lib/file-preferences';
   import { formatBytes, formatDate, formatError, formatUnknown, isPickerCancel } from '$lib/files/formatting';
   import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
+  import {
+    fileManagerNavigationStore,
+    type DirectoryNavigationSnapshot,
+  } from '$lib/files/file-manager-navigation';
   import type { SortDirection, SortField } from '$lib/files/sorting';
   import {
     createProgressiveDirectorySorter,
@@ -169,13 +173,6 @@
 
   type DirectoryLoadPhase = 'idle' | 'initial-loading' | 'loading-more' | 'complete' | 'partial-error';
 
-  type DirectoryNavigationSnapshot = {
-    folderId: string | null;
-    navigationRootId: string | null;
-    navigationRootLabel: string | null;
-    navHistory: Array<{ label: string; id: string }>;
-  };
-
   type DirectoryAccessDeniedState = {
     folderId: string | null;
     returnNavigation: DirectoryNavigationSnapshot;
@@ -217,6 +214,7 @@
   let searchPreviewPanelStyle = $state('');
   let navigationRootId = $state<string | null>(null);
   let navigationRootLabel = $state<string | null>(null);
+  let navigationStateReady = $state(false);
   let userPreference = $state<UserPreference | null>(null);
   let batchBusy = $state(false);
 
@@ -379,6 +377,13 @@
     };
   }
 
+  function applyDirectoryNavigation(snapshot: DirectoryNavigationSnapshot) {
+    currentFolderId = snapshot.folderId;
+    navigationRootId = snapshot.navigationRootId;
+    navigationRootLabel = snapshot.navigationRootLabel;
+    navHistory = snapshot.navHistory.map((entry) => ({ ...entry }));
+  }
+
   function captureDeniedReturnNavigation(folderId: string | null): DirectoryNavigationSnapshot {
     const snapshot = captureDirectoryNavigation();
     if (!sameDirectoryId(folderId, currentFolderId)) return snapshot;
@@ -487,6 +492,15 @@
     if (!error) return;
     notificationStore.error(error);
     error = null;
+  });
+
+  $effect(() => {
+    if (!navigationStateReady) return;
+    fileManagerNavigationStore.remember(
+      serverStateStore.remoteAddress,
+      authStore.username,
+      captureDirectoryNavigation(),
+    );
   });
 
   // --- Data loading ---
@@ -758,9 +772,7 @@
     const previous = deniedState.returnNavigation;
     const ok = await loadDirectory(previous.folderId);
     if (!ok) return;
-    navigationRootId = previous.navigationRootId;
-    navigationRootLabel = previous.navigationRootLabel;
-    navHistory = previous.navHistory;
+    applyDirectoryNavigation(previous);
   }
 
   async function handleJumpToDirectory() {
@@ -3263,14 +3275,24 @@
       nativeDragDropAvailable = false;
       /* HTML5 drag/drop remains as a best-effort fallback. */
     });
-    const initialFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
-    const initialName = page.url.searchParams.get('name');
-    const initialReturnNavigation = captureDirectoryNavigation();
-    if (initialFolder) {
-      navigationRootId = initialFolder;
-      navigationRootLabel = initialName || shortIdentifier(initialFolder);
-    }
-    loadDirectory(initialFolder, false, initialReturnNavigation);
+    const hasRequestedFolder = page.url.searchParams.has('folder');
+    const requestedFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
+    const requestedName = page.url.searchParams.get('name');
+    const initialReturnNavigation = hasRequestedFolder ? captureDirectoryNavigation() : undefined;
+    const rememberedNavigation = hasRequestedFolder
+      ? null
+      : fileManagerNavigationStore.restore(serverStateStore.remoteAddress, authStore.username);
+    const initialNavigation = rememberedNavigation ?? {
+      folderId: requestedFolder,
+      navigationRootId: requestedFolder,
+      navigationRootLabel: requestedFolder
+        ? requestedName || shortIdentifier(requestedFolder)
+        : null,
+      navHistory: [],
+    };
+    applyDirectoryNavigation(initialNavigation);
+    navigationStateReady = true;
+    loadDirectory(initialNavigation.folderId, false, initialReturnNavigation);
     reloadUserPreference();
     return () => {
       disposed = true;
@@ -3671,7 +3693,7 @@
     overflow-x: auto;
     border: 1px solid var(--explorer-border);
     border-radius: var(--explorer-radius-small);
-    padding: 0.35rem 0.7rem;
+    padding: 0.35rem 2.5rem 0.35rem 0.7rem;
     background: var(--explorer-surface);
   }
 
