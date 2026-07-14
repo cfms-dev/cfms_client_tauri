@@ -686,21 +686,38 @@ pub async fn connect(
 }
 
 fn is_loopback_wss_url(url: &str) -> bool {
-    let host = url
-        .strip_prefix("wss://")
-        .unwrap_or(url)
-        .split('/')
-        .next()
-        .unwrap_or("")
-        .trim_start_matches('[')
-        .split(']')
-        .next()
-        .unwrap_or("")
-        .split(':')
-        .next()
-        .unwrap_or("");
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    if parsed.scheme() != "wss" {
+        return false;
+    }
 
-    matches!(host, "localhost" | "127.0.0.1" | "::1")
+    match parsed.host() {
+        Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(address)) => address.is_loopback(),
+        Some(url::Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod loopback_url_tests {
+    use super::is_loopback_wss_url;
+
+    #[test]
+    fn recognizes_ipv4_ipv6_and_named_loopback_urls() {
+        assert!(is_loopback_wss_url("wss://localhost:5104"));
+        assert!(is_loopback_wss_url("wss://127.0.0.2:5104"));
+        assert!(is_loopback_wss_url("wss://[::1]:5104"));
+    }
+
+    #[test]
+    fn rejects_non_loopback_or_non_wss_urls() {
+        assert!(!is_loopback_wss_url("wss://192.0.2.1:5104"));
+        assert!(!is_loopback_wss_url("ws://127.0.0.1:5104"));
+        assert!(!is_loopback_wss_url("not a URL"));
+    }
 }
 
 fn trimmed_path(value: &str) -> Option<std::path::PathBuf> {

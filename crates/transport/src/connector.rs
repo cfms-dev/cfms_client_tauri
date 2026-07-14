@@ -342,29 +342,60 @@ impl Connection {
 
 /// Parse host and port from a WebSocket URL.
 fn parse_ws_url(url: &str) -> Result<(String, u16)> {
-    // Simple parsing: strip the scheme and split host:port/path.
-    let without_scheme = url
-        .strip_prefix("wss://")
-        .or_else(|| url.strip_prefix("ws://"))
-        .ok_or_else(|| {
-            cfms_core::Error::Connection(format!("invalid WebSocket URL (missing scheme): {url}"))
-        })?;
+    let parsed = url::Url::parse(url)
+        .map_err(|error| cfms_core::Error::Connection(format!("invalid WebSocket URL: {error}")))?;
+    if !matches!(parsed.scheme(), "ws" | "wss") {
+        return Err(cfms_core::Error::Connection(format!(
+            "invalid WebSocket URL scheme: {}",
+            parsed.scheme()
+        )));
+    }
 
-    // Split at the first '/' to separate authority from path.
-    let authority = without_scheme.split('/').next().unwrap_or(without_scheme);
-
-    match authority.split_once(':') {
-        Some((host, port_str)) => {
-            let port: u16 = port_str.parse().map_err(|_| {
-                cfms_core::Error::Connection(format!("invalid port in URL: {port_str}"))
-            })?;
-            Ok((host.to_string(), port))
-        }
+    let host = match parsed.host() {
+        Some(url::Host::Domain(host)) => host.to_string(),
+        Some(url::Host::Ipv4(address)) => address.to_string(),
+        Some(url::Host::Ipv6(address)) => address.to_string(),
         None => {
-            // Default ports
-            let port = if url.starts_with("wss://") { 443 } else { 80 };
-            Ok((authority.to_string(), port))
+            return Err(cfms_core::Error::Connection(
+                "WebSocket URL has no host".to_string(),
+            ));
         }
+    };
+    let port = parsed.port_or_known_default().ok_or_else(|| {
+        cfms_core::Error::Connection("WebSocket URL has no valid port".to_string())
+    })?;
+
+    Ok((host, port))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_ws_url;
+
+    #[test]
+    fn parses_websocket_hosts_and_default_ports() {
+        assert_eq!(
+            parse_ws_url("wss://example.com:5104/socket").unwrap(),
+            ("example.com".to_string(), 5104)
+        );
+        assert_eq!(
+            parse_ws_url("ws://127.0.0.1").unwrap(),
+            ("127.0.0.1".to_string(), 80)
+        );
+    }
+
+    #[test]
+    fn parses_bracketed_ipv6_without_leaking_url_brackets() {
+        assert_eq!(
+            parse_ws_url("wss://[2001:db8::1]:5104").unwrap(),
+            ("2001:db8::1".to_string(), 5104)
+        );
+    }
+
+    #[test]
+    fn rejects_non_websocket_urls() {
+        assert!(parse_ws_url("https://example.com:5104").is_err());
+        assert!(parse_ws_url("example.com:5104").is_err());
     }
 }
 

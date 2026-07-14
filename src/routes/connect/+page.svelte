@@ -38,6 +38,7 @@
   import MdSwitch from "$lib/components/MdSwitch.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import { openKeyboardShortcutHelp } from "$lib/keyboard";
+  import { isServerAddressValid, parseServerAddress } from "$lib/server-address";
 
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
@@ -61,12 +62,6 @@
     rememberConnectionAddresses && recentConnectionAddresses.length > 0,
   );
   const hasValidServerAddress = $derived(isServerAddressValid(hostPort));
-
-  function isServerAddressValid(address: string): boolean {
-    const normalizedAddress = address.trim();
-    return normalizedAddress.length > 0
-      && (normalizedAddress.includes(":") || normalizedAddress.includes("."));
-  }
 
   // On mount: close any stale connection.
   onMount(async () => {
@@ -149,11 +144,15 @@
 
   async function handleConnect() {
     if (!validateUrl()) return;
+    const parsedAddress = parseServerAddress(hostPort);
+    if (!parsedAddress) return;
+
     busy = true;
     serverAddressError = null;
     protocolError = null;
     try {
-      const serverUrl = `wss://${hostPort}`;
+      hostPort = parsedAddress.address;
+      const serverUrl = `wss://${parsedAddress.address}`;
       const serverInfo = await connect(serverUrl, disableSsl);
 
       // Store server metadata from the post-connect handshake.
