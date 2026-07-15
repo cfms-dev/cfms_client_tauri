@@ -133,8 +133,14 @@
     active: boolean;
     sourceSelected: boolean;
     items: FileTableDragItems;
+    folderIdSet: Set<string>;
+    documentIdSet: Set<string>;
   } | null>(null);
   let dropTarget = $state<{ folderId: string; allowed: boolean } | null>(null);
+  let itemDragHitTestFrame: number | null = null;
+  let pendingItemDragClientX = 0;
+  let pendingItemDragClientY = 0;
+  let hasPendingItemDragPoint = false;
   const rowCount = $derived(folders.length + documents.length);
   const virtualized = $derived(rowCount > VIRTUALIZATION_THRESHOLD);
   const rowVirtualizer = createVirtualizer<HTMLDivElement, HTMLButtonElement>({
@@ -306,8 +312,8 @@
   function isDragged(row: FileTableRow) {
     if (!itemDrag?.active) return false;
     return row.kind === 'folder'
-      ? itemDrag.items.folderIds.includes(row.folder.id)
-      : itemDrag.items.documentIds.includes(row.document.id);
+      ? itemDrag.folderIdSet.has(row.folder.id)
+      : itemDrag.documentIdSet.has(row.document.id);
   }
 
   function rowAtPointerTarget(target: EventTarget | null): FileTableRow | null {
@@ -329,13 +335,16 @@
       && (isSelected(row) || target.closest('[data-file-drag-handle]'))
     ) {
       const sourceSelected = isSelected(row);
+      const items = dragItemsFor(row);
       itemDrag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
         startClientY: event.clientY,
         active: false,
         sourceSelected,
-        items: dragItemsFor(row),
+        items,
+        folderIdSet: new Set(items.folderIds),
+        documentIdSet: new Set(items.documentIds),
       };
       return;
     }
@@ -361,7 +370,31 @@
     }
 
     event.preventDefault();
-    updatePointerDropTarget(event.clientX, event.clientY);
+    queuePointerDropTarget(event.clientX, event.clientY);
+  }
+
+  function queuePointerDropTarget(clientX: number, clientY: number) {
+    pendingItemDragClientX = clientX;
+    pendingItemDragClientY = clientY;
+    hasPendingItemDragPoint = true;
+    if (itemDragHitTestFrame !== null) return;
+    itemDragHitTestFrame = window.requestAnimationFrame(() => {
+      itemDragHitTestFrame = null;
+      if (!hasPendingItemDragPoint) return;
+      hasPendingItemDragPoint = false;
+      updatePointerDropTarget(pendingItemDragClientX, pendingItemDragClientY);
+    });
+  }
+
+  function setDropTarget(next: { folderId: string; allowed: boolean } | null) {
+    if (
+      dropTarget === next
+      || (dropTarget !== null
+        && next !== null
+        && dropTarget.folderId === next.folderId
+        && dropTarget.allowed === next.allowed)
+    ) return;
+    dropTarget = next;
   }
 
   function updatePointerDropTarget(clientX: number, clientY: number) {
@@ -369,11 +402,19 @@
     const hovered = document.elementFromPoint(clientX, clientY);
     const folderRow = hovered?.closest<HTMLElement>('[data-folder-drop-target]');
     const folderId = folderRow?.dataset.folderDropTarget;
-    if (!folderId || itemDrag.items.folderIds.includes(folderId)) {
-      dropTarget = null;
+    if (!folderId || itemDrag.folderIdSet.has(folderId)) {
+      setDropTarget(null);
       return;
     }
-    dropTarget = { folderId, allowed: canMoveItems };
+    setDropTarget({ folderId, allowed: canMoveItems });
+  }
+
+  function cancelItemDragHitTest() {
+    if (itemDragHitTestFrame !== null) {
+      window.cancelAnimationFrame(itemDragHitTestFrame);
+      itemDragHitTestFrame = null;
+    }
+    hasPendingItemDragPoint = false;
   }
 
   function finishTablePointer(event: PointerEvent, cancelled = false) {
@@ -385,18 +426,20 @@
     const drag = itemDrag;
     if (drag.active) {
       event.preventDefault();
+      cancelItemDragHitTest();
       if (!cancelled) updatePointerDropTarget(event.clientX, event.clientY);
       const target = cancelled ? null : dropTarget;
       if (scrollViewport?.hasPointerCapture(event.pointerId)) {
         scrollViewport.releasePointerCapture(event.pointerId);
       }
       itemDrag = null;
-      dropTarget = null;
+      setDropTarget(null);
       window.setTimeout(() => { suppressClick = false; }, 0);
       if (target?.allowed) void onMoveItems(drag.items, target.folderId);
     } else {
+      cancelItemDragHitTest();
       itemDrag = null;
-      dropTarget = null;
+      setDropTarget(null);
     }
   }
 
@@ -521,7 +564,10 @@
     autoScrollFrame = null;
   }
 
-  onDestroy(cancelMarqueeAutoScroll);
+  onDestroy(() => {
+    cancelMarqueeAutoScroll();
+    cancelItemDragHitTest();
+  });
 
   onMount(() => {
     document.addEventListener('keydown', handleUnfocusedTableEntry);

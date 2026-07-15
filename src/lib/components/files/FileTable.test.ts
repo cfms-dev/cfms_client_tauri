@@ -13,7 +13,10 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderTable(
   folders = [{ id: 'folder-1', name: 'Folder', created_time: null }],
@@ -248,6 +251,9 @@ async function beginPointerDrag(source: Element, target: Element, pointerId: num
     clientX: 120,
     clientY: 96,
   });
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 async function finishPointerDrag(source: Element, target: Element, pointerId: number) {
@@ -333,6 +339,46 @@ describe('FileTable item movement', () => {
       { folderIds: ['folder-1'], documentIds: ['document-1'] },
       'folder-2',
     );
+  });
+
+  it('coalesces repeated pointer moves into one hit test per animation frame', async () => {
+    const { container } = renderTable(folders);
+    const sourceName = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-1"] [data-file-drag-handle]')!;
+    const targetRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-2"]')!;
+    const callbacks: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    });
+    const hitTest = vi.fn(() => targetRow);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: hitTest,
+    });
+
+    await fireEvent.pointerDown(sourceName, {
+      pointerId: 24,
+      pointerType: 'mouse',
+      isPrimary: true,
+      button: 0,
+      clientX: 80,
+      clientY: 56,
+    });
+    for (const clientX of [100, 110, 120, 130]) {
+      await fireEvent.pointerMove(sourceName, {
+        pointerId: 24,
+        pointerType: 'mouse',
+        isPrimary: true,
+        clientX,
+        clientY: 96,
+      });
+    }
+
+    expect(requestFrame).toHaveBeenCalledOnce();
+    expect(hitTest).not.toHaveBeenCalled();
+    callbacks[0](0);
+    expect(hitTest).toHaveBeenCalledOnce();
+    requestFrame.mockRestore();
   });
 });
 
