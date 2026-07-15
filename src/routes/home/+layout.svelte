@@ -595,7 +595,7 @@
   .explorer-nav-section { margin-top: 0.65rem; border-top: 1px solid var(--explorer-border); padding-top: 0.65rem; }
   .explorer-nav-section-title { padding: 0 0.55rem 0.35rem; color: var(--explorer-text-muted); font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .explorer-nav-favorite { color: var(--explorer-text-muted); }
-  .explorer-nav-favorite :global(.material-symbols-rounded) { color: #ffca4b; }
+  .explorer-nav-favorite :global(.material-symbols-rounded) { color: var(--explorer-folder); }
   .explorer-nav-empty { padding: 0.3rem 0.55rem; color: var(--explorer-text-muted); font-size: 0.7rem; line-height: 1.4; }
   .explorer-nav-loading { padding: 0.5rem; }
   .explorer-content { position: relative; min-width: 0; flex: 1; overflow: hidden; background: var(--explorer-background); }

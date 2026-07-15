@@ -29,7 +29,7 @@
   let {
     title,
     icon,
-    iconClass = 'text-cyan-200',
+    iconClass = 'home-record-accent',
     records,
     loading = false,
     emptyLabel,
@@ -92,7 +92,7 @@
             disabled={opening || unavailable}
             onclick={() => onOpen(item)}
           >
-            <span class={item.type === 'directory' ? 'text-cyan-200' : 'text-md3-on-surface-variant'}>
+            <span class:home-record-accent={item.type === 'directory'} class:text-md3-on-surface-variant={item.type !== 'directory'}>
               <Icon name={item.type === 'directory' ? 'folder' : 'filePresent'} size="22px" />
             </span>
             <span class="min-w-0">
@@ -137,6 +137,10 @@
     justify-content: center;
     width: 30px;
     height: 30px;
+  }
+
+  .home-record-accent {
+    color: var(--explorer-info);
   }
 
   .blueprint-record-row {

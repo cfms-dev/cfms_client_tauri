@@ -744,7 +744,7 @@
   .file-table-row--selected { background: var(--explorer-surface-selected); box-shadow: inset 2px 0 0 var(--explorer-accent); }
   .file-table-row--selected:hover { background: color-mix(in srgb, var(--explorer-surface-selected) 80%, var(--explorer-surface-hover)); }
   .file-table-icon { display: inline-flex; color: var(--explorer-text-muted); }
-  .file-table-folder-name, .file-table-row--folder .file-table-icon { color: #ffca4b; }
+  .file-table-folder-name, .file-table-row--folder .file-table-icon { color: var(--explorer-folder); }
   .file-table-icon--selected { color: var(--explorer-accent) !important; }
   .file-table-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.81rem; }
   .file-table-modified, .file-table-type, .file-table-size { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text-muted); font-size: 0.74rem; }

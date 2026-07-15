@@ -3808,14 +3808,12 @@
   }
 
   .search-preview-panel {
-    background:
-      linear-gradient(145deg, rgba(31, 41, 55, 0.98) 0%, rgba(20, 29, 43, 0.98) 56%, rgba(15, 23, 42, 0.98) 100%);
-    border-color: rgba(99, 102, 241, 0.22);
-    box-shadow:
-      0 24px 72px rgba(0, 0, 0, 0.38),
-      0 0 0 1px rgba(148, 163, 184, 0.06) inset;
+    border-color: var(--explorer-border-strong);
+    background: color-mix(in srgb, var(--explorer-surface-raised) 96%, transparent);
+    box-shadow: var(--explorer-shadow);
     animation: search-preview-in 180ms var(--motion-easing-emphasized-decelerate) both;
-    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(24px) saturate(1.12);
+    backdrop-filter: blur(24px) saturate(1.12);
   }
 
   .search-sort-indicator {

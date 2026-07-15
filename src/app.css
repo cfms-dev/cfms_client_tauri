@@ -458,6 +458,8 @@ html[data-reduce-motion="true"] .context-menu-surface {
   --explorer-text-muted: #b4b8c1;
   --explorer-accent: #60cdff;
   --explorer-accent-soft: rgba(96, 205, 255, 0.16);
+  --explorer-info: #a5f3fc;
+  --explorer-folder: #ffca4b;
   --explorer-danger: #ff99a4;
   --explorer-success: #6ccb8e;
   --explorer-warning: #f5d47a;
@@ -506,6 +508,8 @@ html[data-theme="light"] :where(.explorer-shell, .workspace-palette) {
     --explorer-text-muted: #5d5d5d;
     --explorer-accent: #0067c0;
     --explorer-accent-soft: rgba(0, 103, 192, 0.12);
+    --explorer-info: #0067c0;
+    --explorer-folder: #8a5d00;
     --explorer-danger: #c42b1c;
     --explorer-success: #0f7b3e;
     --explorer-warning: #8a5d00;
