@@ -4,6 +4,30 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.35.0
+**Released on:** 2026-07-15
+
+**Title:** Custom Appearances and Enhanced File Management Operations
+
+### Improved
+- Optimize item drag hit testing
+- Remove unused translations and clean up message files
+- Remove onSuccess callbacks from auto-save options
+
+### Fixed
+- Correct item drag interaction states
+- Add new color variables for explorer elements and update styles
+- Improve color scheme hints and user/global scope descriptions in English and Chinese translations
+- Enhance color scheme preview with system theme visuals
+- Restructure header layout and improve responsiveness
+
+### Added
+- Support moving items by drag and drop
+- Add unused translation checker and pre-commit hook for warnings
+- Add appearance settings for color scheme and motion preferences
+
+--- 
+
 ## v0.34.1
 **Released on:** 2026-07-14
 
