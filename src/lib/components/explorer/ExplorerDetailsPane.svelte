@@ -3,6 +3,7 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import type { FileDetailModel } from '$lib/explorer/types';
   import type { TransitionConfig } from 'svelte/transition';
+  import { isReducedMotionEnabled } from '$lib/appearance';
 
   let {
     open,
@@ -21,7 +22,7 @@
   } = $props();
 
   function detailsPaneTransition(node: HTMLElement): TransitionConfig {
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (isReducedMotionEnabled()) {
       return { duration: 0 };
     }
 

@@ -45,6 +45,7 @@
     type AuthStatus,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
+  import { appearanceStore } from "$lib/appearance.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
@@ -133,6 +134,10 @@
     if (!(await ensureUserPreferencesReadable(currentPassword, recoveryAvailable))) {
       return false;
     }
+    await appearanceStore.load(
+      `user:${serverStateStore.remoteAddress ?? 'local'}:${user}`,
+      true,
+    );
 
     // Phase 4: "Downloading avatar…"
     loadingPhase = loadingPhases[3];
@@ -238,6 +243,7 @@
       /* backend may already have cleared auth state */
     }
     authStore.clear();
+    await appearanceStore.load('global', true);
     password = "";
     pendingPassword = "";
     try {
@@ -275,6 +281,7 @@
 
     authStore.clear();
     serverStateStore.clear();
+    await appearanceStore.load('global', true);
     password = "";
     pendingPassword = "";
     notificationStore.error(message);
@@ -1168,14 +1175,6 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .auth-shell--connect-intro .auth-panel,
-    .auth-shell--connect-intro .auth-visual,
-    .auth-shell--connect-intro .auth-visual-image,
-    .auth-form-stage--connect-intro {
-      animation: none !important;
-    }
-  }
 </style>
 
 <!-- Change Password Dialog (self-change flow for 4001/4002) -->

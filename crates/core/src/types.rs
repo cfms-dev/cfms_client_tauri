@@ -383,9 +383,9 @@ pub struct ListDirectoryResponse {
 /// is always encrypted at rest with AES-256-GCM and requires the user's DEK.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPreference {
-    /// UI theme (`"light"` or `"dark"`).
-    #[serde(default = "default_theme")]
-    pub theme: String,
+    /// Per-user color scheme and motion preferences.
+    #[serde(default)]
+    pub appearance: AppearancePreference,
 
     /// Favourite files and directories for quick access.
     #[serde(default)]
@@ -430,7 +430,7 @@ pub struct UserPreference {
 impl Default for UserPreference {
     fn default() -> Self {
         Self {
-            theme: default_theme(),
+            appearance: AppearancePreference::default(),
             favourites: Favourites::default(),
             recent_visits: Vec::new(),
             record_recent_visits: default_record_recent_visits(),
@@ -444,12 +444,37 @@ impl Default for UserPreference {
     }
 }
 
-fn default_theme() -> String {
-    "light".to_string()
-}
-
 fn default_record_recent_visits() -> bool {
     false
+}
+
+/// How the application chooses its color scheme.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorSchemePreference {
+    Light,
+    Dark,
+    #[default]
+    System,
+}
+
+/// How the application chooses whether to reduce interface motion.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReduceMotionPreference {
+    Always,
+    Never,
+    #[default]
+    System,
+}
+
+/// Appearance settings shared by global and per-user preference stores.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppearancePreference {
+    #[serde(default)]
+    pub color_scheme: ColorSchemePreference,
+    #[serde(default)]
+    pub reduce_motion: ReduceMotionPreference,
 }
 
 pub const PRIVACY_PREFERENCE_VERSION: u8 = 1;
@@ -631,5 +656,25 @@ mod tests {
         assert!(parsed.has_more);
         assert!(matches!(parsed.items[0], ServerListingItem::Directory(_)));
         assert!(matches!(parsed.items[1], ServerListingItem::Document(_)));
+    }
+
+    #[test]
+    fn appearance_defaults_to_system_preferences() {
+        let parsed: AppearancePreference = serde_json::from_str("{}").unwrap();
+        assert_eq!(parsed, AppearancePreference::default());
+        assert_eq!(parsed.color_scheme, ColorSchemePreference::System);
+        assert_eq!(parsed.reduce_motion, ReduceMotionPreference::System);
+    }
+
+    #[test]
+    fn user_preference_ignores_unused_legacy_theme_field() {
+        let parsed: UserPreference = serde_json::from_value(serde_json::json!({
+            "theme": "dark"
+        }))
+        .unwrap();
+        assert_eq!(parsed.appearance, AppearancePreference::default());
+        let serialized = serde_json::to_value(parsed).unwrap();
+        assert!(serialized.get("theme").is_none());
+        assert_eq!(serialized["appearance"]["color_scheme"], "system");
     }
 }

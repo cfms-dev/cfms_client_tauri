@@ -125,6 +125,12 @@ export const ICONS = {
 
   // ---- Settings sub-pages ----
   language:       'translate',
+  appearance:     'palette',
+  lightMode:      'light_mode',
+  darkMode:       'dark_mode',
+  systemTheme:    'devices',
+  motion:         'animation',
+  motionOff:      'motion_photos_off',
   storage:        'storage',
   security:       'security',
   verifiedUser:   'verified_user',

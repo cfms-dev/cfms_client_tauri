@@ -367,6 +367,17 @@
     backdrop-filter: blur(20px);
   }
 
+  :global(html[data-theme='light']) .app-lock-overlay {
+    color: var(--color-md3-on-surface);
+    background:
+      linear-gradient(145deg, rgba(248, 250, 252, 0.98), rgba(224, 231, 255, 0.98) 58%, rgba(241, 245, 249, 0.98)),
+      radial-gradient(circle at 18% 14%, rgba(0, 103, 192, 0.12), transparent 34%);
+  }
+
+  :global(html[data-theme='light']) .app-lock-overlay :global(.text-white\/88) {
+    color: color-mix(in srgb, var(--color-md3-on-surface) 88%, transparent);
+  }
+
   .app-lock-content {
     inline-size: 520px;
     animation: app-lock-enter 360ms var(--motion-easing-emphasized-decelerate) both;
@@ -459,6 +470,22 @@
     opacity: 0.45;
   }
 
+  :global(html[data-theme='light']) :where(.app-lock-auth-button, .app-lock-icon-button) {
+    border-color: var(--color-md3-outline);
+    color: var(--color-md3-on-surface);
+    background: color-mix(in srgb, var(--color-md3-surface-container-high) 82%, transparent);
+  }
+
+  :global(html[data-theme='light']) :where(.app-lock-auth-button, .app-lock-icon-button):hover:not(:disabled),
+  :global(html[data-theme='light']) .app-lock-flat-button:hover:not(:disabled) {
+    color: var(--color-md3-on-surface);
+    background: var(--color-md3-surface-container-highest);
+  }
+
+  :global(html[data-theme='light']) .app-lock-flat-button {
+    color: var(--color-md3-on-surface-variant);
+  }
+
   @keyframes app-lock-enter {
     from {
       opacity: 0;
@@ -473,9 +500,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .app-lock-content {
-      animation: none !important;
-    }
-  }
 </style>

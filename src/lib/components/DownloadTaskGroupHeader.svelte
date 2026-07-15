@@ -419,11 +419,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .batch-card,
-    .batch-progress span,
-    .batch-action {
-      transition: none;
-    }
-  }
 </style>

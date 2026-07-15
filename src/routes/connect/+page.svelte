@@ -1050,34 +1050,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .connect-auth-shell--login-return .connect-auth-panel,
-    .connect-auth-shell--login-return .connect-auth-visual,
-    .connect-auth-shell--login-return .connect-auth-visual-image,
-    .connect-form-stage--login-return {
-      animation: none !important;
-    }
-
-    .connect-submit-button,
-    .connect-submit-effects::before,
-    .connect-submit-effects::after,
-    .connect-submit-arrow {
-      transition: none !important;
-    }
-
-    .connect-submit-button--active .connect-submit-effects::before,
-    .connect-submit-button--active .connect-submit-effects::after {
-      animation: none !important;
-    }
-
-    .connect-submit-busy-fill {
-      animation: none !important;
-      border-radius: 50%;
-      transform: scale(6.35);
-    }
-
-    .connect-submit-progress {
-      animation: none !important;
-    }
-  }
 </style>

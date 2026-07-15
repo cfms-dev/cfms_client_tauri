@@ -212,13 +212,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .account-disabled-notice {
-      animation: none;
-    }
-
-    .account-disabled-back {
-      transition: none;
-    }
-  }
 </style>

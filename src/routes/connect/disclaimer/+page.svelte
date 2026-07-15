@@ -89,8 +89,16 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    background: #11161d;
-    color: rgba(248, 250, 252, 0.88);
+    --disclaimer-background: #11161d;
+    --disclaimer-text: rgba(248, 250, 252, 0.88);
+    --disclaimer-text-strong: rgba(248, 250, 252, 0.9);
+    --disclaimer-text-muted: rgba(248, 250, 252, 0.78);
+    --disclaimer-divider: rgba(226, 232, 240, 0.25);
+    --disclaimer-button: #191e25;
+    --disclaimer-accent: #b9c5ff;
+    --disclaimer-outline: rgba(248, 250, 252, 0.24);
+    background: var(--disclaimer-background);
+    color: var(--disclaimer-text);
     font-family: var(--font-md3-serif);
   }
 
@@ -102,7 +110,7 @@
     min-height: 0;
     margin: 0 auto;
     padding: var(--flet-pad) var(--flet-pad) max(var(--flet-pad), var(--safe-area-bottom));
-    background: #11161d;
+    background: var(--disclaimer-background);
   }
 
   .disclaimer-header {
@@ -118,7 +126,7 @@
 
   h1 {
     margin: calc(var(--flet-gap) * 0.55) 0 0;
-    color: rgba(248, 250, 252, 0.9);
+    color: var(--disclaimer-text-strong);
     font-size: var(--flet-title);
     font-weight: 800;
     line-height: 1.15;
@@ -127,7 +135,7 @@
 
   .disclaimer-header p {
     margin: var(--flet-gap) 0 0;
-    color: rgba(248, 250, 252, 0.86);
+    color: var(--disclaimer-text);
     font-size: var(--flet-body);
     line-height: 1.45;
     letter-spacing: 0;
@@ -137,7 +145,7 @@
     flex: 0 0 auto;
     height: 1px;
     margin: var(--flet-gap) 0;
-    background: rgba(226, 232, 240, 0.25);
+    background: var(--disclaimer-divider);
   }
 
   .disclaimer-copy {
@@ -145,7 +153,7 @@
     min-height: 0;
     overflow-y: auto;
     padding-right: calc(var(--flet-gap) * 0.8);
-    color: rgba(248, 250, 252, 0.78);
+    color: var(--disclaimer-text-muted);
     font-size: var(--flet-body);
     line-height: 1.55;
     letter-spacing: 0;
@@ -183,7 +191,7 @@
 
   .disclaimer-copy::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background: rgba(248, 250, 252, 0.9);
+    background: var(--disclaimer-text-strong);
   }
 
   .disclaimer-copy::-webkit-scrollbar-track {
@@ -196,7 +204,7 @@
 
   .disclaimer-footer p {
     margin: 0;
-    color: rgba(248, 250, 252, 0.9);
+    color: var(--disclaimer-text-strong);
     font-size: var(--flet-body);
     font-weight: 800;
     line-height: 1.5;
@@ -232,8 +240,8 @@
   .accept-button {
     flex: 0 0 min(100%, var(--flet-button-width));
     width: min(100%, var(--flet-button-width));
-    background: #191e25;
-    color: #b9c5ff;
+    background: var(--disclaimer-button);
+    color: var(--disclaimer-accent);
     box-shadow:
       0 12px 24px rgba(0, 0, 0, 0.28),
       inset 0 1px 0 rgba(255, 255, 255, 0.02);
@@ -243,8 +251,8 @@
     flex: 0 0 min(100%, var(--flet-button-width));
     width: min(100%, var(--flet-button-width));
     background: transparent;
-    color: rgba(248, 250, 252, 0.7);
-    box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.24);
+    color: var(--disclaimer-text-muted);
+    box-shadow: inset 0 0 0 1px var(--disclaimer-outline);
   }
 
   .accept-button:hover,
@@ -276,5 +284,16 @@
     width: var(--flet-icon) !important;
     height: var(--flet-icon) !important;
     font-size: var(--flet-icon) !important;
+  }
+
+  :global(html[data-theme='light']) .disclaimer-screen {
+    --disclaimer-background: #f3f3f3;
+    --disclaimer-text: #3f3f46;
+    --disclaimer-text-strong: #18181b;
+    --disclaimer-text-muted: #5d5d66;
+    --disclaimer-divider: rgba(0, 0, 0, 0.14);
+    --disclaimer-button: #d8eaff;
+    --disclaimer-accent: #005a9e;
+    --disclaimer-outline: rgba(0, 0, 0, 0.22);
   }
 </style>

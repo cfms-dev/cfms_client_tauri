@@ -428,18 +428,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .twofa-icon,
-    .code-cell-pulse,
-    .twofa-error-shake,
-    .code-entry-shake,
-    .twofa-field-shake,
-    .code-cell-error-pop {
-      animation: none !important;
-    }
-
-    .code-cell {
-      transition: none !important;
-    }
-  }
 </style>

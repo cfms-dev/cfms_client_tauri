@@ -497,14 +497,14 @@
     background: var(--color-md3-field);
     color: var(--color-md3-on-surface-variant);
     padding: 0 0.75rem;
-    color-scheme: dark;
+    color-scheme: inherit;
   }
 
   .date-field input {
     min-width: 0;
     background: transparent;
     color: var(--color-md3-on-surface);
-    color-scheme: dark;
+    color-scheme: inherit;
     font-size: 0.875rem;
     outline: none;
   }

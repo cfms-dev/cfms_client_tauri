@@ -1,5 +1,6 @@
 import { spring } from "svelte/motion";
 import type { TransitionConfig } from "svelte/transition";
+import { isReducedMotionEnabled } from "$lib/appearance";
 
 export interface FlyScaleParams {
   y?: number;
@@ -31,11 +32,6 @@ export interface SnackbarMotionParams {
 
 const emphasized = (t: number): number => 1 - Math.pow(1 - t, 3);
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 function instant(): TransitionConfig {
   return { duration: 0 };
 }
@@ -44,7 +40,7 @@ export function flyScale(
   _node: Element,
   params: FlyScaleParams = {},
 ): TransitionConfig {
-  if (prefersReducedMotion()) return instant();
+  if (isReducedMotionEnabled()) return instant();
 
   const {
     y = 12,
@@ -73,7 +69,7 @@ export function staggeredList(
 
   return {
     ...rest,
-    delay: prefersReducedMotion() ? 0 : delay + index * step,
+    delay: isReducedMotionEnabled() ? 0 : delay + index * step,
   };
 }
 
@@ -81,7 +77,7 @@ export function popScale(
   node: HTMLElement,
   params: PopScaleParams = {},
 ): TransitionConfig {
-  if (prefersReducedMotion()) return instant();
+  if (isReducedMotionEnabled()) return instant();
 
   const { duration = 360, delay = 0 } = params;
   const scale = spring(0.95, { stiffness: 0.18, damping: 0.48, precision: 0.001 });
@@ -115,7 +111,7 @@ export function menuScale(
   _node: Element,
   params: MenuScaleParams = {},
 ): TransitionConfig {
-  if (prefersReducedMotion()) return instant();
+  if (isReducedMotionEnabled()) return instant();
 
   const {
     duration = 140,
@@ -139,7 +135,7 @@ export function snackbarMotion(
   _node: Element,
   params: SnackbarMotionParams = {},
 ): TransitionConfig {
-  if (prefersReducedMotion()) return instant();
+  if (isReducedMotionEnabled()) return instant();
 
   const {
     y = 18,

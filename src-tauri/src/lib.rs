@@ -540,6 +540,8 @@ pub fn run() {
             commands::set_user_avatar,
             commands::load_user_preference,
             commands::save_user_preference,
+            commands::load_appearance_preference,
+            commands::save_appearance_preference,
             commands::setup_preference_dek,
             commands::discard_user_preference,
             commands::reset_preference_dek,

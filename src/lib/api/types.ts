@@ -478,7 +478,7 @@ export interface FileShortcutValidationResult {
  *
  *  Mirrors the Python `UserPreference` dataclass. */
 export interface UserPreference {
-  theme: string;
+  appearance: AppearancePreference;
   favourites: Favourites;
   recent_visits: RecentVisitPreferenceRecord[];
   record_recent_visits: boolean;
@@ -488,6 +488,14 @@ export interface UserPreference {
   root_back_button_behavior?: "background" | "exit" | null;
   privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;
+}
+
+export type ColorSchemePreference = 'light' | 'dark' | 'system';
+export type ReduceMotionPreference = 'always' | 'never' | 'system';
+
+export interface AppearancePreference {
+  color_scheme: ColorSchemePreference;
+  reduce_motion: ReduceMotionPreference;
 }
 
 export interface PrivacyPreference {

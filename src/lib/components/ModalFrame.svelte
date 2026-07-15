@@ -244,46 +244,36 @@
     backdrop-filter: blur(10px) saturate(0.9);
   }
 
-  @media (prefers-color-scheme: light) {
-    .modal-backdrop {
-      --color-md3-primary: #0067c0;
-      --color-md3-primary-emphasis: #0067c0;
-      --color-md3-primary-container: rgba(0, 103, 192, 0.12);
-      --color-md3-on-primary: #ffffff;
-      --color-md3-on-primary-container: #1a1a1a;
-      --color-md3-surface: #f3f3f3;
-      --color-md3-surface-container: #fafafa;
-      --color-md3-surface-container-high: #ffffff;
-      --color-md3-surface-container-highest: #ececec;
-      --color-md3-outline: rgba(0, 0, 0, 0.10);
-      --color-md3-outline-variant: rgba(0, 0, 0, 0.16);
-      --color-md3-on-surface: #1a1a1a;
-      --color-md3-on-surface-variant: #5d5d5d;
-      --color-md3-field: #ffffff;
-      --color-md3-error: #c42b1c;
-      --color-md3-error-action: #c42b1c;
-      --color-md3-error-container: rgba(196, 43, 28, 0.10);
-      --color-md3-on-error-action: #ffffff;
-      --color-md3-on-error-container: #c42b1c;
+  :global(html[data-theme='light']) .modal-backdrop {
+    --color-md3-primary: #0067c0;
+    --color-md3-primary-emphasis: #0067c0;
+    --color-md3-primary-container: rgba(0, 103, 192, 0.12);
+    --color-md3-on-primary: #ffffff;
+    --color-md3-on-primary-container: #1a1a1a;
+    --color-md3-surface: #f3f3f3;
+    --color-md3-surface-container: #fafafa;
+    --color-md3-surface-container-high: #ffffff;
+    --color-md3-surface-container-highest: #ececec;
+    --color-md3-outline: rgba(0, 0, 0, 0.10);
+    --color-md3-outline-variant: rgba(0, 0, 0, 0.16);
+    --color-md3-on-surface: #1a1a1a;
+    --color-md3-on-surface-variant: #5d5d5d;
+    --color-md3-field: #ffffff;
+    --color-md3-error: #c42b1c;
+    --color-md3-error-action: #c42b1c;
+    --color-md3-error-container: rgba(196, 43, 28, 0.10);
+    --color-md3-on-error-action: #ffffff;
+    --color-md3-on-error-container: #c42b1c;
 
-      background: rgba(15, 23, 42, 0.28);
-    }
-
-    .modal-panel {
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
-    }
+    background: rgba(15, 23, 42, 0.28);
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .modal-backdrop {
-      animation: modal-backdrop-focus 220ms var(--motion-easing-standard) both;
-    }
+  :global(html[data-theme='light']) .modal-panel {
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .modal-close {
-      transition: none;
-    }
+  .modal-backdrop {
+    animation: modal-backdrop-focus 220ms var(--motion-easing-standard) both;
   }
 
   @keyframes modal-backdrop-focus {

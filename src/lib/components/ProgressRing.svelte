@@ -95,10 +95,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .md-progress-ring svg,
-    .md-progress-ring__indicator {
-      animation-duration: 2.4s;
-    }
-  }
 </style>

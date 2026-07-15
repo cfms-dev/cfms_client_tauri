@@ -202,9 +202,4 @@
     white-space: nowrap;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .explorer-command-bar {
-      scroll-behavior: auto;
-    }
-  }
 </style>

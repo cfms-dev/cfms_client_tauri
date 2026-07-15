@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light" data-color-scheme-preference="system" data-reduce-motion="false">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <script>
+      const root = document.documentElement;
+      root.dataset.theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+      root.dataset.reduceMotion = String(
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      );
+    </script>
     <title>CFMS Client</title>
 
     <link rel="stylesheet" href="%sveltekit.assets%/fonts/fonts.css" />

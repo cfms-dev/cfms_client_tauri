@@ -94,9 +94,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .status-orb.running::before {
-      animation: none;
-    }
-  }
 </style>

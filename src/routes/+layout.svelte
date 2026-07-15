@@ -23,6 +23,7 @@
   import { initI18n } from "$lib/i18n";
   import { initNavigationHistory, navigateUp, parentRouteFor } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
+  import { appearanceStore } from "$lib/appearance.svelte";
   import { screenProtectionStore } from "$lib/screen-protection.svelte";
   import {
     cycleKeyboardRegion,
@@ -228,6 +229,18 @@
         }
       }, 2000);
     }
+  });
+
+  onMount(() => appearanceStore.init());
+
+  $effect(() => {
+    if (authStore.postLoginPending) return;
+    const scopeKey = authStore.isLoggedIn && authStore.username
+      ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`
+      : 'global';
+    void appearanceStore.load(scopeKey).catch((error) => {
+      notificationStore.error(error instanceof Error ? error.message : String(error));
+    });
   });
 
   $effect(() => {
@@ -559,10 +572,4 @@
     .keyboard-skip-link { display: none; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .lockdown-banner-active .safe-area-top,
-    .lockdown-banner-releasing .safe-area-top {
-      animation: none;
-    }
-  }
 </style>

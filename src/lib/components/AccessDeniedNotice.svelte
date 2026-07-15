@@ -233,8 +233,4 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .access-denied-notice { animation: none; }
-    .access-denied-action { transition: none; }
-  }
 </style>

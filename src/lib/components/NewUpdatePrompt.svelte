@@ -190,6 +190,27 @@
     backdrop-filter: blur(18px);
   }
 
+  :global(html[data-theme='light']) .update-prompt {
+    background:
+      linear-gradient(145deg, rgba(250, 250, 250, 0.98), rgba(243, 243, 243, 0.98)),
+      var(--color-md3-surface);
+  }
+
+  :global(html[data-theme='light']) .release-icon,
+  :global(html[data-theme='light']) .eyebrow,
+  :global(html[data-theme='light']) .notes :global(.markdown-view li::marker),
+  :global(html[data-theme='light']) .notes :global(.markdown-view a) {
+    color: var(--color-md3-primary);
+  }
+
+  :global(html[data-theme='light']) :where(h2, .subtitle, .notes, .notes :global(.markdown-view), .notes :global(.markdown-view :where(h1, h2, h3, h4, h5, h6))) {
+    color: var(--color-md3-on-surface);
+  }
+
+  :global(html[data-theme='light']) .notes {
+    border-color: var(--color-md3-outline);
+  }
+
   .prompt-content {
     width: min(760px, 100%);
     display: grid;

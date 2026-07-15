@@ -7,6 +7,7 @@
   import Icon from './Icon.svelte';
   import { _ as t } from 'svelte-i18n';
   import type { TransitionConfig } from 'svelte/transition';
+  import { isReducedMotionEnabled } from '$lib/appearance';
 
   interface Props {
     active: boolean;
@@ -15,7 +16,7 @@
   let { active }: Props = $props();
 
   function dropFromTop(node: HTMLElement): TransitionConfig {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (isReducedMotionEnabled()) {
       return { duration: 0 };
     }
 
@@ -30,7 +31,7 @@
   }
 
   function liftToTop(node: HTMLElement): TransitionConfig {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (isReducedMotionEnabled()) {
       return { duration: 0 };
     }
 
@@ -100,10 +101,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .lockdown-banner::before {
-      animation: none;
-      opacity: 1;
-    }
-  }
 </style>

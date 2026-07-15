@@ -229,4 +229,110 @@ fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference
     );
 }
 
+/// Load the effective appearance preference for the current application scope.
+/// Authenticated sessions always use the encrypted per-user preference file;
+/// signed-out sessions use the existing application settings store.
+#[tauri::command]
+pub async fn load_appearance_preference(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<AppearancePreference, String> {
+    let user_scope = appearance_user_scope(&state).await?;
+    let Some((server_hash, username, dek)) = user_scope else {
+        return state
+            .settings
+            .get_appearance()
+            .map_err(|e| format!("Failed to read global appearance setting: {e}"));
+    };
+    let app_data_dir = state.app_data_dir.clone();
+
+    tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::load(
+            &app_data_dir,
+            &server_hash,
+            &username,
+            Some(&*dek),
+        )
+        .map(|preferences| preferences.appearance)
+    })
+    .await
+    .map_err(|e| format!("Appearance preference load task failed: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+/// Save appearance preferences to the active scope without allowing an
+/// authenticated session to fall back to application-wide configuration.
+#[tauri::command]
+pub async fn save_appearance_preference(
+    state: tauri::State<'_, AppHandleState>,
+    appearance: AppearancePreference,
+) -> Result<(), String> {
+    let user_scope = appearance_user_scope(&state).await?;
+    let Some((server_hash, username, dek)) = user_scope else {
+        return state
+            .settings
+            .set_appearance(&appearance)
+            .map_err(|e| format!("Failed to write global appearance setting: {e}"));
+    };
+    let app_data_dir = state.app_data_dir.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let mut preferences = cfms_service::user_preferences::load(
+            &app_data_dir,
+            &server_hash,
+            &username,
+            Some(&*dek),
+        )?;
+        preferences.appearance = appearance;
+        cfms_service::user_preferences::save(
+            &app_data_dir,
+            &server_hash,
+            &username,
+            Some(&*dek),
+            &preferences,
+        )
+    })
+    .await
+    .map_err(|e| format!("Appearance preference save task failed: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+async fn appearance_user_scope(
+    state: &AppHandleState,
+) -> Result<Option<(String, String, zeroize::Zeroizing<[u8; 32]>)>, String> {
+    if state
+        .inner
+        .pending_2fa
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        return Ok(None);
+    }
+
+    let username = state.inner.username.read().await.clone();
+    let Some(username) = username else {
+        return Ok(None);
+    };
+    let server_address = state
+        .inner
+        .server_address
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "Authenticated appearance preference has no server address".to_string())?;
+    let dek = state
+        .inner
+        .dek
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| {
+            "Authenticated appearance preference requires the user preference DEK".to_string()
+        })?;
+
+    Ok(Some((
+        cfms_core::get_server_hash(&server_address),
+        username,
+        dek,
+    )))
+}
+
 // ---------------------------------------------------------------------------

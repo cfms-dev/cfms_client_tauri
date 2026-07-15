@@ -601,6 +601,17 @@
     backdrop-filter: blur(20px);
   }
 
+  :global(html[data-theme='light']) .pin-setup-overlay {
+    color: var(--color-md3-on-surface);
+    background:
+      linear-gradient(145deg, rgba(248, 250, 252, 0.98), rgba(224, 231, 255, 0.98) 58%, rgba(241, 245, 249, 0.98)),
+      radial-gradient(circle at 18% 14%, rgba(0, 103, 192, 0.12), transparent 34%);
+  }
+
+  :global(html[data-theme='light']) .pin-setup-overlay :global(.text-white\/88) {
+    color: color-mix(in srgb, var(--color-md3-on-surface) 88%, transparent);
+  }
+
   .pin-setup-content {
     inline-size: 520px;
     animation: pin-setup-enter 360ms var(--motion-easing-emphasized-decelerate) both;
@@ -640,6 +651,15 @@
     opacity: 0.45;
   }
 
+  :global(html[data-theme='light']) .pin-setup-cancel {
+    color: var(--color-md3-on-surface-variant);
+  }
+
+  :global(html[data-theme='light']) .pin-setup-cancel:hover:not(:disabled) {
+    color: var(--color-md3-on-surface);
+    background: var(--color-md3-surface-container-highest);
+  }
+
   @keyframes pin-setup-enter {
     from {
       opacity: 0;
@@ -651,12 +671,6 @@
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: blur(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .pin-setup-content {
-      animation: none !important;
     }
   }
 

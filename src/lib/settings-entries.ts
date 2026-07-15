@@ -25,6 +25,12 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     href: '/home/settings/language',
   },
   {
+    labelKey: 'settings.appearance.title',
+    descriptionKey: 'settings.appearance.description',
+    icon: 'appearance',
+    href: '/home/settings/appearance',
+  },
+  {
     labelKey: 'settings.behavior.title',
     descriptionKey: 'settings.behavior.description',
     icon: 'touchApp',

@@ -1013,9 +1013,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .task-group-child {
-      animation: none;
-    }
-  }
 </style>

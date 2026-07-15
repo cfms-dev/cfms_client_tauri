@@ -3795,16 +3795,6 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .drop-upload-overlay {
-      animation: none;
-    }
-
-    .search-preview-panel {
-      animation: none;
-    }
-  }
-
   :global(.server-search-list-viewport) {
     max-height: calc(52vh - 2.25rem);
     overflow-y: auto;

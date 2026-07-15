@@ -135,7 +135,10 @@ mod tests {
 
         let preferences = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek())).unwrap();
 
-        assert_eq!(preferences.theme, "light");
+        assert_eq!(
+            preferences.appearance,
+            cfms_core::AppearancePreference::default()
+        );
         assert!(preferences.favourites.files.is_empty());
         assert!(preferences.favourites.directories.is_empty());
         assert!(preferences.privacy.screenshot_protection_enabled);
@@ -224,7 +227,7 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(
             &path,
-            br#"{"theme":"light","favourites":{"files":{"doc-2":"Plan.md"},"directories":{}}}"#,
+            br#"{"appearance":{"color_scheme":"light","reduce_motion":"never"},"favourites":{"files":{"doc-2":"Plan.md"},"directories":{}}}"#,
         )
         .unwrap();
 

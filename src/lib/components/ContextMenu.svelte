@@ -170,9 +170,4 @@
     will-change: opacity, transform, filter;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .context-menu-surface {
-      will-change: auto;
-    }
-  }
 </style>

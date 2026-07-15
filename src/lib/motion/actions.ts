@@ -1,4 +1,5 @@
 import type { Action } from "svelte/action";
+import { isReducedMotionEnabled } from "$lib/appearance";
 
 export interface HoverLiftParams {
   lift?: number;
@@ -15,14 +16,8 @@ export interface SmoothPositionParams {
   duration?: number;
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined"
-    && typeof window.matchMedia === "function"
-    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 export const ripple: Action<HTMLElement> = (node) => {
-  if (prefersReducedMotion()) {
+  if (isReducedMotionEnabled()) {
     return { destroy() {} };
   }
 
@@ -31,6 +26,7 @@ export const ripple: Action<HTMLElement> = (node) => {
   node.prepend(rippleRoot);
 
   const handleClick = (event: MouseEvent) => {
+    if (isReducedMotionEnabled()) return;
     const rect = node.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height) * 2;
     const circle = document.createElement("span");
@@ -59,7 +55,7 @@ export const hoverLift: Action<HTMLElement, HoverLiftParams | undefined> = (
   node,
   params = {},
 ) => {
-  if (prefersReducedMotion()) {
+  if (isReducedMotionEnabled()) {
     return { destroy() {} };
   }
 
@@ -76,6 +72,7 @@ export const hoverLift: Action<HTMLElement, HoverLiftParams | undefined> = (
   ].filter(Boolean).join(", ");
 
   const enter = () => {
+    if (isReducedMotionEnabled()) return;
     node.style.transform = `${initialTransform} translate3d(0, -${lift}px, 0)`.trim();
     node.style.boxShadow = shadow;
   };
@@ -109,7 +106,7 @@ export const reveal: Action<HTMLElement, RevealParams | undefined> = (
   node,
   params = {},
 ) => {
-  if (prefersReducedMotion() || typeof IntersectionObserver === "undefined") {
+  if (isReducedMotionEnabled() || typeof IntersectionObserver === "undefined") {
     return { destroy() {} };
   }
 
@@ -147,7 +144,7 @@ export const smoothPosition: Action<HTMLElement, SmoothPositionParams | undefine
   params = {},
 ) => {
   if (
-    prefersReducedMotion()
+    isReducedMotionEnabled()
     || typeof ResizeObserver === "undefined"
     || typeof node.animate !== "function"
   ) {
@@ -161,6 +158,11 @@ export const smoothPosition: Action<HTMLElement, SmoothPositionParams | undefine
   let frame = 0;
 
   const measure = () => {
+    if (isReducedMotionEnabled()) {
+      activeAnimation?.cancel();
+      activeAnimation = null;
+      return;
+    }
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
       const animationInProgress = activeAnimation?.playState === "running";

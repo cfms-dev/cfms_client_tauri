@@ -115,6 +115,16 @@
     --app-pin-dot-fill: var(--color-md3-primary);
   }
 
+  :global(html[data-theme='light']) .app-pin-pad[data-tone='overlay'] {
+    --app-pin-color: var(--color-md3-on-surface);
+    --app-pin-muted: var(--color-md3-on-surface-variant);
+    --app-pin-key-background: var(--color-md3-surface-container-high);
+    --app-pin-key-hover: var(--color-md3-surface-container-highest);
+    --app-pin-delete-hover: var(--color-md3-surface-container-high);
+    --app-pin-dot-outline: var(--color-md3-outline-variant);
+    --app-pin-dot-fill: var(--color-md3-primary);
+  }
+
   .app-pin-pad--comfortable {
     --app-pin-pad-width: 390px;
     --app-pin-key-size: clamp(72px, min(20vw, 16svh), 104px);
@@ -278,12 +288,4 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .app-pin-key,
-    .app-pin-pad__dot,
-    .app-pin-pad__dots--shake {
-      transition: none !important;
-      animation: none !important;
-    }
-  }
 </style>

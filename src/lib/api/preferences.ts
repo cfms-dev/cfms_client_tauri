@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { UserPreference } from './types';
+import type { AppearancePreference, UserPreference } from './types';
 
 export interface PreferenceDekSetupResult {
   status: 'ready' | 'recovery_required' | 'reset_required';
@@ -16,6 +16,19 @@ export async function saveUserPreference(
   preferences: UserPreference,
 ): Promise<void> {
   return invoke("save_user_preference", { preferences });
+}
+
+/** Load appearance settings from the user preference when authenticated,
+ * or from application-wide preferences while signed out. */
+export async function loadAppearancePreference(): Promise<AppearancePreference> {
+  return invoke('load_appearance_preference');
+}
+
+/** Save appearance settings to the same effective scope used for reads. */
+export async function saveAppearancePreference(
+  appearance: AppearancePreference,
+): Promise<void> {
+  return invoke('save_appearance_preference', { appearance });
 }
 
 /** Set up preference encryption during the post-login loading flow. */
