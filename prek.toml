@@ -17,3 +17,14 @@ entry = "cargo"
 args = ["fmt", "--all"]
 pass_filenames = false
 stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "i18n-unused"
+name = "check unused i18n strings (warning only)"
+language = "system"
+entry = "pnpm"
+args = ["run", "i18n:unused", "--warn-only"]
+pass_filenames = false
+always_run = true
+verbose = true
+stages = ["pre-commit"]

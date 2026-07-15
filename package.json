@@ -15,6 +15,8 @@
     "app:version": "node scripts/client-version.mjs",
     "app:version:show": "node scripts/client-version.mjs show",
     "app:version:check": "node scripts/client-version.mjs check",
+    "i18n:unused": "node scripts/check-unused-i18n.mjs",
+    "test:i18n-unused": "node --test scripts/check-unused-i18n.test.mjs",
     "app:changelog": "node scripts/release-notes.mjs changelog",
     "app:changelog:check": "node scripts/release-notes.mjs check",
     "app:release-notes": "node scripts/release-notes.mjs export"

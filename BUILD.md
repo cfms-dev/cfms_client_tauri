@@ -177,6 +177,28 @@ pnpm tauri ios build
 | macOS | `codesign` + `notarytool` | Developer ID Application | Apple Notary Service |
 | Linux | None required | — | Tauri updater key for updates |
 
+## Local Maintenance Checks
+
+Run the unused translation checker manually with:
+
+```bash
+pnpm i18n:unused
+```
+
+The command checks both the frontend TypeScript catalogs and the backend
+Fluent catalogs. It exits with a non-zero status when possibly unused strings
+are found. Dynamic template keys are resolved against string values present in
+production source files, while test files and the catalogs themselves are not
+counted as usages.
+
+The `i18n-unused` hook in `prek.toml` runs the same checker before every commit
+in warning-only mode. It shows a shortened list and always allows the commit
+when unused strings are found. Install the repository hooks once with:
+
+```bash
+prek install
+```
+
 ## Security Notes
 
 - **Never commit signing certificates or private keys** to the repository.
