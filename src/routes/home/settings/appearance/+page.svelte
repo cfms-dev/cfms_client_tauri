@@ -183,10 +183,26 @@
           onclick={() => selectColorScheme(option.value)}
         >
           <span class="scheme-preview scheme-preview--{option.value}" aria-hidden="true">
-            <span class="scheme-preview__bar"></span>
-            <span class="scheme-preview__body">
-              <span></span><span></span><span></span>
-            </span>
+            {#if option.value === 'system'}
+              <span class="system-preview__orb system-preview__orb--light"></span>
+              <span class="system-preview__orb system-preview__orb--dark"></span>
+              {#each ['light', 'dark'] as scheme}
+                <span class="system-preview__window system-preview__window--{scheme}">
+                  <span class="system-preview__titlebar">
+                    <span></span><span></span><span></span>
+                  </span>
+                  <span class="system-preview__content">
+                    <span class="system-preview__rail"></span>
+                    <span class="system-preview__lines"><span></span><span></span></span>
+                  </span>
+                </span>
+              {/each}
+            {:else}
+              <span class="scheme-preview__bar"></span>
+              <span class="scheme-preview__body">
+                <span></span><span></span><span></span>
+              </span>
+            {/if}
           </span>
           <span class="preference-card__copy">
             <span class="preference-card__title">
@@ -251,7 +267,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin: 0;
+    margin: 0 0 0.7rem;
     border: 1px solid var(--color-md3-outline);
     border-radius: var(--explorer-radius-medium, 0.75rem);
     padding: 0.7rem 0.85rem;
@@ -301,9 +317,100 @@
   .scheme-preview--dark .scheme-preview__body { background: #0f1115; }
   .scheme-preview--dark .scheme-preview__body span { background: #343840; }
   .scheme-preview--dark .scheme-preview__body span:first-child { background: #20232a; }
-  .scheme-preview--system { background: linear-gradient(135deg, #f3f3f3 50%, #17191d 50%); }
-  .scheme-preview--system .scheme-preview__bar { background: linear-gradient(135deg, #fafafa 50%, #20232a 50%); }
-  .scheme-preview--system .scheme-preview__body { background: linear-gradient(135deg, #f3f3f3 50%, #0f1115 50%); }
+  .scheme-preview--system {
+    position: relative;
+    isolation: isolate;
+    border-color: rgb(82 94 108 / 0.68);
+    background:
+      radial-gradient(circle at 14% 12%, rgb(255 255 255 / 0.9), transparent 32%),
+      radial-gradient(circle at 86% 88%, rgb(52 64 80 / 0.9), transparent 36%),
+      linear-gradient(
+        135deg,
+        #e8edf2 0 38%,
+        #d9e0e7 43%,
+        #aab4bf 48%,
+        #65717e 53%,
+        #323c48 58%,
+        #1a2028 66% 100%
+      );
+    box-shadow: 0 5px 16px rgb(0 0 0 / 0.18), inset 0 0 0 1px rgb(0 0 0 / 0.14);
+  }
+  .system-preview__orb {
+    position: absolute;
+    z-index: -1;
+    border-radius: 999px;
+    filter: blur(0.5px);
+  }
+  .system-preview__orb--light {
+    width: 38%;
+    aspect-ratio: 1;
+    left: -10%;
+    top: -32%;
+    background: rgb(255 255 255 / 0.72);
+  }
+  .system-preview__orb--dark {
+    width: 34%;
+    aspect-ratio: 1;
+    right: -7%;
+    bottom: -35%;
+    border: 1px solid rgb(121 195 255 / 0.16);
+    background: rgb(38 48 62 / 0.72);
+  }
+  .system-preview__window {
+    position: absolute;
+    display: grid;
+    grid-template-rows: 23% 1fr;
+    width: 56%;
+    height: 67%;
+    overflow: hidden;
+    border-radius: 0.32rem;
+    transition: transform 180ms cubic-bezier(0.2, 0, 0, 1), box-shadow 180ms ease;
+  }
+  .system-preview__window--light {
+    left: 7%;
+    top: 12%;
+    z-index: 1;
+    border: 1px solid rgb(25 34 44 / 0.15);
+    color: #adb4bd;
+    background: #f8fafc;
+    box-shadow: 0 7px 16px rgb(25 34 44 / 0.2);
+    transform: rotate(-2deg);
+  }
+  .system-preview__window--dark {
+    right: 7%;
+    bottom: 11%;
+    z-index: 2;
+    border: 1px solid rgb(255 255 255 / 0.13);
+    color: #586373;
+    background: #171c23;
+    box-shadow: 0 8px 18px rgb(0 0 0 / 0.38);
+    transform: rotate(2deg);
+  }
+  .scheme-card:hover:not(:disabled) .system-preview__window--light { transform: translate(-2px, -1px) rotate(-2.5deg); }
+  .scheme-card:hover:not(:disabled) .system-preview__window--dark { transform: translate(2px, 1px) rotate(2.5deg); }
+  .system-preview__titlebar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding-inline: 8%;
+    background: color-mix(in srgb, currentColor 15%, transparent);
+  }
+  .system-preview__titlebar > span {
+    width: 3px;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    background: currentColor;
+  }
+  .system-preview__content {
+    display: grid;
+    grid-template-columns: 28% 1fr;
+    gap: 9%;
+    padding: 9%;
+  }
+  .system-preview__rail { border-radius: 2px; background: color-mix(in srgb, currentColor 24%, transparent); }
+  .system-preview__lines { display: grid; align-content: center; gap: 18%; }
+  .system-preview__lines > span { height: 4px; border-radius: 999px; background: currentColor; }
+  .system-preview__lines > span:last-child { width: 72%; }
   .preference-card__copy { min-width: 0; }
   .preference-card__title { display: flex; align-items: center; gap: 0.35rem; color: var(--color-md3-on-surface); font: 650 0.8rem/1.3 var(--font-md3-sans); }
   .preference-card__hint { display: block; margin-top: 0.25rem; color: var(--color-md3-on-surface-variant); font-size: 0.68rem; line-height: 1.45; }
