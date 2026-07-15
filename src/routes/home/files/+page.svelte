@@ -77,6 +77,7 @@
     waitForDownloadBatchResume,
   } from '$lib/download-batch-control';
   import FileTable, {
+    type FileTableDragItems,
     type FileTableRow,
     type FileTableViewportAnchor,
   } from '$lib/components/files/FileTable.svelte';
@@ -811,6 +812,18 @@
     selectedDocumentIds = nextDocuments;
     selectedDocumentSize = documentSize;
     selectionRevision += 1;
+  }
+
+  function handleDragSelection(items: FileTableDragItems) {
+    const nextFolders = new Set(items.folderIds);
+    const nextDocuments = new Set(items.documentIds);
+    commitSelection(nextFolders, nextDocuments);
+    focusedItemKey = items.folderIds[0]
+      ? fileSelectionKey('folder', items.folderIds[0])
+      : items.documentIds[0]
+        ? fileSelectionKey('document', items.documentIds[0])
+        : null;
+    selectionAnchorKey = focusedItemKey;
   }
 
   function toggleSelectFolder(id: string) {
@@ -1622,11 +1635,10 @@
     error = null;
 
     try {
-      if (dialog.objectType === 'directory') {
-        await moveDirectory(dialog.objectId, target);
-      } else {
-        await moveDocument(dialog.objectId, target);
-      }
+      await moveFileItems({
+        folderIds: dialog.objectType === 'directory' ? [dialog.objectId] : [],
+        documentIds: dialog.objectType === 'document' ? [dialog.objectId] : [],
+      }, target);
       moveTargetDialog = null;
       status = $t('files.moved');
       await loadDirectory(currentFolderId);
@@ -1651,12 +1663,7 @@
     error = null;
 
     try {
-      for (const id of selectedDocuments) {
-        await moveDocument(id, target);
-      }
-      for (const id of selectedFolders) {
-        await moveDirectory(id, target);
-      }
+      await moveFileItems({ folderIds: selectedFolders, documentIds: selectedDocuments }, target);
       batchMoveDialog = null;
       clearSelection();
       status = $t('files.batchMoved', { values: { count: selectedDocuments.length + selectedFolders.length } });
@@ -1664,6 +1671,37 @@
     } catch (err) {
       error = formatError(err);
       batchMoveDialog = { excludedDirectoryIds: selectedFolders, saving: false };
+    }
+  }
+
+  async function moveFileItems(items: FileTableDragItems, targetFolderId: string | null) {
+    for (const id of items.documentIds) await moveDocument(id, targetFolderId);
+    for (const id of items.folderIds) await moveDirectory(id, targetFolderId);
+  }
+
+  async function handleDropMove(items: FileTableDragItems, targetFolderId: string) {
+    if (
+      batchBusy
+      || !hasPermission('move')
+      || items.folderIds.includes(targetFolderId)
+      || items.folderIds.length + items.documentIds.length === 0
+    ) return;
+
+    batchBusy = true;
+    try {
+      await moveFileItems(items, targetFolderId);
+      const movedCount = items.folderIds.length + items.documentIds.length;
+      clearSelection();
+      status = movedCount === 1
+        ? $t('files.moved')
+        : $t('files.batchMoved', { values: { count: movedCount } });
+      await loadDirectory(currentFolderId);
+    } catch {
+      // Drag-and-drop is intentionally quiet when access rules reject a move.
+      // Reload because an earlier item in a multi-item move may have succeeded.
+      await loadDirectory(currentFolderId);
+    } finally {
+      batchBusy = false;
     }
   }
 
@@ -3639,6 +3677,9 @@
       onBlankContextMenu={showCurrentDirectoryContextMenu}
       onFolderContextMenu={showFolderContextMenu}
       onDocumentContextMenu={showDocumentContextMenu}
+      canMoveItems={!batchBusy && hasPermission('move')}
+      onDragSelection={handleDragSelection}
+      onMoveItems={handleDropMove}
       emptyContent={directoryAccessDenied ? deniedDirectoryContent : undefined}
     />
     <ExplorerDetailsPane

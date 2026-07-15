@@ -34,6 +34,11 @@
     | { kind: 'folder'; folder: ServerDirectoryEntry }
     | { kind: 'document'; document: ServerDocumentEntry };
 
+  export type FileTableDragItems = {
+    folderIds: string[];
+    documentIds: string[];
+  };
+
   export type FileTableViewportAnchor = {
     key: string;
     offset: number;
@@ -63,6 +68,9 @@
     onBlankContextMenu,
     onFolderContextMenu,
     onDocumentContextMenu,
+    canMoveItems,
+    onDragSelection,
+    onMoveItems,
     emptyContent,
   }: {
     loading: boolean;
@@ -86,6 +94,9 @@
     onBlankContextMenu: (event: MouseEvent) => void;
     onFolderContextMenu: (event: MouseEvent | KeyboardEvent, folder: ServerDirectoryEntry) => void;
     onDocumentContextMenu: (event: MouseEvent | KeyboardEvent, document: ServerDocumentEntry) => void;
+    canMoveItems: boolean;
+    onDragSelection: (items: FileTableDragItems) => void;
+    onMoveItems: (items: FileTableDragItems, targetFolderId: string) => void | Promise<void>;
     emptyContent?: Snippet;
   } = $props();
 
@@ -115,6 +126,8 @@
   let suppressClick = false;
   let autoScrollFrame: number | null = null;
   let activeRowKey = $state<string | null>(null);
+  let draggedItems = $state<FileTableDragItems | null>(null);
+  let dropTarget = $state<{ folderId: string; allowed: boolean } | null>(null);
   const rowCount = $derived(folders.length + documents.length);
   const virtualized = $derived(rowCount > VIRTUALIZATION_THRESHOLD);
   const rowVirtualizer = createVirtualizer<HTMLDivElement, HTMLButtonElement>({
@@ -226,11 +239,10 @@
     const target = event.target;
     if (isBlankInteraction(event)) return true;
     if (!(target instanceof Element)) return false;
-
-    const row = target.closest<HTMLElement>('[data-file-table-row]');
-    const marqueeStart = row?.querySelector<HTMLElement>('[data-marquee-start]');
-    if (!marqueeStart || marqueeStart.getClientRects().length === 0) return false;
-    return event.clientX >= marqueeStart.getBoundingClientRect().left;
+    return Boolean(
+      target.closest('[data-file-table-row]')
+      && !target.closest('[data-file-drag-handle]'),
+    );
   }
 
   function documentTypeLabel(filename: string) {
@@ -266,6 +278,95 @@
     for (const id of selectedFolderIds) keys.add(fileSelectionKey('folder', id));
     for (const id of selectedDocumentIds) keys.add(fileSelectionKey('document', id));
     return keys;
+  }
+
+  function dragItemsFor(row: FileTableRow): FileTableDragItems {
+    if (isSelected(row)) {
+      return {
+        folderIds: [...selectedFolderIds],
+        documentIds: [...selectedDocumentIds],
+      };
+    }
+    return row.kind === 'folder'
+      ? { folderIds: [row.folder.id], documentIds: [] }
+      : { folderIds: [], documentIds: [row.document.id] };
+  }
+
+  function isDragged(row: FileTableRow) {
+    if (!draggedItems) return false;
+    return row.kind === 'folder'
+      ? draggedItems.folderIds.includes(row.folder.id)
+      : draggedItems.documentIds.includes(row.document.id);
+  }
+
+  function handleItemDragStart(event: DragEvent, row: FileTableRow) {
+    event.stopPropagation();
+    const items = dragItemsFor(row);
+    draggedItems = items;
+    dropTarget = null;
+
+    if (!isSelected(row)) onDragSelection(items);
+    if (!event.dataTransfer) return;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-cfms-file-items', JSON.stringify(items));
+    event.dataTransfer.setData(
+      'text/plain',
+      row.kind === 'folder' ? row.folder.name : row.document.title,
+    );
+  }
+
+  function handleItemDragEnd(event: DragEvent) {
+    event.stopPropagation();
+    draggedItems = null;
+    dropTarget = null;
+  }
+
+  function canDropOnFolder(folderId: string) {
+    return Boolean(
+      canMoveItems
+      && draggedItems
+      && !draggedItems.folderIds.includes(folderId),
+    );
+  }
+
+  function handleFolderDragOver(event: DragEvent, folderId: string) {
+    if (!draggedItems) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const allowed = canDropOnFolder(folderId);
+    dropTarget = { folderId, allowed };
+    if (event.dataTransfer) event.dataTransfer.dropEffect = allowed ? 'move' : 'none';
+  }
+
+  function handleFolderDragLeave(event: DragEvent, folderId: string) {
+    if (!draggedItems) return;
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && (event.currentTarget as HTMLElement).contains(nextTarget)) return;
+    if (dropTarget?.folderId === folderId) dropTarget = null;
+  }
+
+  function handleFolderDrop(event: DragEvent, folderId: string) {
+    if (!draggedItems) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const items = draggedItems;
+    const allowed = canDropOnFolder(folderId);
+    draggedItems = null;
+    dropTarget = null;
+    if (!allowed) return;
+    void onMoveItems(items, folderId);
+  }
+
+  function handleInternalDragSurface(event: DragEvent) {
+    if (!draggedItems) return;
+    event.stopPropagation();
+    if (event.type === 'dragover' || event.type === 'drop') event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+    if (event.type === 'drop') {
+      draggedItems = null;
+      dropTarget = null;
+    }
   }
 
   function viewportContentPoint(clientX: number, clientY: number) {
@@ -572,6 +673,10 @@
       onpointermove={handleMarqueePointerMove}
       onpointerup={finishMarquee}
       onpointercancel={finishMarquee}
+      ondragenter={handleInternalDragSurface}
+      ondragover={handleInternalDragSurface}
+      ondragleave={handleInternalDragSurface}
+      ondrop={handleInternalDragSurface}
     >
       <div class="file-table-content" style={columnGridStyle}>
         <div bind:this={tableHeader} class="file-table-grid file-table-header" class:is-column-resizing={columnResize !== null}>
@@ -650,6 +755,9 @@
                   type="button"
                   class="file-table-grid file-table-row file-table-row--folder"
                   class:file-table-row--selected={isSelected(row)}
+                  class:file-table-row--dragged={isDragged(row)}
+                  class:file-table-row--drop-target={dropTarget?.folderId === row.folder.id && dropTarget.allowed}
+                  class:file-table-row--drop-forbidden={dropTarget?.folderId === row.folder.id && !dropTarget.allowed}
                   aria-pressed={isSelected(row)}
                   tabindex={activeRowKey === rowKey(row) ? 0 : -1}
                   style={rowStyle(rendered.virtualItem)}
@@ -658,13 +766,23 @@
                   onkeydown={(event) => handleKeyboardNavigation(event, row, rendered.index)}
                   onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
+                  ondragenter={(event) => handleFolderDragOver(event, row.folder.id)}
+                  ondragover={(event) => handleFolderDragOver(event, row.folder.id)}
+                  ondragleave={(event) => handleFolderDragLeave(event, row.folder.id)}
+                  ondrop={(event) => handleFolderDrop(event, row.folder.id)}
                 >
                   <span class="file-table-icon" class:file-table-icon--selected={isSelected(row)}>
                     <Icon name={selectMode ? (isSelected(row) ? 'checkBox' : 'checkBoxBlank') : 'folder'} size="20px" />
                   </span>
-                  <span class="file-table-name file-table-folder-name">{row.folder.name}</span>
+                  <span
+                    class="file-table-name file-table-folder-name file-table-drag-handle"
+                    data-file-drag-handle
+                    draggable="true"
+                    ondragstart={(event) => handleItemDragStart(event, row)}
+                    ondragend={handleItemDragEnd}
+                  >{row.folder.name}</span>
                   <span class="file-table-modified">{formatDate(row.folder.created_time)}</span>
-                  <span class="file-table-type" data-marquee-start>{$t('files.directory')}</span>
+                  <span class="file-table-type">{$t('files.directory')}</span>
                   <span class="file-table-size">—</span>
                 </button>
               {:else}
@@ -675,6 +793,7 @@
                   type="button"
                   class="file-table-grid file-table-row"
                   class:file-table-row--selected={isSelected(row)}
+                  class:file-table-row--dragged={isDragged(row)}
                   aria-pressed={isSelected(row)}
                   tabindex={activeRowKey === rowKey(row) ? 0 : -1}
                   style={rowStyle(rendered.virtualItem)}
@@ -687,9 +806,15 @@
                   <span class="file-table-icon" class:file-table-icon--selected={isSelected(row)}>
                     <Icon name={selectMode ? (isSelected(row) ? 'checkBox' : 'checkBoxBlank') : 'filePresent'} size="20px" />
                   </span>
-                  <span class="file-table-name">{row.document.title}</span>
+                  <span
+                    class="file-table-name file-table-drag-handle"
+                    data-file-drag-handle
+                    draggable="true"
+                    ondragstart={(event) => handleItemDragStart(event, row)}
+                    ondragend={handleItemDragEnd}
+                  >{row.document.title}</span>
                   <span class="file-table-modified">{formatDate(row.document.last_modified)}</span>
-                  <span class="file-table-type" data-marquee-start>{documentTypeLabel(row.document.title)}</span>
+                  <span class="file-table-type">{documentTypeLabel(row.document.title)}</span>
                   <span class="file-table-size">{formatBytes(row.document.size)}</span>
                 </button>
               {/if}
@@ -743,10 +868,16 @@
   .file-table-row:hover { background: var(--explorer-surface-hover); }
   .file-table-row--selected { background: var(--explorer-surface-selected); box-shadow: inset 2px 0 0 var(--explorer-accent); }
   .file-table-row--selected:hover { background: color-mix(in srgb, var(--explorer-surface-selected) 80%, var(--explorer-surface-hover)); }
+  .file-table-row--dragged { opacity: 0.58; }
+  .file-table-row--drop-target { background: color-mix(in srgb, var(--explorer-accent) 18%, var(--explorer-surface-hover)); box-shadow: inset 0 0 0 2px var(--explorer-accent); }
+  .file-table-row--drop-forbidden { box-shadow: inset 0 0 0 2px var(--color-md3-error); }
+  .file-table-row--drop-forbidden, .file-table-row--drop-forbidden .file-table-drag-handle { cursor: not-allowed; }
   .file-table-icon { display: inline-flex; color: var(--explorer-text-muted); }
   .file-table-folder-name, .file-table-row--folder .file-table-icon { color: var(--explorer-folder); }
   .file-table-icon--selected { color: var(--explorer-accent) !important; }
-  .file-table-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.81rem; }
+  .file-table-name { max-width: 100%; justify-self: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.81rem; }
+  .file-table-drag-handle { cursor: grab; user-select: none; }
+  .file-table-drag-handle:active { cursor: grabbing; }
   .file-table-modified, .file-table-type, .file-table-size { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text-muted); font-size: 0.74rem; }
   .file-table-size { text-align: right; }
   .file-table-empty { padding: 3.5rem 1rem; text-align: center; color: var(--explorer-text-muted); font-size: 0.8rem; }
