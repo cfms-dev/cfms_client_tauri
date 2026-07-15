@@ -16,7 +16,7 @@ use cfms_core::{
 };
 use cfms_crypto::dek;
 use cfms_service::services::download_queue;
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "android")]
 use std::io::Write;

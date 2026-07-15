@@ -245,7 +245,7 @@ impl Connection {
         let wire_data = frame::encode(&header, payload);
 
         let mut tx = self.ws_tx.lock().await;
-        if let Err(e) = tx.send(Message::Binary(wire_data)).await {
+        if let Err(e) = tx.send(Message::Binary(wire_data.into())).await {
             self.closed.store(true, Ordering::SeqCst);
             return Err(cfms_core::Error::Connection(format!("send failed: {e}")));
         }

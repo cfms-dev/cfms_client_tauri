@@ -6,7 +6,7 @@
 
 use cfms_core::constants::{KDF_ITERATIONS, KEY_LEN, SALT_LEN};
 use pbkdf2::pbkdf2_hmac;
-use rand::RngCore;
+use rand::Rng;
 use sha2::Sha256;
 use zeroize::Zeroizing;
 
@@ -23,7 +23,7 @@ pub fn derive_kek(password: &[u8], salt: &[u8; SALT_LEN]) -> Zeroizing<[u8; KEY_
 /// Generate a cryptographically random 128-bit salt.
 pub fn generate_salt() -> [u8; SALT_LEN] {
     let mut salt = [0u8; SALT_LEN];
-    rand::rngs::OsRng.fill_bytes(&mut salt);
+    rand::rng().fill_bytes(&mut salt);
     salt
 }
 
@@ -31,17 +31,20 @@ pub fn generate_salt() -> [u8; SALT_LEN] {
 mod tests {
     use super::*;
 
-    /// RFC 6070 test vector #1 (adjusted: we use 32-byte output).
-    /// We can only verify that repeated derivations produce the same result.
+    /// Fixed compatibility vector for the application's PBKDF2 parameters.
     #[test]
     fn deterministic_derivation() {
         let password = b"password";
         let salt = b"\x78\x57\x8E\x5A\x5D\x63\xCB\x06\x00\x00\x00\x00\x00\x00\x00\x00";
         assert_eq!(salt.len(), SALT_LEN);
 
-        let k1 = derive_kek(password, salt);
-        let k2 = derive_kek(password, salt);
-        assert_eq!(&*k1, &*k2);
+        let key = derive_kek(password, salt);
+        assert_eq!(
+            &*key,
+            hex::decode("81ac4488900f7e5684afe8ced917888f5b247ff9fe0c9a1327117f3ea570f491")
+                .unwrap()
+                .as_slice()
+        );
     }
 
     #[test]

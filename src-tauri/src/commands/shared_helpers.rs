@@ -25,7 +25,7 @@ async fn send_typed_action_request<T>(
 where
     T: serde::de::DeserializeOwned,
 {
-    let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
+    let random_bytes: [u8; 16] = rand::rng().random();
     let nonce = hex::encode(random_bytes);
 
     let request = serde_json::json!({

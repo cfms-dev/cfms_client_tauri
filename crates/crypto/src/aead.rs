@@ -4,18 +4,12 @@
 //! nonce / tag sizes at the type level and convert errors into
 //! [`cfms_core::Error`].
 
-use aes_gcm::aead::generic_array::GenericArray;
-use aes_gcm::aead::generic_array::typenum::{U12, U16};
-use aes_gcm::aead::{Aead, AeadInPlace, KeyInit, OsRng};
-use aes_gcm::{AeadCore, Aes256Gcm};
+use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::array::Array;
+use aes_gcm::aead::{AeadInOut, KeyInit};
 use cfms_core::Result;
 use cfms_core::constants::{KEY_LEN, NONCE_LEN, TAG_LEN};
-
-/// Type alias for a 96-bit GCM nonce.
-type Nonce = GenericArray<u8, U12>;
-
-/// Type alias for a 128-bit GCM authentication tag.
-type Tag = GenericArray<u8, U16>;
+use rand::Rng;
 
 /// Encrypt `plaintext` with AES-256-GCM.
 ///
@@ -30,16 +24,15 @@ pub fn seal(
     let cipher =
         Aes256Gcm::new_from_slice(key).map_err(|e| cfms_core::Error::Crypto(e.to_string()))?;
 
-    let nonce = Nonce::from_slice(nonce);
+    let nonce = Array(*nonce);
 
     let mut buffer = plaintext.to_vec();
     let tag = cipher
-        .encrypt_in_place_detached(nonce, b"", &mut buffer)
+        .encrypt_inout_detached(&nonce, b"", buffer.as_mut_slice().into())
         .map_err(|e| cfms_core::Error::Crypto(e.to_string()))?;
-    let tag: &Tag = &tag;
 
     let mut tag_arr = [0u8; TAG_LEN];
-    tag_arr.copy_from_slice(tag.as_slice());
+    tag_arr.copy_from_slice(&tag);
     Ok((buffer, tag_arr))
 }
 
@@ -57,23 +50,23 @@ pub fn open(
     let cipher =
         Aes256Gcm::new_from_slice(key).map_err(|e| cfms_core::Error::Crypto(e.to_string()))?;
 
-    let nonce = Nonce::from_slice(nonce);
-    let tag = Tag::from_slice(tag);
+    let nonce = Array(*nonce);
+    let tag = Array(*tag);
 
     let mut buffer = ciphertext.to_vec();
-    buffer.extend_from_slice(tag.as_slice());
-
-    cipher.decrypt(nonce, buffer.as_slice()).map_err(|_| {
-        cfms_core::Error::Crypto("authentication failed — wrong key or corrupted data".into())
-    })
+    cipher
+        .decrypt_inout_detached(&nonce, b"", buffer.as_mut_slice().into(), &tag)
+        .map_err(|_| {
+            cfms_core::Error::Crypto("authentication failed — wrong key or corrupted data".into())
+        })?;
+    Ok(buffer)
 }
 
 /// Generate a random 96-bit nonce suitable for AES-256-GCM.
 pub fn generate_nonce() -> [u8; NONCE_LEN] {
-    let nonce = Aes256Gcm::generate_nonce(OsRng);
-    let mut arr = [0u8; NONCE_LEN];
-    arr.copy_from_slice(nonce.as_slice());
-    arr
+    let mut nonce = [0u8; NONCE_LEN];
+    rand::rng().fill_bytes(&mut nonce);
+    nonce
 }
 
 #[cfg(test)]

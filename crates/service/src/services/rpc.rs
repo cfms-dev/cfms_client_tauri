@@ -1,6 +1,6 @@
 //! Small RPC helper shared by background services.
 
-use rand::Rng;
+use rand::RngExt;
 
 /// Send one action request over a short-lived client stream.
 pub async fn send_action_request(
@@ -10,7 +10,7 @@ pub async fn send_action_request(
     username: &str,
     token: &str,
 ) -> Result<cfms_core::Response, String> {
-    let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
+    let random_bytes: [u8; 16] = rand::rng().random();
     let nonce = hex::encode(random_bytes);
 
     let request = serde_json::json!({

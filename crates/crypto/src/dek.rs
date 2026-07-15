@@ -17,7 +17,7 @@
 use base64ct::{Base64, Encoding};
 use cfms_core::Result;
 use cfms_core::constants::{KDF_ITERATIONS, KEY_LEN, NONCE_LEN, SALT_LEN};
-use rand::RngCore;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -57,7 +57,7 @@ struct DekPayload {
 /// automatically when the value goes out of scope.
 pub fn generate_dek() -> Zeroizing<[u8; KEY_LEN]> {
     let mut dek = Zeroizing::new([0u8; KEY_LEN]);
-    rand::rngs::OsRng.fill_bytes(&mut *dek);
+    rand::rng().fill_bytes(&mut *dek);
     dek
 }
 

@@ -12,7 +12,8 @@
 //! - All key material is wrapped in [`zeroize::Zeroizing`] for automatic
 //!   memory scrubbing on drop.
 //! - `#![forbid(unsafe_code)]` is enforced crate-wide.
-//! - Randomness is sourced from the OS CSPRNG via [`rand::rngs::OsRng`].
+//! - Randomness is sourced from the cryptographically secure thread RNG via
+//!   [`rand::rng`].
 
 #![forbid(unsafe_code)]
 

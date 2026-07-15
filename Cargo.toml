@@ -35,23 +35,23 @@ semver = "1"
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
-thiserror = "1"
+thiserror = "2"
 
 # ---------------------------------------------------------------------------
 # Cryptography
 # ---------------------------------------------------------------------------
-aes-gcm = "0.10"
-pbkdf2 = "0.12"
-sha2 = "0.10"
-hmac = "0.12"
-rand = "0.8"
+aes-gcm = "0.11"
+pbkdf2 = "0.13"
+sha2 = "0.11"
+hmac = "0.13"
+rand = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 base64ct = { version = "1", features = ["alloc"] }
 
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 memmap2 = "0.9"
 tempfile = "3"
 
@@ -59,21 +59,21 @@ tempfile = "3"
 # Async runtime & networking
 # ---------------------------------------------------------------------------
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = { version = "0.24", default-features = false, features = [
+tokio-tungstenite = { version = "0.30", default-features = false, features = [
     "connect",
     "rustls-tls-webpki-roots",
 ] }
 rustls = "0.23"
 rustls-pemfile = "2"
-webpki-roots = "0.26"
+webpki-roots = "1"
 tokio-socks = "0.5"
 tokio-rustls = "0.26"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "socks"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "socks"] }
 tracing = { version = "0.1", features = ["log"] }
 url = "2"
-dashmap = "5"
-fluent-bundle = "0.15"
+dashmap = "6"
+fluent-bundle = "0.16"
 unic-langid = "0.9"
 
 # ---------------------------------------------------------------------------

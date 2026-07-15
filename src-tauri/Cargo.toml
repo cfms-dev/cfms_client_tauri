@@ -37,7 +37,6 @@ rand.workspace = true
 zeroize.workspace = true
 hex = "0.4.3"
 reqwest.workspace = true
-reqwest-updater-socks = { package = "reqwest", version = "0.13", default-features = false, features = ["socks"] }
 rustls.workspace = true
 semver.workspace = true
 url.workspace = true
@@ -48,7 +47,7 @@ tauri-plugin-background-service.workspace = true
 tauri-plugin-os = "2"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.55"
+winreg = "0.56"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-biometric = "2"

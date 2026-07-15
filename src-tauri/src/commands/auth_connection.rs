@@ -599,7 +599,7 @@ pub async fn connect(
             Err(CONNECT_CANCELLED_ERROR.to_string())
         }
         result = async {
-        let random_bytes: [u8; 16] = rand::thread_rng().r#gen();
+        let random_bytes: [u8; 16] = rand::rng().random();
         let nonce = hex::encode(random_bytes);
 
         let request = serde_json::json!({
