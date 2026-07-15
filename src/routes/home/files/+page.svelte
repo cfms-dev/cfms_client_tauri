@@ -218,6 +218,7 @@
   let navigationStateReady = $state(false);
   let userPreference = $state<UserPreference | null>(null);
   let batchBusy = $state(false);
+  let dropMoveBusy = $state(false);
 
   // Selection mode
   let selectMode = $state(false);
@@ -1681,13 +1682,14 @@
 
   async function handleDropMove(items: FileTableDragItems, targetFolderId: string) {
     if (
-      batchBusy
+      dropMoveBusy
       || !hasPermission('move')
       || items.folderIds.includes(targetFolderId)
       || items.folderIds.length + items.documentIds.length === 0
     ) return;
 
-    batchBusy = true;
+    dropMoveBusy = true;
+    error = null;
     try {
       await moveFileItems(items, targetFolderId);
       const movedCount = items.folderIds.length + items.documentIds.length;
@@ -1696,12 +1698,13 @@
         ? $t('files.moved')
         : $t('files.batchMoved', { values: { count: movedCount } });
       await loadDirectory(currentFolderId);
-    } catch {
-      // Drag-and-drop is intentionally quiet when access rules reject a move.
+    } catch (err) {
+      const accessDenied = isAccessDeniedError(err);
       // Reload because an earlier item in a multi-item move may have succeeded.
-      await loadDirectory(currentFolderId);
+      await loadDirectory(currentFolderId, true);
+      if (!accessDenied) error = formatError(err);
     } finally {
-      batchBusy = false;
+      dropMoveBusy = false;
     }
   }
 
@@ -3677,7 +3680,7 @@
       onBlankContextMenu={showCurrentDirectoryContextMenu}
       onFolderContextMenu={showFolderContextMenu}
       onDocumentContextMenu={showDocumentContextMenu}
-      canMoveItems={!batchBusy && hasPermission('move')}
+      canMoveItems={hasPermission('move')}
       onDragSelection={handleDragSelection}
       onMoveItems={handleDropMove}
       emptyContent={directoryAccessDenied ? deniedDirectoryContent : undefined}

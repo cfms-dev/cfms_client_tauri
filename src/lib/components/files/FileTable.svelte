@@ -126,7 +126,14 @@
   let suppressClick = false;
   let autoScrollFrame: number | null = null;
   let activeRowKey = $state<string | null>(null);
-  let draggedItems = $state<FileTableDragItems | null>(null);
+  let itemDrag = $state<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    active: boolean;
+    sourceSelected: boolean;
+    items: FileTableDragItems;
+  } | null>(null);
   let dropTarget = $state<{ folderId: string; allowed: boolean } | null>(null);
   const rowCount = $derived(folders.length + documents.length);
   const virtualized = $derived(rowCount > VIRTUALIZATION_THRESHOLD);
@@ -239,9 +246,13 @@
     const target = event.target;
     if (isBlankInteraction(event)) return true;
     if (!(target instanceof Element)) return false;
+    const rowElement = target.closest<HTMLElement>('[data-file-table-row]');
+    if (!rowElement) return false;
+    const selectionKey = rowElement.dataset.selectionKey;
+    if (selectionKey?.startsWith('folder:') && selectedFolderIds.has(selectionKey.slice('folder:'.length))) return false;
+    if (selectionKey?.startsWith('document:') && selectedDocumentIds.has(selectionKey.slice('document:'.length))) return false;
     return Boolean(
-      target.closest('[data-file-table-row]')
-      && !target.closest('[data-file-drag-handle]'),
+      !target.closest('[data-file-drag-handle]'),
     );
   }
 
@@ -293,78 +304,98 @@
   }
 
   function isDragged(row: FileTableRow) {
-    if (!draggedItems) return false;
+    if (!itemDrag?.active) return false;
     return row.kind === 'folder'
-      ? draggedItems.folderIds.includes(row.folder.id)
-      : draggedItems.documentIds.includes(row.document.id);
+      ? itemDrag.items.folderIds.includes(row.folder.id)
+      : itemDrag.items.documentIds.includes(row.document.id);
   }
 
-  function handleItemDragStart(event: DragEvent, row: FileTableRow) {
-    event.stopPropagation();
-    const items = dragItemsFor(row);
-    draggedItems = items;
-    dropTarget = null;
-
-    if (!isSelected(row)) onDragSelection(items);
-    if (!event.dataTransfer) return;
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('application/x-cfms-file-items', JSON.stringify(items));
-    event.dataTransfer.setData(
-      'text/plain',
-      row.kind === 'folder' ? row.folder.name : row.document.title,
-    );
+  function rowAtPointerTarget(target: EventTarget | null): FileTableRow | null {
+    if (!(target instanceof Element)) return null;
+    const rowElement = target.closest<HTMLElement>('[data-file-table-row]');
+    const index = Number(rowElement?.dataset.fileRowIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= rowCount) return null;
+    return getRowAt(index);
   }
 
-  function handleItemDragEnd(event: DragEvent) {
-    event.stopPropagation();
-    draggedItems = null;
-    dropTarget = null;
+  function handleTablePointerDown(event: PointerEvent) {
+    if (event.button !== 0 || !event.isPrimary || event.pointerType === 'touch') return;
+    const row = rowAtPointerTarget(event.target);
+    const target = event.target;
+    if (
+      scrollViewport
+      && row
+      && target instanceof Element
+      && (isSelected(row) || target.closest('[data-file-drag-handle]'))
+    ) {
+      const sourceSelected = isSelected(row);
+      itemDrag = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        active: false,
+        sourceSelected,
+        items: dragItemsFor(row),
+      };
+      return;
+    }
+    handleMarqueePointerDown(event);
   }
 
-  function canDropOnFolder(folderId: string) {
-    return Boolean(
-      canMoveItems
-      && draggedItems
-      && !draggedItems.folderIds.includes(folderId),
-    );
-  }
+  function handleTablePointerMove(event: PointerEvent) {
+    if (!itemDrag || itemDrag.pointerId !== event.pointerId) {
+      handleMarqueePointerMove(event);
+      return;
+    }
 
-  function handleFolderDragOver(event: DragEvent, folderId: string) {
-    if (!draggedItems) return;
+    if (!itemDrag.active) {
+      const distance = Math.hypot(
+        event.clientX - itemDrag.startClientX,
+        event.clientY - itemDrag.startClientY,
+      );
+      if (distance < MARQUEE_DRAG_THRESHOLD) return;
+      itemDrag.active = true;
+      suppressClick = true;
+      scrollViewport?.setPointerCapture(event.pointerId);
+      if (!itemDrag.sourceSelected) onDragSelection(itemDrag.items);
+    }
+
     event.preventDefault();
-    event.stopPropagation();
-    const allowed = canDropOnFolder(folderId);
-    dropTarget = { folderId, allowed };
-    if (event.dataTransfer) event.dataTransfer.dropEffect = allowed ? 'move' : 'none';
+    updatePointerDropTarget(event.clientX, event.clientY);
   }
 
-  function handleFolderDragLeave(event: DragEvent, folderId: string) {
-    if (!draggedItems) return;
-    event.stopPropagation();
-    const nextTarget = event.relatedTarget;
-    if (nextTarget instanceof Node && (event.currentTarget as HTMLElement).contains(nextTarget)) return;
-    if (dropTarget?.folderId === folderId) dropTarget = null;
+  function updatePointerDropTarget(clientX: number, clientY: number) {
+    if (!itemDrag?.active) return;
+    const hovered = document.elementFromPoint(clientX, clientY);
+    const folderRow = hovered?.closest<HTMLElement>('[data-folder-drop-target]');
+    const folderId = folderRow?.dataset.folderDropTarget;
+    if (!folderId || itemDrag.items.folderIds.includes(folderId)) {
+      dropTarget = null;
+      return;
+    }
+    dropTarget = { folderId, allowed: canMoveItems };
   }
 
-  function handleFolderDrop(event: DragEvent, folderId: string) {
-    if (!draggedItems) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const items = draggedItems;
-    const allowed = canDropOnFolder(folderId);
-    draggedItems = null;
-    dropTarget = null;
-    if (!allowed) return;
-    void onMoveItems(items, folderId);
-  }
+  function finishTablePointer(event: PointerEvent, cancelled = false) {
+    if (!itemDrag || itemDrag.pointerId !== event.pointerId) {
+      finishMarquee(event);
+      return;
+    }
 
-  function handleInternalDragSurface(event: DragEvent) {
-    if (!draggedItems) return;
-    event.stopPropagation();
-    if (event.type === 'dragover' || event.type === 'drop') event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
-    if (event.type === 'drop') {
-      draggedItems = null;
+    const drag = itemDrag;
+    if (drag.active) {
+      event.preventDefault();
+      if (!cancelled) updatePointerDropTarget(event.clientX, event.clientY);
+      const target = cancelled ? null : dropTarget;
+      if (scrollViewport?.hasPointerCapture(event.pointerId)) {
+        scrollViewport.releasePointerCapture(event.pointerId);
+      }
+      itemDrag = null;
+      dropTarget = null;
+      window.setTimeout(() => { suppressClick = false; }, 0);
+      if (target?.allowed) void onMoveItems(drag.items, target.folderId);
+    } else {
+      itemDrag = null;
       dropTarget = null;
     }
   }
@@ -667,16 +698,14 @@
       class="file-table-scroll-viewport"
       class:is-virtualized={virtualized}
       class:is-marquee-selecting={marquee?.active}
+      class:is-item-dragging={itemDrag?.active}
+      class:is-item-drop-forbidden={itemDrag?.active && dropTarget !== null && !dropTarget.allowed}
       onclick={handleBlankClick}
       oncontextmenu={handleBlankContextMenu}
-      onpointerdown={handleMarqueePointerDown}
-      onpointermove={handleMarqueePointerMove}
-      onpointerup={finishMarquee}
-      onpointercancel={finishMarquee}
-      ondragenter={handleInternalDragSurface}
-      ondragover={handleInternalDragSurface}
-      ondragleave={handleInternalDragSurface}
-      ondrop={handleInternalDragSurface}
+      onpointerdown={handleTablePointerDown}
+      onpointermove={handleTablePointerMove}
+      onpointerup={finishTablePointer}
+      onpointercancel={(event) => finishTablePointer(event, true)}
     >
       <div class="file-table-content" style={columnGridStyle}>
         <div bind:this={tableHeader} class="file-table-grid file-table-header" class:is-column-resizing={columnResize !== null}>
@@ -752,6 +781,7 @@
                   data-file-table-row
                   data-file-row-index={rendered.index}
                   data-selection-key={fileSelectionKey('folder', row.folder.id)}
+                  data-folder-drop-target={row.folder.id}
                   type="button"
                   class="file-table-grid file-table-row file-table-row--folder"
                   class:file-table-row--selected={isSelected(row)}
@@ -766,10 +796,6 @@
                   onkeydown={(event) => handleKeyboardNavigation(event, row, rendered.index)}
                   onfocus={() => (activeRowKey = rowKey(row))}
                   oncontextmenu={(event) => onFolderContextMenu(event, row.folder)}
-                  ondragenter={(event) => handleFolderDragOver(event, row.folder.id)}
-                  ondragover={(event) => handleFolderDragOver(event, row.folder.id)}
-                  ondragleave={(event) => handleFolderDragLeave(event, row.folder.id)}
-                  ondrop={(event) => handleFolderDrop(event, row.folder.id)}
                 >
                   <span class="file-table-icon" class:file-table-icon--selected={isSelected(row)}>
                     <Icon name={selectMode ? (isSelected(row) ? 'checkBox' : 'checkBoxBlank') : 'folder'} size="20px" />
@@ -777,9 +803,6 @@
                   <span
                     class="file-table-name file-table-folder-name file-table-drag-handle"
                     data-file-drag-handle
-                    draggable="true"
-                    ondragstart={(event) => handleItemDragStart(event, row)}
-                    ondragend={handleItemDragEnd}
                   >{row.folder.name}</span>
                   <span class="file-table-modified">{formatDate(row.folder.created_time)}</span>
                   <span class="file-table-type">{$t('files.directory')}</span>
@@ -809,9 +832,6 @@
                   <span
                     class="file-table-name file-table-drag-handle"
                     data-file-drag-handle
-                    draggable="true"
-                    ondragstart={(event) => handleItemDragStart(event, row)}
-                    ondragend={handleItemDragEnd}
                   >{row.document.title}</span>
                   <span class="file-table-modified">{formatDate(row.document.last_modified)}</span>
                   <span class="file-table-type">{documentTypeLabel(row.document.title)}</span>
@@ -871,13 +891,13 @@
   .file-table-row--dragged { opacity: 0.58; }
   .file-table-row--drop-target { background: color-mix(in srgb, var(--explorer-accent) 18%, var(--explorer-surface-hover)); box-shadow: inset 0 0 0 2px var(--explorer-accent); }
   .file-table-row--drop-forbidden { box-shadow: inset 0 0 0 2px var(--color-md3-error); }
-  .file-table-row--drop-forbidden, .file-table-row--drop-forbidden .file-table-drag-handle { cursor: not-allowed; }
+  .file-table-scroll-viewport.is-item-dragging, .file-table-scroll-viewport.is-item-dragging .file-table-row, .file-table-scroll-viewport.is-item-dragging .file-table-drag-handle { cursor: grabbing; }
+  .file-table-scroll-viewport.is-item-drop-forbidden, .file-table-scroll-viewport.is-item-drop-forbidden .file-table-row, .file-table-scroll-viewport.is-item-drop-forbidden .file-table-drag-handle { cursor: not-allowed; }
   .file-table-icon { display: inline-flex; color: var(--explorer-text-muted); }
   .file-table-folder-name, .file-table-row--folder .file-table-icon { color: var(--explorer-folder); }
   .file-table-icon--selected { color: var(--explorer-accent) !important; }
   .file-table-name { max-width: 100%; justify-self: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.81rem; }
-  .file-table-drag-handle { cursor: grab; user-select: none; }
-  .file-table-drag-handle:active { cursor: grabbing; }
+  .file-table-drag-handle { cursor: default; user-select: none; }
   .file-table-modified, .file-table-type, .file-table-size { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text-muted); font-size: 0.74rem; }
   .file-table-size { text-align: right; }
   .file-table-empty { padding: 3.5rem 1rem; text-align: center; color: var(--explorer-text-muted); font-size: 0.8rem; }

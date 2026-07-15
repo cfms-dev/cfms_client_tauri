@@ -163,7 +163,11 @@ describe('FileTable marquee activation', () => {
   });
 
   it('reserves dragging from the item name for item movement', async () => {
-    const { nameCell, setPointerCapture } = renderTable();
+    const { nameCell, viewport, setPointerCapture, onDragSelection, onMarqueeSelection } = renderTable();
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => nameCell,
+    });
 
     await fireEvent.pointerDown(nameCell, {
       pointerId: 10,
@@ -181,16 +185,80 @@ describe('FileTable marquee activation', () => {
       clientY: 76,
     });
 
-    expect(setPointerCapture).not.toHaveBeenCalled();
+    expect(setPointerCapture).toHaveBeenCalledWith(10);
+    expect(viewport.classList.contains('is-item-dragging')).toBe(true);
+    expect(onDragSelection).toHaveBeenCalledWith({ folderIds: ['folder-1'], documentIds: [] });
+    expect(onMarqueeSelection).not.toHaveBeenCalled();
+  });
+
+  it('reserves the full row for dragging when the item is already selected', async () => {
+    const { typeCell, viewport, setPointerCapture, onMarqueeSelection } = renderTable(
+      [{ id: 'folder-1', name: 'Folder', created_time: null }],
+      [],
+      { selectedFolderIds: new Set(['folder-1']) },
+    );
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => typeCell,
+    });
+
+    await fireEvent.pointerDown(typeCell, {
+      pointerId: 11,
+      pointerType: 'mouse',
+      isPrimary: true,
+      button: 0,
+      clientX: 620,
+      clientY: 56,
+    });
+    await fireEvent.pointerMove(typeCell, {
+      pointerId: 11,
+      pointerType: 'mouse',
+      isPrimary: true,
+      clientX: 640,
+      clientY: 76,
+    });
+
+    expect(setPointerCapture).toHaveBeenCalledWith(11);
+    expect(viewport.classList.contains('is-item-dragging')).toBe(true);
+    expect(onMarqueeSelection).not.toHaveBeenCalled();
   });
 });
 
-function dragTransfer() {
-  return {
-    effectAllowed: 'uninitialized',
-    dropEffect: 'none',
-    setData: vi.fn(),
-  };
+function pointAt(target: Element) {
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => target,
+  });
+}
+
+async function beginPointerDrag(source: Element, target: Element, pointerId: number) {
+  pointAt(target);
+  await fireEvent.pointerDown(source, {
+    pointerId,
+    pointerType: 'mouse',
+    isPrimary: true,
+    button: 0,
+    clientX: 80,
+    clientY: 56,
+  });
+  await fireEvent.pointerMove(source, {
+    pointerId,
+    pointerType: 'mouse',
+    isPrimary: true,
+    clientX: 120,
+    clientY: 96,
+  });
+}
+
+async function finishPointerDrag(source: Element, target: Element, pointerId: number) {
+  pointAt(target);
+  await fireEvent.pointerUp(source, {
+    pointerId,
+    pointerType: 'mouse',
+    isPrimary: true,
+    clientX: 120,
+    clientY: 96,
+  });
 }
 
 describe('FileTable item movement', () => {
@@ -200,19 +268,19 @@ describe('FileTable item movement', () => {
   ];
 
   it('moves an item dragged by its name into a directory', async () => {
-    const { container, onDragSelection, onMoveItems } = renderTable(folders);
+    const { container, viewport, onDragSelection, onMoveItems } = renderTable(folders);
     const sourceName = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-1"] [data-file-drag-handle]')!;
     const targetRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-2"]')!;
-    const dataTransfer = dragTransfer();
 
-    await fireEvent.dragStart(sourceName, { dataTransfer });
-    await fireEvent.dragOver(targetRow, { dataTransfer });
+    expect(viewport.classList.contains('is-item-dragging')).toBe(false);
+    await beginPointerDrag(sourceName, targetRow, 20);
+    expect(viewport.classList.contains('is-item-dragging')).toBe(true);
 
     expect(onDragSelection).toHaveBeenCalledWith({ folderIds: ['folder-1'], documentIds: [] });
-    expect(dataTransfer.dropEffect).toBe('move');
     expect(targetRow.classList.contains('file-table-row--drop-target')).toBe(true);
 
-    await fireEvent.drop(targetRow, { dataTransfer });
+    await finishPointerDrag(sourceName, targetRow, 20);
+    expect(viewport.classList.contains('is-item-dragging')).toBe(false);
     expect(onMoveItems).toHaveBeenCalledWith(
       { folderIds: ['folder-1'], documentIds: [] },
       'folder-2',
@@ -220,33 +288,45 @@ describe('FileTable item movement', () => {
   });
 
   it('uses the forbidden drop state and stays silent without move permission', async () => {
-    const { container, onMoveItems } = renderTable(folders, [], { canMoveItems: false });
+    const { container, viewport, onMoveItems } = renderTable(folders, [], { canMoveItems: false });
     const sourceName = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-1"] [data-file-drag-handle]')!;
     const targetRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-2"]')!;
-    const dataTransfer = dragTransfer();
 
-    await fireEvent.dragStart(sourceName, { dataTransfer });
-    await fireEvent.dragOver(targetRow, { dataTransfer });
+    await beginPointerDrag(sourceName, targetRow, 21);
 
-    expect(dataTransfer.dropEffect).toBe('none');
     expect(targetRow.classList.contains('file-table-row--drop-forbidden')).toBe(true);
+    expect(viewport.classList.contains('is-item-drop-forbidden')).toBe(true);
 
-    await fireEvent.drop(targetRow, { dataTransfer });
+    await finishPointerDrag(sourceName, targetRow, 21);
     expect(onMoveItems).not.toHaveBeenCalled();
   });
 
-  it('moves the full selection when dragging the name of a selected item', async () => {
+  it('keeps the move cursor while the drag is still over its source row', async () => {
+    const { container, onMoveItems } = renderTable(folders, [], {
+      selectedFolderIds: new Set(['folder-1']),
+    });
+    const sourceRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-1"]')!;
+    const sourceType = sourceRow.querySelector<HTMLElement>('.file-table-type')!;
+
+    await beginPointerDrag(sourceType, sourceRow, 22);
+
+    expect(sourceRow.classList.contains('file-table-row--drop-forbidden')).toBe(false);
+
+    await finishPointerDrag(sourceType, sourceRow, 22);
+    expect(onMoveItems).not.toHaveBeenCalled();
+  });
+
+  it('moves the full selection when dragging anywhere on a selected row', async () => {
     const documents = [{ id: 'document-1', title: 'Report.pdf', size: 20, last_modified: null }];
     const { container, onDragSelection, onMoveItems } = renderTable(folders, documents, {
       selectedFolderIds: new Set(['folder-1']),
       selectedDocumentIds: new Set(['document-1']),
     });
-    const documentName = container.querySelector<HTMLElement>('[data-selection-key="document:document-1"] [data-file-drag-handle]')!;
+    const documentType = container.querySelector<HTMLElement>('[data-selection-key="document:document-1"] .file-table-type')!;
     const targetRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-2"]')!;
-    const dataTransfer = dragTransfer();
 
-    await fireEvent.dragStart(documentName, { dataTransfer });
-    await fireEvent.drop(targetRow, { dataTransfer });
+    await beginPointerDrag(documentType, targetRow, 23);
+    await finishPointerDrag(documentType, targetRow, 23);
 
     expect(onDragSelection).not.toHaveBeenCalled();
     expect(onMoveItems).toHaveBeenCalledWith(
