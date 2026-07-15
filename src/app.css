@@ -364,14 +364,14 @@ html[data-theme="light"] {
   padding-bottom: var(--safe-area-bottom);
 }
 
-/* Shared top chrome for the unauthenticated routes. Keeping the safe-area
-   offsets here prevents route-specific toolbars from drifting into mobile
-   status bars while preserving the same alignment on desktop. */
+/* Shared top chrome for the unauthenticated routes. The root layout already
+   applies the safe-area insets, so these offsets are relative to its content
+   box. Re-applying the insets here would push the chrome down twice on mobile. */
 .auth-route-toolbar {
   position: absolute;
   z-index: 20;
-  inset-block-start: calc(var(--safe-area-top) + 1rem);
-  inset-inline-end: calc(var(--safe-area-right) + 1rem);
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
   display: flex;
   min-block-size: 2.25rem;
   align-items: center;
@@ -381,11 +381,11 @@ html[data-theme="light"] {
 .auth-route-title {
   position: absolute;
   z-index: 19;
-  inset-block-start: calc(var(--safe-area-top) + 1rem);
+  inset-block-start: 1rem;
   inset-inline-start: 50%;
   display: flex;
   min-block-size: 2.25rem;
-  max-inline-size: calc(100% - var(--safe-area-left) - var(--safe-area-right) - 2rem);
+  max-inline-size: calc(100% - 2rem);
   align-items: center;
   justify-content: center;
   margin: 0;

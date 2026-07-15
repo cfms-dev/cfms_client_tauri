@@ -521,9 +521,8 @@
 
     position: absolute;
     z-index: 20;
-    inset-block-start: calc(var(--safe-area-top) + 1rem);
-    inset-inline: calc(var(--safe-area-left) + 1rem)
-      calc(var(--safe-area-right) + 1rem);
+    inset-block-start: 1rem;
+    inset-inline: 1rem;
     display: grid;
     grid-template-columns:
       minmax(var(--connect-route-toolbar-width), 1fr)
