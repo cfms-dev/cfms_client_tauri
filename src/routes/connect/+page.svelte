@@ -250,45 +250,47 @@
 </script>
 
 <div class="connect-auth-shell workspace-palette" class:connect-auth-shell--login-return={playLoginReturnTransition}>
-  <h1 class="auth-route-title">{$t('connect.title')}</h1>
+  <header class="connect-route-header">
+    <h1 class="auth-route-title">{$t('connect.title')}</h1>
 
-  <div class="auth-route-toolbar">
-    <button
-      type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-      title={$t('keyboard.openHelp')}
-      aria-label={$t('keyboard.openHelp')}
-      aria-keyshortcuts="Control+/ Meta+/"
-      onclick={openKeyboardShortcutHelp}
-    >
-      <Icon name="keyboard" size="18px" />
-    </button>
-    <button
-      type="button"
-      class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-      title={$t('settings.title')}
-      aria-label={$t('settings.title')}
-      onclick={() => openUtilityFromToolbar('/home/settings')}
-    >
-      <Icon name="settings" size="18px" />
-    </button>
-    <button
-      type="button"
-      class="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
-      title={$t('more.about')}
-      aria-label={$t('more.about')}
-      onclick={() => openUtilityFromToolbar('/home/about')}
-    >
-      <Icon name="info" size="18px" />
-      {#if appUpdateState.update}
-        <span
-          class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-md3-error shadow-[0_0_0_3px_rgba(248,113,113,0.18)]"
-          aria-label={$t('settings.updates.available')}
-          title={$t('settings.updates.available')}
-        ></span>
-      {/if}
-    </button>
-  </div>
+    <div class="auth-route-toolbar">
+      <button
+        type="button"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+        title={$t('keyboard.openHelp')}
+        aria-label={$t('keyboard.openHelp')}
+        aria-keyshortcuts="Control+/ Meta+/"
+        onclick={openKeyboardShortcutHelp}
+      >
+        <Icon name="keyboard" size="18px" />
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+        title={$t('settings.title')}
+        aria-label={$t('settings.title')}
+        onclick={() => openUtilityFromToolbar('/home/settings')}
+      >
+        <Icon name="settings" size="18px" />
+      </button>
+      <button
+        type="button"
+        class="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface"
+        title={$t('more.about')}
+        aria-label={$t('more.about')}
+        onclick={() => openUtilityFromToolbar('/home/about')}
+      >
+        <Icon name="info" size="18px" />
+        {#if appUpdateState.update}
+          <span
+            class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-md3-error shadow-[0_0_0_3px_rgba(248,113,113,0.18)]"
+            aria-label={$t('settings.updates.available')}
+            title={$t('settings.updates.available')}
+          ></span>
+        {/if}
+      </button>
+    </div>
+  </header>
 
   <section class="connect-auth-panel">
   <div
@@ -512,6 +514,42 @@
     min-height: 100%;
     overflow: hidden;
     background: var(--explorer-background);
+  }
+
+  .connect-route-header {
+    --connect-route-toolbar-width: 7.75rem;
+
+    position: absolute;
+    z-index: 20;
+    inset-block-start: calc(var(--safe-area-top) + 1rem);
+    inset-inline: calc(var(--safe-area-left) + 1rem)
+      calc(var(--safe-area-right) + 1rem);
+    display: grid;
+    grid-template-columns:
+      minmax(var(--connect-route-toolbar-width), 1fr)
+      minmax(0, auto)
+      minmax(var(--connect-route-toolbar-width), 1fr);
+    align-items: center;
+  }
+
+  .connect-route-header .auth-route-title,
+  .connect-route-header .auth-route-toolbar {
+    position: static;
+    transform: none;
+  }
+
+  .connect-route-header .auth-route-title {
+    grid-column: 2;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .connect-route-header .auth-route-toolbar {
+    grid-column: 3;
+    justify-self: end;
   }
 
   .connect-auth-panel {
@@ -911,6 +949,23 @@
     height: 100%;
     width: 100%;
     object-fit: cover;
+  }
+
+  @media (max-width: 599px) {
+    .connect-route-header {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.5rem;
+    }
+
+    .connect-route-header .auth-route-title {
+      grid-column: 1;
+      justify-content: flex-start;
+      text-align: start;
+    }
+
+    .connect-route-header .auth-route-toolbar {
+      grid-column: 2;
+    }
   }
 
   @media (min-width: 1024px) {
