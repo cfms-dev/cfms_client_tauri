@@ -16,7 +16,6 @@
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => notificationStore.success($t('settings.privacy.saved')),
   });
 
   $effect(() => {

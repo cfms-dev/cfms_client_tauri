@@ -14,23 +14,11 @@
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
   let recordRecentVisits = $state(false);
-  let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   const autoSave = createAutoSave({
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => {
-      status = recordRecentVisits
-        ? $t('settings.activity.saved')
-        : $t('settings.activity.savedAndCleared');
-    },
-  });
-
-  $effect(() => {
-    if (!status) return;
-    notificationStore.success(status, 5000);
-    status = null;
   });
 
   $effect(() => {

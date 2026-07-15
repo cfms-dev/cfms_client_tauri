@@ -90,7 +90,6 @@
     busy = 'enable';
     try {
       await appLockStore.setEnabled(enabled);
-      notificationStore.success($t('appLock.settings.saved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -102,7 +101,6 @@
     busy = 'timed-lock';
     try {
       await appLockStore.setTimedLock(enabled, timeoutMs);
-      notificationStore.success($t('appLock.settings.saved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -119,7 +117,6 @@
     busy = 'enable';
     try {
       await appLockStore.resetToDefaults();
-      notificationStore.success($t('appLock.settings.saved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -146,7 +143,6 @@
         await appLockStore.refreshBiometricAvailability();
       }
       await appLockStore.setBiometricEnabled(enabled);
-      notificationStore.success($t('appLock.settings.saved'));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

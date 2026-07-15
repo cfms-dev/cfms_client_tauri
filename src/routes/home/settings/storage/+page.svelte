@@ -15,7 +15,6 @@
 
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);
-  let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   let useExternalStorage = $state(false);
   let externalStoragePath = $state('');
@@ -24,9 +23,6 @@
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => {
-      status = $t('settings.storage.saved');
-    },
   });
 
   const storagePath = $derived(
@@ -34,12 +30,6 @@
       ? externalStoragePath.trim()
       : $t('settings.storage.defaultPath'),
   );
-
-  $effect(() => {
-    if (!status) return;
-    notificationStore.success(status, 5000);
-    status = null;
-  });
 
   $effect(() => {
     if (!error) return;

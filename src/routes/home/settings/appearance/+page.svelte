@@ -80,7 +80,6 @@
         error = err instanceof Error ? err.message : String(err);
       });
     },
-    onSuccess: () => notificationStore.success($t('settings.appearance.saved')),
   });
 
   $effect(() => {

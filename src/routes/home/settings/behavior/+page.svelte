@@ -35,7 +35,6 @@
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => notificationStore.success($t('settings.behavior.saved')),
   });
 
   const canUseBackgroundBehavior = $derived(appLockStore.canUseRootBackBackground);

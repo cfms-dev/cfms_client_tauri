@@ -16,26 +16,16 @@
 
   let language = $state<AppLocale>('zh_CN');
   let loading = $state(true);
-  let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   const autoSave = createAutoSave({
     onError: (message) => {
       error = message;
-    },
-    onSuccess: () => {
-      status = $t('settings.language.saved');
     },
   });
 
   const selectedLanguageLabel = $derived(
     $t(languages.find((item) => item.value === language)?.labelKey ?? 'settings.language.chinese'),
   );
-
-  $effect(() => {
-    if (!status) return;
-    notificationStore.success(status);
-    status = null;
-  });
 
   $effect(() => {
     if (!error) return;

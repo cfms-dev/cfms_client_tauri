@@ -16,21 +16,11 @@
   let loading = $state(true);
   let maxDownloads = $state(3);
   let maxUploads = $state(3);
-  let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   const autoSave = createAutoSave({
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => {
-      status = $t('settings.tasks.saved');
-    },
-  });
-
-  $effect(() => {
-    if (!status) return;
-    notificationStore.success(status, 5000);
-    status = null;
   });
 
   $effect(() => {

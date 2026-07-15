@@ -38,9 +38,6 @@
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => {
-      status = $t('settings.connection.saved');
-    },
   });
 
   const showCustomProxy = $derived(config.enable_proxy && !config.follow_system_proxy);

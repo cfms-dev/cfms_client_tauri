@@ -15,24 +15,14 @@
 
   let channel = $state<UpdateChannel>('stable');
   let loading = $state(true);
-  let status = $state<string | null>(null);
   let error = $state<string | null>(null);
   const autoSave = createAutoSave({
     onError: (message) => {
       error = message;
     },
-    onSuccess: () => {
-      status = $t('settings.updates.saved');
-    },
   });
 
   const channelDescription = $derived($t(`settings.updates.${channel}Description`));
-
-  $effect(() => {
-    if (!status) return;
-    notificationStore.success(status);
-    status = null;
-  });
 
   $effect(() => {
     if (!error) return;
