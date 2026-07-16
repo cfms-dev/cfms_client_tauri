@@ -61,12 +61,13 @@ export async function resetUserPassword(
 export async function manageUserStatus(
   username: string,
   status: ManagedUserStatus,
+  reason?: string,
 ): Promise<boolean> {
-  return invoke("manage_user_status", { username, status });
+  return invoke("manage_user_status", { username, status, reason: reason ?? null });
 }
 
-export async function setLockdown(status: boolean): Promise<boolean> {
-  return invoke("set_lockdown", { status });
+export async function setLockdown(status: boolean, reason?: string): Promise<boolean> {
+  return invoke("set_lockdown", { status, reason: reason ?? null });
 }
 
 export async function blockUser(

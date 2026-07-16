@@ -129,6 +129,16 @@ pub async fn login(
             ))
         }
 
+        // --- Disabled account ---
+        4003 => {
+            let error_data = serde_json::to_string(&response.data)
+                .unwrap_or_else(|_| "{}".to_string());
+            Err(format!(
+                "Login failed: (4003) {}\nCFMS_ERROR_DATA:{}",
+                response.message, error_data
+            ))
+        }
+
         // --- Server-side error ---
         other => Err(format!("Login failed: ({}) {}", other, response.message)),
     }
@@ -733,6 +743,7 @@ pub async fn connect(
         .inner
         .app_lockdown
         .store(server_info.lockdown, std::sync::atomic::Ordering::SeqCst);
+    *state.inner.lockdown_reason.write().await = server_info.lockdown_reason.clone();
     if let Err(error) = remember_successful_connection(&state.settings, &url) {
         tracing::warn!("Failed to remember server address: {error}");
     }
@@ -748,6 +759,7 @@ pub async fn connect(
         "server_name": server_info.server_name,
         "protocol_version": server_info.protocol_version,
         "lockdown": server_info.lockdown,
+        "lockdown_reason": server_info.lockdown_reason,
     }))
 }
 

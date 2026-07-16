@@ -77,6 +77,8 @@ pub struct AppState {
     // --- Application ---
     /// Whether the server has activated lockdown mode.
     pub app_lockdown: AtomicBool,
+    /// Administrator-provided reason for the active lockdown, when present.
+    pub lockdown_reason: RwLock<Option<String>>,
 
     /// Runtime download queue concurrency, mirrored from user preferences.
     pub download_max_concurrent: AtomicUsize,
@@ -128,6 +130,7 @@ impl AppState {
             client_key_path: RwLock::new(None),
             reconnect_lock: Mutex::new(()),
             app_lockdown: AtomicBool::new(false),
+            lockdown_reason: RwLock::new(None),
             download_max_concurrent: AtomicUsize::new(cfms_core::DEFAULT_TASK_CONCURRENCY as usize),
             pending_2fa: AtomicBool::new(false),
             event_tx,

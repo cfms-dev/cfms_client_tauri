@@ -8,7 +8,7 @@
 // Protocol version
 // ---------------------------------------------------------------------------
 /// Current wire-protocol version.  Server and client negotiate based on this.
-pub const PROTOCOL_VERSION: u32 = 15;
+pub const PROTOCOL_VERSION: u32 = 16;
 
 // ---------------------------------------------------------------------------
 // Cryptographic parameters

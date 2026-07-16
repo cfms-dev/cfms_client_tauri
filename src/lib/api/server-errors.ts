@@ -1,6 +1,7 @@
 const SERVER_STATUS_PATTERN = /\bServer returned\s+(\d{3,4})\s*:/i;
 const PARENTHESIZED_STATUS_PATTERN = /^\s*\((\d{3,4})\)\s+/;
 const LOGIN_STATUS_PATTERN = /\bLogin failed:\s*\((\d{3,4})\)\s+/i;
+const ERROR_DATA_MARKER = "\nCFMS_ERROR_DATA:";
 
 /** Extract the server status code preserved in a Tauri command error string. */
 export function serverErrorStatus(error: unknown): number | null {
@@ -12,6 +13,20 @@ export function serverErrorStatus(error: unknown): number | null {
 
   const status = Number(match[1]);
   return Number.isFinite(status) ? status : null;
+}
+
+/** Extract the structured data appended to a Tauri command error. */
+export function serverErrorData(error: unknown): Record<string, unknown> | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const markerIndex = message.lastIndexOf(ERROR_DATA_MARKER);
+  if (markerIndex < 0) return null;
+
+  try {
+    const data = JSON.parse(message.slice(markerIndex + ERROR_DATA_MARKER.length));
+    return data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

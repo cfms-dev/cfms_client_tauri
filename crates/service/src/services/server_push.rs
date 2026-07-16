@@ -99,13 +99,13 @@ async fn dispatch_stream(state: Arc<AppState>, mut stream: cfms_transport::Strea
     tracing::debug!("Server push: event={event}, data={data:?}");
 
     match event {
-        "lockdown" => handle_lockdown(&state, &data),
+        "lockdown" => handle_lockdown(&state, &data).await,
         "" => tracing::debug!("Ignoring server push without event name"),
         other => tracing::debug!("Unhandled server push event: {other}"),
     }
 }
 
-fn handle_lockdown(state: &AppState, data: &serde_json::Value) {
+async fn handle_lockdown(state: &AppState, data: &serde_json::Value) {
     let status = data
         .get("status")
         .and_then(|s| s.as_bool())
@@ -113,6 +113,13 @@ fn handle_lockdown(state: &AppState, data: &serde_json::Value) {
     state
         .app_lockdown
         .store(status, std::sync::atomic::Ordering::SeqCst);
-    let _ = state.event_tx.send(ServiceEvent::Lockdown { status });
+    let reason = status
+        .then(|| data.get("reason").and_then(|value| value.as_str()))
+        .flatten()
+        .map(ToOwned::to_owned);
+    *state.lockdown_reason.write().await = reason.clone();
+    let _ = state
+        .event_tx
+        .send(ServiceEvent::Lockdown { status, reason });
     tracing::info!("Lockdown status changed: {status}");
 }

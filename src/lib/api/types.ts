@@ -210,6 +210,8 @@ export interface ManagedUser {
   created_time?: number | null;
   last_login?: number | null;
   passwd_last_modified?: number | null;
+  /** Current account state. Returned by get_user_info. */
+  status?: ManagedUserStatus;
 }
 
 export type ManagedUserStatus = "active" | "disabled";
@@ -349,7 +351,7 @@ export type ServiceEvent =
   | { event: "DownloadPaused"; data: { task_id: string } }
   | { event: "DownloadCancelled"; data: { task_id: string } }
   | { event: "ActiveCountChanged"; data: { count: number } }
-  | { event: "Lockdown"; data: { status: boolean } }
+  | { event: "Lockdown"; data: { status: boolean; reason: string | null } }
   | { event: "ConnectionRestored" }
   | { event: "ConnectionLost"; data: { error: string } }
   | { event: "TokenExpired" }
@@ -397,6 +399,7 @@ export interface ServerState {
   /** Wire-protocol version the connected server speaks. */
   protocol_version: number | null;
   lockdown: boolean;
+  lockdown_reason: string | null;
 }
 
 export interface TwoFactorStatus {
@@ -417,6 +420,7 @@ export interface ServerInfo {
   server_name: string;
   protocol_version: number;
   lockdown: boolean;
+  lockdown_reason: string | null;
 }
 
 export interface ConnectionSettings {

@@ -231,7 +231,10 @@ pub enum ServiceEvent {
     /// A download was cancelled.
     DownloadCancelled { task_id: String },
     /// Server lockdown status changed.
-    Lockdown { status: bool },
+    Lockdown {
+        status: bool,
+        reason: Option<String>,
+    },
     /// The primary connection was restored after an unexpected disconnect.
     ConnectionRestored,
     /// The primary connection could not be restored automatically.
@@ -358,6 +361,8 @@ pub struct ServerInfo {
     pub protocol_version: u32,
     /// Whether the server is currently in emergency lockdown mode.
     pub lockdown: bool,
+    /// Administrator-provided reason for the active lockdown, when present.
+    pub lockdown_reason: Option<String>,
 }
 
 /// Response data for the server's `list_directory` action.

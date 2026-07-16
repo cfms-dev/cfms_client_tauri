@@ -160,33 +160,53 @@ pub async fn manage_user_status(
     state: tauri::State<'_, AppHandleState>,
     username: String,
     status: String,
+    reason: Option<String>,
 ) -> Result<bool, String> {
-    server_action_bool(
-        &state,
-        "manage_user_status",
-        serde_json::json!({ "username": username, "status": status }),
-    )
-    .await
+    let mut data = serde_json::json!({ "username": username, "status": status });
+    if status == "disabled" {
+        if let Some(reason) = non_empty_optional(reason) {
+            data["reason"] = serde_json::Value::String(reason);
+        }
+    }
+    server_action_bool(&state, "manage_user_status", data).await
 }
 
 #[tauri::command]
 pub async fn set_lockdown(
     state: tauri::State<'_, AppHandleState>,
     status: bool,
+    reason: Option<String>,
 ) -> Result<bool, String> {
-    let changed =
-        server_action_bool(&state, "lockdown", serde_json::json!({ "status": status })).await?;
+    let mut data = serde_json::json!({ "status": status });
+    if status {
+        if let Some(reason) = non_empty_optional(reason) {
+            data["reason"] = serde_json::Value::String(reason);
+        }
+    }
+    let response = server_action_json(&state, "lockdown", data).await?;
+    let applied_status = response
+        .get("status")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(status);
+    let applied_reason = applied_status
+        .then(|| response.get("reason").and_then(serde_json::Value::as_str))
+        .flatten()
+        .map(ToOwned::to_owned);
 
     state
         .inner
         .app_lockdown
-        .store(status, std::sync::atomic::Ordering::SeqCst);
+        .store(applied_status, std::sync::atomic::Ordering::SeqCst);
+    *state.inner.lockdown_reason.write().await = applied_reason.clone();
     let _ = state
         .inner
         .event_tx
-        .send(cfms_core::ServiceEvent::Lockdown { status });
+        .send(cfms_core::ServiceEvent::Lockdown {
+            status: applied_status,
+            reason: applied_reason,
+        });
 
-    Ok(changed)
+    Ok(true)
 }
 
 #[tauri::command]

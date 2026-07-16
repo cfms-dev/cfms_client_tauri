@@ -83,6 +83,7 @@ export async function initEventListeners(): Promise<void> {
 
       case "Lockdown": {
         serverStateStore.lockdown = event.data.status;
+        serverStateStore.lockdownReason = event.data.reason;
         eventLog.push(
           "warning",
           `Lockdown ${event.data.status ? "activated" : "deactivated"}`,

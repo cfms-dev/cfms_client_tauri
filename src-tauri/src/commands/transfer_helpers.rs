@@ -1032,6 +1032,7 @@ async fn clear_connection_state(state: &AppHandleState) {
         .inner
         .app_lockdown
         .store(false, std::sync::atomic::Ordering::SeqCst);
+    *state.inner.lockdown_reason.write().await = None;
     {
         let mut ca = state.inner.ca_dir.write().await;
         *ca = None;
@@ -1115,6 +1116,7 @@ async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json
     let server_name = inner.server_name.read().await.clone();
     let protocol_version = inner.server_protocol_version.read().await;
     let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
+    let lockdown_reason = inner.lockdown_reason.read().await.clone();
 
     serde_json::json!({
         "connected": connected,
@@ -1122,6 +1124,7 @@ async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json
         "server_name": server_name,
         "protocol_version": *protocol_version,
         "lockdown": lockdown,
+        "lockdown_reason": lockdown_reason,
     })
 }
 
