@@ -210,11 +210,14 @@ export interface ManagedUser {
   created_time?: number | null;
   last_login?: number | null;
   passwd_last_modified?: number | null;
-  /** Current account state. Returned by get_user_info. */
-  status?: ManagedUserStatus;
 }
 
 export type ManagedUserStatus = "active" | "disabled";
+
+/** Detailed account data returned by get_user_info. */
+export interface ManagedUserInfo extends ManagedUser {
+  status: ManagedUserStatus;
+}
 
 export interface ManagedGroup {
   name: string;

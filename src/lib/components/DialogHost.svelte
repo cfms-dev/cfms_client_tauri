@@ -61,6 +61,7 @@
           <textarea
             bind:this={inputElement}
             bind:value={inputValue}
+            maxlength={dialogStore.current.maxLength}
             rows="9"
             class="min-h-44 w-full resize-y rounded-md border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
             placeholder={dialogStore.current.placeholder}
@@ -69,6 +70,7 @@
           <input
             bind:this={inputElement}
             bind:value={inputValue}
+            maxlength={dialogStore.current.maxLength}
             type={dialogStore.current.inputType}
             class="w-full rounded-md border border-md3-outline bg-md3-field px-3 py-2 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
             placeholder={dialogStore.current.placeholder}

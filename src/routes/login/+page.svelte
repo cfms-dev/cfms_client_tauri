@@ -41,6 +41,7 @@
     checkCachedAvatar,
     validateFileShortcuts,
     clearAuthSession,
+    serverErrorData,
     serverErrorStatus,
     type AuthStatus,
   } from "$lib/api";
@@ -418,7 +419,14 @@
     return serverErrorStatus(e) === 4003;
   }
 
-  async function enterAccountDisabledState(requestedAt: number) {
+  function getAccountDisabledReason(e: unknown): string | null {
+    const reason = serverErrorData(e)?.reason;
+    if (typeof reason !== "string") return null;
+    const trimmed = reason.trim();
+    return trimmed || null;
+  }
+
+  async function enterAccountDisabledState(requestedAt: number, reason: string | null) {
     const accountName = username.trim();
 
     // A 4003 can also arrive while completing 2FA. Clear any partial native
@@ -434,9 +442,7 @@
     pendingPassword = "";
     show2faDialog = false;
     disabledAccountName = accountName;
-    // Reserved for a future server-provided administrative reason. The UI
-    // supplies localized default copy while this remains null.
-    accountDisabledReason = null;
+    accountDisabledReason = reason;
     accountDisabledRequestTime = requestedAt;
     returningFromAccountDisabled = false;
     accountDisabled = true;
@@ -496,7 +502,7 @@
       await finalizeAuthenticatedLogin(authResult);
     } catch (e) {
       if (isAccountDisabledError(e)) {
-        await enterAccountDisabledState(loginRequestedAt);
+        await enterAccountDisabledState(loginRequestedAt, getAccountDisabledReason(e));
       } else if (isPasswordChangeRequired(e)) {
         // The server requires a password change before login (4001/4002).
         // Open the self-change dialog directly so the user can resolve it
@@ -552,7 +558,7 @@
       }
     } catch (e) {
       if (isAccountDisabledError(e)) {
-        await enterAccountDisabledState(loginRequestedAt);
+        await enterAccountDisabledState(loginRequestedAt, getAccountDisabledReason(e));
         return true;
       }
       // Let the dialog handle the verification error display.
@@ -664,7 +670,9 @@
             requestTimeLabel={$t('login.accountDisabledRequestTime')}
             requestTime={accountDisabledRequestTimeText}
             backLabel={$t('common.back')}
-            reason={accountDisabledReason ?? $t('login.accountDisabledReasonUnavailable')}
+            reason={accountDisabledReason
+              ? $t('login.accountDisabledReasonProvided', { values: { reason: accountDisabledReason } })
+              : $t('login.accountDisabledReasonUnavailable')}
             onBack={returnFromAccountDisabled}
           />
         </div>

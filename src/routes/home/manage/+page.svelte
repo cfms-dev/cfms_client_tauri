@@ -24,6 +24,7 @@
     type AuditLogEntry,
     type ManagedGroup,
     type ManagedUser,
+    type ManagedUserInfo,
     type ManagedUserStatus,
     type UserBlock,
     type UserBlockTarget,
@@ -61,7 +62,7 @@
     | { kind: 'user-groups'; user: ManagedUser }
     | { kind: 'user-permissions'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
-    | { kind: 'user-status'; user: ManagedUser }
+    | { kind: 'user-status'; user: ManagedUserInfo }
     | { kind: 'block-user'; user: ManagedUser }
     | { kind: 'group-permissions'; group: ManagedGroup }
     | null;
@@ -106,6 +107,7 @@
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
   let blocksDialog = $state<{ username: string; blocks: UserBlock[] } | null>(null);
   let activeDialog = $state<ManageDialogState>(null);
+  let accountDisableReason = $state('');
   let expandedActionRow = $state<string | null>(null);
   let identityMeasureHost = $state<HTMLDivElement | null>(null);
   let accountListElement = $state<HTMLDivElement | null>(null);
@@ -541,7 +543,11 @@
   }
 
   async function handleManageUserStatus(user: ManagedUser) {
-    activeDialog = { kind: 'user-status', user };
+    await runBusy(`status-info:${user.username}`, async () => {
+      const info = await getUserInfo(user.username);
+      accountDisableReason = '';
+      activeDialog = { kind: 'user-status', user: info };
+    });
   }
 
   async function handleViewUser(user: ManagedUser) {
@@ -551,6 +557,10 @@
       detailRows = [
         { label: $t('manage.username'), value: info.username },
         { label: $t('manage.nickname'), value: info.nickname || '-' },
+        {
+          label: $t('manage.accountStatus'),
+          value: info.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled'),
+        },
         { label: $t('manage.effectivePermissions'), value: formatList(info.permissions) },
         { label: $t('manage.ownPermissions'), value: formatList(info.own_permissions) },
         { label: $t('manage.inheritedPermissions'), value: formatList(info.inherited_permissions) },
@@ -772,7 +782,10 @@
     if (activeDialog?.kind !== 'user-status') return;
     const user = activeDialog.user;
     await runBusy(`status-user:${user.username}`, async () => {
-      await manageUserStatus(user.username, statusValue);
+      const reason = statusValue === 'disabled'
+        ? accountDisableReason.trim() || undefined
+        : undefined;
+      await manageUserStatus(user.username, statusValue, reason);
       status = $t('manage.userStatusUpdated', {
         values: { username: user.username },
       });
@@ -1324,27 +1337,54 @@
     closeLabel={$t('common.cancel')}
     onClose={() => (activeDialog = null)}
   >
-    <div class="space-y-4 p-5">
+    <div class="space-y-5 p-5">
       <p class="text-sm text-md3-on-surface-variant">{$t('manage.setAccountStatusDescription')}</p>
+      <div class="flex items-center justify-between rounded-lg bg-md3-surface-container-high px-4 py-3">
+        <span class="text-sm text-md3-on-surface-variant">{$t('manage.currentAccountStatus')}</span>
+        <span
+          class={`rounded-full px-3 py-1 text-xs font-semibold ${activeDialog.user.status === 'active'
+            ? 'bg-md3-primary-container text-md3-on-primary-container'
+            : 'bg-md3-error-container text-md3-on-error-container'
+          }`}
+        >
+          {activeDialog.user.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled')}
+        </span>
+      </div>
+      {#if activeDialog.user.status === 'active'}
+        <label class="grid gap-2 text-sm text-md3-on-surface">
+          <span class="font-medium">{$t('manage.disableReasonLabel')}</span>
+          <textarea
+            bind:value={accountDisableReason}
+            maxlength="1024"
+            rows="4"
+            placeholder={$t('manage.disableReasonPlaceholder')}
+            class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
+          ></textarea>
+          <span class="text-xs text-md3-on-surface-variant">{$t('manage.reasonOptional')}</span>
+        </label>
+      {/if}
       <div class="grid gap-2">
-        <button
-          type="button"
-          class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:opacity-50"
-          disabled={busyKey !== null}
-          onclick={() => saveActiveUserStatus('active')}
-        >
-          <Icon name="verifiedUser" size="20px" />
-          <span class="text-sm font-medium text-md3-on-surface">{$t('manage.statusActive')}</span>
-        </button>
-        <button
-          type="button"
-          class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-error-container/30 disabled:opacity-50"
-          disabled={busyKey !== null}
-          onclick={() => saveActiveUserStatus('disabled')}
-        >
-          <Icon name="block" size="20px" />
-          <span class="text-sm font-medium text-md3-on-surface">{$t('manage.statusDisabled')}</span>
-        </button>
+        {#if activeDialog.user.status === 'disabled'}
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:opacity-50"
+            disabled={busyKey !== null}
+            onclick={() => saveActiveUserStatus('active')}
+          >
+            <Icon name="verifiedUser" size="20px" />
+            <span class="text-sm font-medium text-md3-on-surface">{$t('manage.enableAccountAction')}</span>
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-error-container/30 disabled:opacity-50"
+            disabled={busyKey !== null}
+            onclick={() => saveActiveUserStatus('disabled')}
+          >
+            <Icon name="block" size="20px" />
+            <span class="text-sm font-medium text-md3-on-surface">{$t('manage.disableAccountAction')}</span>
+          </button>
+        {/if}
       </div>
     </div>
   </ModalFrame>

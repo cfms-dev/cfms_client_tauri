@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, ManagedGroup, ManagedUser, ManagedUserStatus, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 export async function listUsers(): Promise<ManagedUser[]> {
   const data = await invoke<{ users?: ManagedUser[] }>("list_users");
@@ -26,7 +26,7 @@ export async function deleteUser(username: string): Promise<boolean> {
   return invoke("delete_user", { username });
 }
 
-export async function getUserInfo(username: string): Promise<ManagedUser> {
+export async function getUserInfo(username: string): Promise<ManagedUserInfo> {
   return invoke("get_user_info", { username });
 }
 

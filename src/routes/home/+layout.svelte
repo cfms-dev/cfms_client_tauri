@@ -14,6 +14,7 @@
   } from '$lib/stores.svelte';
   import { appLockStore } from '$lib/app-lock.svelte';
   import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
+  import { dialogStore } from '$lib/dialogs.svelte';
   import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '$lib/api';
   import { favoriteRecordsFromPreference, type FileRecord } from '$lib/file-preferences';
   import Icon from '$lib/components/Icon.svelte';
@@ -192,8 +193,24 @@
     lockdownBusy = true;
     const nextStatus = !serverStateStore.lockdown;
     try {
-      await setLockdown(nextStatus);
+      let reason: string | undefined;
+      if (nextStatus) {
+        const input = await dialogStore.prompt({
+          title: $t('lockdown.enableReasonTitle'),
+          message: $t('lockdown.enableReasonDescription'),
+          placeholder: $t('lockdown.enableReasonPlaceholder'),
+          confirmLabel: $t('lockdown.enableAction'),
+          cancelLabel: $t('common.cancel'),
+          multiline: true,
+          maxLength: 1024,
+        });
+        if (input === null) return;
+        reason = input.trim() || undefined;
+      }
+
+      await setLockdown(nextStatus, reason);
       serverStateStore.lockdown = nextStatus;
+      serverStateStore.lockdownReason = nextStatus ? reason ?? null : null;
     } catch (error) {
       notificationStore.error(error instanceof Error ? error.message : String(error));
     } finally {

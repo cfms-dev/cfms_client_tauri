@@ -16,6 +16,7 @@ export interface PromptDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   multiline?: boolean;
+  maxLength?: number;
   inputType?: string;
   selectOnOpen?: boolean;
 }
@@ -63,6 +64,7 @@ export interface DialogRequest {
   cancelLabel: string;
   danger: boolean;
   multiline: boolean;
+  maxLength?: number;
   inputType: string;
   selectOnOpen: boolean;
   choices: ChoiceDialogOption[];
@@ -93,6 +95,7 @@ class DialogStoreImpl {
         cancelLabel: normalized.cancelLabel ?? "Cancel",
         danger: normalized.danger ?? false,
         multiline: false,
+        maxLength: undefined,
         inputType: "text",
         selectOnOpen: false,
         choices: [],
@@ -120,6 +123,7 @@ class DialogStoreImpl {
         cancelLabel: normalized.cancelLabel ?? "Cancel",
         danger: false,
         multiline: normalized.multiline ?? false,
+        maxLength: normalized.maxLength,
         inputType: normalized.inputType ?? "text",
         selectOnOpen: normalized.selectOnOpen ?? false,
         choices: [],
@@ -144,6 +148,7 @@ class DialogStoreImpl {
         cancelLabel: options.cancelLabel ?? "Cancel",
         danger: false,
         multiline: false,
+        maxLength: undefined,
         inputType: "text",
         selectOnOpen: false,
         choices: options.choices,

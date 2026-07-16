@@ -22,6 +22,7 @@
 
   let currentTime = $state('');
   let busyAction = $state<'quit' | 'disconnect' | 'logout' | null>(null);
+  const lockdownReason = $derived(serverStateStore.lockdownReason?.trim() ?? '');
 
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -115,6 +116,17 @@
     <p class="text-sm text-md3-on-surface-variant leading-relaxed">
       {$t('lockdown.body')}
     </p>
+
+    {#if lockdownReason}
+      <aside class="rounded-xl border border-md3-error/35 bg-md3-error-container/35 px-4 py-3 text-left">
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-md3-error">
+          {$t('lockdown.reasonLabel')}
+        </p>
+        <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-md3-on-error-container">
+          {lockdownReason}
+        </p>
+      </aside>
+    {/if}
 
     <!-- Live clock -->
     <div
