@@ -4,6 +4,26 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.36.0
+**Released on:** 2026-07-17
+
+**Title:** Protocol Version 16
+
+### Fixed
+- Update account deactivation reason message for clarity
+- Normalize managed user account status
+- Avoid duplicate mobile safe-area offset
+
+### Added
+- Surface account and lockdown reasons
+- Adapt client to protocol 16
+
+### Maintenance
+- Update dependencies and refactor crypto module for improved randomness handling
+- Update dependencies to latest versions
+
+--- 
+
 ## v0.35.0
 **Released on:** 2026-07-15
 
