@@ -2,6 +2,17 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AuditLogsResponse, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
+/** Raw status is the integer value of the server's UserStatus enum. */
+type ManagedUserInfoResponse = Omit<ManagedUserInfo, 'status'> & {
+  status: ManagedUserStatus | 0 | 1;
+};
+
+function normalizeManagedUserStatus(status: unknown): ManagedUserStatus {
+  if (status === 'active' || status === 0) return 'active';
+  if (status === 'disabled' || status === 1) return 'disabled';
+  throw new Error(`Invalid managed user status: ${String(status)}`);
+}
+
 export async function listUsers(): Promise<ManagedUser[]> {
   const data = await invoke<{ users?: ManagedUser[] }>("list_users");
   return data.users ?? [];
@@ -27,7 +38,11 @@ export async function deleteUser(username: string): Promise<boolean> {
 }
 
 export async function getUserInfo(username: string): Promise<ManagedUserInfo> {
-  return invoke("get_user_info", { username });
+  const info = await invoke<ManagedUserInfoResponse>("get_user_info", { username });
+  return {
+    ...info,
+    status: normalizeManagedUserStatus(info.status),
+  };
 }
 
 export async function changeUserGroups(
