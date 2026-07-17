@@ -121,7 +121,7 @@ export const en = {
     passwordChangedSignIn: 'Password changed successfully. Please sign in with your new password.',
     signInToServer: 'Sign in to {serverName}',
     accountDisabledTitle: 'Your account has been disabled',
-    accountDisabledReasonProvided: 'The server provided the following account deactivation reason: {reason}',
+    accountDisabledReasonProvided: 'The server provided the following deactivation reason: {reason}',
     accountDisabledReasonUnavailable: 'The server did not provide more information about why this account was disabled.',
     accountDisabledContactAdmin: 'The server rejected your login request because your account has been deactivated. This could be due to a number of reasons. If you have questions, contact your system administrator.',
     accountDisabledRequestTime: 'Request time',

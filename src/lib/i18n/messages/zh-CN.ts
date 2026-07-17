@@ -121,7 +121,7 @@ export const zh_CN = {
     passwordChangedSignIn: '密码修改成功。请使用新密码登录。',
     signInToServer: '登录到 {serverName}',
     accountDisabledTitle: '您的账户已停用',
-    accountDisabledReasonProvided: '服务器提供的账户停用如下：{reason}',
+    accountDisabledReasonProvided: '服务器提供的停用理由如下：{reason}',
     accountDisabledReasonUnavailable: '服务器未提供有关账户被停用的更多信息。',
     accountDisabledContactAdmin: '服务器拒绝了您的登录请求，因为您的账户已被停用。这可能是由多种原因导致的。如有疑问，请联系您的系统管理员。',
     accountDisabledRequestTime: '请求时间',
