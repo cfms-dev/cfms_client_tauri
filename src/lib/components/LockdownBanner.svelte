@@ -66,38 +66,40 @@
 
 <style>
   .lockdown-banner {
+    --lockdown-banner-resting-text: rgb(255 255 255);
+
     position: relative;
     isolation: isolate;
     width: 100%;
     height: calc(var(--lockdown-banner-content-height) + var(--safe-area-top, 0px));
     flex: none;
     padding-top: calc(0.625rem + var(--safe-area-top, 0px));
-    will-change: opacity, transform;
+    color: var(--lockdown-banner-resting-text);
+    background-color: transparent;
+    animation: lockdown-banner-pulse 3s ease-in-out infinite;
+    will-change: opacity, transform, color, background-color;
   }
 
-  .lockdown-banner::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    background-color: rgb(220 38 38);
-    content: '';
-    animation: lockdown-banner-pulse 3s linear infinite;
-    will-change: opacity;
+  :global(html[data-theme='light']) .lockdown-banner {
+    --lockdown-banner-resting-text: rgb(0 0 0);
   }
 
   @keyframes lockdown-banner-pulse {
     0%,
     46.67% {
-      opacity: 0;
+      color: var(--lockdown-banner-resting-text);
+      background-color: rgb(220 38 38 / 0%);
     }
 
     50%,
     96.67% {
-      opacity: 1;
+      color: rgb(255 255 255);
+      background-color: rgb(220 38 38);
     }
 
     100% {
-      opacity: 0;
+      color: var(--lockdown-banner-resting-text);
+      background-color: rgb(220 38 38 / 0%);
     }
   }
 
