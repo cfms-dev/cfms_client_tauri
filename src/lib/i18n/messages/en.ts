@@ -170,8 +170,7 @@ export const en = {
     logout: 'Log out',
     enableAction: 'Enable Lockdown',
     disableAction: 'Disable Lockdown',
-    enableReasonTitle: 'Enable Server Lockdown',
-    enableReasonDescription: 'You can provide a reason for this lockdown. It will be shown to affected users. Leave it blank to omit a reason.',
+    confirmEnableAction: 'Confirm Lockdown',
     enableReasonPlaceholder: 'Enter a lockdown reason (optional)',
     reasonLabel: 'Lockdown reason',
     quitHint:

@@ -14,12 +14,12 @@
   } from '$lib/stores.svelte';
   import { appLockStore } from '$lib/app-lock.svelte';
   import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
-  import { dialogStore } from '$lib/dialogs.svelte';
   import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '$lib/api';
   import { favoriteRecordsFromPreference, type FileRecord } from '$lib/file-preferences';
   import Icon from '$lib/components/Icon.svelte';
   import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import LockdownControl from '$lib/components/LockdownControl.svelte';
   import ShortcutKeys from '$lib/components/ShortcutKeys.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { WorkspaceNavItem } from '$lib/explorer/types';
@@ -188,26 +188,10 @@
     }
   }
 
-  async function toggleLockdown() {
+  async function applyLockdown(nextStatus: boolean, reason?: string) {
     if (lockdownBusy) return;
     lockdownBusy = true;
-    const nextStatus = !serverStateStore.lockdown;
     try {
-      let reason: string | undefined;
-      if (nextStatus) {
-        const input = await dialogStore.prompt({
-          title: $t('lockdown.enableReasonTitle'),
-          message: $t('lockdown.enableReasonDescription'),
-          placeholder: $t('lockdown.enableReasonPlaceholder'),
-          confirmLabel: $t('lockdown.enableAction'),
-          cancelLabel: $t('common.cancel'),
-          multiline: true,
-          maxLength: 1024,
-        });
-        if (input === null) return;
-        reason = input.trim() || undefined;
-      }
-
       await setLockdown(nextStatus, reason);
       serverStateStore.lockdown = nextStatus;
       serverStateStore.lockdownReason = nextStatus ? reason ?? null : null;
@@ -363,22 +347,17 @@
     {#if authStore.isLoggedIn}
     <div class="explorer-topbar-actions">
       {#if canApplyLockdown}
-        <button
-          bind:this={accountTriggerElement}
-          type="button"
-          class="explorer-command-button explorer-lockdown-button"
-          data-active={serverStateStore.lockdown ? 'true' : undefined}
-          disabled={lockdownBusy}
-          aria-pressed={serverStateStore.lockdown}
-          title={serverStateStore.lockdown ? $t('lockdown.disableAction') : $t('lockdown.enableAction')}
-          onclick={toggleLockdown}
-        >
-          {#if lockdownBusy}
-            <ProgressRing size={17} strokeWidth={2.5} label={$t('common.saving')} />
-          {:else}
-            <Icon name="supervisedUserCircleOff" size="18px" />
-          {/if}
-        </button>
+        <LockdownControl
+          active={serverStateStore.lockdown}
+          busy={lockdownBusy}
+          enableLabel={$t('lockdown.enableAction')}
+          disableLabel={$t('lockdown.disableAction')}
+          confirmLabel={$t('lockdown.confirmEnableAction')}
+          cancelLabel={$t('common.cancel')}
+          reasonLabel={$t('lockdown.reasonLabel')}
+          reasonPlaceholder={$t('lockdown.enableReasonPlaceholder')}
+          onToggle={applyLockdown}
+        />
       {/if}
 
       <div
@@ -390,6 +369,7 @@
         onfocusout={handleAccountFocusOut}
       >
         <button
+          bind:this={accountTriggerElement}
           type="button"
           class="explorer-account-trigger"
           aria-label={$t('common.accountMenu')}
@@ -576,8 +556,6 @@
   .explorer-route-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text); font-family: var(--font-md3-sans); font-size: 0.9rem; font-weight: 600; }
   .explorer-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
   .explorer-public-utility-close { width: 34px; margin-left: auto; padding-inline: 0; }
-  .explorer-lockdown-button { width: 34px; padding-inline: 0; }
-  .explorer-lockdown-button[data-active="true"] { color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 14%, transparent); }
   .explorer-account-wrap { position: relative; }
   .explorer-account-wrap::after { position: absolute; top: 100%; right: 0; left: 0; height: 0.45rem; content: ''; }
   .explorer-account-trigger { display: flex; max-width: 230px; align-items: center; gap: 0.55rem; border: 1px solid transparent; border-radius: 999px; padding: 0.3rem 0.5rem; color: var(--explorer-text); font-family: var(--font-md3-sans); text-align: left; transition: background 120ms ease, border-color 120ms ease; }
