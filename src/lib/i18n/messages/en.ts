@@ -172,6 +172,7 @@ export const en = {
     disableAction: 'Disable Lockdown',
     confirmEnableAction: 'Confirm Lockdown',
     enableReasonPlaceholder: 'Enter a lockdown reason (optional)',
+    reasonCharactersRemaining: '{count} characters left',
     reasonLabel: 'Lockdown reason',
     quitHint:
       'Exit requests may be limited by the mobile operating system. Disconnect or log out if the app remains open.',

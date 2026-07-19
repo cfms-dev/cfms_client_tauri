@@ -12,6 +12,7 @@
     cancelLabel: string;
     reasonLabel: string;
     reasonPlaceholder: string;
+    remainingLabel: (count: number) => string;
     onToggle: (status: boolean, reason?: string) => Promise<void> | void;
   }
 
@@ -24,6 +25,7 @@
     cancelLabel,
     reasonLabel,
     reasonPlaceholder,
+    remainingLabel,
     onToggle,
   }: Props = $props();
 
@@ -35,6 +37,7 @@
   const primaryLabel = $derived(
     awaitingConfirmation ? confirmLabel : active ? disableLabel : enableLabel,
   );
+  const remainingCharacters = $derived(1024 - reason.length);
 
   $effect(() => {
     if (active && awaitingConfirmation) resetConfirmation();
@@ -88,6 +91,9 @@
         void handlePrimaryAction();
       }}
     >
+      <span class="lockdown-remaining-count" aria-live="polite" aria-atomic="true">
+        {remainingLabel(remainingCharacters)}
+      </span>
       <input
         bind:this={reasonInput}
         bind:value={reason}
@@ -165,6 +171,13 @@
     background: color-mix(in srgb, var(--explorer-surface-raised) 96%, transparent);
     font: 0.75rem/1 var(--font-md3-sans);
     transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+  }
+
+  .lockdown-remaining-count {
+    flex: none;
+    color: var(--explorer-text-muted);
+    font: 0.68rem/1.2 var(--font-md3-sans);
+    white-space: nowrap;
   }
 
   .lockdown-reason-entry input::placeholder {

@@ -168,6 +168,7 @@ export const zh_CN = {
     disableAction: '停用锁定',
     confirmEnableAction: '确认启用锁定',
     enableReasonPlaceholder: '输入锁定理由（可选）',
+    reasonCharactersRemaining: '还可输入 {count} 字',
     reasonLabel: '锁定理由',
     quitHint: '移动系统可能限制应用主动退出。若应用仍保持打开，请改用断开连接或退出登录。',
     banner: '系统封锁',

@@ -356,6 +356,7 @@
           cancelLabel={$t('common.cancel')}
           reasonLabel={$t('lockdown.reasonLabel')}
           reasonPlaceholder={$t('lockdown.enableReasonPlaceholder')}
+          remainingLabel={(count) => $t('lockdown.reasonCharactersRemaining', { values: { count } })}
           onToggle={applyLockdown}
         />
       {/if}

@@ -13,6 +13,7 @@ const labels = {
   cancelLabel: 'Cancel',
   reasonLabel: 'Lockdown reason',
   reasonPlaceholder: 'Optional reason',
+  remainingLabel: (count: number) => `${count} characters left`,
 };
 
 describe('LockdownControl', () => {
@@ -25,6 +26,7 @@ describe('LockdownControl', () => {
 
     expect(onToggle).not.toHaveBeenCalled();
     expect(screen.getByRole('textbox', { name: 'Lockdown reason' })).toBeTruthy();
+    expect(screen.getByText('1024 characters left')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Confirm lockdown' })).toBe(primaryButton);
 
     await fireEvent.click(primaryButton);
@@ -38,6 +40,7 @@ describe('LockdownControl', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Enable lockdown' }));
     await fireEvent.input(screen.getByRole('textbox'), { target: { value: '  Incident response  ' } });
+    expect(screen.getByText('1003 characters left')).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Confirm lockdown' }));
 
     expect(onToggle).toHaveBeenCalledWith(true, 'Incident response');
