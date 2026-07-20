@@ -2,17 +2,15 @@
   // More page — user account overview and navigation hub.
   //
   // Shows the AccountBadge and menu entries to secondary pages:
-  // Change Password, Settings, About, Trash, and Manage (admin only).
+  // Settings, About, Trash, and Manage (admin only).
   //
   // Reference: MoreView in reference/src/include/ui/views/more.py
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { authStore } from '$lib/stores.svelte';
   import { appUpdateState } from '$lib/app-update-state.svelte';
-  import { changePassword, clearAuthSession } from '$lib/api';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
-  import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { IconName } from '$lib/icons';
@@ -23,7 +21,6 @@
     )
   );
 
-  let showChangePassword = $state(false);
   let showAvatarPicker = $state(false);
 
   interface MenuEntry {
@@ -40,7 +37,7 @@
 
   const menuEntries = $derived<MenuEntry[]>([
     { label: $t('login.changePassword'), description: $t('more.changePasswordDescription'),
-      icon: 'password', action: () => { showChangePassword = true; } },
+      icon: 'password', href: '/home/settings/password' },
     { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
     { label: $t('files.trash'), description: $t('more.trashDescription'),
@@ -56,18 +53,6 @@
   function handleEntry(entry: MenuEntry) {
     if (entry.action) entry.action();
     else if (entry.href) goto(entry.href);
-  }
-
-  /** Submit handler for the change-password dialog (logged-in self-change). */
-  async function handleChangePassword(oldPassword: string, newPassword: string): Promise<void> {
-    const username = authStore.username;
-    if (!username) throw $t('more.notSignedInError');
-    await changePassword(username, oldPassword, newPassword);
-    showChangePassword = false;
-    await clearAuthSession();
-    authStore.clear();
-    notificationStore.success($t('more.passwordChanged'));
-    await goto('/login', { replaceState: true });
   }
 
 </script>
@@ -133,16 +118,6 @@
     .account-menu-grid > button { border-right: 0; }
   }
 </style>
-
-<!-- Change Password dialog (logged-in self-change). -->
-{#if showChangePassword}
-  <ChangePasswordDialog
-    username={authStore.username ?? ''}
-    tip={$t('more.passwordTip')}
-    onSubmit={handleChangePassword}
-    onCancel={() => (showChangePassword = false)}
-  />
-{/if}
 
 {#if showAvatarPicker}
   <UserAvatarPicker onClose={() => (showAvatarPicker = false)} />

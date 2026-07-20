@@ -80,6 +80,13 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     requiresAuth: true,
   },
   {
+    labelKey: 'settings.password.title',
+    descriptionKey: 'settings.password.description',
+    icon: 'password',
+    href: '/home/settings/password',
+    requiresAuth: true,
+  },
+  {
     labelKey: 'settings.updates.title',
     descriptionKey: 'settings.updates.description',
     icon: 'browserUpdated',

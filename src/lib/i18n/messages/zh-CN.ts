@@ -579,7 +579,6 @@ export const zh_CN = {
     management: '管理',
     managementDescription: '用户和用户组管理',
     passwordChanged: '密码修改成功。',
-    notSignedInError: '未登录。',
     passwordTip: '输入当前密码并选择新密码。',
   },
   about: {
@@ -924,6 +923,16 @@ export const zh_CN = {
       screenshotProtection: '防止截图和屏幕录制',
       screenshotProtectionHint: '登录后默认阻止系统截图、屏幕录制和最近任务预览捕获应用窗口。',
       forcedHint: '登录界面、应用锁锁定状态和设置应用锁 PIN 时会始终启用此保护，且不可关闭。',
+    },
+    password: {
+      title: '修改密码',
+      description: '更新当前账户的登录密码',
+      accountTitle: '账户密码',
+      accountHint: '为当前登录的账户设置一个新密码。',
+      signedInAs: '当前账户：{username}',
+      action: '修改密码',
+      sessionHint: '修改成功后，当前会话将安全退出，你需要使用新密码重新登录。',
+      signInRequired: '请先登录，再修改账户密码。',
     },
     tasks: {
       title: '任务',

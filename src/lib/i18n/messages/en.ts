@@ -584,7 +584,6 @@ export const en = {
     management: 'Management',
     managementDescription: 'User and group administration',
     passwordChanged: 'Password changed successfully.',
-    notSignedInError: 'Not signed in.',
     passwordTip: 'Enter your current password and choose a new one.',
   },
   about: {
@@ -933,6 +932,16 @@ export const en = {
       screenshotProtection: 'Block screenshots and screen recording',
       screenshotProtectionHint: 'After sign-in, block system screenshots, screen recording, and recent-task previews by default.',
       forcedHint: 'The login screen, locked App Lock state, and App Lock PIN setup always keep this protection on.',
+    },
+    password: {
+      title: 'Change Password',
+      description: 'Update the sign-in password for this account',
+      accountTitle: 'Account Password',
+      accountHint: 'Set a new password for the currently signed-in account.',
+      signedInAs: 'Current account: {username}',
+      action: 'Change Password',
+      sessionHint: 'After the password is changed, this session will securely sign out and you will need to sign in with the new password.',
+      signInRequired: 'Sign in before changing your account password.',
     },
     tasks: {
       title: 'Tasks',
