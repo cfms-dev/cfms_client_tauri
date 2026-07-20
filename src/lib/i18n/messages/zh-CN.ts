@@ -930,7 +930,6 @@ export const zh_CN = {
     password: {
       accountTitle: '账户密码',
       accountHint: '为当前登录的账户设置一个新密码。',
-      signedInAs: '当前账户：{username}',
       action: '修改密码',
       sessionHint: '修改成功后，当前会话将安全退出，你需要使用新密码重新登录。',
       signInRequired: '请先登录，再修改账户密码。',
@@ -978,8 +977,7 @@ export const zh_CN = {
     },
     twofa: {
       title: '二步验证',
-      readyDescription: '此账户的身份验证器应用验证。',
-      signInDescription: '请先登录，再管理账户二步验证。',
+      description: '为账户启用双因素验证，以提高账户的安全性。',
       method: '方式',
       backupCodesCount: '备用代码',
       secret: '密钥',

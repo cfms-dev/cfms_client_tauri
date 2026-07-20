@@ -939,7 +939,6 @@ export const en = {
     password: {
       accountTitle: 'Account Password',
       accountHint: 'Set a new password for the currently signed-in account.',
-      signedInAs: 'Current account: {username}',
       action: 'Change Password',
       sessionHint: 'After the password is changed, this session will securely sign out and you will need to sign in with the new password.',
       signInRequired: 'Sign in before changing your account password.',
@@ -987,8 +986,7 @@ export const en = {
     },
     twofa: {
       title: 'Two-Factor Auth',
-      readyDescription: 'Authenticator app verification for this account.',
-      signInDescription: 'Sign in before managing account 2FA.',
+      description: 'Enable two-factor authentication for your account to improve its security.',
       method: 'Method',
       backupCodesCount: 'Backup codes',
       secret: 'Secret',

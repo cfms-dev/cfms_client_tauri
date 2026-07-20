@@ -198,31 +198,16 @@
     class="overflow-hidden rounded-xl border border-md3-outline
            bg-md3-surface-container/70 backdrop-blur-sm"
   >
-    <div class="flex items-start gap-4 p-5">
-      <span
-        class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-               bg-md3-primary-container/70 text-md3-on-primary-container"
-        aria-hidden="true"
+    <div class="p-5">
+      <h2
+        class="text-sm font-semibold text-md3-on-surface"
+        style="font-family: var(--font-md3-sans);"
       >
-        <Icon name="lockPerson" size="23px" />
-      </span>
-
-      <div class="min-w-0 flex-1">
-        <h2
-          class="text-sm font-semibold text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('settings.password.accountTitle')}
-        </h2>
-        <p class="mt-1 text-xs leading-5 text-md3-on-surface-variant">
-          {authStore.isLoggedIn && authStore.username
-            ? $t('settings.password.signedInAs', { values: { username: authStore.username } })
-            : $t('settings.password.signInRequired')}
-        </p>
-        <p class="mt-2 text-sm leading-6 text-md3-on-surface-variant">
-          {$t('settings.password.accountHint')}
-        </p>
-      </div>
+        {$t('settings.password.accountTitle')}
+      </h2>
+      <p class="mt-1 text-xs text-md3-on-surface-variant">
+        {$t('settings.password.accountHint')}
+      </p>
     </div>
 
     <div
@@ -254,26 +239,17 @@
     aria-labelledby="account-twofa-title"
   >
     <div class="flex items-start justify-between gap-3">
-      <div class="flex min-w-0 items-start gap-4">
-        <span
-          class="grid h-11 w-11 shrink-0 place-items-center rounded-xl
-                 bg-md3-primary-container/70 text-md3-on-primary-container"
-          aria-hidden="true"
+      <div class="min-w-0">
+        <h2
+          id="account-twofa-title"
+          class="text-sm font-semibold text-md3-on-surface"
+          style="font-family: var(--font-md3-sans);"
         >
-          <Icon name="verifiedUser" size="23px" />
-        </span>
-        <div>
-          <h2
-            id="account-twofa-title"
-            class="text-sm font-semibold text-md3-on-surface"
-            style="font-family: var(--font-md3-sans);"
-          >
-            {$t('settings.twofa.title')}
-          </h2>
-          <p class="mt-1 text-xs leading-5 text-md3-on-surface-variant">
-            {authReady ? $t('settings.twofa.readyDescription') : $t('settings.twofa.signInDescription')}
-          </p>
-        </div>
+          {$t('settings.twofa.title')}
+        </h2>
+        <p class="mt-1 text-xs text-md3-on-surface-variant">
+          {$t('settings.twofa.description')}
+        </p>
       </div>
       <span
         class="shrink-0 rounded-full px-3 py-1 text-xs font-medium"
