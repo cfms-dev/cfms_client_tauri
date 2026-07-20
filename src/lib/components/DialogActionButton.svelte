@@ -61,6 +61,12 @@
     opacity: 0.45;
   }
 
+  /* Loading indicators replace the button icon, so they should use the same
+     foreground token instead of ProgressRing's standalone primary colour. */
+  .dialog-action-button :global(.md-progress-ring) {
+    color: inherit;
+  }
+
   .dialog-action-button--secondary {
     color: var(--explorer-text-muted, var(--color-md3-on-surface-variant));
     background: transparent;
