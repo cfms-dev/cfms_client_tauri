@@ -4,6 +4,29 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.37.0
+**Released on:** 2026-07-20
+
+**Title:** Password Modification
+
+This version reintroduces the in-app entry point for changing the password and includes several behavioral optimizations.
+
+### Added
+- Update password change conditions to include user login and permissions
+- Update password and two-factor authentication sections with improved descriptions and styling
+- Enhance recent server address menu with improved styling and functionality
+- Add account entry to settings and update visibility tests
+- Refactor account settings and remove change password page
+- Add change password functionality and update related UI components
+- Add remaining character count for lockdown reason input
+- Implement LockdownControl component with confirmation and reason input
+
+### Fixed
+- Fix loading indicator styling for dialog action button
+- Enhance lockdown banner styling and animation effects
+
+--- 
+
 ## v0.36.0
 **Released on:** 2026-07-17
 
