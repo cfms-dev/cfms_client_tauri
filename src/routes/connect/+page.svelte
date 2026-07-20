@@ -41,6 +41,7 @@
   import MdSwitch from "$lib/components/MdSwitch.svelte";
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import { openKeyboardShortcutHelp } from "$lib/keyboard";
+  import { menuScale } from "$lib/motion/transitions";
   import { isServerAddressValid, parseServerAddress } from "$lib/server-address";
 
   let hostPort = $state("localhost:5104");
@@ -335,12 +336,6 @@
               bind:this={serverAddressInput}
               disabled={busy}
               onkeydown={handleServerAddressKeydown}
-              onfocus={() => {
-                if (canShowRecentAddresses) {
-                  recentAddressesOpen = true;
-                  recentAddressActiveIndex = Math.max(0, recentConnectionAddresses.indexOf(hostPort));
-                }
-              }}
               role="combobox"
               aria-autocomplete="list"
               aria-haspopup="listbox"
@@ -353,9 +348,8 @@
             {#if canShowRecentAddresses}
               <button
                 type="button"
-                class="flex h-10 w-10 shrink-0 items-center justify-center text-md3-on-surface-variant
-                       transition-colors hover:bg-md3-surface-container-high/70 hover:text-md3-on-surface
-                       disabled:opacity-50"
+                class="recent-address-trigger"
+                class:recent-address-trigger--open={recentAddressesOpen}
                 aria-label={$t('connect.recentAddresses')}
                 aria-expanded={recentAddressesOpen}
                 aria-controls="recentServerAddressList"
@@ -370,27 +364,32 @@
           {#if canShowRecentAddresses && recentAddressesOpen}
             <div
               id="recentServerAddressList"
-              class="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-xl border border-md3-outline
-                     bg-md3-surface-container-high shadow-xl shadow-black/20 animate-fade-scale-in"
+              class="recent-address-menu"
               role="listbox"
+              aria-label={$t('connect.recentAddresses')}
+              transition:menuScale={{ duration: 160, y: -4 }}
             >
-              {#each recentConnectionAddresses as address}
+              {#each recentConnectionAddresses as address, index}
                 <button
-                  id={`recent-server-address-${recentConnectionAddresses.indexOf(address)}`}
+                  id={`recent-server-address-${index}`}
                   type="button"
-                  class="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm text-md3-on-surface
-                         transition-colors hover:bg-md3-primary-container/45 focus:bg-md3-primary-container/45
-                         focus:outline-none {recentAddressActiveIndex === recentConnectionAddresses.indexOf(address) ? 'bg-md3-primary-container/45' : ''}"
+                  class="recent-address-option"
+                  class:recent-address-option--active={recentAddressActiveIndex === index}
+                  class:recent-address-option--selected={hostPort === address}
                   role="option"
                   aria-selected={hostPort === address}
                   tabindex="-1"
-                  onmouseenter={() => (recentAddressActiveIndex = recentConnectionAddresses.indexOf(address))}
+                  onmouseenter={() => (recentAddressActiveIndex = index)}
                   onclick={() => chooseRecentAddress(address)}
                 >
-                  <Icon name="history" size="16px" />
-                  <span class="min-w-0 flex-1 truncate font-mono">{address}</span>
+                  <span class="recent-address-option__leading" aria-hidden="true">
+                    <Icon name="history" size="16px" />
+                  </span>
+                  <span class="recent-address-option__label">{address}</span>
                   {#if hostPort === address}
-                    <Icon name="done" size="16px" />
+                    <span class="recent-address-option__check" aria-hidden="true">
+                      <Icon name="done" size="17px" />
+                    </span>
                   {/if}
                 </button>
               {/each}
@@ -933,6 +932,120 @@
     height: 42px;
     padding-left: 0.25rem;
     font-family: var(--font-md3-sans);
+  }
+
+  .recent-address-trigger {
+    display: inline-flex;
+    inline-size: 32px;
+    block-size: 32px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    margin-inline-end: 0.3rem;
+    border-radius: 50%;
+    color: var(--explorer-text-muted);
+    transition:
+      color 140ms var(--motion-easing-standard),
+      background-color 140ms var(--motion-easing-standard),
+      transform 180ms var(--motion-easing-emphasized-decelerate);
+  }
+
+  .recent-address-trigger:hover:not(:disabled),
+  .recent-address-trigger--open {
+    color: var(--explorer-accent);
+    background: var(--explorer-accent-soft);
+  }
+
+  .recent-address-trigger:active:not(:disabled) {
+    transform: scale(0.92);
+  }
+
+  .recent-address-trigger:disabled {
+    opacity: 0.5;
+  }
+
+  .recent-address-menu {
+    position: absolute;
+    z-index: 30;
+    inset-block-start: calc(100% + 0.5rem);
+    inset-inline: 0;
+    display: grid;
+    max-block-size: min(280px, calc(100dvh - 8rem));
+    gap: 0.125rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--explorer-border-strong);
+    border-radius: var(--explorer-radius-large);
+    padding: 0.375rem;
+    background: color-mix(in srgb, var(--explorer-surface-raised) 96%, transparent);
+    box-shadow: var(--explorer-shadow);
+    backdrop-filter: blur(24px);
+    transform-origin: top center;
+    scrollbar-width: thin;
+    scrollbar-color: var(--explorer-border-strong) transparent;
+    will-change: opacity, transform, filter;
+  }
+
+  .recent-address-option {
+    display: grid;
+    min-block-size: 42px;
+    grid-template-columns: 20px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 0.625rem;
+    border-radius: var(--explorer-radius-medium);
+    padding: 0.5rem 0.625rem;
+    color: var(--explorer-text);
+    background: transparent;
+    font-family: var(--font-md3-sans);
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    text-align: start;
+    transition:
+      color 120ms var(--motion-easing-standard),
+      background-color 120ms var(--motion-easing-standard);
+  }
+
+  .recent-address-option:hover,
+  .recent-address-option--active {
+    background: var(--explorer-surface-hover);
+  }
+
+  .recent-address-option--selected {
+    background: var(--explorer-accent-soft);
+  }
+
+  .recent-address-option--selected:hover,
+  .recent-address-option--selected.recent-address-option--active {
+    background: color-mix(
+      in srgb,
+      var(--explorer-accent-soft) 68%,
+      var(--explorer-surface-hover)
+    );
+  }
+
+  .recent-address-option__leading,
+  .recent-address-option__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .recent-address-option__leading {
+    color: var(--explorer-text-muted);
+  }
+
+  .recent-address-option__check {
+    grid-column: 3;
+    color: var(--explorer-accent);
+  }
+
+  .recent-address-option__label {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-md3-mono);
   }
 
   .connect-auth-visual {
