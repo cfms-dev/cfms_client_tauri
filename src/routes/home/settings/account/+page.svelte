@@ -34,6 +34,11 @@
 
   const enabled = $derived(Boolean(twofa?.enabled));
   const statusLabel = $derived(enabled ? $t('common.enabled') : $t('common.disabled'));
+  const canChangePassword = $derived(
+    authStore.isLoggedIn
+      && Boolean(authStore.username)
+      && authStore.permissions.includes('set_passwd'),
+  );
   const canVerify = $derived(Boolean(setup && verificationCode.trim().length > 0));
   const canDisable = $derived(enabled && disablePassword.trim().length > 0);
 
@@ -224,7 +229,7 @@
                text-md3-on-primary-container transition-all hover:brightness-110
                disabled:cursor-not-allowed disabled:opacity-50"
         style="font-family: var(--font-md3-sans);"
-        disabled={!authStore.isLoggedIn || !authStore.username}
+        disabled={!canChangePassword}
         onclick={() => (showPasswordDialog = true)}
       >
         <Icon name="password" size="18px" />
@@ -403,7 +408,7 @@
   </section>
 </div>
 
-{#if showPasswordDialog && authStore.username}
+{#if showPasswordDialog && canChangePassword && authStore.username}
   <ChangePasswordDialog
     username={authStore.username}
     tip={$t('more.passwordTip')}
