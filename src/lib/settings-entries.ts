@@ -45,6 +45,13 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     href: '/home/settings/connection',
   },
   {
+    labelKey: 'settings.account.title',
+    descriptionKey: 'settings.account.description',
+    icon: 'accountCircle',
+    href: '/home/settings/account',
+    requiresAuth: true,
+  },
+  {
     labelKey: 'settings.storage.title',
     descriptionKey: 'settings.storage.description',
     icon: 'storage',
@@ -77,13 +84,6 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     descriptionKey: 'appLock.settings.description',
     icon: 'lockPerson',
     href: '/home/settings/app-lock',
-    requiresAuth: true,
-  },
-  {
-    labelKey: 'settings.account.title',
-    descriptionKey: 'settings.account.description',
-    icon: 'accountCircle',
-    href: '/home/settings/account',
     requiresAuth: true,
   },
   {

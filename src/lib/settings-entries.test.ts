@@ -9,6 +9,13 @@ describe('settings entry visibility', () => {
     expect(entries.some((entry) => entry.href === '/home/settings/twofa')).toBe(false);
   });
 
+  it('places the account entry immediately after connection', () => {
+    const entries = getVisibleSettingsEntries({ isLoggedIn: true, isMobile: false });
+    const connectionIndex = entries.findIndex((entry) => entry.href === '/home/settings/connection');
+
+    expect(entries[connectionIndex + 1]?.href).toBe('/home/settings/account');
+  });
+
   it('hides the account entry from signed-out users', () => {
     const entries = getVisibleSettingsEntries({ isLoggedIn: false, isMobile: false });
 
