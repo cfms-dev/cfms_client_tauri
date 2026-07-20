@@ -27,17 +27,14 @@
     label: string;
     description: string;
     icon: IconName;
-    /** Navigate to this route on click. */
-    href?: string;
-    /** Or run this action on click (takes precedence over href). */
-    action?: () => void;
+    href: string;
     badge?: boolean;
     hidden?: boolean;
   }
 
   const menuEntries = $derived<MenuEntry[]>([
-    { label: $t('login.changePassword'), description: $t('more.changePasswordDescription'),
-      icon: 'password', href: '/home/settings/password' },
+    { label: $t('settings.account.title'), description: $t('settings.account.description'),
+      icon: 'accountCircle', href: '/home/settings/account' },
     { label: $t('settings.title'), description: $t('more.settingsDescription'),
       icon: 'settings', href: '/home/settings' },
     { label: $t('files.trash'), description: $t('more.trashDescription'),
@@ -49,11 +46,6 @@
   ]);
 
   const visibleMenuEntries = $derived(menuEntries.filter((e) => !e.hidden));
-
-  function handleEntry(entry: MenuEntry) {
-    if (entry.action) entry.action();
-    else if (entry.href) goto(entry.href);
-  }
 
 </script>
 
@@ -76,7 +68,7 @@
                transition-colors
                {i < visibleMenuEntries.length - 1
                  ? 'border-b border-md3-outline/50' : ''}"
-        onclick={() => handleEntry(entry)}
+        onclick={() => goto(entry.href)}
       >
         <span class="text-md3-primary-emphasis shrink-0">
           <Icon name={entry.icon} size="24px" />

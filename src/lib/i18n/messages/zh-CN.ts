@@ -571,7 +571,6 @@ export const zh_CN = {
     failedSummary: '{count} 个下载失败',
   },
   more: {
-    changePasswordDescription: '更新你的账户密码',
     settingsDescription: '应用偏好和配置',
     about: '关于',
     aboutDescription: '版本信息和软件更新',
@@ -823,6 +822,10 @@ export const zh_CN = {
   },
   settings: {
     title: '设置',
+    account: {
+      title: '用户账户',
+      description: '账户密码与二步验证',
+    },
     language: {
       title: '语言',
       description: '应用显示语言',
@@ -925,8 +928,6 @@ export const zh_CN = {
       forcedHint: '登录界面、应用锁锁定状态和设置应用锁 PIN 时会始终启用此保护，且不可关闭。',
     },
     password: {
-      title: '修改密码',
-      description: '更新当前账户的登录密码',
       accountTitle: '账户密码',
       accountHint: '为当前登录的账户设置一个新密码。',
       signedInAs: '当前账户：{username}',
@@ -977,8 +978,6 @@ export const zh_CN = {
     },
     twofa: {
       title: '二步验证',
-      description: '2FA 设置与备用代码',
-      statusTitle: 'TOTP 状态',
       readyDescription: '此账户的身份验证器应用验证。',
       signInDescription: '请先登录，再管理账户二步验证。',
       method: '方式',

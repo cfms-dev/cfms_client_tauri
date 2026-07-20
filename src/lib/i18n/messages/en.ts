@@ -576,7 +576,6 @@ export const en = {
     failedSummary: '{count} download(s) failed',
   },
   more: {
-    changePasswordDescription: 'Update your account password',
     settingsDescription: 'Application preferences and configuration',
     about: 'About',
     aboutDescription: 'Version info and software updates',
@@ -832,6 +831,10 @@ export const en = {
   },
   settings: {
     title: 'Settings',
+    account: {
+      title: 'User Account',
+      description: 'Account password and two-factor authentication',
+    },
     language: {
       title: 'Language',
       description: 'Application display language',
@@ -934,8 +937,6 @@ export const en = {
       forcedHint: 'The login screen, locked App Lock state, and App Lock PIN setup always keep this protection on.',
     },
     password: {
-      title: 'Change Password',
-      description: 'Update the sign-in password for this account',
       accountTitle: 'Account Password',
       accountHint: 'Set a new password for the currently signed-in account.',
       signedInAs: 'Current account: {username}',
@@ -986,8 +987,6 @@ export const en = {
     },
     twofa: {
       title: 'Two-Factor Auth',
-      description: '2FA setup and backup codes',
-      statusTitle: 'TOTP Status',
       readyDescription: 'Authenticator app verification for this account.',
       signInDescription: 'Sign in before managing account 2FA.',
       method: 'Method',

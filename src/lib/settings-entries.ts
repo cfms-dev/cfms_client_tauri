@@ -80,10 +80,10 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     requiresAuth: true,
   },
   {
-    labelKey: 'settings.password.title',
-    descriptionKey: 'settings.password.description',
-    icon: 'password',
-    href: '/home/settings/password',
+    labelKey: 'settings.account.title',
+    descriptionKey: 'settings.account.description',
+    icon: 'accountCircle',
+    href: '/home/settings/account',
     requiresAuth: true,
   },
   {
@@ -91,13 +91,6 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     descriptionKey: 'settings.updates.description',
     icon: 'browserUpdated',
     href: '/home/settings/updates',
-  },
-  {
-    labelKey: 'settings.twofa.title',
-    descriptionKey: 'settings.twofa.description',
-    icon: 'verifiedUser',
-    href: '/home/settings/twofa',
-    requiresAuth: true,
   },
 ];
 
