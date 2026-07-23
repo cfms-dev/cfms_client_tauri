@@ -24,6 +24,18 @@ Configure these in **Settings → Secrets and variables → Actions**:
 | `TAURI_SIGNING_PRIVATE_KEY` | Tauri updater private key (generated with `cargo tauri signer generate`) |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for the Tauri updater private key |
 
+### Extension signing key ring
+
+Official `.cfmsext` packages use a separate Ed25519 trust domain from full client updates. Set the
+repository variable `CFMS_EXTENSION_TRUSTED_KEYS` before producing a release. Its format is
+`key-id:64-hex-public-key` with comma-separated entries during key rotation. The release workflow
+injects this public key ring at compile time; builds without it deliberately reject all installable
+packages while keeping bundled optional modules available.
+
+Keep the corresponding 32-byte private seed only in the protected extension publishing repository
+as `CFMS_EXTENSION_SIGNING_KEY`. Packaging and catalog-signing commands are documented in
+`extensions/README.md`.
+
 ### Windows (EV Code Signing)
 
 | Secret | Description |

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "title": "Statistics",
+  "description": "This page is rendered entirely by trusted client components.",
+  "blocks": [
+    { "type": "status_card", "title": "Package type", "value": "Signed data", "description": "No downloaded executable code", "tone": "success" },
+    { "type": "status_card", "title": "Host API", "value": "1.x", "description": "All calls pass through the capability broker" },
+    { "type": "alert", "title": "Read-only example", "message": "This extension requests only the signed-in account summary.", "tone": "info" },
+    { "type": "actions", "actions": [{ "id": "account", "label": "Verify account access", "workflow": "account", "tone": "primary" }] }
+  ]
+}

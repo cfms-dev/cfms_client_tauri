@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "org.cfms.extensions.file-stats",
+  "name": "File statistics dashboard",
+  "description": "A read-only example of an independently installable declarative extension.",
+  "publisher": "CFMS",
+  "version": "1.0.0",
+  "host_api": "1.x",
+  "min_client_version": "0.37.0",
+  "platforms": ["windows", "linux", "macos"],
+  "entrypoints": {
+    "navigation": [{ "id": "overview", "label": "Statistics", "icon": "extensions", "page": "overview" }],
+    "settings": [],
+    "workflows": [{ "id": "account", "label": "Check account", "workflow": "account" }]
+  },
+  "requested_capabilities": ["account.summary.read"],
+  "background_triggers": [],
+  "content_hashes": {}
+}

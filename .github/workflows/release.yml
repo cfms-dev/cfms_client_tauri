@@ -21,6 +21,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   NDK_VERSION: "29.0.14206865"
+  # Public Ed25519 key ring used to verify official .cfmsext packages.
+  # Format: key-id:64-hex-public-key[,next-key-id:64-hex-public-key]
+  CFMS_EXTENSION_TRUSTED_KEYS: ${{ vars.CFMS_EXTENSION_TRUSTED_KEYS }}
 
 jobs:
   # ---------------------------------------------------------------------------
