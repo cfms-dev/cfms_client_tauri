@@ -53,6 +53,7 @@ include!("commands/documents.rs");
 include!("commands/admin.rs");
 include!("commands/browsing.rs");
 include!("commands/settings.rs");
+include!("commands/extensions.rs");
 include!("commands/auth_connection.rs");
 include!("commands/avatars.rs");
 include!("commands/preferences.rs");

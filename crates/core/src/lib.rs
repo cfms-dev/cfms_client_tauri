@@ -18,11 +18,11 @@ pub mod types;
 pub use error::{Error, Result};
 pub use types::{
     AppearancePreference, ColorSchemePreference, CursorPage, DEFAULT_TASK_CONCURRENCY,
-    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, Favourites, FileEntry,
-    FileMetadata, ListDirectoryResponse, MAX_TASK_CONCURRENCY, MIN_TASK_CONCURRENCY,
-    PRIVACY_PREFERENCE_VERSION, PrivacyPreference, ReduceMotionPreference, Response,
-    ServerDirectoryEntry, ServerDocumentEntry, ServerInfo, ServerListingItem, ServiceEvent,
-    ServiceStatusInfo, TaskConcurrencyPreference, UploadProgress, UserPreference,
+    DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus, ExtensionPreference,
+    Favourites, FileEntry, FileMetadata, ListDirectoryResponse, MAX_TASK_CONCURRENCY,
+    MIN_TASK_CONCURRENCY, PRIVACY_PREFERENCE_VERSION, PrivacyPreference, ReduceMotionPreference,
+    Response, ServerDirectoryEntry, ServerDocumentEntry, ServerInfo, ServerListingItem,
+    ServiceEvent, ServiceStatusInfo, TaskConcurrencyPreference, UploadProgress, UserPreference,
 };
 
 // ---------------------------------------------------------------------------

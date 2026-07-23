@@ -16,6 +16,7 @@
 #![forbid(unsafe_code)]
 
 pub mod db;
+pub mod extensions;
 pub mod scan;
 pub mod service;
 pub mod services;

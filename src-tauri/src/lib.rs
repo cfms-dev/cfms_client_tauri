@@ -23,6 +23,7 @@ use tauri_plugin_log::{Target, TargetKind};
 use tokio::sync::watch;
 
 use cfms_service::db::settings::SettingsStore;
+use cfms_service::extensions::ExtensionStore;
 use cfms_service::service::manager::ServiceManager;
 use cfms_service::services::download_queue::{ActiveRegistry, QueueState};
 use cfms_service::state::AppState;
@@ -188,6 +189,9 @@ pub struct AppHandleState {
     /// User settings (key-value, SQLite-backed).
     pub settings: SettingsStore,
 
+    /// Device-global signed extension packages and catalog metadata.
+    pub extensions: ExtensionStore,
+
     /// Registry of active downloads (cancellation flags).
     pub active_downloads: ActiveRegistry,
 
@@ -301,6 +305,8 @@ pub fn run() {
 
             let state = AppState::new();
             let settings = SettingsStore::new(db);
+            let extensions =
+                ExtensionStore::new(settings.clone(), &app_data_dir, env!("CARGO_PKG_VERSION"));
             let initial_locale = settings
                 .get("language")
                 .ok()
@@ -406,6 +412,7 @@ pub fn run() {
                 inner: state,
                 tasks,
                 settings,
+                extensions,
                 active_downloads,
                 active_uploads,
                 connect_attempts: ConnectAttemptRegistry::default(),
@@ -452,6 +459,16 @@ pub fn run() {
             commands::ensure_download_subdirectory,
             commands::get_setting,
             commands::set_setting,
+            commands::get_extension_overview,
+            commands::import_extension_package,
+            commands::refresh_extension_catalog,
+            commands::install_extension_from_catalog,
+            commands::rollback_extension,
+            commands::uninstall_extension,
+            commands::set_extension_enabled,
+            commands::read_extension_page,
+            commands::read_extension_workflow,
+            commands::execute_extension_host_call,
             commands::get_locale,
             commands::set_locale,
             commands::translate_backend,

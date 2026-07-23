@@ -14,7 +14,7 @@ const APPEARANCE_KEY: &str = "appearance";
 /// A thread-safe, cloneable handle for user settings persistence.
 #[derive(Clone)]
 pub struct SettingsStore {
-    db: Arc<Mutex<Connection>>,
+    pub(crate) db: Arc<Mutex<Connection>>,
 }
 
 impl SettingsStore {

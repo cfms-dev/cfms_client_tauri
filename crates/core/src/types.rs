@@ -430,6 +430,10 @@ pub struct UserPreference {
     /// Per-user task scheduling limits for upload/download queues.
     #[serde(default)]
     pub task_concurrency: TaskConcurrencyPreference,
+
+    /// Per-account activation, grants, and private settings for installed extensions.
+    #[serde(default)]
+    pub extensions: std::collections::BTreeMap<String, ExtensionPreference>,
 }
 
 impl Default for UserPreference {
@@ -445,8 +449,22 @@ impl Default for UserPreference {
             root_back_button_behavior: None,
             privacy: PrivacyPreference::default(),
             task_concurrency: TaskConcurrencyPreference::default(),
+            extensions: std::collections::BTreeMap::new(),
         }
     }
+}
+
+/// Account-scoped state for one device-global extension installation.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct ExtensionPreference {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub install_epoch: String,
+    #[serde(default)]
+    pub granted_capabilities: Vec<String>,
+    #[serde(default)]
+    pub settings: serde_json::Value,
 }
 
 fn default_record_recent_visits() -> bool {
