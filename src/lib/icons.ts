@@ -137,6 +137,7 @@ export const ICONS = {
   approvalDelegation: 'approval_delegation',
   qrCode:         'qr_code_2',
   browserUpdated: 'browser_updated',
+  extensions:     'extension',
   touchApp:       'touch_app',
   privacy:        'privacy',
   privacyTip:     'privacy_tip',
@@ -152,3 +153,7 @@ export const ICONS = {
 } as const;
 
 export type IconName = keyof typeof ICONS;
+
+export function isIconName(value: string): value is IconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, value);
+}

@@ -30,6 +30,8 @@
     registerKeyboardCommands,
   } from '$lib/keyboard';
   import { supportsKeyboardShortcuts } from '$lib/platform';
+  import { extensionsStore } from '$lib/extensions.svelte';
+  import { isIconName } from '$lib/icons';
 
   let { children }: { children: Snippet } = $props();
 
@@ -80,6 +82,15 @@
     { id: 'home', label: $t('nav.home'), href: '/home/overview', icon: 'home', exact: true },
     { id: 'files', label: $t('workspace.allFiles'), href: '/home/files', icon: 'folder', exact: true },
     { id: 'tasks', label: $t('workspace.transfers'), href: '/home/tasks', icon: 'tasks', badge: activeTaskCount, exact: true },
+    ...extensionsStore.enabledInstallations.flatMap((installation) =>
+      installation.manifest.entrypoints.navigation.map((entry) => ({
+        id: `extension:${installation.manifest.id}:${entry.id}`,
+        label: entry.label,
+        href: `/home/extensions/view?extension=${encodeURIComponent(installation.manifest.id)}&page=${encodeURIComponent(entry.page)}`,
+        icon: isIconName(entry.icon) ? entry.icon : 'extensions',
+        exact: true,
+      })),
+    ),
   ]);
 
   const bottomNavigation = $derived<WorkspaceNavItem[]>([
@@ -98,6 +109,14 @@
     if (path === '/home/overview') return $t('nav.home');
     if (path === '/home/files') return $t('workspace.allFiles');
     if (path === '/home/tasks') return $t('workspace.transfers');
+    if (path === '/home/extensions/view') {
+      const extensionId = $page.url.searchParams.get('extension');
+      const pageId = $page.url.searchParams.get('page');
+      const installation = extensionsStore.enabledInstallations.find((item) => item.manifest.id === extensionId);
+      return installation?.manifest.entrypoints.navigation.find((entry) => entry.page === pageId)?.label
+        ?? installation?.manifest.name
+        ?? $t('settings.extensions.title');
+    }
     if (path === '/home/trash') return $t('workspace.recycleBin');
     if (path === '/home/manage') return $t('workspace.administration');
     if (path === '/home/more') return $t('workspace.account');
@@ -117,6 +136,13 @@
     if (!path.startsWith('/home')) return;
     loadedFavoriteScope = scope;
     void refreshFavorites();
+  });
+
+  $effect(() => {
+    const scope = authStore.isLoggedIn && !authStore.postLoginPending && authStore.username
+      ? `${serverStateStore.remoteAddress ?? ''}:${authStore.username}`
+      : null;
+    void extensionsStore.activateForAccount(scope);
   });
 
   onMount(() => {
@@ -149,6 +175,7 @@
 
   function isActive(item: WorkspaceNavItem) {
     const path = $page.url.pathname;
+    if (item.href.includes('?')) return `${path}${$page.url.search}` === item.href;
     return item.exact ? path === item.href : path === item.href || path.startsWith(`${item.href}/`);
   }
 

@@ -87,6 +87,12 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     requiresAuth: true,
   },
   {
+    labelKey: 'settings.extensions.title',
+    descriptionKey: 'settings.extensions.description',
+    icon: 'extensions',
+    href: '/home/settings/extensions',
+  },
+  {
     labelKey: 'settings.updates.title',
     descriptionKey: 'settings.updates.description',
     icon: 'browserUpdated',

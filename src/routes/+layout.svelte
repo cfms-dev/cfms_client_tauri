@@ -40,6 +40,7 @@
     notificationStore,
   } from "$lib/stores.svelte";
   import { appLockStore } from "$lib/app-lock.svelte";
+  import { extensionsStore } from "$lib/extensions.svelte";
   import { clearAuthSession, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
   import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
@@ -188,6 +189,14 @@
     ) {
       goto("/home/files", { replaceState: true });
       return;
+    }
+
+    if (authStore.isLoggedIn && path === "/home/extensions/view" && extensionsStore.overview && !extensionsStore.loading) {
+      const extensionId = page.url.searchParams.get("extension");
+      if (!extensionId || !extensionsStore.enabledInstallations.some((item) => item.manifest.id === extensionId)) {
+        goto("/home/overview", { replaceState: true });
+        return;
+      }
     }
 
     // 5. If fully authenticated and on connect or login, go to home.

@@ -495,6 +495,12 @@ export interface UserPreference {
   root_back_button_behavior?: "background" | "exit" | null;
   privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;
+  extensions?: Record<string, {
+    enabled: boolean;
+    install_epoch: string;
+    granted_capabilities: string[];
+    settings: unknown;
+  }>;
 }
 
 export type ColorSchemePreference = 'light' | 'dark' | 'system';
