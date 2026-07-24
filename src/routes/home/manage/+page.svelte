@@ -10,7 +10,9 @@
     createUser,
     deleteGroup,
     deleteUser,
+    disableManagedTwoFactor,
     getGroupInfo,
+    getManagedTwoFactorStatus,
     getUserInfo,
     listGroups,
     listUserBlocks,
@@ -41,11 +43,12 @@
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
+  import SecurityManagement from '$lib/components/SecurityManagement.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
   import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
-  type ManageTabKey = 'accounts' | 'groups' | 'logs';
+  type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs';
 
   interface ManageTab {
     key: ManageTabKey;
@@ -86,6 +89,7 @@
   const tabs: ManageTab[] = [
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
     { key: 'groups', labelKey: 'manage.groups', icon: 'groups' },
+    { key: 'security', labelKey: 'manage.security.title', icon: 'security' },
     { key: 'logs', labelKey: 'manage.logs', icon: 'article' },
   ];
 
@@ -101,6 +105,7 @@
   let loadingUsers = $state(false);
   let loadingGroups = $state(false);
   let loadingLogs = $state(false);
+  let securityRefreshKey = $state(0);
   let busyKey = $state<string | null>(null);
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
@@ -139,6 +144,11 @@
         'create_group',
         'delete_user',
         'delete_group',
+        'manage_2fa',
+        'list_banned_subnets',
+        'manage_banned_subnets',
+        'list_auth_lockouts',
+        'unlock_auth_lockouts',
       ].includes(p),
     ),
   );
@@ -149,6 +159,11 @@
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
   const canManageUserStatus = $derived(hasAnyPermission('manage_user_status', 'manage_system'));
+  const canManage2fa = $derived(hasAnyPermission('manage_2fa'));
+  const canListBannedSubnets = $derived(hasAnyPermission('list_banned_subnets'));
+  const canManageBannedSubnets = $derived(hasAnyPermission('manage_banned_subnets'));
+  const canListAuthLockouts = $derived(hasAnyPermission('list_auth_lockouts'));
+  const canUnlockAuthLockouts = $derived(hasAnyPermission('unlock_auth_lockouts'));
   const auditDisplayRange = $derived.by(() => {
     if (auditEntries.length === 0) return null;
     const start = auditPageIndex * auditPageSize + 1;
@@ -314,6 +329,7 @@
     expandedAuditIds = new Set();
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
+    else if (activeTab === 'security') securityRefreshKey += 1;
     else loadAuditLogPage(null, 'reset');
   }
 
@@ -383,6 +399,14 @@
         icon: 'password',
         onSelect: () => handleResetPassword(user),
         disabled,
+      },
+      {
+        id: 'disable-user-2fa',
+        label: $t('manage.disableUserTwoFactor'),
+        icon: 'security',
+        onSelect: () => handleDisableUserTwoFactor(user),
+        disabled,
+        hidden: !canManage2fa,
       },
       {
         id: 'manage-user-status',
@@ -541,6 +565,28 @@
 
   async function handleResetPassword(user: ManagedUser) {
     activeDialog = { kind: 'reset-password', user };
+  }
+
+  async function handleDisableUserTwoFactor(user: ManagedUser) {
+    await runBusy(`twofa:${user.username}`, async () => {
+      const twoFactorStatus = await getManagedTwoFactorStatus(user.username);
+      if (!twoFactorStatus.enabled) {
+        notificationStore.info($t('manage.twoFactorNotEnabled', { values: { username: user.username } }));
+        return;
+      }
+
+      const confirmed = await dialogStore.confirm({
+        title: $t('manage.disableUserTwoFactorTitle'),
+        message: $t('manage.disableUserTwoFactorConfirm', { values: { username: user.username } }),
+        confirmLabel: $t('manage.disableUserTwoFactor'),
+        cancelLabel: $t('common.cancel'),
+        danger: true,
+      });
+      if (!confirmed) return;
+
+      await disableManagedTwoFactor(user.username);
+      status = $t('manage.userTwoFactorDisabled', { values: { username: user.username } });
+    });
   }
 
   async function handleManageUserStatus(user: ManagedUser) {
@@ -1066,6 +1112,7 @@
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                   {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                  {@render ActionButton('security', $t('manage.disableUserTwoFactor'), () => handleDisableUserTwoFactor(user), !canManage2fa || busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
                   {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
@@ -1079,6 +1126,7 @@
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                       {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
+                      {@render ActionButton('security', $t('manage.disableUserTwoFactor'), () => handleDisableUserTwoFactor(user), !canManage2fa || busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
                       {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
@@ -1178,6 +1226,14 @@
             {/each}
           </div>
         {/if}
+      {:else if activeTab === 'security'}
+        <SecurityManagement
+          canListSubnets={canListBannedSubnets}
+          canManageSubnets={canManageBannedSubnets}
+          canListLockouts={canListAuthLockouts}
+          canUnlockLockouts={canUnlockAuthLockouts}
+          refreshKey={securityRefreshKey}
+        />
       {:else}
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-md3-outline">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
