@@ -29,6 +29,7 @@
     type ManagedUser,
     type ManagedUserInfo,
     type ManagedUserStatus,
+    type TwoFactorStatus,
     type UserBlock,
     type UserBlockTarget,
   } from '$lib/api';
@@ -66,7 +67,12 @@
     | { kind: 'user-groups'; user: ManagedUser }
     | { kind: 'user-permissions'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
-    | { kind: 'user-status'; user: ManagedUserInfo }
+    | {
+        kind: 'account-management';
+        user: ManagedUser;
+        info: ManagedUserInfo | null;
+        twoFactor: TwoFactorStatus | null;
+      }
     | { kind: 'block-user'; user: ManagedUser }
     | { kind: 'group-permissions'; group: ManagedGroup }
     | null;
@@ -401,20 +407,12 @@
         disabled,
       },
       {
-        id: 'disable-user-2fa',
-        label: $t('manage.disableUserTwoFactor'),
-        icon: 'security',
-        onSelect: () => handleDisableUserTwoFactor(user),
-        disabled,
-        hidden: !canManage2fa,
-      },
-      {
-        id: 'manage-user-status',
-        label: $t('manage.setAccountStatus'),
+        id: 'manage-account',
+        label: $t('manage.accountManagement'),
         icon: 'manageAccounts',
-        onSelect: () => handleManageUserStatus(user),
+        onSelect: () => handleManageAccount(user),
         disabled,
-        hidden: !canManageUserStatus,
+        hidden: !canManageUserStatus && !canManage2fa,
       },
       { type: 'divider', hidden: !canBlock && !canListBlocks },
       {
@@ -567,33 +565,38 @@
     activeDialog = { kind: 'reset-password', user };
   }
 
-  async function handleDisableUserTwoFactor(user: ManagedUser) {
-    await runBusy(`twofa:${user.username}`, async () => {
-      const twoFactorStatus = await getManagedTwoFactorStatus(user.username);
-      if (!twoFactorStatus.enabled) {
-        notificationStore.info($t('manage.twoFactorNotEnabled', { values: { username: user.username } }));
-        return;
-      }
-
-      const confirmed = await dialogStore.confirm({
-        title: $t('manage.disableUserTwoFactorTitle'),
-        message: $t('manage.disableUserTwoFactorConfirm', { values: { username: user.username } }),
-        confirmLabel: $t('manage.disableUserTwoFactor'),
-        cancelLabel: $t('common.cancel'),
-        danger: true,
-      });
-      if (!confirmed) return;
-
-      await disableManagedTwoFactor(user.username);
-      status = $t('manage.userTwoFactorDisabled', { values: { username: user.username } });
+  async function handleManageAccount(user: ManagedUser) {
+    await runBusy(`account-management:${user.username}`, async () => {
+      const [info, twoFactor] = await Promise.all([
+        canManageUserStatus ? getUserInfo(user.username) : Promise.resolve(null),
+        canManage2fa ? getManagedTwoFactorStatus(user.username) : Promise.resolve(null),
+      ]);
+      accountDisableReason = '';
+      activeDialog = { kind: 'account-management', user, info, twoFactor };
     });
   }
 
-  async function handleManageUserStatus(user: ManagedUser) {
-    await runBusy(`status-info:${user.username}`, async () => {
-      const info = await getUserInfo(user.username);
-      accountDisableReason = '';
-      activeDialog = { kind: 'user-status', user: info };
+  async function disableActiveUserTwoFactor() {
+    if (activeDialog?.kind !== 'account-management' || !activeDialog.twoFactor?.enabled) return;
+    const user = activeDialog.user;
+    const confirmed = await dialogStore.confirm({
+      title: $t('manage.disableUserTwoFactorTitle'),
+      message: $t('manage.disableUserTwoFactorConfirm', { values: { username: user.username } }),
+      confirmLabel: $t('manage.disableUserTwoFactor'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    await runBusy(`twofa:${user.username}`, async () => {
+      await disableManagedTwoFactor(user.username);
+      if (activeDialog?.kind === 'account-management' && activeDialog.user.username === user.username) {
+        activeDialog = {
+          ...activeDialog,
+          twoFactor: { enabled: false, method: null, backup_codes_count: 0 },
+        };
+      }
+      status = $t('manage.userTwoFactorDisabled', { values: { username: user.username } });
     });
   }
 
@@ -826,7 +829,7 @@
   }
 
   async function saveActiveUserStatus(statusValue: ManagedUserStatus) {
-    if (activeDialog?.kind !== 'user-status') return;
+    if (activeDialog?.kind !== 'account-management' || !activeDialog.info) return;
     const user = activeDialog.user;
     await runBusy(`status-user:${user.username}`, async () => {
       const reason = statusValue === 'disabled'
@@ -836,9 +839,20 @@
       status = $t('manage.userStatusUpdated', {
         values: { username: user.username },
       });
-      activeDialog = null;
+      if (activeDialog?.kind === 'account-management' && activeDialog.user.username === user.username) {
+        activeDialog = {
+          ...activeDialog,
+          info: activeDialog.info ? { ...activeDialog.info, status: statusValue } : null,
+        };
+        accountDisableReason = '';
+      }
       await loadUserList();
     });
+  }
+
+  function toggleActiveUserStatus() {
+    if (activeDialog?.kind !== 'account-management' || !activeDialog.info) return;
+    void saveActiveUserStatus(activeDialog.info.status === 'disabled' ? 'active' : 'disabled');
   }
 
   async function saveActiveBlockUser(
@@ -1112,8 +1126,7 @@
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                   {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
-                  {@render ActionButton('security', $t('manage.disableUserTwoFactor'), () => handleDisableUserTwoFactor(user), !canManage2fa || busyKey !== null)}
-                  {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
+                  {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
                   {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
                   {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
@@ -1126,8 +1139,7 @@
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                       {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
-                      {@render ActionButton('security', $t('manage.disableUserTwoFactor'), () => handleDisableUserTwoFactor(user), !canManage2fa || busyKey !== null)}
-                      {@render ActionButton('manageAccounts', $t('manage.setAccountStatus'), () => handleManageUserStatus(user), !canManageUserStatus || busyKey !== null)}
+                      {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
                       {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => handleListBlocks(user), !canListBlocks || busyKey !== null)}
                       {@render ActionButton('delete', $t('common.delete'), () => handleDeleteUser(user), busyKey !== null, true)}
@@ -1387,62 +1399,68 @@
     onSave={saveActiveResetPassword}
     onClose={() => (activeDialog = null)}
   />
-{:else if activeDialog?.kind === 'user-status'}
+{:else if activeDialog?.kind === 'account-management'}
   <ModalFrame
-    title={$t('manage.setAccountStatusTitle', { values: { username: activeDialog.user.username } })}
-    maxWidth="max-w-md"
+    title={$t('manage.accountManagementTitle', { values: { username: activeDialog.user.username } })}
+    maxWidth="max-w-lg"
     closeLabel={$t('common.cancel')}
     onClose={() => (activeDialog = null)}
   >
-    <div class="space-y-5 p-5">
-      <p class="text-sm text-md3-on-surface-variant">{$t('manage.setAccountStatusDescription')}</p>
-      <div class="flex items-center justify-between rounded-lg bg-md3-surface-container-high px-4 py-3">
-        <span class="text-sm text-md3-on-surface-variant">{$t('manage.currentAccountStatus')}</span>
-        <span
-          class={`rounded-full px-3 py-1 text-xs font-semibold ${activeDialog.user.status === 'active'
-            ? 'bg-md3-primary-container text-md3-on-primary-container'
-            : 'bg-md3-error-container text-md3-on-error-container'
-          }`}
-        >
-          {activeDialog.user.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled')}
-        </span>
-      </div>
-      {#if activeDialog.user.status === 'active'}
-        <label class="grid gap-2 text-sm text-md3-on-surface">
-          <span class="font-medium">{$t('manage.disableReasonLabel')}</span>
-          <textarea
-            bind:value={accountDisableReason}
-            maxlength="1024"
-            rows="4"
-            placeholder={$t('manage.disableReasonPlaceholder')}
-            class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"
-          ></textarea>
-          <span class="text-xs text-md3-on-surface-variant">{$t('manage.reasonOptional')}</span>
-        </label>
+    <div class="divide-y divide-md3-outline/60">
+      {#if activeDialog.info}
+        <section class="space-y-4 p-5" aria-labelledby="managed-account-status-title">
+          <div>
+            <h3 id="managed-account-status-title" class="text-sm font-semibold text-md3-on-surface">{$t('manage.accountStatus')}</h3>
+            <p class="mt-1 text-xs leading-5 text-md3-on-surface-variant">{$t('manage.setAccountStatusDescription')}</p>
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <span class="text-sm text-md3-on-surface-variant">{$t('manage.currentAccountStatus')}</span>
+            <span class={`rounded-full px-3 py-1 text-xs font-semibold ${activeDialog.info.status === 'active' ? 'bg-md3-primary-container text-md3-on-primary-container' : 'bg-md3-error-container text-md3-on-error-container'}`}>
+              {activeDialog.info.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled')}
+            </span>
+          </div>
+          {#if activeDialog.info.status === 'active'}
+            <label class="grid gap-2 text-sm text-md3-on-surface">
+              <span class="font-medium">{$t('manage.disableReasonLabel')}</span>
+              <textarea bind:value={accountDisableReason} maxlength="1024" rows="3" placeholder={$t('manage.disableReasonPlaceholder')} class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"></textarea>
+              <span class="text-xs text-md3-on-surface-variant">{$t('manage.reasonOptional')}</span>
+            </label>
+          {/if}
+          <button type="button" class="flex items-center gap-2 rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface transition-colors hover:bg-md3-surface-container-highest disabled:opacity-50" disabled={busyKey !== null} onclick={toggleActiveUserStatus}>
+            <Icon name={activeDialog.info.status === 'disabled' ? 'verifiedUser' : 'block'} size="18px" />
+            {activeDialog.info.status === 'disabled' ? $t('manage.enableAccountAction') : $t('manage.disableAccountAction')}
+          </button>
+        </section>
       {/if}
-      <div class="grid gap-2">
-        {#if activeDialog.user.status === 'disabled'}
-          <button
-            type="button"
-            class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-primary-container/20 disabled:opacity-50"
-            disabled={busyKey !== null}
-            onclick={() => saveActiveUserStatus('active')}
-          >
-            <Icon name="verifiedUser" size="20px" />
-            <span class="text-sm font-medium text-md3-on-surface">{$t('manage.enableAccountAction')}</span>
-          </button>
-        {:else}
-          <button
-            type="button"
-            class="flex items-center gap-3 rounded-lg border border-md3-outline px-4 py-3 text-left transition-colors hover:bg-md3-error-container/30 disabled:opacity-50"
-            disabled={busyKey !== null}
-            onclick={() => saveActiveUserStatus('disabled')}
-          >
-            <Icon name="block" size="20px" />
-            <span class="text-sm font-medium text-md3-on-surface">{$t('manage.disableAccountAction')}</span>
-          </button>
-        {/if}
-      </div>
+
+      {#if activeDialog.twoFactor}
+        <section class="space-y-4 p-5" aria-labelledby="managed-twofa-title">
+          <div>
+            <h3 id="managed-twofa-title" class="text-sm font-semibold text-md3-on-surface">{$t('manage.twoFactorManagement')}</h3>
+            <p class="mt-1 text-xs leading-5 text-md3-on-surface-variant">{$t('manage.twoFactorManagementDescription')}</p>
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <span class="text-sm text-md3-on-surface-variant">{$t('manage.twoFactorStatus')}</span>
+            <span class={`rounded-full px-3 py-1 text-xs font-semibold ${activeDialog.twoFactor.enabled ? 'bg-md3-primary-container text-md3-on-primary-container' : 'bg-md3-surface-container-high text-md3-on-surface-variant'}`}>
+              {activeDialog.twoFactor.enabled ? $t('common.enabled') : $t('common.disabled')}
+            </span>
+          </div>
+          {#if activeDialog.twoFactor.enabled}
+            <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 text-sm">
+              <dt class="text-md3-on-surface-variant">{$t('manage.twoFactorMethod')}</dt>
+              <dd class="uppercase text-md3-on-surface">{activeDialog.twoFactor.method ?? '-'}</dd>
+              <dt class="text-md3-on-surface-variant">{$t('manage.backupCodesRemaining')}</dt>
+              <dd class="text-md3-on-surface">{activeDialog.twoFactor.backup_codes_count}</dd>
+            </dl>
+            <button type="button" class="flex items-center gap-2 rounded-full bg-md3-error-container px-4 py-2 text-sm font-medium text-md3-on-error-container transition-all hover:brightness-110 disabled:opacity-50" disabled={busyKey !== null} onclick={disableActiveUserTwoFactor}>
+              <Icon name="lockOpen" size="18px" />
+              {$t('manage.disableUserTwoFactor')}
+            </button>
+          {:else}
+            <p class="text-sm text-md3-on-surface-variant">{$t('manage.twoFactorNotEnabled', { values: { username: activeDialog.user.username } })}</p>
+          {/if}
+        </section>
+      {/if}
     </div>
   </ModalFrame>
 {:else if activeDialog?.kind === 'block-user'}
