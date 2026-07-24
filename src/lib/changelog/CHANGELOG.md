@@ -4,6 +4,29 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.38.0
+**Released on:** 2026-07-24
+
+**Title:** Protocol Version 17
+
+### Fixed
+- Optionally clear 2fa on password reset
+- Give security tools dedicated views
+- Unify account and two-factor management
+- Surface protocol 17 throttle metadata
+
+### Maintenance
+- Gate unfinished user surfaces
+- Add signing tools and sample package
+
+### Added
+- Add security management controls
+- Adapt security APIs for version 17
+- Add declarative runtime and management UI
+- Add signed package service and host API
+
+--- 
+
 ## v0.37.0
 **Released on:** 2026-07-20
 
