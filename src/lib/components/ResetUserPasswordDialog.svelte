@@ -8,14 +8,17 @@
 
   let {
     username,
+    canDisableTwoFactor = false,
     onSave,
     onClose,
   }: {
     username: string;
+    canDisableTwoFactor?: boolean;
     onSave: (
       password: string,
       bypassRequirements: boolean,
       forceUpdateAfterLogin: boolean,
+      disableTwoFactorAfterReset: boolean,
     ) => Promise<void>;
     onClose: () => void;
   } = $props();
@@ -24,6 +27,7 @@
   let visible = $state(false);
   let bypassRequirements = $state(false);
   let forceUpdateAfterLogin = $state(false);
+  let disableTwoFactorAfterReset = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
 
@@ -90,7 +94,12 @@
     busy = true;
     error = null;
     try {
-      await onSave(password, bypassRequirements, forceUpdateAfterLogin);
+      await onSave(
+        password,
+        bypassRequirements,
+        forceUpdateAfterLogin,
+        disableTwoFactorAfterReset,
+      );
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -196,6 +205,19 @@
           <span class="text-xs text-md3-on-surface-variant">{$t('manage.forcePasswordUpdateHelp')}</span>
         </span>
       </div>
+      {#if canDisableTwoFactor}
+        <div class="flex items-start gap-3 text-sm text-md3-on-surface">
+          <MdSwitch
+            bind:checked={disableTwoFactorAfterReset}
+            disabled={busy}
+            ariaLabel={$t('manage.disableTwoFactorWithPasswordReset')}
+          />
+          <span>
+            <span class="block font-medium">{$t('manage.disableTwoFactorWithPasswordReset')}</span>
+            <span class="text-xs text-md3-on-surface-variant">{$t('manage.disableTwoFactorWithPasswordResetHelp')}</span>
+          </span>
+        </div>
+      {/if}
     </div>
 
     {#if error}

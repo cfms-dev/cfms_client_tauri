@@ -759,9 +759,30 @@
     password: string,
     bypassRequirements: boolean,
     forceUpdateAfterLogin: boolean,
+    disableTwoFactorAfterReset: boolean,
   ) {
     await resetUserPassword(user.username, password, bypassRequirements, forceUpdateAfterLogin);
-    status = $t('manage.passwordChanged', { values: { username: user.username } });
+    let successMessage = $t('manage.passwordChanged', { values: { username: user.username } });
+
+    if (disableTwoFactorAfterReset && canManage2fa) {
+      try {
+        const twoFactor = await getManagedTwoFactorStatus(user.username);
+        if (twoFactor.enabled) {
+          await disableManagedTwoFactor(user.username);
+          successMessage = $t('manage.passwordChangedAndTwoFactorDisabled', {
+            values: { username: user.username },
+          });
+        }
+      } catch (err) {
+        activeDialog = null;
+        notificationStore.error($t('manage.passwordChangedTwoFactorFailed', {
+          values: { username: user.username, error: formatError(err) },
+        }));
+        return;
+      }
+    }
+
+    status = successMessage;
     activeDialog = null;
   }
 
@@ -818,6 +839,7 @@
     password: string,
     bypassRequirements: boolean,
     forceUpdateAfterLogin: boolean,
+    disableTwoFactorAfterReset: boolean,
   ) {
     if (activeDialog?.kind !== 'reset-password') return;
     await saveResetPassword(
@@ -825,6 +847,7 @@
       password,
       bypassRequirements,
       forceUpdateAfterLogin,
+      disableTwoFactorAfterReset,
     );
   }
 
@@ -1398,6 +1421,7 @@
 {:else if activeDialog?.kind === 'reset-password'}
   <ResetUserPasswordDialog
     username={activeDialog.user.username}
+    canDisableTwoFactor={canManage2fa}
     onSave={saveActiveResetPassword}
     onClose={() => (activeDialog = null)}
   />
@@ -1458,8 +1482,6 @@
               <Icon name="lockOpen" size="18px" />
               {$t('manage.disableUserTwoFactor')}
             </button>
-          {:else}
-            <p class="text-sm text-md3-on-surface-variant">{$t('manage.twoFactorNotEnabled', { values: { username: activeDialog.user.username } })}</p>
           {/if}
         </section>
       {/if}
