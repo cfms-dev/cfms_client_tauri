@@ -113,6 +113,8 @@ export const en = {
     usernameRequired: 'Username is required.',
     passwordRequired: 'Password is required.',
     unknownError: 'An unknown error occurred.',
+    tooManyAttempts: 'Too many authentication attempts. Please try again later.',
+    tooManyAttemptsRetry: 'Too many authentication attempts. Try again in {seconds} seconds.',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     forgotPassword: 'Forgot password?',

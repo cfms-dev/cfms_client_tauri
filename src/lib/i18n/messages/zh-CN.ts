@@ -113,6 +113,8 @@ export const zh_CN = {
     usernameRequired: '请输入用户名。',
     passwordRequired: '请输入密码。',
     unknownError: '发生未知错误。',
+    tooManyAttempts: '认证尝试过于频繁，请稍后再试。',
+    tooManyAttemptsRetry: '认证尝试过于频繁，请在 {seconds} 秒后重试。',
     showPassword: '显示密码',
     hidePassword: '隐藏密码',
     forgotPassword: '忘记密码？',

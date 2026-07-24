@@ -36,6 +36,13 @@ export function serverErrorMessage(error: unknown): string {
   return (markerIndex < 0 ? message : message.slice(0, markerIndex)).trimEnd();
 }
 
+/** Return the server-advised authentication retry delay, when available. */
+export function serverRetryAfterSeconds(error: unknown): number | null {
+  const value = serverErrorData(error)?.retry_after_seconds;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  return Math.ceil(value);
+}
+
 /**
  * Access-denied errors currently arrive in two backend formats: generic server
  * actions retain the 403 status, while document downloads use an explicit

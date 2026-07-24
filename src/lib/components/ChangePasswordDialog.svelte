@@ -15,6 +15,7 @@
   import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
+  import { serverErrorMessage } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
 
   interface Props {
@@ -141,7 +142,7 @@
   }
 
   function formatError(err: unknown) {
-    return err instanceof Error ? err.message : String(err);
+    return serverErrorMessage(err);
   }
 </script>
 

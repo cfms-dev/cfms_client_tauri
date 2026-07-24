@@ -43,6 +43,7 @@
     clearAuthSession,
     serverErrorData,
     serverErrorMessage,
+    serverRetryAfterSeconds,
     serverErrorStatus,
     type AuthStatus,
   } from "$lib/api";
@@ -419,6 +420,14 @@
     return serverErrorStatus(e) === 4003;
   }
 
+  function throttledMessage(e: unknown): string | null {
+    if (serverErrorStatus(e) !== 429) return null;
+    const seconds = serverRetryAfterSeconds(e);
+    return seconds === null
+      ? $t('login.tooManyAttempts')
+      : $t('login.tooManyAttemptsRetry', { values: { seconds } });
+  }
+
   function getAccountDisabledReason(e: unknown): string | null {
     const reason = serverErrorData(e)?.reason;
     if (typeof reason !== "string") return null;
@@ -501,7 +510,10 @@
 
       await finalizeAuthenticatedLogin(authResult);
     } catch (e) {
-      if (isAccountDisabledError(e)) {
+      const throttleError = throttledMessage(e);
+      if (throttleError) {
+        notificationStore.warning(throttleError, 5000);
+      } else if (isAccountDisabledError(e)) {
         await enterAccountDisabledState(loginRequestedAt, getAccountDisabledReason(e));
       } else if (isPasswordChangeRequired(e)) {
         // The server requires a password change before login (4001/4002).
@@ -561,6 +573,8 @@
         await enterAccountDisabledState(loginRequestedAt, getAccountDisabledReason(e));
         return true;
       }
+      const throttleError = throttledMessage(e);
+      if (throttleError) throw new Error(throttleError);
       // Let the dialog handle the verification error display.
       return false;
     }

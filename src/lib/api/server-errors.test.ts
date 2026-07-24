@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAccessDeniedError, serverErrorData, serverErrorMessage, serverErrorStatus } from './server-errors';
+import { isAccessDeniedError, serverErrorData, serverErrorMessage, serverErrorStatus, serverRetryAfterSeconds } from './server-errors';
 
 describe('server errors', () => {
   it('extracts status codes from generic server command failures', () => {
@@ -28,6 +28,14 @@ describe('server errors', () => {
     expect(serverErrorMessage(
       'Login failed: (429) Too many attempts\nCFMS_ERROR_DATA:{"retry_after_seconds":45}',
     )).toBe('Login failed: (429) Too many attempts');
+  });
+
+  it('reads and validates the retry delay from throttling errors', () => {
+    expect(serverRetryAfterSeconds(
+      'Login failed: (429) Too many attempts\nCFMS_ERROR_DATA:{"retry_after_seconds":45.2}',
+    )).toBe(46);
+    expect(serverRetryAfterSeconds('failure\nCFMS_ERROR_DATA:{"retry_after_seconds":0}')).toBeNull();
+    expect(serverRetryAfterSeconds('failure\nCFMS_ERROR_DATA:{"retry_after_seconds":"45"}')).toBeNull();
   });
 
   it('does not consume unrelated server and connection failures', () => {
