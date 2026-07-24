@@ -1048,8 +1048,10 @@
       {/each}
     </div>
 
-    <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-                border border-md3-outline overflow-hidden">
+    <div
+      class="management-content"
+      class:management-content--contained={activeTab !== 'security'}
+    >
       {#if activeTab === 'accounts'}
         <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-md3-outline">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -1590,6 +1592,15 @@
 {/snippet}
 
 <style>
+  .management-content--contained {
+    overflow: hidden;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-md3-surface-container) 70%, transparent);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
   .identity-measure-host {
     position: absolute;
     width: max-content;

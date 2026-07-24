@@ -730,8 +730,6 @@ export const zh_CN = {
     resetPasswordTitle: '重置密码：{username}',
     resetPasswordDescription:
       '为 {username} 设置新密码。你可以生成强密码，并选择服务器密码策略的执行方式。',
-    setAccountStatus: '设置状态',
-    setAccountStatusTitle: '设置账户状态：{username}',
     setAccountStatusDescription: '选择该账户是否可以登录并使用需要认证的服务器操作。',
     accountStatus: '账户状态',
     currentAccountStatus: '当前状态',

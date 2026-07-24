@@ -35,6 +35,9 @@
     refreshKey?: number;
   } = $props();
 
+  type SecurityView = 'overview' | 'subnets' | 'lockouts';
+
+  let activeView = $state<SecurityView>('overview');
   let subnets = $state<BannedSubnet[]>([]);
   let lockouts = $state<AuthLockout[]>([]);
   let loadingSubnets = $state(false);
@@ -50,11 +53,12 @@
 
   $effect(() => {
     refreshKey;
-    void loadAll();
+    if (activeView === 'subnets') void loadSubnets();
+    if (activeView === 'lockouts') void loadLockouts();
   });
 
-  async function loadAll() {
-    await Promise.all([loadSubnets(), loadLockouts()]);
+  function openView(view: Exclude<SecurityView, 'overview'>) {
+    activeView = view;
   }
 
   async function loadSubnets() {
@@ -283,110 +287,101 @@
 </script>
 
 <div class="security-workspace">
-  <section class="security-section">
-    <header class="section-header">
-      <div class="section-heading">
-        <span class="section-icon"><Icon name="security" size="21px" /></span>
-        <div>
-          <h2>{$t('manage.security.subnetRules')}</h2>
-          <p>{$t('manage.security.subnetRulesDescription')}</p>
-        </div>
-      </div>
-      {#if canManageSubnets}
-        <button class="primary-pill" type="button" onclick={openCreateRule} disabled={busyKey !== null}>
-          <Icon name="add" size="16px" />
-          {$t('manage.security.addSubnet')}
+  {#if activeView === 'overview'}
+    <div class="security-entries" aria-label={$t('manage.security.title')}>
+      <button class="security-entry" type="button" disabled={!canListSubnets} onclick={() => openView('subnets')}>
+        <span class="section-icon"><Icon name="security" size="22px" /></span>
+        <span class="entry-copy">
+          <strong>{$t('manage.security.subnetRules')}</strong>
+          <span>{$t('manage.security.subnetRulesDescription')}</span>
+          {#if !canListSubnets}<small>{$t('manage.missingPermission', { values: { permission: 'list_banned_subnets' } })}</small>{/if}
+        </span>
+        <Icon name="breadcrumbSep" size="20px" />
+      </button>
+      <button class="security-entry" type="button" disabled={!canListLockouts} onclick={() => openView('lockouts')}>
+        <span class="section-icon"><Icon name="lock" size="22px" /></span>
+        <span class="entry-copy">
+          <strong>{$t('manage.security.temporaryLockouts')}</strong>
+          <span>{$t('manage.security.temporaryLockoutsDescription')}</span>
+          {#if !canListLockouts}<small>{$t('manage.missingPermission', { values: { permission: 'list_auth_lockouts' } })}</small>{/if}
+        </span>
+        <Icon name="breadcrumbSep" size="20px" />
+      </button>
+    </div>
+  {:else}
+    <section class="security-section">
+      <header class="section-header">
+        <button class="back-button" type="button" aria-label={$t('common.back')} onclick={() => (activeView = 'overview')}>
+          <Icon name="arrowBack" size="20px" />
         </button>
-      {/if}
-    </header>
-
-    {#if !canListSubnets}
-      <p class="empty-state">{$t('manage.missingPermission', { values: { permission: 'list_banned_subnets' } })}</p>
-    {:else if loadingSubnets}
-      <div class="loading-state"><ProgressRing size={18} strokeWidth={2.4} label={$t('common.loadingEllipsis')} /> {$t('common.loadingEllipsis')}</div>
-    {:else if subnets.length === 0}
-      <p class="empty-state">{$t('manage.security.noSubnetRules')}</p>
-    {:else}
-      <div class="record-list">
-        {#each subnets as rule (rule.subnet)}
-          <article class="security-record">
-            <span class="record-leading"><Icon name={rule.status === 'active' ? 'block' : 'schedule'} size="20px" /></span>
-            <div class="record-main">
-              <div class="record-title-row">
-                <strong>{rule.subnet}</strong>
-                <span class="status-chip status-chip--{rule.status}">{$t(`manage.security.status.${rule.status}`)}</span>
-              </div>
-              <p class="record-reason">{rule.reason || $t('manage.security.noReason')}</p>
-              <p class="record-meta">
-                {$t('manage.security.rulePeriod', {
-                  values: {
-                    start: formatTimestamp(rule.starts_at),
-                    end: rule.expires_at === null ? $t('manage.permanent') : formatTimestamp(rule.expires_at),
-                  },
-                })}
-              </p>
-            </div>
-            {#if canManageSubnets}
-              <div class="record-actions">
-                <button type="button" title={$t('common.edit')} onclick={() => openEditRule(rule)} disabled={busyKey !== null}>
-                  <Icon name="edit" size="18px" />
-                </button>
-                <button class="danger-action" type="button" title={$t('common.delete')} onclick={() => removeRule(rule)} disabled={busyKey !== null}>
-                  <Icon name="delete" size="18px" />
-                </button>
-              </div>
-            {/if}
-          </article>
-        {/each}
-      </div>
-    {/if}
-  </section>
-
-  <section class="security-section">
-    <header class="section-header">
-      <div class="section-heading">
-        <span class="section-icon"><Icon name="lock" size="21px" /></span>
-        <div>
-          <h2>{$t('manage.security.temporaryLockouts')}</h2>
-          <p>{$t('manage.security.temporaryLockoutsDescription')}</p>
+        <div class="section-heading">
+          <div>
+            <h2>{activeView === 'subnets' ? $t('manage.security.subnetRules') : $t('manage.security.temporaryLockouts')}</h2>
+            <p>{activeView === 'subnets' ? $t('manage.security.subnetRulesDescription') : $t('manage.security.temporaryLockoutsDescription')}</p>
+          </div>
         </div>
-      </div>
-    </header>
+        {#if activeView === 'subnets' && canManageSubnets}
+          <button class="primary-pill" type="button" onclick={openCreateRule} disabled={busyKey !== null}>
+            <Icon name="add" size="16px" />
+            {$t('manage.security.addSubnet')}
+          </button>
+        {/if}
+      </header>
 
-    {#if !canListLockouts}
-      <p class="empty-state">{$t('manage.missingPermission', { values: { permission: 'list_auth_lockouts' } })}</p>
-    {:else if loadingLockouts}
-      <div class="loading-state"><ProgressRing size={18} strokeWidth={2.4} label={$t('common.loadingEllipsis')} /> {$t('common.loadingEllipsis')}</div>
-    {:else if lockouts.length === 0}
-      <p class="empty-state">{$t('manage.security.noTemporaryLockouts')}</p>
-    {:else}
-      <div class="record-list">
-        {#each lockouts as lockout (lockoutKey(lockout))}
-          <article class="security-record">
-            <span class="record-leading record-leading--warning"><Icon name="lockPerson" size="20px" /></span>
-            <div class="record-main">
-              <div class="record-title-row">
-                <strong>{lockoutIdentity(lockout)}</strong>
-                <span class="scope-chip">{$t(`manage.security.scope.${lockout.scope}`)}</span>
+      {#if activeView === 'subnets'}
+        {#if loadingSubnets}
+          <div class="loading-state"><ProgressRing size={18} strokeWidth={2.4} label={$t('common.loadingEllipsis')} /> {$t('common.loadingEllipsis')}</div>
+        {:else if subnets.length === 0}
+          <p class="empty-state">{$t('manage.security.noSubnetRules')}</p>
+        {:else}
+          <div class="record-list">
+            {#each subnets as rule (rule.subnet)}
+              <article class="security-record">
+                <span class="record-leading"><Icon name={rule.status === 'active' ? 'block' : 'schedule'} size="20px" /></span>
+                <div class="record-main">
+                  <div class="record-title-row">
+                    <strong>{rule.subnet}</strong>
+                    <span class="status-chip status-chip--{rule.status}">{$t(`manage.security.status.${rule.status}`)}</span>
+                  </div>
+                  <p class="record-reason">{rule.reason || $t('manage.security.noReason')}</p>
+                  <p class="record-meta">{$t('manage.security.rulePeriod', { values: { start: formatTimestamp(rule.starts_at), end: rule.expires_at === null ? $t('manage.permanent') : formatTimestamp(rule.expires_at) } })}</p>
+                </div>
+                {#if canManageSubnets}
+                  <div class="record-actions">
+                    <button type="button" title={$t('common.edit')} onclick={() => openEditRule(rule)} disabled={busyKey !== null}><Icon name="edit" size="18px" /></button>
+                    <button class="danger-action" type="button" title={$t('common.delete')} onclick={() => removeRule(rule)} disabled={busyKey !== null}><Icon name="delete" size="18px" /></button>
+                  </div>
+                {/if}
+              </article>
+            {/each}
+          </div>
+        {/if}
+      {:else if loadingLockouts}
+        <div class="loading-state"><ProgressRing size={18} strokeWidth={2.4} label={$t('common.loadingEllipsis')} /> {$t('common.loadingEllipsis')}</div>
+      {:else if lockouts.length === 0}
+        <p class="empty-state">{$t('manage.security.noTemporaryLockouts')}</p>
+      {:else}
+        <div class="record-list">
+          {#each lockouts as lockout (lockoutKey(lockout))}
+            <article class="security-record">
+              <span class="record-leading record-leading--warning"><Icon name="lockPerson" size="20px" /></span>
+              <div class="record-main">
+                <div class="record-title-row">
+                  <strong>{lockoutIdentity(lockout)}</strong>
+                  <span class="scope-chip">{$t(`manage.security.scope.${lockout.scope}`)}</span>
+                </div>
+                <p class="record-reason">{$t('manage.security.failedAttempts', { values: { count: lockout.failed_attempts } })}</p>
+                <p class="record-meta">{$t('manage.security.lockedUntil', { values: { time: formatTimestamp(lockout.locked_until) } })}</p>
               </div>
-              <p class="record-reason">
-                {$t('manage.security.failedAttempts', { values: { count: lockout.failed_attempts } })}
-              </p>
-              <p class="record-meta">
-                {$t('manage.security.lockedUntil', { values: { time: formatTimestamp(lockout.locked_until) } })}
-              </p>
-            </div>
-            {#if canUnlockLockouts}
-              <button class="unlock-button" type="button" onclick={() => unlock(lockout)} disabled={busyKey !== null}>
-                <Icon name="lockOpen" size="17px" />
-                {$t('manage.security.unlockAction')}
-              </button>
-            {/if}
-          </article>
-        {/each}
-      </div>
-    {/if}
-  </section>
+              {#if canUnlockLockouts}
+                <button class="unlock-button" type="button" onclick={() => unlock(lockout)} disabled={busyKey !== null}><Icon name="lockOpen" size="17px" />{$t('manage.security.unlockAction')}</button>
+              {/if}
+            </article>
+          {/each}
+        </div>
+      {/if}
+    </section>
+  {/if}
 </div>
 
 {#if editorRule !== undefined}
@@ -447,13 +442,23 @@
 {/if}
 
 <style>
-  .security-workspace { display: grid; gap: 1rem; padding: 1rem; }
-  .security-section { overflow: hidden; border: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent); border-radius: 0.75rem; background: color-mix(in srgb, var(--color-md3-surface-container-high) 34%, transparent); }
+  .security-workspace { min-height: 22rem; }
+  .security-entries { border-block: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent); }
+  .security-entry { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 1.1rem 1rem; text-align: left; transition: background-color 140ms ease; }
+  .security-entry + .security-entry { border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 52%, transparent); }
+  .security-entry:hover:not(:disabled) { background: color-mix(in srgb, var(--color-md3-primary-container) 13%, transparent); }
+  .entry-copy { display: grid; min-width: 0; gap: 0.16rem; }
+  .entry-copy strong { color: var(--color-md3-on-surface); font: 650 0.88rem/1.35 var(--font-md3-sans); }
+  .entry-copy > span { color: var(--color-md3-on-surface-variant); font: 400 0.74rem/1.5 var(--font-md3-sans); }
+  .entry-copy small { color: var(--color-md3-error); font: 500 0.68rem/1.4 var(--font-md3-sans); }
+  .security-section { min-height: 22rem; }
   .section-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid color-mix(in srgb, var(--color-md3-outline) 58%, transparent); padding: 0.9rem 1rem; }
-  .section-heading { display: flex; min-width: 0; align-items: center; gap: 0.75rem; }
+  .section-heading { min-width: 0; flex: 1; }
   .section-heading h2 { color: var(--color-md3-on-surface); font: 650 0.9rem/1.3 var(--font-md3-sans); }
   .section-heading p { margin-top: 0.12rem; color: var(--color-md3-on-surface-variant); font: 400 0.72rem/1.45 var(--font-md3-sans); }
   .section-icon, .record-leading { display: grid; width: 2.25rem; height: 2.25rem; flex: none; place-items: center; border-radius: 0.65rem; color: var(--color-md3-primary); background: var(--color-md3-primary-container); }
+  .back-button { display: grid; width: 2rem; height: 2rem; flex: none; place-items: center; border-radius: 999px; color: var(--color-md3-on-surface-variant); transition: color 120ms ease, background-color 120ms ease; }
+  .back-button:hover { color: var(--color-md3-primary); background: var(--color-md3-primary-container); }
   .primary-pill { display: inline-flex; min-height: 2rem; flex: none; align-items: center; gap: 0.35rem; border-radius: 999px; padding: 0.3rem 0.8rem; color: var(--color-md3-on-primary-container); background: var(--color-md3-primary-container); font: 600 0.72rem/1 var(--font-md3-sans); transition: filter 120ms ease, transform 120ms ease; }
   .primary-pill:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
   button:disabled { cursor: not-allowed; opacity: 0.46; }
@@ -492,7 +497,6 @@
   .editor-error { display: flex; align-items: flex-start; gap: 0.5rem; border: 1px solid color-mix(in srgb, var(--color-md3-error) 40%, transparent); border-radius: 0.6rem; padding: 0.7rem; color: var(--color-md3-on-error-container); background: color-mix(in srgb, var(--color-md3-error-container) 45%, transparent); font: 400 0.75rem/1.45 var(--font-md3-sans); }
   .editor-form footer { display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 60%, transparent); padding-top: 1rem; }
   @media (max-width: 640px) {
-    .security-workspace { padding: 0.75rem; }
     .section-header { align-items: flex-start; }
     .security-record { grid-template-columns: auto minmax(0, 1fr); }
     .record-actions, .unlock-button { grid-column: 2; justify-self: end; }

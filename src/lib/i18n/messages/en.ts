@@ -738,8 +738,6 @@ export const en = {
     resetPasswordTitle: 'Reset Password: {username}',
     resetPasswordDescription:
       'Set a new password for {username}. You can generate a strong password and choose how strictly the server should enforce password policy.',
-    setAccountStatus: 'Set status',
-    setAccountStatusTitle: 'Set Account Status: {username}',
     setAccountStatusDescription: 'Choose whether this account can sign in and use authenticated server actions.',
     accountStatus: 'Account status',
     currentAccountStatus: 'Current status',
