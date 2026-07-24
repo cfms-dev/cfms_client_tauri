@@ -245,6 +245,129 @@ pub async fn list_user_blocks(
 }
 
 #[tauri::command]
+pub async fn get_managed_2fa_status(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "get_2fa_status",
+        serde_json::json!({ "target": username }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn disable_managed_2fa(
+    state: tauri::State<'_, AppHandleState>,
+    username: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "disable_2fa",
+        serde_json::json!({ "username": username }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_banned_subnets(
+    state: tauri::State<'_, AppHandleState>,
+    status: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let mut data = serde_json::json!({});
+    if let Some(value) = non_empty_optional(status) {
+        data["status"] = serde_json::Value::String(value);
+    }
+    let items = fetch_all_cursor_items(&state, "list_banned_subnets", data).await?;
+    Ok(serde_json::json!({ "subnets": items }))
+}
+
+#[tauri::command]
+pub async fn create_banned_subnet(
+    state: tauri::State<'_, AppHandleState>,
+    subnet: String,
+    reason: Option<String>,
+    starts_at: Option<f64>,
+    expires_at: Option<f64>,
+    confirm_self_block: bool,
+) -> Result<serde_json::Value, String> {
+    let mut data = serde_json::json!({
+        "subnet": subnet,
+        "reason": non_empty_optional(reason),
+        "expires_at": expires_at,
+        "confirm_self_block": confirm_self_block,
+    });
+    if let Some(value) = starts_at {
+        data["starts_at"] = serde_json::json!(value);
+    }
+    server_action_json(&state, "create_banned_subnet", data).await
+}
+
+#[tauri::command]
+pub async fn update_banned_subnet(
+    state: tauri::State<'_, AppHandleState>,
+    subnet: String,
+    reason: Option<String>,
+    starts_at: f64,
+    expires_at: Option<f64>,
+    confirm_self_block: bool,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "update_banned_subnet",
+        serde_json::json!({
+            "subnet": subnet,
+            "reason": non_empty_optional(reason),
+            "starts_at": starts_at,
+            "expires_at": expires_at,
+            "confirm_self_block": confirm_self_block,
+        }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_banned_subnet(
+    state: tauri::State<'_, AppHandleState>,
+    subnet: String,
+) -> Result<bool, String> {
+    server_action_bool(
+        &state,
+        "delete_banned_subnet",
+        serde_json::json!({ "subnet": subnet }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_auth_lockouts(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    let items = fetch_all_cursor_items(
+        &state,
+        "list_auth_lockouts",
+        serde_json::json!({}),
+    )
+    .await?;
+    Ok(serde_json::json!({ "lockouts": items }))
+}
+
+#[tauri::command]
+pub async fn unlock_auth_lockouts(
+    state: tauri::State<'_, AppHandleState>,
+    locks: Vec<serde_json::Value>,
+    reason: String,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "unlock_auth_lockouts",
+        serde_json::json!({ "locks": locks, "reason": reason }),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn unblock_user(
     state: tauri::State<'_, AppHandleState>,
     block_id: String,

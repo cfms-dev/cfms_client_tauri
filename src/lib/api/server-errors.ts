@@ -29,6 +29,13 @@ export function serverErrorData(error: unknown): Record<string, unknown> | null 
   }
 }
 
+/** Return the human-readable portion without the structured metadata suffix. */
+export function serverErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const markerIndex = message.lastIndexOf(ERROR_DATA_MARKER);
+  return (markerIndex < 0 ? message : message.slice(0, markerIndex)).trimEnd();
+}
+
 /**
  * Access-denied errors currently arrive in two backend formats: generic server
  * actions retain the 403 status, while document downloads use an explicit

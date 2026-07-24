@@ -140,7 +140,16 @@ pub async fn login(
         }
 
         // --- Server-side error ---
-        other => Err(format!("Login failed: ({}) {}", other, response.message)),
+        other => {
+            let error_data = serde_json::to_string(&response.data)
+                .unwrap_or_else(|_| "{}".to_string());
+            let mut error = format!("Login failed: ({}) {}", other, response.message);
+            if error_data != "{}" && error_data != "null" {
+                error.push_str("\nCFMS_ERROR_DATA:");
+                error.push_str(&error_data);
+            }
+            Err(error)
+        }
     }
 }
 

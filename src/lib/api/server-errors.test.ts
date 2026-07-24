@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAccessDeniedError, serverErrorData, serverErrorStatus } from './server-errors';
+import { isAccessDeniedError, serverErrorData, serverErrorMessage, serverErrorStatus } from './server-errors';
 
 describe('server errors', () => {
   it('extracts status codes from generic server command failures', () => {
@@ -14,11 +14,20 @@ describe('server errors', () => {
     expect(serverErrorData(error)).toEqual({ reason: 'Policy violation' });
     expect(serverErrorData('Login failed: (4003) User account is not active')).toBeNull();
     expect(serverErrorData('failure\nCFMS_ERROR_DATA:not-json')).toBeNull();
+    expect(serverErrorData(
+      'Login failed: (429) Too many attempts\nCFMS_ERROR_DATA:{"retry_after_seconds":45}',
+    )).toEqual({ retry_after_seconds: 45 });
   });
 
   it('recognizes both directory and document access-denied formats', () => {
     expect(isAccessDeniedError('Server returned 403: permission denied')).toBe(true);
     expect(isAccessDeniedError(new Error('Access denied: permission denied'))).toBe(true);
+  });
+
+  it('keeps structured metadata out of user-facing error text', () => {
+    expect(serverErrorMessage(
+      'Login failed: (429) Too many attempts\nCFMS_ERROR_DATA:{"retry_after_seconds":45}',
+    )).toBe('Login failed: (429) Too many attempts');
   });
 
   it('does not consume unrelated server and connection failures', () => {

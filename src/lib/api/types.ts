@@ -241,6 +241,42 @@ export interface UserBlock {
   not_after?: number | null;
 }
 
+export type BannedSubnetStatus = "scheduled" | "active" | "expired";
+
+export interface BannedSubnet {
+  subnet: string;
+  reason: string | null;
+  created_at: number;
+  starts_at: number;
+  expires_at: number | null;
+  status: BannedSubnetStatus;
+}
+
+export type AuthFactor = "password" | "totp";
+export type AuthLockoutScope = "ip" | "account" | "account_ip";
+
+export interface AuthLockout {
+  scope: AuthLockoutScope;
+  username: string | null;
+  factor: AuthFactor | null;
+  ip_address: string | null;
+  failed_attempts: number;
+  window_started_at: number | null;
+  last_attempt: number;
+  locked_until: number;
+  retry_after_seconds: number;
+}
+
+export type AuthLockoutSelector =
+  | { scope: "ip"; ip_address: string }
+  | { scope: "account"; username: string; factor: AuthFactor }
+  | { scope: "account_ip"; username: string; ip_address: string };
+
+export interface UnlockAuthLockoutsResult {
+  cleared: AuthLockoutSelector[];
+  not_found: AuthLockoutSelector[];
+}
+
 export interface AuditLogEntry {
   id: string;
   action: string;

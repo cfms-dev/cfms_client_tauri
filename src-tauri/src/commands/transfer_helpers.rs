@@ -683,7 +683,14 @@ async fn server_action_json(
         match send_action_request(&conn, action, data.clone(), &username, &token).await {
             Ok(resp) => {
                 if resp.code != 200 {
-                    return Err(format!("Server returned {}: {}", resp.code, resp.message));
+                    let error_data = serde_json::to_string(&resp.data)
+                        .unwrap_or_else(|_| "{}".to_string());
+                    let mut error = format!("Server returned {}: {}", resp.code, resp.message);
+                    if error_data != "{}" && error_data != "null" {
+                        error.push_str("\nCFMS_ERROR_DATA:");
+                        error.push_str(&error_data);
+                    }
+                    return Err(error);
                 }
 
                 return Ok(resp.data);

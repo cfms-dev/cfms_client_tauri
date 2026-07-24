@@ -19,6 +19,7 @@
     renameGroup,
     renameUser,
     resetUserPassword,
+    serverErrorMessage,
     unblockUser,
     viewAuditLogs,
     type AuditLogEntry,
@@ -935,7 +936,7 @@
   }
 
   function formatError(err: unknown) {
-    return err instanceof Error ? err.message : String(err);
+    return serverErrorMessage(err);
   }
 </script>
 

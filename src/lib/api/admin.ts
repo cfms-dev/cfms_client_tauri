@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserInfoResponse = Omit<ManagedUserInfo, 'status'> & {
@@ -108,6 +108,69 @@ export async function listUserBlocks(username: string): Promise<UserBlock[]> {
 
 export async function unblockUser(blockId: string): Promise<boolean> {
   return invoke("unblock_user", { blockId });
+}
+
+export async function getManagedTwoFactorStatus(username: string): Promise<TwoFactorStatus> {
+  return invoke("get_managed_2fa_status", { username });
+}
+
+export async function disableManagedTwoFactor(username: string): Promise<boolean> {
+  return invoke("disable_managed_2fa", { username });
+}
+
+export async function listBannedSubnets(status?: BannedSubnetStatus): Promise<BannedSubnet[]> {
+  const data = await invoke<{ subnets?: BannedSubnet[] }>("list_banned_subnets", {
+    status: status ?? null,
+  });
+  return data.subnets ?? [];
+}
+
+export async function createBannedSubnet(
+  subnet: string,
+  reason: string | null,
+  startsAt: number | null,
+  expiresAt: number | null,
+  confirmSelfBlock = false,
+): Promise<BannedSubnet> {
+  return invoke("create_banned_subnet", {
+    subnet,
+    reason,
+    startsAt,
+    expiresAt,
+    confirmSelfBlock,
+  });
+}
+
+export async function updateBannedSubnet(
+  subnet: string,
+  reason: string | null,
+  startsAt: number,
+  expiresAt: number | null,
+  confirmSelfBlock = false,
+): Promise<BannedSubnet> {
+  return invoke("update_banned_subnet", {
+    subnet,
+    reason,
+    startsAt,
+    expiresAt,
+    confirmSelfBlock,
+  });
+}
+
+export async function deleteBannedSubnet(subnet: string): Promise<boolean> {
+  return invoke("delete_banned_subnet", { subnet });
+}
+
+export async function listAuthLockouts(): Promise<AuthLockout[]> {
+  const data = await invoke<{ lockouts?: AuthLockout[] }>("list_auth_lockouts");
+  return data.lockouts ?? [];
+}
+
+export async function unlockAuthLockouts(
+  locks: AuthLockoutSelector[],
+  reason: string,
+): Promise<UnlockAuthLockoutsResult> {
+  return invoke("unlock_auth_lockouts", { locks, reason });
 }
 
 export async function listGroups(): Promise<ManagedGroup[]> {

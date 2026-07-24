@@ -42,6 +42,7 @@
     validateFileShortcuts,
     clearAuthSession,
     serverErrorData,
+    serverErrorMessage,
     serverErrorStatus,
     type AuthStatus,
   } from "$lib/api";
@@ -403,8 +404,7 @@
 
   /** Format an error message for display. */
   function formatError(e: unknown): string {
-    if (typeof e === "string") return e;
-    if (e instanceof Error) return e.message;
+    if (typeof e === "string" || e instanceof Error) return serverErrorMessage(e);
     return $t('login.unknownError');
   }
 
