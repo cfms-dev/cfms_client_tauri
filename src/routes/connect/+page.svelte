@@ -198,9 +198,9 @@
     }
   }
 
-  /** Navigate to the about/update page without marking a toolbar-originated visit. */
+  /** Navigate to the about/update page as a public utility visit from connect. */
   async function goToAbout() {
-    await goto("/home/about");
+    await openUtilityFromToolbar('/home/about');
   }
 
   async function openUtilityFromToolbar(path: '/home/about' | '/home/settings') {
