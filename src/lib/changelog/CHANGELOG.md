@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.38.1
+**Released on:** 2026-07-24
+
+**Title:** Bugfix
+
+### Fixed
+- Update navigation to about page as a public utility visit
+
+--- 
+
 ## v0.38.0
 **Released on:** 2026-07-24
 
