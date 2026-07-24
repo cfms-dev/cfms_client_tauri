@@ -13,6 +13,7 @@
     type ExtensionInstallation,
   } from '$lib/api/extensions';
   import { extensionsStore } from '$lib/extensions.svelte';
+  import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import { isMobilePlatform } from '$lib/platform';
   import Icon from '$lib/components/Icon.svelte';
@@ -35,7 +36,15 @@
     'ui.notify': 'settings.extensions.capabilities.ui_notify',
   };
 
-  onMount(() => void extensionsStore.refresh());
+  onMount(() => {
+    // Retain this page for later development, but prevent direct URL access
+    // while extensions are excluded from user-reachable product surfaces.
+    if (!USER_EXTENSIONS_ENABLED) {
+      void goto('/home/settings', { replaceState: true });
+      return;
+    }
+    void extensionsStore.refresh();
+  });
 
   async function importPackage() {
     const selected = await open({ multiple: false, directory: false, filters: [{ name: 'CFMS Extension', extensions: ['cfmsext'] }] });
@@ -115,6 +124,7 @@
   function formatError(error: unknown) { return error instanceof Error ? error.message : String(error); }
 </script>
 
+{#if USER_EXTENSIONS_ENABLED}
 <div class="extensions-page">
   <header>
     <div><h1>{$t('settings.extensions.title')}</h1><p>{$t('settings.extensions.description')}</p></div>
@@ -176,6 +186,7 @@
     </section>
   {/if}
 </div>
+{/if}
 
 <style>
   .extensions-page { max-width: 980px; margin: 0 auto; padding: 1.5rem; color: var(--explorer-text); }

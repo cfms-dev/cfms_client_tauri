@@ -31,6 +31,7 @@
   } from '$lib/keyboard';
   import { supportsKeyboardShortcuts } from '$lib/platform';
   import { extensionsStore } from '$lib/extensions.svelte';
+  import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
   import { isIconName } from '$lib/icons';
 
   let { children }: { children: Snippet } = $props();
@@ -82,15 +83,19 @@
     { id: 'home', label: $t('nav.home'), href: '/home/overview', icon: 'home', exact: true },
     { id: 'files', label: $t('workspace.allFiles'), href: '/home/files', icon: 'folder', exact: true },
     { id: 'tasks', label: $t('workspace.transfers'), href: '/home/tasks', icon: 'tasks', badge: activeTaskCount, exact: true },
-    ...extensionsStore.enabledInstallations.flatMap((installation) =>
-      installation.manifest.entrypoints.navigation.map((entry) => ({
-        id: `extension:${installation.manifest.id}:${entry.id}`,
-        label: entry.label,
-        href: `/home/extensions/view?extension=${encodeURIComponent(installation.manifest.id)}&page=${encodeURIComponent(entry.page)}`,
-        icon: isIconName(entry.icon) ? entry.icon : 'extensions',
-        exact: true,
-      })),
-    ),
+    // Keep dynamic extension navigation implemented while the feature remains
+    // intentionally absent from user-reachable surfaces.
+    ...(USER_EXTENSIONS_ENABLED
+      ? extensionsStore.enabledInstallations.flatMap((installation) =>
+          installation.manifest.entrypoints.navigation.map((entry) => ({
+            id: `extension:${installation.manifest.id}:${entry.id}`,
+            label: entry.label,
+            href: `/home/extensions/view?extension=${encodeURIComponent(installation.manifest.id)}&page=${encodeURIComponent(entry.page)}`,
+            icon: isIconName(entry.icon) ? entry.icon : 'extensions',
+            exact: true,
+          })),
+        )
+      : []),
   ]);
 
   const bottomNavigation = $derived<WorkspaceNavItem[]>([
@@ -139,6 +144,7 @@
   });
 
   $effect(() => {
+    if (!USER_EXTENSIONS_ENABLED) return;
     const scope = authStore.isLoggedIn && !authStore.postLoginPending && authStore.username
       ? `${serverStateStore.remoteAddress ?? ''}:${authStore.username}`
       : null;
