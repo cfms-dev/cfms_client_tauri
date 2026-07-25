@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.38.2
+**Released on:** 2026-07-25
+
+**Title:** Optimization of the Display of Revision Version Diagrams
+
+### Added
+- Enhance revision graph functionality with lineage tracking and visual updates feat(i18n): add current revision lineage translation to English and Chinese test(revision-graph): add unit tests for revision graph lineage highlighting and behavior
+
+--- 
+
 ## v0.38.1
 **Released on:** 2026-07-24
 
