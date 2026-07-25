@@ -469,6 +469,7 @@ export const zh_CN = {
     parentRevision: '父修订版本',
     rootRevision: '初始版本',
     revisionGraph: '修订版本图',
+    currentRevisionLineage: '当前版本谱系',
     revisionDownloaded: '已添加修订版本下载任务。',
     setCurrentRevision: '设为当前',
     setCurrentRevisionSuccess: '当前修订版本已更新。',

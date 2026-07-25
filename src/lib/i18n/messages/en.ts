@@ -474,6 +474,7 @@ export const en = {
     parentRevision: 'Parent',
     rootRevision: 'Initial revision',
     revisionGraph: 'Revision graph',
+    currentRevisionLineage: 'Current revision lineage',
     revisionDownloaded: 'Revision download added.',
     setCurrentRevision: 'Set current',
     setCurrentRevisionSuccess: 'Current revision updated.',

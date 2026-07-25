@@ -114,7 +114,7 @@
     setFavoriteRecord,
   } from '$lib/file-preferences';
   import { formatBytes, formatDate, formatError, formatUnknown, isPickerCancel } from '$lib/files/formatting';
-  import { graphLineColor, graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
+  import { graphWidth, laneX, buildRevisionRows } from '$lib/files/revision-graph';
   import {
     fileManagerNavigationStore,
     type DirectoryNavigationSnapshot,
@@ -3864,6 +3864,39 @@
     transition: transform var(--motion-duration-medium1) var(--motion-easing-emphasized-decelerate);
   }
 
+  .revision-graph-path {
+    stroke: var(--color-md3-on-surface-variant);
+    stroke-width: 1.75;
+  }
+
+  .revision-graph-path--active {
+    stroke: var(--color-md3-primary-emphasis);
+    stroke-width: 2.5;
+  }
+
+  .revision-graph-node {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    border: 2px solid var(--color-md3-on-surface-variant);
+    border-radius: 999px;
+    background: var(--color-md3-surface-container);
+    transform: translate(-50%, -50%);
+  }
+
+  .revision-graph-node--lineage {
+    border-color: var(--color-md3-surface-container);
+    background: var(--color-md3-primary-emphasis);
+  }
+
+  .revision-graph-node--current {
+    width: 12px;
+    height: 12px;
+    border-width: 3px;
+  }
+
   @keyframes search-preview-in {
     from {
       opacity: 0;
@@ -4216,9 +4249,18 @@
             {$t('files.noRevisions')}
           </p>
         {:else}
-          <div class="mb-3 flex items-center gap-2 text-xs font-medium uppercase text-md3-on-surface-variant">
-            <Icon name="history" size="16px" />
-            {$t('files.revisionGraph')}
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-md3-on-surface-variant">
+            <div class="flex items-center gap-2 text-xs font-medium uppercase">
+              <Icon name="history" size="16px" />
+              {$t('files.revisionGraph')}
+            </div>
+            <div class="flex items-center gap-1.5 text-[11px] font-medium">
+              <span class="relative inline-block h-2 w-6" aria-hidden="true">
+                <span class="absolute left-0 top-1/2 h-[2.5px] w-full -translate-y-1/2 rounded-full bg-md3-primary-emphasis"></span>
+                <span class="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-md3-surface-container bg-md3-primary-emphasis"></span>
+              </span>
+              {$t('files.currentRevisionLineage')}
+            </div>
           </div>
           <div class="space-y-0">
             {#each revisionRows as row (row.revision.id)}
@@ -4230,15 +4272,15 @@
                   preserveAspectRatio="none"
                   aria-hidden="true"
                 >
-                  {#each row.before as laneId, index}
-                    {#if laneId !== null && (index !== row.lane || row.hasChildren)}
+                  {#each row.before as lane, index}
+                    {#if lane !== null && (index !== row.lane || row.hasChildren)}
                       <line
+                        class="revision-graph-path"
+                        class:revision-graph-path--active={lane.isCurrentLineage}
                         x1={laneX(index)}
                         y1="0"
                         x2={laneX(index)}
                         y2="30"
-                        stroke={graphLineColor(laneId)}
-                        stroke-width="2.4"
                         stroke-linecap="round"
                         vector-effect="non-scaling-stroke"
                       />
@@ -4246,25 +4288,37 @@
                   {/each}
                   {#if row.parentLane !== null}
                     <path
+                      class="revision-graph-path"
+                      class:revision-graph-path--active={row.parentPathInCurrentLineage}
                       d={row.parentLane === row.lane
                         ? `M ${laneX(row.lane)} 32 L ${laneX(row.lane)} 64`
                         : `M ${laneX(row.lane)} 32 C ${laneX(row.lane)} 48, ${laneX(row.parentLane)} 48, ${laneX(row.parentLane)} 64`}
                       fill="none"
-                      stroke={graphLineColor(row.revision.parent_id)}
-                      stroke-width="2.4"
                       stroke-linecap="round"
                       vector-effect="non-scaling-stroke"
                     />
                   {/if}
-                  {#each row.after as laneId, index}
-                    {#if laneId !== null && index !== row.parentLane}
+                  {#if row.parentLaneContinuation}
+                    <path
+                      class="revision-graph-path"
+                      class:revision-graph-path--active={row.parentLaneContinuation.isCurrentLineage}
+                      d={row.parentLaneContinuation.fromLane === row.parentLaneContinuation.toLane
+                        ? `M ${laneX(row.parentLaneContinuation.fromLane)} 30 L ${laneX(row.parentLaneContinuation.toLane)} 64`
+                        : `M ${laneX(row.parentLaneContinuation.fromLane)} 30 C ${laneX(row.parentLaneContinuation.fromLane)} 46, ${laneX(row.parentLaneContinuation.toLane)} 48, ${laneX(row.parentLaneContinuation.toLane)} 64`}
+                      fill="none"
+                      stroke-linecap="round"
+                      vector-effect="non-scaling-stroke"
+                    />
+                  {/if}
+                  {#each row.after as lane, index}
+                    {#if lane !== null && index !== row.parentLane}
                       <line
+                        class="revision-graph-path"
+                        class:revision-graph-path--active={lane.isCurrentLineage}
                         x1={laneX(index)}
                         y1="32"
                         x2={laneX(index)}
                         y2="64"
-                        stroke={graphLineColor(laneId)}
-                        stroke-width="2.4"
                         stroke-linecap="round"
                         vector-effect="non-scaling-stroke"
                       />
@@ -4272,31 +4326,19 @@
                   {/each}
                 </svg>
                 <span
-                  class="pointer-events-none absolute h-3 w-3 rounded-full border-[3px] border-md3-surface-container"
-                  style={`left: ${laneX(row.lane)}px; top: 50%; background: ${graphLineColor(row.revision.id)}; transform: translate(-50%, -50%);`}
+                  class="revision-graph-node"
+                  class:revision-graph-node--lineage={row.isCurrentLineage}
+                  class:revision-graph-node--current={row.isCurrentRevision}
+                  style={`left: ${laneX(row.lane)}px;`}
                   aria-hidden="true"
                 ></span>
-                {#if row.hasBranch}
-                  <span
-                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-md3-primary-emphasis"
-                    style={`left: ${laneX(row.lane) + 8}px; top: calc(50% - 8px); transform: translate(-50%, -50%);`}
-                    aria-hidden="true"
-                  ></span>
-                {/if}
-                {#if row.hasMerge}
-                  <span
-                    class="pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-[#34d399]"
-                    style={`left: ${laneX(row.lane) + 8}px; top: calc(50% + 8px); transform: translate(-50%, -50%);`}
-                    aria-hidden="true"
-                  ></span>
-                {/if}
 
                 <div class="min-w-0 py-3">
                   <div class="flex flex-wrap items-center gap-2">
                     <p class="text-sm font-semibold text-md3-on-surface" title={row.revision.id}>
                       {$t('files.revision')} #{shortIdentifier(row.revision.id)}
                     </p>
-                    {#if row.revision.is_current}
+                    {#if row.isCurrentRevision}
                       <span class="rounded-full bg-md3-primary-container px-2 py-0.5 text-[11px] font-medium text-md3-on-primary-container">
                         {$t('files.currentRevision')}
                       </span>
