@@ -499,11 +499,11 @@ pub fn quit_application(app_handle: tauri::AppHandle) {
 /// 1. Validate protocol-version compatibility between client and server.
 /// 2. Surface the server's display name and lockdown status.
 ///
-/// If the server's protocol version is *higher* than the client's the
+/// If the server's protocol version is higher than the client's supported range the
 /// connection is torn down and an error is returned — the frontend
 /// should direct the user to update the client.
 ///
-/// If the server's protocol version is *lower* the connection is also
+/// If the server's protocol version is lower than the supported range the connection is also
 /// closed — the server is too old and the client cannot downgrade.
 ///
 /// # Returns
@@ -675,22 +675,23 @@ pub async fn connect(
     //
     // Mirrors the Python reference's protocol-version gate in
     // `ConnectFormController.action_connect`.
-    let client_protocol = cfms_core::constants::PROTOCOL_VERSION;
+    let min_supported_protocol = cfms_core::constants::MIN_SUPPORTED_PROTOCOL_VERSION;
+    let max_supported_protocol = cfms_core::constants::MAX_SUPPORTED_PROTOCOL_VERSION;
 
-    if server_info.protocol_version != client_protocol {
+    if !cfms_core::constants::is_supported_protocol_version(server_info.protocol_version) {
         // Tear down — cannot communicate with this server.
         state.connect_attempts.unregister(attempt_id);
         conn.close().await;
 
-        if server_info.protocol_version > client_protocol {
+        if server_info.protocol_version > max_supported_protocol {
             return Err(format!(
                 "server_update_required:{}:{}",
-                server_info.protocol_version, client_protocol
+                server_info.protocol_version, max_supported_protocol
             ));
         } else {
             return Err(format!(
                 "server_too_old:{}:{}",
-                server_info.protocol_version, client_protocol
+                server_info.protocol_version, min_supported_protocol
             ));
         }
     }

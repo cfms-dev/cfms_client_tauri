@@ -92,9 +92,9 @@ export const zh_CN = {
     clientUpdateRequired: '需要更新客户端',
     serverVersionUnsupported: '不支持该服务器版本',
     clientUpdateMessage:
-      '服务器使用协议版本 {serverVersion}，但当前客户端仅支持版本 {clientVersion}。请更新客户端后再连接。',
+      '服务器使用协议版本 {serverVersion}，但当前客户端最高支持版本 {supportedBoundary}。请更新客户端后再连接。',
     serverUnsupportedMessage:
-      '服务器使用协议版本 {serverVersion}，低于当前客户端版本 {clientVersion}，因此不受支持。',
+      '服务器使用协议版本 {serverVersion}，但当前客户端最低支持版本 {supportedBoundary}。',
     checkUpdates: '检查更新',
     connect: '连接',
     recentAddresses: '最近地址',

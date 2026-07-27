@@ -61,8 +61,8 @@ export async function quitApplication(): Promise<void> {
  *  Returns [`ServerInfo`] on success.  Throws with a specially-formatted
  *  error string on protocol version mismatch:
  *
- *  - `"server_update_required:<server_ver>:<client_ver>"` — server is newer.
- *  - `"server_too_old:<server_ver>:<client_ver>"` — server is too old.
+ *  - `"server_update_required:<server_ver>:<max_supported_ver>"` — server is newer.
+ *  - `"server_too_old:<server_ver>:<min_supported_ver>"` — server is too old.
  */
 export async function connect(
   url: string,

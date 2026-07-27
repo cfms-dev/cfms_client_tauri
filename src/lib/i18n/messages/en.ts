@@ -92,9 +92,9 @@ export const en = {
     clientUpdateRequired: 'Client update required',
     serverVersionUnsupported: 'Server version not supported',
     clientUpdateMessage:
-      'The server uses protocol version {serverVersion}, but your client only supports version {clientVersion}. Please update the client to connect.',
+      'The server uses protocol version {serverVersion}, but the latest version supported by this client is {supportedBoundary}. Please update the client to connect.',
     serverUnsupportedMessage:
-      "The server uses protocol version {serverVersion}, which is older than the client's version {clientVersion} and is not supported.",
+      'The server uses protocol version {serverVersion}, but the earliest version supported by this client is {supportedBoundary}.',
     checkUpdates: 'Check for updates',
     connect: 'Connect',
     recentAddresses: 'Recent addresses',

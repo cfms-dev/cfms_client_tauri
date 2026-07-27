@@ -7,8 +7,22 @@
 // ---------------------------------------------------------------------------
 // Protocol version
 // ---------------------------------------------------------------------------
-/// Current wire-protocol version.  Server and client negotiate based on this.
-pub const PROTOCOL_VERSION: u32 = 17;
+/// Oldest wire-protocol version supported by this client.
+pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = 17;
+
+/// Newest wire-protocol version supported by this client.
+pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 18;
+
+/// Current wire-protocol version advertised by this client.
+///
+/// Kept as the latest supported version for callers that need a single
+/// protocol version rather than the full compatibility range.
+pub const PROTOCOL_VERSION: u32 = MAX_SUPPORTED_PROTOCOL_VERSION;
+
+/// Return whether a server wire-protocol version is compatible with this client.
+pub const fn is_supported_protocol_version(version: u32) -> bool {
+    version >= MIN_SUPPORTED_PROTOCOL_VERSION && version <= MAX_SUPPORTED_PROTOCOL_VERSION
+}
 
 // ---------------------------------------------------------------------------
 // Cryptographic parameters
@@ -51,3 +65,31 @@ pub const FRAME_HEADER_LEN: usize = 5;
 
 /// Prefix length used when constructing chunk nonces (8 bytes + 4 bytes index = 12).
 pub const CHUNK_NONCE_PREFIX_LEN: usize = 8;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        MAX_SUPPORTED_PROTOCOL_VERSION, MIN_SUPPORTED_PROTOCOL_VERSION,
+        is_supported_protocol_version,
+    };
+
+    #[test]
+    fn accepts_every_supported_protocol_version() {
+        assert!(is_supported_protocol_version(
+            MIN_SUPPORTED_PROTOCOL_VERSION
+        ));
+        assert!(is_supported_protocol_version(
+            MAX_SUPPORTED_PROTOCOL_VERSION
+        ));
+    }
+
+    #[test]
+    fn rejects_protocol_versions_outside_the_supported_range() {
+        assert!(!is_supported_protocol_version(
+            MIN_SUPPORTED_PROTOCOL_VERSION - 1
+        ));
+        assert!(!is_supported_protocol_version(
+            MAX_SUPPORTED_PROTOCOL_VERSION + 1
+        ));
+    }
+}

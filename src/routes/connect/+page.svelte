@@ -59,7 +59,7 @@
   let playLoginReturnTransition = $state(browser ? consumeLoginToConnectTransition() : false);
   let protocolError = $state<{
     serverVersion: number;
-    clientVersion: number;
+    supportedBoundary: number;
     needsUpdate: boolean;
   } | null>(null);
 
@@ -124,15 +124,15 @@
   }
 
   /** Parse a protocol-mismatch error string of the form
-   *  `"<kind>:<server_ver>:<client_ver>"`. */
+   *  `"<kind>:<server_ver>:<supported_boundary>"`. */
   function parseProtocolError(
     e: string,
-  ): { serverVersion: number; clientVersion: number; needsUpdate: boolean } | null {
+  ): { serverVersion: number; supportedBoundary: number; needsUpdate: boolean } | null {
     if (e.startsWith("server_update_required:")) {
       const parts = e.split(":");
       return {
         serverVersion: Number(parts[1]),
-        clientVersion: Number(parts[2]),
+        supportedBoundary: Number(parts[2]),
         needsUpdate: true,
       };
     }
@@ -140,7 +140,7 @@
       const parts = e.split(":");
       return {
         serverVersion: Number(parts[1]),
-        clientVersion: Number(parts[2]),
+        supportedBoundary: Number(parts[2]),
         needsUpdate: false,
       };
     }
@@ -431,8 +431,8 @@
               </p>
               <p class="mt-1 text-md3-on-surface-variant">
                 {protocolError.needsUpdate
-                  ? $t('connect.clientUpdateMessage', { values: { serverVersion: protocolError.serverVersion, clientVersion: protocolError.clientVersion } })
-                  : $t('connect.serverUnsupportedMessage', { values: { serverVersion: protocolError.serverVersion, clientVersion: protocolError.clientVersion } })}
+                  ? $t('connect.clientUpdateMessage', { values: { serverVersion: protocolError.serverVersion, supportedBoundary: protocolError.supportedBoundary } })
+                  : $t('connect.serverUnsupportedMessage', { values: { serverVersion: protocolError.serverVersion, supportedBoundary: protocolError.supportedBoundary } })}
               </p>
             </div>
           </div>
