@@ -4,6 +4,21 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.38.3
+**Released on:** 2026-07-27
+
+**Title:** Cross-protocol-version Support
+
+This version adds support for a range of protocol versions—rather than just a specific one—to accommodate scenarios where the protocol specification has been updated but the current implementation remains compatible without modification.
+
+### Maintenance
+- Update static fonts
+
+### Added
+- Enhance protocol version handling with support range and compatibility checks
+
+--- 
+
 ## v0.38.2
 **Released on:** 2026-07-25
 
