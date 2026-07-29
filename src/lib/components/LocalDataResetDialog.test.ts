@@ -80,6 +80,8 @@ describe('LocalDataResetDialog', () => {
 
     const deletedHeading = screen.getByText('settings.localData.deletedTitle');
     const exclusionsHeading = screen.getByText('settings.localData.exclusionsTitle');
+    expect(deletedHeading.closest('h3')?.querySelector('[data-icon]')).toBeNull();
+    expect(exclusionsHeading.closest('h3')?.querySelector('[data-icon]')).toBeNull();
     const downloadsChoice = screen.getByRole('checkbox');
     expect(
       deletedHeading.compareDocumentPosition(exclusionsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,

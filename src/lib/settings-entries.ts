@@ -63,7 +63,7 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
   {
     labelKey: 'settings.localData.title',
     descriptionKey: 'settings.localData.description',
-    icon: 'resetSettings',
+    icon: 'backup',
     href: '/home/settings/data',
   },
   {

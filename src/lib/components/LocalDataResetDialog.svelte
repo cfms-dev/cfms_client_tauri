@@ -51,10 +51,7 @@
       </div>
 
       <section class="space-y-2">
-        <h3 class="flex items-center gap-2 text-sm font-semibold text-md3-on-surface">
-          <Icon name="deleteSweep" size="19px" class="text-md3-error" />
-          {$t('settings.localData.deletedTitle')}
-        </h3>
+        <h3 class="text-sm font-semibold text-md3-on-surface">{$t('settings.localData.deletedTitle')}</h3>
         <ul class="grid gap-2 text-xs leading-5 text-md3-on-surface-variant sm:grid-cols-2">
           <li>{$t('settings.localData.deletedSettings')}</li>
           <li>{$t('settings.localData.deletedPreferences')}</li>
@@ -66,10 +63,7 @@
       </section>
 
       <section class="space-y-2">
-        <h3 class="flex items-center gap-2 text-sm font-semibold text-md3-on-surface">
-          <Icon name="verifiedUser" size="19px" class="text-md3-primary-emphasis" />
-          {$t('settings.localData.exclusionsTitle')}
-        </h3>
+        <h3 class="text-sm font-semibold text-md3-on-surface">{$t('settings.localData.exclusionsTitle')}</h3>
         <p class="text-xs leading-5 text-md3-on-surface-variant">{$t('settings.localData.exclusions')}</p>
       </section>
 

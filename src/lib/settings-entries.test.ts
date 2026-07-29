@@ -28,7 +28,7 @@ describe('settings entry visibility', () => {
 
     expect(signedOut.some((entry) => entry.href === '/home/settings/data')).toBe(true);
     expect(signedIn.some((entry) => entry.href === '/home/settings/data')).toBe(true);
-    expect(signedOut.find((entry) => entry.href === '/home/settings/data')?.icon).toBe('resetSettings');
+    expect(signedOut.find((entry) => entry.href === '/home/settings/data')?.icon).toBe('backup');
   });
 
   it('keeps extension settings outside user-reachable settings', () => {

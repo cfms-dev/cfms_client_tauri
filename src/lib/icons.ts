@@ -59,6 +59,7 @@ export const ICONS = {
   playlistRemove:'playlist_remove',
   resetSettings: 'reset_settings',
   restartAlt:    'restart_alt',
+  backup:        'backup',
 
   // ---- Download status ----
   checkCircle:   'check_circle',
