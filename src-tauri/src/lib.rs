@@ -6,6 +6,7 @@
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod background;
 mod commands;
+mod local_data_reset;
 mod localization;
 
 use std::collections::HashMap;
@@ -85,6 +86,16 @@ impl ActiveUploadRegistry {
             true
         } else {
             false
+        }
+    }
+
+    pub fn interrupt_all(&self, reason: UploadInterruption) {
+        let mut map = self.inner.lock().unwrap();
+        for active in map.values_mut() {
+            let _ = active.control_tx.send(Some(reason));
+            if let Some(conn) = active.transfer_conn.take() {
+                tauri::async_runtime::spawn(async move { conn.close().await });
+            }
         }
     }
 }
@@ -265,16 +276,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(biometric_plugin())
         .plugin(tauri_plugin_os::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(LevelFilter::Debug)
-                .targets([
-                    Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::LogDir { file_name: None }),
-                    Target::new(TargetKind::Webview),
-                ])
-                .build(),
-        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -289,6 +290,32 @@ pub fn run() {
         .plugin(android_update_notification_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
+            // A scheduled device reset must run before opening the database or
+            // the persistent log file. Recovery mode deliberately avoids both.
+            let reset_marker_path = local_data_reset::marker_path(app.handle())
+                .map_err(|e| Box::new(std::io::Error::other(e)))?;
+            let reset_status =
+                local_data_reset::complete_pending_reset(app.handle(), &reset_marker_path);
+            let reset_recovery_mode = reset_status.pending;
+            app.manage(local_data_reset::LocalDataResetRuntime::new(
+                reset_marker_path,
+                reset_status,
+            ));
+
+            let mut log_targets = vec![
+                Target::new(TargetKind::Stdout),
+                Target::new(TargetKind::Webview),
+            ];
+            if !reset_recovery_mode {
+                log_targets.push(Target::new(TargetKind::LogDir { file_name: None }));
+            }
+            app.handle().plugin(
+                tauri_plugin_log::Builder::new()
+                    .level(LevelFilter::Debug)
+                    .targets(log_targets)
+                    .build(),
+            )?;
+
             // --- Determine application data directory ---
             let app_data_dir = app
                 .path()
@@ -300,8 +327,12 @@ pub fn run() {
             tracing::info!("Opening database at {}", db_path.display());
 
             // --- Open persistent database (user_settings only) ---
-            let db = cfms_service::db::open(&db_path)
-                .map_err(|e| Box::new(std::io::Error::other(format!("Database error: {e}"))))?;
+            let db = if reset_recovery_mode {
+                cfms_service::db::open_in_memory()
+            } else {
+                cfms_service::db::open(&db_path)
+            }
+            .map_err(|e| Box::new(std::io::Error::other(format!("Database error: {e}"))))?;
 
             let state = AppState::new();
             let settings = SettingsStore::new(db);
@@ -325,51 +356,53 @@ pub fn run() {
 
             let mut service_manager = ServiceManager::new();
 
-            let s1 = Arc::clone(&state);
-            service_manager.register("token_refresh", move |rx| {
-                let s = Arc::clone(&s1);
-                async move {
-                    cfms_service::services::token_refresh::run(s, rx).await;
-                }
-            });
+            if !reset_recovery_mode {
+                let s1 = Arc::clone(&state);
+                service_manager.register("token_refresh", move |rx| {
+                    let s = Arc::clone(&s1);
+                    async move {
+                        cfms_service::services::token_refresh::run(s, rx).await;
+                    }
+                });
 
-            let s2 = Arc::clone(&state);
-            let prefs_app_data_dir = app_data_dir.clone();
-            service_manager.register("favorites_validation", move |rx| {
-                let s = Arc::clone(&s2);
-                let app_data_dir = prefs_app_data_dir.clone();
-                async move {
-                    cfms_service::services::favorites::run(s, app_data_dir, rx).await;
-                }
-            });
+                let s2 = Arc::clone(&state);
+                let prefs_app_data_dir = app_data_dir.clone();
+                service_manager.register("favorites_validation", move |rx| {
+                    let s = Arc::clone(&s2);
+                    let app_data_dir = prefs_app_data_dir.clone();
+                    async move {
+                        cfms_service::services::favorites::run(s, app_data_dir, rx).await;
+                    }
+                });
 
-            let s3 = Arc::clone(&state);
-            service_manager.register("server_push", move |rx| {
-                let s = Arc::clone(&s3);
-                async move {
-                    cfms_service::services::server_push::run(s, rx).await;
-                }
-            });
+                let s3 = Arc::clone(&state);
+                service_manager.register("server_push", move |rx| {
+                    let s = Arc::clone(&s3);
+                    async move {
+                        cfms_service::services::server_push::run(s, rx).await;
+                    }
+                });
 
-            let s_reconnect = Arc::clone(&state);
-            service_manager.register("connection_reconnect", move |rx| {
-                let s = Arc::clone(&s_reconnect);
-                async move {
-                    cfms_service::services::connection::run(s, rx).await;
-                }
-            });
+                let s_reconnect = Arc::clone(&state);
+                service_manager.register("connection_reconnect", move |rx| {
+                    let s = Arc::clone(&s_reconnect);
+                    async move {
+                        cfms_service::services::connection::run(s, rx).await;
+                    }
+                });
 
-            let s4 = Arc::clone(&state);
-            let t4 = tasks.clone();
-            let a4 = active_downloads.clone();
-            service_manager.register("download_queue", move |rx| {
-                let s = Arc::clone(&s4);
-                let t = t4.clone();
-                let a = a4.clone();
-                async move {
-                    cfms_service::services::download_queue::run(s, t, a, rx).await;
-                }
-            });
+                let s4 = Arc::clone(&state);
+                let t4 = tasks.clone();
+                let a4 = active_downloads.clone();
+                service_manager.register("download_queue", move |rx| {
+                    let s = Arc::clone(&s4);
+                    let t = t4.clone();
+                    let a = a4.clone();
+                    async move {
+                        cfms_service::services::download_queue::run(s, t, a, rx).await;
+                    }
+                });
+            }
 
             // --- Wrap service manager in Arc<Mutex<Option<...>>> ---
             // This lets us activate it from the async runtime while also
@@ -378,7 +411,7 @@ pub fn run() {
                 Arc::new(tokio::sync::Mutex::new(Some(service_manager)));
 
             // Activate on the Tauri async runtime.
-            {
+            if !reset_recovery_mode {
                 let sm = Arc::clone(&sm);
                 let rt_handle = tauri::async_runtime::handle();
                 rt_handle.spawn(async move {
@@ -571,6 +604,9 @@ pub fn run() {
             commands::discard_user_preference,
             commands::reset_preference_dek,
             commands::reload_tasks_for_user,
+            commands::get_local_data_reset_status,
+            commands::reset_local_data,
+            commands::retry_local_data_reset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

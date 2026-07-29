@@ -61,6 +61,12 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     requiresAuth: true,
   },
   {
+    labelKey: 'settings.localData.title',
+    descriptionKey: 'settings.localData.description',
+    icon: 'deleteSweep',
+    href: '/home/settings/data',
+  },
+  {
     labelKey: 'settings.activity.title',
     descriptionKey: 'settings.activity.description',
     icon: 'history',

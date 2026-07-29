@@ -42,7 +42,7 @@
   import { appLockStore } from "$lib/app-lock.svelte";
   import { extensionsStore } from "$lib/extensions.svelte";
   import { USER_EXTENSIONS_ENABLED } from "$lib/feature-flags";
-  import { clearAuthSession, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
+  import { clearAuthSession, getLocalDataResetStatus, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
   import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
@@ -54,6 +54,7 @@
   let lastRecordedActivityAt = 0;
   let keyboardHelpOpen = $state(false);
   let hasShownLockdownBanner = $state(false);
+  let resetRecoveryMode = $state(false);
   initNavigationHistory();
 
   afterNavigate((navigation) => {
@@ -70,7 +71,7 @@
   });
 
   // Routes that don't require any connection/auth.
-  const PUBLIC_ROUTES = ["/connect", "/connect/disclaimer", "/init"];
+  const PUBLIC_ROUTES = ["/connect", "/connect/disclaimer", "/init", "/reset"];
   // Routes that require WebSocket connection but not login.
   const CONNECTION_ROUTES = ["/login"];
   // Lockdown override route.
@@ -224,6 +225,20 @@
   // Initialization
   // ---------------------------------------------------------------------------
   onMount(async () => {
+    try {
+      const resetStatus = await getLocalDataResetStatus();
+      if (resetStatus.pending) {
+        resetRecoveryMode = true;
+        await initI18n();
+        if (page.url.pathname !== '/reset') {
+          await goto('/reset', { replaceState: true });
+        }
+        return;
+      }
+    } catch {
+      /* Normal startup continues if no reset recovery state can be read. */
+    }
+
     await initI18n();
     await appLockStore.refreshPlatformAvailability();
 
@@ -252,9 +267,12 @@
     }
   });
 
-  onMount(() => appearanceStore.init());
+  onMount(() => {
+    if (!resetRecoveryMode) appearanceStore.init();
+  });
 
   $effect(() => {
+    if (resetRecoveryMode) return;
     if (authStore.postLoginPending) return;
     const scopeKey = authStore.isLoggedIn && authStore.username
       ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`
@@ -408,6 +426,7 @@
 
   // Periodic auth status polling (every 30s).
   $effect(() => {
+    if (resetRecoveryMode) return;
     const interval = setInterval(async () => {
       try {
         const serverState = await getServerState();

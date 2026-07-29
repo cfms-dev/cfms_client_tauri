@@ -22,6 +22,14 @@ describe('settings entry visibility', () => {
     expect(entries.some((entry) => entry.href === '/home/settings/account')).toBe(false);
   });
 
+  it('keeps local data reset available while signed out', () => {
+    const signedOut = getVisibleSettingsEntries({ isLoggedIn: false, isMobile: false });
+    const signedIn = getVisibleSettingsEntries({ isLoggedIn: true, isMobile: false });
+
+    expect(signedOut.some((entry) => entry.href === '/home/settings/data')).toBe(true);
+    expect(signedIn.some((entry) => entry.href === '/home/settings/data')).toBe(true);
+  });
+
   it('keeps extension settings outside user-reachable settings', () => {
     const entries = getVisibleSettingsEntries({ isLoggedIn: true, isMobile: false });
 

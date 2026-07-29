@@ -612,6 +612,17 @@ impl ActiveRegistry {
         }
     }
 
+    /// Cancel every active download and detach its transfer connection.
+    pub fn cancel_all(&self) {
+        let mut map = self.inner.lock().unwrap();
+        for active in map.values_mut() {
+            let _ = active.cancel_tx.send(true);
+            if let Some(conn) = active.transfer_conn.take() {
+                tokio::spawn(async move { conn.close().await });
+            }
+        }
+    }
+
     fn start_worker(&self) {
         self.workers.fetch_add(1, Ordering::SeqCst);
     }

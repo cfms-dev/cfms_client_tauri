@@ -60,3 +60,4 @@ include!("commands/preferences.rs");
 include!("commands/task_reload.rs");
 include!("commands/transfer_helpers.rs");
 include!("commands/shared_helpers.rs");
+include!("commands/local_data_reset.rs");
