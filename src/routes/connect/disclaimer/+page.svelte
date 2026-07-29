@@ -8,6 +8,7 @@
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
+  import { quitApplication } from '$lib/api';
   import { disclaimerStore } from '$lib/stores.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { isMobilePlatform } from '$lib/platform';
@@ -68,7 +69,11 @@
         </button>
 
         {#if !isMobile}
-          <button class="reject-button" onclick={() => window.close()} disabled={busy}>
+          <button
+            class="reject-button"
+            onclick={() => void quitApplication()}
+            disabled={busy}
+          >
             {$t('disclaimer.rejectAndQuit')}
           </button>
         {/if}
