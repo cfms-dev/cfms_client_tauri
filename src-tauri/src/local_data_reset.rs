@@ -7,14 +7,18 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, Runtime};
 
 const RESET_MARKER_VERSION: u8 = 1;
 const RESET_MARKER_NAME: &str = ".cfms-local-data-reset.json";
+const DELETE_LOCK_MAX_RETRIES: usize = 40;
+const DELETE_LOCK_RETRY_DELAY: Duration = Duration::from_millis(125);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocalDataResetFailure {
@@ -51,10 +55,6 @@ impl LocalDataResetRuntime {
 
     pub fn status(&self) -> LocalDataResetStatus {
         self.status.lock().unwrap().clone()
-    }
-
-    pub fn set_status(&self, status: LocalDataResetStatus) {
-        *self.status.lock().unwrap() = status;
     }
 
     pub fn marker_path(&self) -> &Path {
@@ -320,16 +320,48 @@ fn clear_directory_contents(root: &Path, protected: &[PathBuf]) -> Result<(), St
 }
 
 fn remove_entry(path: &Path) -> Result<(), String> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|e| format!("Failed to inspect {}: {e}", path.display()))?;
-    let result = if metadata.file_type().is_symlink() {
+    let mut retries = 0;
+    loop {
+        match try_remove_entry(path) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error)
+                if is_retryable_delete_error(&error) && retries < DELETE_LOCK_MAX_RETRIES =>
+            {
+                retries += 1;
+                std::thread::sleep(DELETE_LOCK_RETRY_DELAY);
+            }
+            Err(error) => {
+                return Err(format!("Failed to remove {}: {error}", path.display()));
+            }
+        }
+    }
+}
+
+fn try_remove_entry(path: &Path) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
         fs::remove_file(path).or_else(|_| fs::remove_dir(path))
     } else if metadata.is_dir() {
         fs::remove_dir_all(path)
     } else {
         fs::remove_file(path)
-    };
-    result.map_err(|e| format!("Failed to remove {}: {e}", path.display()))
+    }
+}
+
+fn is_retryable_delete_error(error: &io::Error) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        // WebView2 can retain UDF handles briefly after the host exits. Retry
+        // only sharing/lock conflicts (and the resulting non-empty directory),
+        // never permanent failures such as access denied.
+        matches!(error.raw_os_error(), Some(32 | 33 | 145))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = error;
+        false
+    }
 }
 
 fn remove_download_artifacts(root: &Path) -> Result<(), String> {
@@ -462,5 +494,40 @@ mod tests {
         #[cfg(unix)]
         assert!(validate_narrow_absolute(Path::new("/")).is_err());
         assert!(validate_narrow_absolute(Path::new("relative/path")).is_err());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn only_transient_windows_delete_conflicts_are_retryable() {
+        assert!(is_retryable_delete_error(&io::Error::from_raw_os_error(32)));
+        assert!(is_retryable_delete_error(&io::Error::from_raw_os_error(33)));
+        assert!(is_retryable_delete_error(&io::Error::from_raw_os_error(
+            145
+        )));
+        assert!(!is_retryable_delete_error(&io::Error::from_raw_os_error(5)));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn deletion_waits_for_a_windows_file_lock_to_be_released() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let locked_path = temp.path().join("locked-by-webview");
+        fs::write(&locked_path, b"locked").unwrap();
+        let locked_file = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&locked_path)
+            .unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(250));
+            drop(locked_file);
+        });
+
+        remove_entry(&locked_path).unwrap();
+        release.join().unwrap();
+
+        assert!(!locked_path.exists());
     }
 }

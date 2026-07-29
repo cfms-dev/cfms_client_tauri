@@ -92,15 +92,14 @@ pub fn retry_local_data_reset<R: Runtime>(
                 .clear_all_browsing_data()
                 .map_err(|e| format!("Failed to clear WebView browsing data: {e}"))?;
         }
-        let status = crate::local_data_reset::complete_pending_reset(&app, reset.marker_path());
-        reset.set_status(status.clone());
-        Ok(status)
+        Ok(reset.status())
     })();
 
     reset.in_progress.store(false, Ordering::SeqCst);
     let status = result?;
-    if !status.pending {
-        app.request_restart();
-    }
+    // The WebView owns files inside app-local-data for the lifetime of this
+    // process. Restart into the pre-window startup cleanup instead of retrying
+    // against a directory that is guaranteed to be locked on Windows.
+    app.request_restart();
     Ok(status)
 }

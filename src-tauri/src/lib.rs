@@ -290,8 +290,10 @@ pub fn run() {
         .plugin(android_update_notification_plugin())
         .plugin(background_service_plugin())
         .setup(|app| {
-            // A scheduled device reset must run before opening the database or
-            // the persistent log file. Recovery mode deliberately avoids both.
+            // The main WebView is deliberately configured with `create: false`.
+            // A scheduled reset must run before WebView2 opens (and locks) its
+            // data directory, and before the database or file logger is opened.
+            // Recovery mode deliberately avoids the persistent services too.
             let reset_marker_path = local_data_reset::marker_path(app.handle())
                 .map_err(|e| Box::new(std::io::Error::other(e)))?;
             let reset_status =
@@ -456,6 +458,16 @@ pub fn run() {
                 app_data_dir: app_data_dir.clone(),
                 service_manager: sm,
             });
+
+            let main_window_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == "main")
+                .cloned()
+                .ok_or_else(|| std::io::Error::other("Main window configuration is missing"))?;
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window_config)?.build()?;
 
             tracing::info!("CFMS Client initialized successfully");
             Ok(())

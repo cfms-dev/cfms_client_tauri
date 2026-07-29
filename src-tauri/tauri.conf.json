@@ -14,7 +14,8 @@
       {
         "title": "CFMS Client",
         "width": 1280,
-        "height": 720
+        "height": 720,
+        "create": false
       }
     ],
     "security": {
