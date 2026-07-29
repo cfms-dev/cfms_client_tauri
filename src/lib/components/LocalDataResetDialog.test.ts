@@ -68,4 +68,24 @@ describe('LocalDataResetDialog', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('groups reset consequences in the requested order', () => {
+    render(LocalDataResetDialog, {
+      props: { open: true, onConfirm: vi.fn(), onClose: vi.fn() },
+    });
+
+    const warning = screen.getByRole('alert');
+    expect(warning.textContent).toContain('settings.localData.restartNotice');
+    expect(warning.textContent).toContain('settings.localData.logicalDeletion');
+
+    const deletedHeading = screen.getByText('settings.localData.deletedTitle');
+    const exclusionsHeading = screen.getByText('settings.localData.exclusionsTitle');
+    const downloadsChoice = screen.getByRole('checkbox');
+    expect(
+      deletedHeading.compareDocumentPosition(exclusionsHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      exclusionsHeading.compareDocumentPosition(downloadsChoice) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

@@ -36,16 +36,25 @@
     onClose={onClose}
   >
     <form class="space-y-5 p-5" onsubmit={(event) => { event.preventDefault(); onConfirm(deleteDownloads); }}>
-      <div class="flex items-start gap-3 rounded-xl border border-md3-error/40 bg-md3-error-container/35 p-4">
+      <div
+        class="flex items-start gap-3 rounded-xl border border-md3-error/40 bg-md3-error-container/35 p-4"
+        role="alert"
+      >
         <span class="mt-0.5 shrink-0 text-md3-error"><Icon name="warningAmber" size="24px" /></span>
         <div class="space-y-1">
           <p class="text-sm font-semibold text-md3-on-error-container">{$t('settings.localData.irreversible')}</p>
-          <p class="text-xs leading-5 text-md3-on-surface-variant">{$t('settings.localData.restartNotice')}</p>
+          <p class="text-xs leading-5 text-md3-on-surface-variant">
+            {$t('settings.localData.restartNotice')}
+            <span class="mt-1 block">{$t('settings.localData.logicalDeletion')}</span>
+          </p>
         </div>
       </div>
 
       <section class="space-y-2">
-        <h3 class="text-sm font-semibold text-md3-on-surface">{$t('settings.localData.deletedTitle')}</h3>
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-md3-on-surface">
+          <Icon name="deleteSweep" size="19px" class="text-md3-error" />
+          {$t('settings.localData.deletedTitle')}
+        </h3>
         <ul class="grid gap-2 text-xs leading-5 text-md3-on-surface-variant sm:grid-cols-2">
           <li>{$t('settings.localData.deletedSettings')}</li>
           <li>{$t('settings.localData.deletedPreferences')}</li>
@@ -56,10 +65,18 @@
         </ul>
       </section>
 
-      <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-md3-outline bg-md3-surface-container-high/60 p-4">
+      <section class="space-y-2">
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-md3-on-surface">
+          <Icon name="verifiedUser" size="19px" class="text-md3-primary-emphasis" />
+          {$t('settings.localData.exclusionsTitle')}
+        </h3>
+        <p class="text-xs leading-5 text-md3-on-surface-variant">{$t('settings.localData.exclusions')}</p>
+      </section>
+
+      <label class="flex cursor-pointer items-start gap-3 px-1">
         <input
           type="checkbox"
-          class="mt-0.5 size-4 accent-md3-primary"
+          class="mt-0.5 size-4 shrink-0 accent-md3-primary"
           bind:checked={deleteDownloads}
           disabled={busy}
         />
@@ -69,15 +86,13 @@
         </span>
       </label>
 
-      <p class="text-xs leading-5 text-md3-on-surface-variant">{$t('settings.localData.exclusions')}</p>
-
       <div class="flex justify-end gap-2 border-t border-md3-outline pt-4">
         <DialogActionButton disabled={busy} onclick={onClose}>{$t('common.cancel')}</DialogActionButton>
         <DialogActionButton type="submit" variant="danger" disabled={busy}>
           {#if busy}
             <ProgressRing size={16} strokeWidth={2} label={$t('settings.localData.clearing')} />
           {:else}
-            <Icon name="deleteForever" size="18px" />
+            <Icon name="restartAlt" size="18px" />
           {/if}
           {$t(busy ? 'settings.localData.clearing' : 'settings.localData.confirmAction')}
         </DialogActionButton>

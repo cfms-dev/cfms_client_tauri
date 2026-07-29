@@ -25,38 +25,40 @@
   }
 </script>
 
-<div class="p-6 space-y-5 max-w-2xl mx-auto">
+<div class="p-6 space-y-4 max-w-lg mx-auto">
   <SettingsPageHeader
     title={$t('settings.localData.title')}
     description={$t('settings.localData.description')}
-    icon="deleteSweep"
+    icon="resetSettings"
   />
 
-  <section class="overflow-hidden rounded-xl border border-md3-error/35 bg-md3-surface-container/75 backdrop-blur-sm">
-    <div class="flex items-start gap-4 p-5">
-      <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-md3-error-container text-md3-on-error-container">
-        <Icon name="deleteForever" size="25px" />
-      </span>
-      <div class="min-w-0 flex-1">
-        <h2 class="text-base font-semibold text-md3-on-surface">{$t('settings.localData.cardTitle')}</h2>
-        <p class="mt-1 text-sm leading-6 text-md3-on-surface-variant">{$t('settings.localData.cardDescription')}</p>
+  <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+    <section class="space-y-4">
+      <div class="flex items-start gap-3">
+        <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-md3-primary-container text-md3-on-primary-container">
+          <Icon name="resetSettings" size="23px" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+            {$t('settings.localData.cardTitle')}
+          </h2>
+          <p class="mt-1 text-xs leading-5 text-md3-on-surface-variant">
+            {$t('settings.localData.cardDescription')}
+          </p>
+        </div>
       </div>
-    </div>
-    <div class="flex justify-end border-t border-md3-outline bg-md3-surface-container-high/35 px-5 py-4">
+
       <button
         type="button"
-        class="inline-flex min-h-10 items-center gap-2 rounded-full bg-md3-error px-5 text-sm font-semibold text-md3-on-error transition hover:brightness-110 active:scale-[0.98]"
+        class="inline-flex min-h-10 items-center gap-2 rounded-full bg-md3-secondary-container px-4
+               text-sm font-semibold text-md3-on-secondary-container transition-all
+               hover:brightness-110 active:scale-[0.98]"
         onclick={() => { dialogOpen = true; }}
       >
-        <Icon name="deleteForever" size="19px" />
+        <Icon name="restartAlt" size="19px" />
         {$t('settings.localData.openAction')}
       </button>
-    </div>
-  </section>
-
-  <div class="flex items-start gap-3 rounded-xl border border-md3-outline bg-md3-surface-container-high/45 p-4">
-    <Icon name="info" size="20px" class="mt-0.5 shrink-0 text-md3-primary-emphasis" />
-    <p class="text-xs leading-5 text-md3-on-surface-variant">{$t('settings.localData.logicalDeletion')}</p>
+    </section>
   </div>
 </div>
 
