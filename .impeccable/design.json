@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-30T02:20:38.018Z",
+  "title": "Design System: CFMS Client",
+  "extensions": {
+    "colorMeta": {
+      "signal-cyan": { "role": "primary", "displayName": "Signal Cyan", "canonical": "#60cdff", "tonalRamp": ["#06202a", "#0b3443", "#0e4d63", "#146d8b", "#1c91b8", "#38b5df", "#60cdff", "#c7f1ff"] },
+      "operational-blue": { "role": "primary", "displayName": "Operational Blue", "canonical": "#0067c0", "tonalRamp": ["#051c33", "#073459", "#084d80", "#0067c0", "#2b83cf", "#65a6df", "#a6ceef", "#e3f3ff"] },
+      "carbon-workspace": { "role": "neutral", "displayName": "Carbon Workspace", "canonical": "#0f1115", "tonalRamp": ["#08090b", "#0f1115", "#17191d", "#20232a", "#292d35", "#343840", "#747982", "#d8dbe0"] },
+      "carbon-panel": { "role": "neutral", "displayName": "Carbon Panel", "canonical": "#17191d", "tonalRamp": ["#08090b", "#0f1115", "#17191d", "#20232a", "#292d35", "#343840", "#747982", "#d8dbe0"] },
+      "carbon-raised": { "role": "neutral", "displayName": "Carbon Raised", "canonical": "#20232a", "tonalRamp": ["#08090b", "#0f1115", "#17191d", "#20232a", "#292d35", "#343840", "#747982", "#d8dbe0"] },
+      "carbon-selected": { "role": "neutral", "displayName": "Carbon Selected", "canonical": "#343840", "tonalRamp": ["#08090b", "#0f1115", "#17191d", "#20232a", "#292d35", "#343840", "#747982", "#d8dbe0"] },
+      "carbon-text": { "role": "neutral", "displayName": "Carbon Text", "canonical": "#f5f5f5", "tonalRamp": ["#0f1115", "#292d35", "#4a4f59", "#747982", "#9da1a9", "#b4b8c1", "#d8dbe0", "#f5f5f5"] },
+      "carbon-muted": { "role": "neutral", "displayName": "Carbon Muted", "canonical": "#b4b8c1", "tonalRamp": ["#0f1115", "#292d35", "#4a4f59", "#747982", "#9da1a9", "#b4b8c1", "#d8dbe0", "#f5f5f5"] },
+      "quiet-canvas": { "role": "neutral", "displayName": "Quiet Canvas", "canonical": "#f3f3f3", "tonalRamp": ["#1a1a1a", "#343434", "#5d5d5d", "#858585", "#adadad", "#d0d0d0", "#ececec", "#f8f8f8"] },
+      "quiet-panel": { "role": "neutral", "displayName": "Quiet Panel", "canonical": "#fafafa", "tonalRamp": ["#1a1a1a", "#343434", "#5d5d5d", "#858585", "#adadad", "#d0d0d0", "#ececec", "#fafafa"] },
+      "quiet-raised": { "role": "neutral", "displayName": "Quiet Raised", "canonical": "#ffffff", "tonalRamp": ["#1a1a1a", "#343434", "#5d5d5d", "#858585", "#adadad", "#d0d0d0", "#ececec", "#ffffff"] },
+      "quiet-text": { "role": "neutral", "displayName": "Quiet Text", "canonical": "#1a1a1a", "tonalRamp": ["#1a1a1a", "#343434", "#5d5d5d", "#858585", "#adadad", "#d0d0d0", "#ececec", "#ffffff"] },
+      "quiet-muted": { "role": "neutral", "displayName": "Quiet Muted", "canonical": "#5d5d5d", "tonalRamp": ["#1a1a1a", "#343434", "#5d5d5d", "#858585", "#adadad", "#d0d0d0", "#ececec", "#ffffff"] },
+      "alert-rose": { "role": "tertiary", "displayName": "Alert Rose", "canonical": "#ff99a4", "tonalRamp": ["#351014", "#5a1c24", "#812d38", "#aa4652", "#d86470", "#ef7f8a", "#ff99a4", "#ffe5e8"] },
+      "critical-red": { "role": "tertiary", "displayName": "Critical Red", "canonical": "#c42b1c", "tonalRamp": ["#2d0905", "#54100a", "#7b170f", "#a42117", "#c42b1c", "#dc5a4d", "#ee968e", "#fde8e5"] },
+      "success-mint": { "role": "tertiary", "displayName": "Success Mint", "canonical": "#6ccb8e", "tonalRamp": ["#062416", "#0a3d25", "#0f5934", "#197544", "#2e955b", "#4bb676", "#6ccb8e", "#dff6e7"] },
+      "success-green": { "role": "tertiary", "displayName": "Success Green", "canonical": "#0f7b3e", "tonalRamp": ["#062416", "#0a3d25", "#0f5934", "#0f7b3e", "#2e955b", "#4bb676", "#8cd5a6", "#dff6e7"] },
+      "warning-gold": { "role": "tertiary", "displayName": "Warning Gold", "canonical": "#f5d47a", "tonalRamp": ["#2b1d03", "#4a3306", "#6c4b09", "#8a5d00", "#b68518", "#d7aa3d", "#f5d47a", "#fff4d2"] },
+      "caution-ochre": { "role": "tertiary", "displayName": "Caution Ochre", "canonical": "#8a5d00", "tonalRamp": ["#2b1d03", "#4a3306", "#6c4b09", "#8a5d00", "#b68518", "#d7aa3d", "#f5d47a", "#fff4d2"] },
+      "folder-gold": { "role": "tertiary", "displayName": "Folder Gold", "canonical": "#ffca4b", "tonalRamp": ["#2b1c02", "#503403", "#795006", "#a76f0c", "#d3901b", "#ecad2d", "#ffca4b", "#fff0ba"] },
+      "dark-outline": { "role": "neutral", "displayName": "Dark Outline", "canonical": "rgba(255, 255, 255, 0.11)", "tonalRamp": ["#111317", "#22252b", "#383c44", "#555a64", "#777c85", "#9da1a9", "#c8cbd0", "#f2f3f4"] },
+      "light-outline": { "role": "neutral", "displayName": "Light Outline", "canonical": "rgba(0, 0, 0, 0.10)", "tonalRamp": ["#171717", "#303030", "#505050", "#737373", "#999999", "#bdbdbd", "#dedede", "#f7f7f7"] },
+      "legacy-indigo": { "role": "secondary", "displayName": "Legacy Indigo", "canonical": "#4f46e5", "tonalRamp": ["#171342", "#251f6c", "#342d98", "#433ac4", "#4f46e5", "#7771ed", "#aaa6f5", "#e8e7fd"] },
+      "legacy-periwinkle": { "role": "secondary", "displayName": "Legacy Periwinkle", "canonical": "#8fb4ff", "tonalRamp": ["#102342", "#1e3d6e", "#315b9d", "#4b7cca", "#6c9ce8", "#8fb4ff", "#bdd2ff", "#eef4ff"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Rare high-level workspace introductions and major states." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles and primary empty or recovery states." },
+      "title": { "displayName": "Title", "purpose": "Dialog titles and dense section headings." },
+      "body": { "displayName": "Body", "purpose": "Default operational prose, instructions, and values." },
+      "label": { "displayName": "Label", "purpose": "Compact controls, navigation sections, and metadata." },
+      "reading": { "displayName": "Reading", "purpose": "Disclaimers, changelogs, and sustained explanatory copy." },
+      "mono": { "displayName": "Mono", "purpose": "Identifiers, structured source, shortcuts, and technical values." }
+    },
+    "shadows": [
+      { "name": "floating-workspace-dark", "value": "0 18px 48px rgba(0, 0, 0, 0.38)", "purpose": "Menus, drawers, and floating panes in dark mode." },
+      { "name": "floating-workspace-light", "value": "0 18px 48px rgba(0, 0, 0, 0.16)", "purpose": "Menus, drawers, and floating panes in light mode." },
+      { "name": "modal-focus-dark", "value": "0 24px 64px rgba(0, 0, 0, 0.38)", "purpose": "Blocking modal panels in dark mode." },
+      { "name": "modal-focus-light", "value": "0 24px 64px rgba(0, 0, 0, 0.18)", "purpose": "Blocking modal panels in light mode." },
+      { "name": "primary-action-hover", "value": "0 3px 8px color-mix(in srgb, var(--color-md3-primary) 30%, transparent)", "purpose": "Short-lived lift on an emphasized action." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.2, 0, 0, 1)", "purpose": "Default state transition easing." },
+      { "name": "ease-emphasized-decelerate", "value": "cubic-bezier(0.05, 0.7, 0.1, 1)", "purpose": "Entrances, drawers, and settling transforms." },
+      { "name": "duration-short-3", "value": "150ms", "purpose": "Compact hover and control feedback." },
+      { "name": "duration-short-4", "value": "200ms", "purpose": "Standard icon and color transitions." },
+      { "name": "duration-medium-1", "value": "250ms", "purpose": "Switches, lifts, and small layout changes." },
+      { "name": "duration-medium-2", "value": "300ms", "purpose": "Page-level reveals and emphasized entrances." },
+      { "name": "duration-medium-3", "value": "350ms", "purpose": "Ripple completion and smooth position changes." }
+    ],
+    "breakpoints": [
+      { "name": "compact-topbar", "value": "540px" },
+      { "name": "single-column", "value": "640px" },
+      { "name": "workspace-drawer", "value": "820px" },
+      { "name": "wide-auth-layout", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Action Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compact emphasized action for one clear next step.",
+      "html": "<button class=\"ds-btn-primary\">Continue</button>",
+      "css": ".ds-btn-primary { min-height: 2rem; border: 1px solid transparent; border-radius: var(--explorer-radius-small, 5px); padding: 0.28rem 0.8rem; color: var(--color-md3-on-primary, #0f1115); background: var(--color-md3-primary, #60cdff); font: 600 0.78rem/1.25 var(--font-md3-sans, system-ui, sans-serif); transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; } .ds-btn-primary:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--color-md3-primary, #60cdff) 88%, white 12%); box-shadow: 0 3px 8px color-mix(in srgb, var(--color-md3-primary, #60cdff) 30%, transparent); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: 2px; } .ds-btn-primary:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Secondary Action Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet companion action that gains a tonal surface on hover.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { min-height: 2rem; border: 1px solid transparent; border-radius: var(--explorer-radius-small, 5px); padding: 0.28rem 0.8rem; color: var(--color-md3-on-surface-variant, #b4b8c1); background: transparent; font: 600 0.78rem/1.25 var(--font-md3-sans, system-ui, sans-serif); transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, transform 120ms ease; } .ds-btn-secondary:hover { border-color: var(--color-md3-outline, rgba(255,255,255,0.11)); color: var(--color-md3-on-surface, #f5f5f5); background: var(--color-md3-surface-container-highest, #292d35); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: 2px; } .ds-btn-secondary:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "Circular 36px desktop utility action with restrained tonal feedback.",
+      "html": "<button class=\"ds-icon-button\" aria-label=\"Add\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\" /></svg></button>",
+      "css": ".ds-icon-button { display: inline-grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 0; border-radius: 9999px; color: var(--color-md3-on-surface-variant, #b4b8c1); background: transparent; transition: color 200ms cubic-bezier(0.2,0,0,1), background 200ms cubic-bezier(0.2,0,0,1), transform 200ms cubic-bezier(0.05,0.7,0.1,1); } .ds-icon-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; } .ds-icon-button:hover { color: var(--color-md3-on-surface, #f5f5f5); background: color-mix(in srgb, currentColor 10%, transparent); } .ds-icon-button:focus-visible { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: -2px; } .ds-icon-button:active { transform: scale(0.92); }"
+    },
+    {
+      "name": "Outlined Field",
+      "kind": "input",
+      "refersTo": "field-outlined",
+      "description": "Raised operational field with an inset high-contrast focus indicator.",
+      "html": "<label class=\"ds-field\"><span>Server address</span><input value=\"files.example.org\" /></label>",
+      "css": ".ds-field { position: relative; display: block; border: 1px solid var(--color-md3-outline, rgba(255,255,255,0.11)); border-radius: 12px; background: var(--color-md3-field, #20232a); color: var(--color-md3-on-surface, #f5f5f5); font-family: var(--font-md3-sans, system-ui, sans-serif); } .ds-field > span { position: absolute; top: 0; left: 0.75rem; z-index: 1; transform: translateY(-50%); padding: 0 0.35rem; color: var(--color-md3-on-surface-variant, #b4b8c1); background: var(--color-md3-surface-container, #17191d); font-size: 0.75rem; font-weight: 500; } .ds-field input { box-sizing: border-box; width: 100%; min-height: 42px; border: 0; border-radius: inherit; padding: 0 0.75rem; color: inherit; background: transparent; font: 400 0.875rem/1.5 var(--font-md3-sans, system-ui, sans-serif); outline: none; } .ds-field:focus-within { border-color: var(--color-md3-primary, #60cdff); box-shadow: inset 0 0 0 1px var(--color-md3-primary, #60cdff); } .ds-field:focus-within > span { color: var(--color-md3-primary, #60cdff); }"
+    },
+    {
+      "name": "Material Switch",
+      "kind": "custom",
+      "description": "Touch-ready binary control with a tonal track and animated handle.",
+      "html": "<button class=\"ds-switch\" role=\"switch\" aria-checked=\"true\" aria-label=\"Screen protection\"><span></span></button>",
+      "css": ".ds-switch { position: relative; width: 52px; height: 32px; padding: 0; border: 2px solid var(--color-md3-primary, #60cdff); border-radius: 9999px; background: var(--color-md3-primary, #60cdff); transition: box-shadow 250ms cubic-bezier(0.2,0,0,1); } .ds-switch span { position: absolute; top: 50%; left: 22px; width: 24px; height: 24px; border-radius: 9999px; background: var(--color-md3-on-primary, #0f1115); transform: translateY(-50%); transition: width 250ms cubic-bezier(0.05,0.7,0.1,1), left 250ms cubic-bezier(0.05,0.7,0.1,1); } .ds-switch:hover { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-md3-primary, #60cdff) 10%, transparent); } .ds-switch:focus-visible { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: 2px; } .ds-switch:hover span { width: 26px; left: 20px; }"
+    },
+    {
+      "name": "Active Navigation Item",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Dense rail row identified by a narrow signal marker and tonal selection.",
+      "html": "<button class=\"ds-nav-item\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 7h7l2 2h9v10H3z\" /></svg><span>Files</span></button>",
+      "css": ".ds-nav-item { position: relative; display: grid; width: 220px; min-height: 36px; grid-template-columns: 24px 1fr; align-items: center; gap: 0.45rem; border: 0; border-radius: var(--explorer-radius-small, 5px); padding: 0.35rem 0.55rem; color: var(--explorer-text, #f5f5f5); background: var(--explorer-surface-selected, #343840); font: 500 0.79rem/1.2 var(--font-md3-sans, system-ui, sans-serif); text-align: left; } .ds-nav-item::before { position: absolute; top: 9px; bottom: 9px; left: 2px; width: 3px; border-radius: 3px; background: var(--explorer-accent, #60cdff); content: ''; } .ds-nav-item svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; } .ds-nav-item:hover { background: var(--explorer-surface-hover, #292d35); } .ds-nav-item:focus-visible { outline: 2px solid var(--explorer-accent, #60cdff); outline-offset: -2px; }"
+    },
+    {
+      "name": "Operational Surface Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "Tonal content surface that remains flat at rest.",
+      "html": "<section class=\"ds-surface-card\"><h3>Recent files</h3><p>Open frequently used confidential documents.</p></section>",
+      "css": ".ds-surface-card { width: 300px; border: 1px solid var(--color-md3-outline, rgba(255,255,255,0.11)); border-radius: var(--explorer-radius-large, 12px); padding: 1rem; color: var(--color-md3-on-surface, #f5f5f5); background: var(--color-md3-surface-container, #17191d); font-family: var(--font-md3-sans, system-ui, sans-serif); transition: border-color 160ms ease, background-color 160ms ease; } .ds-surface-card h3 { margin: 0; font-size: 0.9375rem; font-weight: 650; letter-spacing: -0.005em; } .ds-surface-card p { margin: 0.5rem 0 0; color: var(--color-md3-on-surface-variant, #b4b8c1); font-size: 0.875rem; line-height: 1.5; } .ds-surface-card:hover { border-color: var(--color-md3-outline-variant, rgba(255,255,255,0.18)); background: var(--color-md3-surface-container-high, #20232a); } .ds-surface-card:focus-within { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: -2px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "description": "Short semantic state with a quiet tonal background and no ambient shadow.",
+      "html": "<span class=\"ds-status-chip\"><span aria-hidden=\"true\"></span>Connected</span>",
+      "css": ".ds-status-chip { display: inline-flex; min-height: 1.75rem; align-items: center; gap: 0.4rem; border-radius: 9999px; padding: 0.2rem 0.65rem; color: var(--explorer-text, #f5f5f5); background: color-mix(in srgb, var(--explorer-success, #6ccb8e) 14%, transparent); font: 600 0.72rem/1 var(--font-md3-sans, system-ui, sans-serif); } .ds-status-chip > span { width: 8px; height: 8px; border-radius: 9999px; background: var(--explorer-success, #6ccb8e); box-shadow: 0 0 0 3px color-mix(in srgb, var(--explorer-success, #6ccb8e) 15%, transparent); }"
+    },
+    {
+      "name": "Frosted Modal Panel",
+      "kind": "custom",
+      "refersTo": "modal-panel",
+      "description": "Blocking raised surface that uses the system's strongest functional depth.",
+      "html": "<section class=\"ds-modal\" role=\"dialog\" aria-labelledby=\"ds-modal-title\"><header><h3 id=\"ds-modal-title\">Confirm access</h3><button aria-label=\"Close\">×</button></header><p>Review the selected permissions before continuing.</p></section>",
+      "css": ".ds-modal { width: 360px; overflow: hidden; border: 1px solid var(--color-md3-outline, rgba(255,255,255,0.11)); border-radius: var(--explorer-radius-large, 12px); color: var(--color-md3-on-surface, #f5f5f5); background: color-mix(in srgb, var(--color-md3-surface-container, #17191d) 97%, transparent); box-shadow: var(--explorer-shadow, 0 24px 64px rgba(0,0,0,0.38)); backdrop-filter: blur(24px) saturate(1.08); font-family: var(--font-md3-sans, system-ui, sans-serif); } .ds-modal header { display: flex; min-height: 52px; align-items: center; border-bottom: 1px solid var(--color-md3-outline, rgba(255,255,255,0.11)); padding: 0.625rem 0.75rem 0.625rem 1.25rem; background: color-mix(in srgb, var(--color-md3-surface-container-high, #20232a) 46%, transparent); } .ds-modal h3 { flex: 1; margin: 0; font-size: 0.9375rem; font-weight: 650; letter-spacing: -0.005em; } .ds-modal header button { width: 32px; height: 32px; border: 1px solid transparent; border-radius: var(--explorer-radius-small, 5px); color: var(--color-md3-on-surface-variant, #b4b8c1); background: transparent; font-size: 1.2rem; } .ds-modal header button:hover { border-color: var(--color-md3-outline, rgba(255,255,255,0.11)); color: var(--color-md3-on-surface, #f5f5f5); background: var(--color-md3-surface-container-highest, #292d35); } .ds-modal header button:focus-visible { outline: 2px solid var(--color-md3-primary-emphasis, #60cdff); outline-offset: -2px; } .ds-modal > p { margin: 0; padding: 1rem 1.25rem 1.25rem; color: var(--color-md3-on-surface-variant, #b4b8c1); font-size: 0.875rem; line-height: 1.5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Frosted Operations Console",
+    "overview": "The Frosted Operations Console treats the client as a working environment rather than a branded showcase. Its character is quietly technical, dependable, and restrained: dense information is organized through calm hierarchy, crisp state changes, and an operational palette instead of decorative spectacle.\n\nCompact desktop controls are exact and efficient, while touch contexts gain space and larger targets without changing the underlying visual language. Frosted translucency is a functional signature reserved for floating chrome, overlays, menus, drawers, and selected transition surfaces; ordinary content stays tonal and stable so the interface never slips into cheap gloss or an abundance of generic cards.",
+    "keyCharacteristics": [
+      "Operational cyan or blue used as a precise signal, not a wash.",
+      "Tonal surfaces and fine outlines at rest; elevation appears when an element floats.",
+      "Compact, sans-serif workspace typography with serif and mono faces reserved for specific reading or technical contexts.",
+      "Small, controlled radii for working controls; pills only for naturally compact states and toggles.",
+      "Brief, purposeful motion with complete reduced-motion behavior."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Accent color identifies selection, focus, active state, and high-value action; it should not flood ordinary surfaces.", "section": "colors" },
+      { "name": "The No Gloss Rule", "body": "Never simulate premium value with broad gradients, plastic highlights, or decorative shine.", "section": "colors" },
+      { "name": "The Operational Type Rule", "body": "Use sans-serif by default; earn every serif or mono exception through reading context or technical meaning.", "section": "typography" },
+      { "name": "The Density Follows Input Rule", "body": "Keep desktop tools compact; increase targets and breathing room for touch without inventing a separate mobile design language.", "section": "layout" },
+      { "name": "The Stable Workspace Rule", "body": "Prefer persistent shell regions, aligned rows, and bounded scroll areas over stacks of interchangeable cards.", "section": "layout" },
+      { "name": "The Tonal-at-Rest Rule", "body": "A resting surface should first prove it needs a border, then prove it needs a shadow.", "section": "elevation" },
+      { "name": "The Frosted Function Rule", "body": "Apply translucency only where layering, focus, or transition needs to be explained.", "section": "elevation" },
+      { "name": "The Softened Precision Rule", "body": "Round enough to make interaction approachable, but never so much that every control becomes a bubble or every section becomes a card.", "section": "shapes" },
+      { "name": "The Component State Rule", "body": "Every interactive primitive must visibly define rest, hover, focus, active, disabled, and semantic-error behavior where applicable.", "section": "components" }
+    ],
+    "dos": [
+      "Do use Signal Cyan or Operational Blue as a precise indicator for focus, selection, and primary action.",
+      "Do build hierarchy with adjacent tonal surfaces, fine outlines, and compact type before adding elevation.",
+      "Do preserve dense desktop workflows while expanding targets for coarse pointers and touch.",
+      "Do reserve frosted translucency and strong shadows for floating or transitional layers.",
+      "Do use responsive drawers, bounded scrolling, truncation, and progressive disclosure for complex operational content."
+    ],
+    "donts": [
+      "Don't create a cheap, glossy look with broad gradients, plastic shine, or indiscriminate blur.",
+      "Don't turn every group of content into another rounded card; use rows, sections, dividers, and the stable shell.",
+      "Don't spread the primary accent across large backgrounds or use multiple accents to compete for attention.",
+      "Don't use pill shapes for ordinary fields, panels, or every action.",
+      "Don't add motion that survives reduced-motion mode or delays an operational task."
+    ]
+  }
+}
