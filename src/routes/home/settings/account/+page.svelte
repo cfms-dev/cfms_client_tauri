@@ -18,6 +18,7 @@
   } from '$lib/api';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
+  import AvatarPreview from '$lib/components/AvatarPreview.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
@@ -259,7 +260,7 @@
   }
 </script>
 
-<div class="workspace-page p-4 sm:p-6 space-y-4 max-w-2xl mx-auto">
+<div class="workspace-page account-settings-page">
   <SettingsPageHeader
     title={$t('settings.account.title')}
     description={$t('settings.account.description')}
@@ -267,13 +268,49 @@
   />
 
   <section
-    class="overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container"
+    class="identity-panel"
     aria-label={$t('settings.account.nicknameLabel')}
   >
+    <div class="identity-summary">
+      <div class="identity-avatar">
+        <AvatarPreview
+          username={authStore.username ?? $t('common.unknownUser')}
+          size={68}
+          avatarPath={authStore.avatarPath}
+        />
+      </div>
+
+      <div class="identity-copy">
+        <h2>{authStore.displayName ?? authStore.username ?? $t('common.unknown')}</h2>
+        {#if authStore.username && authStore.displayName !== authStore.username}
+          <p class="identity-username">@{authStore.username}</p>
+        {/if}
+        {#if authStore.groups.length > 0}
+          <p class="identity-groups">
+            <Icon name="groups" size="15px" />
+            <span>{authStore.groups.join(', ')}</span>
+          </p>
+        {/if}
+      </div>
+
+      {#if !editingNickname}
+        <button
+          type="button"
+          class="action-button action-button--secondary identity-edit-button"
+          title={$t('settings.account.editNickname')}
+          aria-label={$t('settings.account.editNickname')}
+          disabled={!authStore.isLoggedIn || !authStore.username}
+          onclick={() => void beginNicknameEdit()}
+        >
+          <Icon name="edit" size="18px" />
+          <span>{$t('settings.account.editNickname')}</span>
+        </button>
+      {/if}
+    </div>
+
     {#if editingNickname}
       <form
-        class="grid min-h-16 grid-cols-[6.5rem_minmax(0,1fr)_auto] items-stretch
-               sm:grid-cols-[9.5rem_minmax(0,1fr)_auto]"
+        class="nickname-editor"
         aria-label={$t('settings.account.editNickname')}
         onsubmit={(event) => {
           event.preventDefault();
@@ -282,24 +319,19 @@
       >
         <label
           for="account-nickname-input"
-          class="flex items-center bg-md3-surface-container-high px-4 text-sm font-medium
-                 text-md3-on-surface sm:px-5"
-          style="font-family: var(--font-md3-sans);"
+          class="nickname-editor__label"
         >
           {$t('settings.account.nicknameLabel')}
         </label>
 
-        <div class="min-w-0 px-3 py-2 sm:px-4">
-          <div class="relative">
+        <div class="nickname-editor__field">
+          <div class="field-with-count">
             <input
               id="account-nickname-input"
               bind:this={nicknameInputElement}
               bind:value={nicknameInput}
-              class="w-full rounded-lg border bg-md3-surface px-3 py-2 pr-16 text-sm
-                     text-md3-on-surface outline-none transition-colors
-                     focus:border-md3-primary disabled:cursor-wait disabled:opacity-70"
-              class:border-md3-error={nicknameTooLong}
-              class:border-md3-outline={!nicknameTooLong}
+              class="text-field text-field--counted"
+              class:text-field--error={nicknameTooLong}
               type="text"
               name="nickname"
               autocomplete="off"
@@ -310,18 +342,16 @@
             />
             <span
               id="nickname-count"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs tabular-nums
-                     text-md3-on-surface-variant"
-              class:text-md3-error={nicknameTooLong}
+              class="field-count"
+              class:field-count--error={nicknameTooLong}
             >
               {nicknameCharacterCount}/{NICKNAME_MAX_LENGTH}
             </span>
           </div>
           <span
             id="nickname-help"
-            class="mt-1 block text-xs leading-4"
-            class:text-md3-error={nicknameTooLong}
-            class:text-md3-on-surface-variant={!nicknameTooLong}
+            class="field-help"
+            class:field-help--error={nicknameTooLong}
           >
             {$t(nicknameTooLong
               ? 'settings.account.nicknameTooLong'
@@ -331,26 +361,21 @@
           </span>
         </div>
 
-        <div class="flex items-center gap-1.5 px-2 sm:gap-2 sm:px-3">
+        <div class="nickname-editor__actions">
           <button
             type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border
-                   border-md3-outline px-2.5 text-sm font-medium text-md3-on-surface
-                   transition-colors hover:bg-md3-surface-container-high disabled:opacity-50 sm:px-3"
+            class="action-button action-button--secondary"
             title={$t('common.cancel')}
             aria-label={$t('common.cancel')}
             disabled={nicknameBusy}
             onclick={cancelNicknameEdit}
           >
             <Icon name="close" size="18px" />
-            <span class="hidden sm:inline">{$t('common.cancel')}</span>
+            <span>{$t('common.cancel')}</span>
           </button>
           <button
             type="submit"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full
-                   bg-md3-primary px-2.5 text-sm font-medium text-md3-on-primary
-                   transition-colors hover:bg-md3-primary-emphasis
-                   disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
+            class="action-button action-button--primary"
             title={$t(nicknameBusy ? 'common.saving' : 'common.save')}
             aria-label={$t(nicknameBusy ? 'common.saving' : 'common.save')}
             disabled={!canSaveNickname}
@@ -360,77 +385,29 @@
             {:else}
               <Icon name="check" size="18px" />
             {/if}
-            <span class="hidden sm:inline">{$t(nicknameBusy ? 'common.saving' : 'common.save')}</span>
+            <span>{$t(nicknameBusy ? 'common.saving' : 'common.save')}</span>
           </button>
         </div>
       </form>
-    {:else}
-      <div
-        class="grid min-h-14 grid-cols-[6.5rem_minmax(0,1fr)_auto] items-stretch
-               sm:grid-cols-[9.5rem_minmax(0,1fr)_auto]"
-      >
-        <div
-          class="flex items-center bg-md3-surface-container-high px-4 text-sm font-medium
-                 text-md3-on-surface sm:px-5"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('settings.account.nicknameLabel')}
-        </div>
-        <div class="flex min-w-0 items-center px-4 text-sm text-md3-on-surface sm:px-5">
-          <span class="truncate">
-            {authStore.displayName ?? authStore.username ?? $t('common.unknown')}
-          </span>
-        </div>
-        <div class="flex items-center px-2 sm:px-3">
-          <button
-            type="button"
-            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border
-                   border-md3-outline px-3 text-sm font-medium text-md3-on-surface
-                   transition-colors hover:bg-md3-surface-container-high
-                   disabled:cursor-not-allowed disabled:opacity-50"
-            title={$t('settings.account.editNickname')}
-            aria-label={$t('settings.account.editNickname')}
-            disabled={!authStore.isLoggedIn || !authStore.username}
-            onclick={() => void beginNicknameEdit()}
-          >
-            <Icon name="edit" size="18px" />
-            <span class="hidden sm:inline">{$t('settings.account.editNickname')}</span>
-          </button>
-        </div>
-      </div>
     {/if}
   </section>
 
   <section
-    class="overflow-hidden rounded-xl border border-md3-outline
-           bg-md3-surface-container/70 backdrop-blur-sm"
+    class="security-panel"
+    aria-label={$t('settings.account.description')}
   >
-    <div class="p-5">
-      <h2
-        class="text-sm font-semibold text-md3-on-surface"
-        style="font-family: var(--font-md3-sans);"
-      >
-        {$t('settings.password.accountTitle')}
-      </h2>
-      <p class="mt-1 text-xs text-md3-on-surface-variant">
-        {$t('settings.password.accountHint')}
-      </p>
-    </div>
-
-    <div
-      class="flex flex-col gap-3 border-t border-md3-outline/50
-             bg-md3-surface-container-high/30 px-5 py-4 sm:flex-row sm:items-center"
-    >
-      <p class="min-w-0 flex-1 text-xs leading-5 text-md3-on-surface-variant">
-        {$t('settings.password.sessionHint')}
-      </p>
+    <div class="security-row password-row">
+      <span class="security-icon" aria-hidden="true">
+        <Icon name="password" size="21px" />
+      </span>
+      <div class="security-copy">
+        <h2>{$t('settings.password.accountTitle')}</h2>
+        <p>{$t('settings.password.accountHint')}</p>
+        <p class="security-note">{$t('settings.password.sessionHint')}</p>
+      </div>
       <button
         type="button"
-        class="inline-flex shrink-0 items-center justify-center gap-2 rounded-full
-               bg-md3-primary-container px-4 py-2 text-sm font-medium
-               text-md3-on-primary-container transition-all hover:brightness-110
-               disabled:cursor-not-allowed disabled:opacity-50"
-        style="font-family: var(--font-md3-sans);"
+        class="action-button action-button--tonal security-action"
         disabled={!canChangePassword}
         onclick={() => (showPasswordDialog = true)}
       >
@@ -438,177 +415,725 @@
         {$t('settings.password.action')}
       </button>
     </div>
-  </section>
 
-  <section
-    class="space-y-4 rounded-xl border border-md3-outline
-           bg-md3-surface-container/70 p-5 backdrop-blur-sm"
-    aria-labelledby="account-twofa-title"
-  >
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h2
-          id="account-twofa-title"
-          class="text-sm font-semibold text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
+    <div class="security-divider"></div>
+
+    <div class="twofa-section">
+      <div class="security-row twofa-heading">
+        <span class="security-icon" aria-hidden="true">
+          <Icon name="verifiedUser" size="21px" />
+        </span>
+        <div class="security-copy">
+          <h2 id="account-twofa-title">
           {$t('settings.twofa.title')}
-        </h2>
-        <p class="mt-1 text-xs text-md3-on-surface-variant">
-          {$t('settings.twofa.description')}
-        </p>
+          </h2>
+          <p>{$t('settings.twofa.description')}</p>
+        </div>
+        <span
+          class="status-chip"
+          class:status-chip--active={enabled && !loading}
+          class:status-chip--pending={loading}
+          aria-live="polite"
+        >
+          <span class="status-chip__dot" aria-hidden="true"></span>
+          {loading ? $t('common.checking') : statusLabel}
+        </span>
       </div>
-      <span
-        class="shrink-0 rounded-full px-3 py-1 text-xs font-medium"
-        class:bg-md3-primary-container={enabled}
-        class:text-md3-on-primary-container={enabled}
-        class:bg-md3-surface-container-high={!enabled}
-        class:text-md3-on-surface-variant={!enabled}
-        style="font-family: var(--font-md3-sans);"
-      >
-        {loading ? $t('common.checking') : statusLabel}
-      </span>
-    </div>
 
-    {#if twofa?.method}
-      <p class="text-sm text-md3-on-surface-variant">
-        {$t('settings.twofa.method')}: <span class="uppercase text-md3-on-surface">{twofa.method}</span>
-        · {$t('settings.twofa.backupCodesCount')}: {twofa.backup_codes_count}
-      </p>
-    {/if}
+      <div class="twofa-content">
+        {#if twofa?.method}
+          <dl class="twofa-metadata">
+            <div>
+              <dt>{$t('settings.twofa.method')}</dt>
+              <dd class="uppercase">{twofa.method}</dd>
+            </div>
+            <div>
+              <dt>{$t('settings.twofa.backupCodesCount')}</dt>
+              <dd>{twofa.backup_codes_count}</dd>
+            </div>
+          </dl>
+        {/if}
 
-    {#if setup}
-      <div class="space-y-3">
-        <div class="rounded-lg border border-md3-outline/60 bg-md3-surface-container-high/40 p-3">
-          <div class="flex flex-col gap-4 sm:flex-row">
-            <div
-              class="grid h-52 w-52 shrink-0 place-items-center rounded-lg border
-                     border-md3-outline/40 bg-white p-2"
-            >
+        {#if setup}
+          <div class="setup-panel">
+            <div class="qr-frame">
               {#if qrCodeDataUrl}
                 <img
-                  class="h-full w-full object-contain"
                   src={qrCodeDataUrl}
                   alt={$t('settings.twofa.provisioningUri')}
                 />
               {:else}
-                <Icon name="qrCode" size="48px" class="text-md3-on-surface-variant" />
+                <Icon name="qrCode" size="48px" />
               {/if}
             </div>
-            <div class="min-w-0 flex-1 space-y-2">
-              <p class="text-xs text-md3-on-surface-variant">{$t('settings.twofa.secret')}</p>
-              <p class="break-all text-sm text-md3-on-surface">{setup.secret}</p>
-              <p class="text-xs text-md3-on-surface-variant">{$t('settings.twofa.provisioningUri')}</p>
-              <p class="break-all text-xs text-md3-on-surface-variant">{setup.provisioning_uri}</p>
+            <dl class="setup-details">
+              <div>
+                <dt>{$t('settings.twofa.secret')}</dt>
+                <dd><code>{setup.secret}</code></dd>
+              </div>
+              <div>
+                <dt>{$t('settings.twofa.provisioningUri')}</dt>
+                <dd><code>{setup.provisioning_uri}</code></dd>
+              </div>
+            </dl>
+          </div>
+
+          <label class="twofa-field">
+            <span>{$t('settings.twofa.verificationCode')}</span>
+            <input
+              class="text-field"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              bind:value={verificationCode}
+              disabled={busy}
+            />
+          </label>
+        {:else if enabled}
+          <label class="twofa-field">
+            <span>{$t('settings.twofa.currentPassword')}</span>
+            <input
+              class="text-field"
+              type="password"
+              autocomplete="current-password"
+              bind:value={disablePassword}
+              disabled={busy}
+            />
+          </label>
+        {/if}
+
+        {#if verifiedBackupCodes.length > 0}
+          <div class="backup-codes">
+            <p>{$t('settings.twofa.backupCodes')}</p>
+            <div>
+              {#each verifiedBackupCodes as code}
+                <code>{code}</code>
+              {/each}
             </div>
           </div>
+        {/if}
+
+        <div class="twofa-actions">
+          {#if setup}
+            <button
+              class="action-button action-button--primary"
+              type="button"
+              onclick={verifySetup}
+              disabled={busy || !canVerify}
+            >
+              <Icon name="verified" size="18px" />
+              {$t('settings.twofa.verifyEnable')}
+            </button>
+            <button
+              class="action-button action-button--secondary"
+              type="button"
+              onclick={cancelSetup}
+              disabled={busy}
+            >
+              {$t('settings.twofa.cancelSetup')}
+            </button>
+          {:else if enabled}
+            <button
+              class="action-button action-button--danger"
+              type="button"
+              onclick={disableCurrentTwoFactor}
+              disabled={busy || !canDisable}
+            >
+              <Icon name="lockOpen" size="18px" />
+              {$t('settings.twofa.disable')}
+            </button>
+          {:else}
+            <button
+              class="action-button action-button--tonal"
+              type="button"
+              onclick={startSetup}
+              disabled={loading || busy || !authReady}
+            >
+              <Icon name="security" size="18px" />
+              {$t('settings.twofa.enable')}
+            </button>
+          {/if}
+          <button
+            class="action-button action-button--secondary"
+            type="button"
+            onclick={() => refreshTwoFactorStatus()}
+            disabled={loading || busy}
+          >
+            <Icon name="refresh" size="18px" />
+            {$t('common.refresh')}
+          </button>
         </div>
-
-        <label
-          class="block space-y-1.5 text-sm text-md3-on-surface"
-          style="font-family: var(--font-md3-sans);"
-        >
-          {$t('settings.twofa.verificationCode')}
-          <input
-            class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                   px-3 py-2 text-md3-on-surface"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            bind:value={verificationCode}
-            disabled={busy}
-          />
-        </label>
       </div>
-    {:else if enabled}
-      <label
-        class="block space-y-1.5 text-sm text-md3-on-surface"
-        style="font-family: var(--font-md3-sans);"
-      >
-        {$t('settings.twofa.currentPassword')}
-        <input
-          class="w-full rounded-lg border border-md3-outline bg-md3-surface-container-high
-                 px-3 py-2 text-md3-on-surface"
-          type="password"
-          autocomplete="current-password"
-          bind:value={disablePassword}
-          disabled={busy}
-        />
-      </label>
-    {/if}
-
-    {#if verifiedBackupCodes.length > 0}
-      <div class="rounded-lg border border-md3-outline/60 bg-md3-surface-container-high/40 p-3">
-        <p class="mb-2 text-xs text-md3-on-surface-variant">{$t('settings.twofa.backupCodes')}</p>
-        <div class="grid grid-cols-2 gap-1 text-sm text-md3-on-surface">
-          {#each verifiedBackupCodes as code}
-            <span>{code}</span>
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    <div class="flex flex-wrap gap-2">
-      {#if setup}
-        <button
-          class="flex items-center gap-2 rounded-full bg-md3-primary-container px-4 py-2
-                 text-sm font-medium text-md3-on-primary-container transition-all
-                 hover:brightness-110 disabled:opacity-50"
-          style="font-family: var(--font-md3-sans);"
-          onclick={verifySetup}
-          disabled={busy || !canVerify}
-        >
-          <Icon name="verified" size="18px" />
-          {$t('settings.twofa.verifyEnable')}
-        </button>
-        <button
-          class="rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium
-                 text-md3-on-surface transition-all hover:brightness-110 disabled:opacity-50"
-          style="font-family: var(--font-md3-sans);"
-          onclick={cancelSetup}
-          disabled={busy}
-        >
-          {$t('settings.twofa.cancelSetup')}
-        </button>
-      {:else if enabled}
-        <button
-          class="flex items-center gap-2 rounded-full bg-md3-surface-container-high px-4 py-2
-                 text-sm font-medium text-md3-error transition-all hover:brightness-110
-                 disabled:opacity-50"
-          style="font-family: var(--font-md3-sans);"
-          onclick={disableCurrentTwoFactor}
-          disabled={busy || !canDisable}
-        >
-          <Icon name="lockOpen" size="18px" />
-          {$t('settings.twofa.disable')}
-        </button>
-      {:else}
-        <button
-          class="flex items-center gap-2 rounded-full bg-md3-primary-container px-4 py-2
-                 text-sm font-medium text-md3-on-primary-container transition-all
-                 hover:brightness-110 disabled:opacity-50"
-          style="font-family: var(--font-md3-sans);"
-          onclick={startSetup}
-          disabled={loading || busy || !authReady}
-        >
-          <Icon name="security" size="18px" />
-          {$t('settings.twofa.enable')}
-        </button>
-      {/if}
-      <button
-        class="flex items-center gap-2 rounded-full bg-md3-surface-container-high px-4 py-2
-               text-sm font-medium text-md3-on-surface transition-all hover:brightness-110
-               disabled:opacity-50"
-        style="font-family: var(--font-md3-sans);"
-        onclick={() => refreshTwoFactorStatus()}
-        disabled={loading || busy}
-      >
-        <Icon name="refresh" size="18px" />
-        {$t('common.refresh')}
-      </button>
     </div>
   </section>
 </div>
+
+<style>
+  .account-settings-page {
+    display: grid;
+    width: min(100%, 48rem);
+    gap: 1rem;
+    margin-inline: auto;
+    padding: 1.25rem;
+  }
+
+  .identity-panel,
+  .security-panel {
+    overflow: hidden;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-large, 12px);
+    background: var(--color-md3-surface-container);
+  }
+
+  .identity-summary {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.15rem 1.25rem;
+  }
+
+  .identity-avatar {
+    display: grid;
+    padding: 3px;
+    border: 1px solid color-mix(in srgb, var(--color-md3-primary) 34%, var(--color-md3-outline));
+    border-radius: 9999px;
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .identity-copy {
+    min-width: 0;
+  }
+
+  .identity-copy h2,
+  .identity-copy p,
+  .security-copy h2,
+  .security-copy p,
+  .backup-codes p {
+    margin: 0;
+  }
+
+  .identity-copy h2 {
+    overflow: hidden;
+    color: var(--color-md3-on-surface);
+    font: 700 1.08rem/1.28 var(--font-md3-sans);
+    letter-spacing: -0.012em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .identity-username,
+  .identity-groups {
+    overflow: hidden;
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.74rem;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .identity-username {
+    margin-top: 0.2rem !important;
+  }
+
+  .identity-groups {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.35rem !important;
+  }
+
+  .identity-groups span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nickname-editor {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.85rem;
+    border-top: 1px solid var(--color-md3-outline);
+    padding: 1rem 1.25rem;
+    background: color-mix(in srgb, var(--color-md3-surface-container-high) 54%, transparent);
+  }
+
+  .nickname-editor__label {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    color: var(--color-md3-on-surface);
+    font: 650 0.8rem/1.3 var(--font-md3-sans);
+  }
+
+  .nickname-editor__field {
+    min-width: 0;
+  }
+
+  .field-with-count {
+    position: relative;
+  }
+
+  .text-field {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-medium, 8px);
+    padding: 0.58rem 0.75rem;
+    color: var(--color-md3-on-surface);
+    background: var(--color-md3-surface-container-high);
+    font: 400 0.84rem/1.35 var(--font-md3-sans);
+    transition:
+      border-color var(--motion-duration-short3) var(--motion-easing-standard),
+      background-color var(--motion-duration-short3) var(--motion-easing-standard),
+      box-shadow var(--motion-duration-short3) var(--motion-easing-standard);
+  }
+
+  .text-field--counted {
+    padding-inline-end: 4.5rem;
+  }
+
+  .text-field--error {
+    border-color: var(--color-md3-error);
+  }
+
+  .text-field:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+
+  .field-count {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    color: var(--color-md3-on-surface-variant);
+    font: 0.68rem/1 var(--font-md3-mono);
+    font-variant-numeric: tabular-nums;
+    transform: translateY(-50%);
+  }
+
+  .field-count--error,
+  .field-help--error {
+    color: var(--color-md3-error);
+  }
+
+  .field-help {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+
+  .nickname-editor__actions,
+  .twofa-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .nickname-editor__actions {
+    min-height: 42px;
+    align-items: center;
+  }
+
+  .action-button {
+    display: inline-flex;
+    min-height: 34px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
+    border: 1px solid transparent;
+    border-radius: var(--explorer-radius-small, 5px);
+    padding: 0.42rem 0.72rem;
+    font: 650 0.76rem/1 var(--font-md3-sans);
+    transition:
+      border-color var(--motion-duration-short3) var(--motion-easing-standard),
+      color var(--motion-duration-short3) var(--motion-easing-standard),
+      background-color var(--motion-duration-short3) var(--motion-easing-standard),
+      transform var(--motion-duration-short3) var(--motion-easing-standard);
+  }
+
+  .action-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .action-button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .action-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.44;
+  }
+
+  .action-button--primary {
+    color: var(--color-md3-on-primary);
+    background: var(--color-md3-primary);
+  }
+
+  .action-button--primary:hover:not(:disabled) {
+    background: var(--color-md3-primary-emphasis);
+  }
+
+  .action-button--tonal {
+    color: var(--color-md3-on-primary-container);
+    background: var(--color-md3-primary-container);
+  }
+
+  .action-button--tonal:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--color-md3-primary) 38%, var(--color-md3-outline));
+  }
+
+  .action-button--secondary {
+    border-color: var(--color-md3-outline);
+    color: var(--color-md3-on-surface);
+    background: transparent;
+  }
+
+  .action-button--secondary:hover:not(:disabled) {
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .action-button--danger {
+    border-color: color-mix(in srgb, var(--color-md3-error) 34%, var(--color-md3-outline));
+    color: var(--color-md3-error);
+    background: color-mix(in srgb, var(--color-md3-error-container) 70%, transparent);
+  }
+
+  .action-button--danger:hover:not(:disabled) {
+    border-color: var(--color-md3-error);
+    background: var(--color-md3-error-container);
+  }
+
+  .security-row {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.85rem;
+  }
+
+  .password-row {
+    align-items: center;
+    padding: 1.15rem 1.25rem;
+  }
+
+  .security-icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: var(--explorer-radius-small, 5px);
+    color: var(--color-md3-primary-emphasis);
+    background: var(--color-md3-primary-container);
+  }
+
+  .security-copy {
+    min-width: 0;
+  }
+
+  .security-copy h2 {
+    color: var(--color-md3-on-surface);
+    font: 650 0.86rem/1.3 var(--font-md3-sans);
+    letter-spacing: -0.006em;
+  }
+
+  .security-copy p {
+    max-width: 68ch;
+    margin-top: 0.24rem;
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+
+  .security-copy .security-note {
+    margin-top: 0.48rem;
+    color: color-mix(in srgb, var(--color-md3-on-surface-variant) 88%, transparent);
+    font-size: 0.68rem;
+  }
+
+  .security-action {
+    align-self: center;
+  }
+
+  .security-divider {
+    height: 1px;
+    margin-inline: 1.25rem;
+    background: var(--color-md3-outline);
+  }
+
+  .twofa-section {
+    padding: 1.15rem 1.25rem 1.25rem;
+  }
+
+  .twofa-heading {
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+  }
+
+  .status-chip {
+    display: inline-flex;
+    min-height: 26px;
+    align-items: center;
+    gap: 0.42rem;
+    border-radius: 9999px;
+    padding: 0.28rem 0.62rem;
+    color: var(--color-md3-on-surface-variant);
+    background: var(--color-md3-surface-container-high);
+    font: 650 0.68rem/1 var(--font-md3-sans);
+    white-space: nowrap;
+  }
+
+  .status-chip__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  .status-chip--active {
+    color: var(--color-md3-success);
+    background: color-mix(in srgb, var(--color-md3-success) 12%, transparent);
+  }
+
+  .status-chip--pending .status-chip__dot {
+    animation: status-pulse 1.4s var(--motion-easing-standard) infinite;
+  }
+
+  .twofa-content {
+    margin-left: 3.3rem;
+  }
+
+  .twofa-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin: 0.9rem 0 0;
+  }
+
+  .twofa-metadata > div {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-small, 5px);
+    padding: 0.38rem 0.55rem;
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .twofa-metadata dt {
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.66rem;
+  }
+
+  .twofa-metadata dd {
+    margin: 0;
+    color: var(--color-md3-on-surface);
+    font: 600 0.7rem/1.2 var(--font-md3-mono);
+  }
+
+  .setup-panel {
+    display: grid;
+    grid-template-columns: 184px minmax(0, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-medium, 8px);
+    padding: 0.85rem;
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .qr-frame {
+    display: grid;
+    width: 184px;
+    height: 184px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgb(0 0 0 / 0.14);
+    border-radius: var(--explorer-radius-small, 5px);
+    padding: 0.45rem;
+    color: #5d5d5d;
+    background: #fff;
+  }
+
+  .qr-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .setup-details {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .setup-details > div + div {
+    margin-top: 0.85rem;
+  }
+
+  .setup-details dt {
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.68rem;
+  }
+
+  .setup-details dd {
+    margin: 0.3rem 0 0;
+  }
+
+  .setup-details code {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--color-md3-on-surface);
+    font: 0.7rem/1.55 var(--font-md3-mono);
+  }
+
+  .twofa-field {
+    display: grid;
+    max-width: 28rem;
+    gap: 0.38rem;
+    margin-top: 1rem;
+    color: var(--color-md3-on-surface);
+    font: 650 0.76rem/1.3 var(--font-md3-sans);
+  }
+
+  .backup-codes {
+    margin-top: 1rem;
+    border: 1px solid var(--color-md3-outline);
+    border-radius: var(--explorer-radius-medium, 8px);
+    padding: 0.85rem;
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .backup-codes p {
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.7rem;
+  }
+
+  .backup-codes > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 1rem;
+    margin-top: 0.55rem;
+  }
+
+  .backup-codes code {
+    color: var(--color-md3-on-surface);
+    font: 0.74rem/1.4 var(--font-md3-mono);
+  }
+
+  .twofa-actions {
+    margin-top: 1rem;
+  }
+
+  @keyframes status-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  @media (min-width: 640px) {
+    .account-settings-page {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .identity-summary {
+      grid-template-columns: auto minmax(0, 1fr);
+      padding: 1rem;
+    }
+
+    .identity-edit-button {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
+
+    .nickname-editor {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.5rem;
+      padding: 1rem;
+    }
+
+    .nickname-editor__label {
+      min-height: auto;
+    }
+
+    .nickname-editor__actions {
+      justify-content: flex-end;
+    }
+
+    .password-row,
+    .twofa-section {
+      padding: 1rem;
+    }
+
+    .security-divider {
+      margin-inline: 1rem;
+    }
+
+    .password-row {
+      grid-template-columns: 38px minmax(0, 1fr);
+    }
+
+    .security-action {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
+
+    .twofa-content {
+      margin-left: 0;
+    }
+
+    .setup-panel {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .qr-frame {
+      width: min(100%, 184px);
+      height: auto;
+      aspect-ratio: 1;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .account-settings-page {
+      padding: 1rem;
+    }
+
+    .identity-summary {
+      gap: 0.75rem;
+    }
+
+    .twofa-heading {
+      grid-template-columns: 34px minmax(0, 1fr);
+    }
+
+    .twofa-heading .security-icon {
+      width: 34px;
+      height: 34px;
+    }
+
+    .status-chip {
+      grid-column: 2;
+      width: fit-content;
+    }
+
+    .backup-codes > div {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .twofa-actions .action-button {
+      width: 100%;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .action-button {
+      min-height: 44px;
+    }
+  }
+</style>
 
 {#if showPasswordDialog && canChangePassword && authStore.username}
   <ChangePasswordDialog

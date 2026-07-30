@@ -15,35 +15,30 @@
 
 </script>
 
-<div class="workspace-page p-4 sm:p-6 space-y-4 max-w-4xl mx-auto">
-  <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-    {$t('settings.title')}
-  </h1>
+<div class="workspace-page settings-overview">
+  <header class="settings-overview__header">
+    <span class="settings-overview__mark" aria-hidden="true">
+      <Icon name="settings" size="27px" />
+    </span>
+    <h1>{$t('settings.title')}</h1>
+  </header>
 
-  <div class="settings-grid bg-md3-surface-container/70 backdrop-blur-sm rounded-lg
-              border border-md3-outline overflow-hidden">
-    {#each visibleEntries as entry, i}
+  <div class="settings-grid">
+    {#each visibleEntries as entry}
       <button
-        class="w-full flex items-center gap-4 px-5 py-3.5 text-left
-               hover:bg-md3-surface-container-high/50
-               transition-colors
-               {i < visibleEntries.length - 1 ? 'border-b border-md3-outline/50' : ''}"
+        class="settings-entry"
+        type="button"
         onclick={() => goto(entry.href)}
       >
-        <span class="text-md3-primary-emphasis shrink-0">
-          <Icon name={entry.icon} size="24px" />
+        <span class="settings-entry__icon" aria-hidden="true">
+          <Icon name={entry.icon} size="22px" />
         </span>
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-md3-on-surface"
-             style="font-family: var(--font-md3-sans);">
-            {$t(entry.labelKey)}
-          </p>
-          <p class="text-xs text-md3-on-surface-variant truncate">
-            {$t(entry.descriptionKey)}
-          </p>
+        <div class="settings-entry__copy">
+          <p class="settings-entry__title">{$t(entry.labelKey)}</p>
+          <p class="settings-entry__description">{$t(entry.descriptionKey)}</p>
         </div>
-        <span class="ml-auto text-md3-on-surface-variant">
-          <Icon name="breadcrumbSep" size="20px" />
+        <span class="settings-entry__arrow" aria-hidden="true">
+          <Icon name="breadcrumbSep" size="19px" />
         </span>
       </button>
     {/each}
@@ -51,17 +46,163 @@
 </div>
 
 <style>
+  .settings-overview {
+    width: min(100%, 58rem);
+    margin-inline: auto;
+    padding: 1.25rem;
+  }
+
+  .settings-overview__header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .settings-overview__header h1 {
+    margin: 0;
+    color: var(--color-md3-on-surface);
+    font: 700 1.4rem/1.2 var(--font-md3-sans);
+    letter-spacing: -0.02em;
+  }
+
+  .settings-overview__mark {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-md3-primary) 28%, var(--color-md3-outline));
+    border-radius: var(--explorer-radius-medium, 8px);
+    color: var(--color-md3-primary-emphasis);
+    background: color-mix(in srgb, var(--color-md3-primary-container) 72%, transparent);
+  }
+
   .settings-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    overflow: hidden;
+    border-radius: var(--explorer-radius-medium, 8px);
+    padding: 1px;
+    background: var(--color-md3-outline);
   }
 
-  .settings-grid > button {
-    border-right: 1px solid var(--explorer-border);
+  .settings-entry {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    min-height: 76px;
+    grid-template-columns: 38px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.85rem 1rem;
+    color: var(--color-md3-on-surface);
+    background: var(--color-md3-surface-container);
+    text-align: left;
+    transition:
+      color var(--motion-duration-short4) var(--motion-easing-standard),
+      background-color var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .settings-entry:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .settings-entry::after {
+    position: absolute;
+    inset-block: 50%;
+    inset-inline-start: 0;
+    width: 3px;
+    height: 0;
+    border-radius: 0 3px 3px 0;
+    background: var(--color-md3-primary);
+    content: '';
+    transform: translateY(-50%);
+    transition: height var(--motion-duration-short4) var(--motion-easing-emphasized-decelerate);
+  }
+
+  .settings-entry:hover {
+    background: var(--color-md3-surface-container-high);
+  }
+
+  .settings-entry:hover::after,
+  .settings-entry:focus-visible::after {
+    height: 28px;
+  }
+
+  .settings-entry:active {
+    background: var(--color-md3-surface-container-highest);
+  }
+
+  .settings-entry__icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: var(--explorer-radius-small, 5px);
+    color: var(--color-md3-primary-emphasis);
+    background: var(--color-md3-primary-container);
+  }
+
+  .settings-entry__copy {
+    min-width: 0;
+  }
+
+  .settings-entry__title,
+  .settings-entry__description {
+    margin: 0;
+  }
+
+  .settings-entry__title {
+    font: 650 0.84rem/1.3 var(--font-md3-sans);
+  }
+
+  .settings-entry__description {
+    display: -webkit-box;
+    overflow: hidden;
+    margin-top: 0.22rem;
+    color: var(--color-md3-on-surface-variant);
+    font-size: 0.72rem;
+    line-height: 1.4;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .settings-entry__arrow {
+    display: grid;
+    place-items: center;
+    color: var(--color-md3-on-surface-variant);
+    transition:
+      color var(--motion-duration-short3) var(--motion-easing-standard),
+      transform var(--motion-duration-short3) var(--motion-easing-standard);
+  }
+
+  .settings-entry:hover .settings-entry__arrow {
+    color: var(--color-md3-primary-emphasis);
+    transform: translateX(2px);
   }
 
   @media (max-width: 700px) {
-    .settings-grid { grid-template-columns: minmax(0, 1fr); }
-    .settings-grid > button { border-right: 0; }
+    .settings-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .settings-entry:last-child:nth-child(odd) {
+      grid-column: auto;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .settings-overview {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .settings-entry {
+      min-height: 84px;
+    }
   }
 </style>
