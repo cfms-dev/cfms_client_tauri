@@ -4,6 +4,32 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.39.0
+**Released on:** 2026-07-30
+
+**Title:** Bug fixes and UI improvements
+
+This version adds an option for general users to change their nicknames and introduces a security feature to reset the app, along with various improvements and fixes.
+
+### Added
+- Group settings entries by task and enhance security status overview feat(app-lock, screen-protection): add initialization failure state handling fix(i18n): update English and Chinese translations for settings overview test(settings): improve tests for settings overview and protection states
+- Refactor settings pages to use a consistent layout and styling
+- Refactor settings page layout and styles; enhance account settings with avatar preview and improved nickname editing UI
+- Introduce `impeccable` skill
+- Add nickname management functionality with validation and UI integration
+- Implement local data reset functionality
+
+### Improved
+- Add design system and product documentation for CFMS Client
+- Polish backup and reset interface
+
+### Fixed
+- Fix application exit issues
+- Streamline local data reset process and update main window configuration
+- Update local data settings page icons and styles
+
+--- 
+
 ## v0.38.3
 **Released on:** 2026-07-27
 
