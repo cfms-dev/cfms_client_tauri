@@ -1,6 +1,35 @@
 // Administration / management operations
 // ---------------------------------------------------------------------------
 
+const NICKNAME_MAX_LENGTH: usize = 255;
+
+fn normalize_nickname(nickname: Option<String>) -> Result<Option<String>, String> {
+    let Some(nickname) = nickname else {
+        return Ok(None);
+    };
+
+    let nickname = nickname.trim().to_string();
+    if nickname.is_empty() {
+        return Ok(None);
+    }
+    if nickname.chars().count() > NICKNAME_MAX_LENGTH {
+        return Err(format!(
+            "Nickname cannot exceed {NICKNAME_MAX_LENGTH} characters"
+        ));
+    }
+
+    Ok(Some(nickname))
+}
+
+fn current_user_nickname_update(
+    current_username: Option<&str>,
+    target_username: &str,
+    nickname: Option<&str>,
+) -> Option<String> {
+    (current_username == Some(target_username))
+        .then(|| nickname.unwrap_or(target_username).to_string())
+}
+
 #[tauri::command]
 pub async fn list_users(
     state: tauri::State<'_, AppHandleState>,
@@ -69,14 +98,63 @@ pub async fn create_user(
 pub async fn rename_user(
     state: tauri::State<'_, AppHandleState>,
     username: String,
-    nickname: String,
+    nickname: Option<String>,
 ) -> Result<bool, String> {
-    server_action_bool(
+    let nickname = normalize_nickname(nickname)?;
+    let renamed = server_action_bool(
         &state,
         "rename_user",
-        serde_json::json!({ "username": username, "nickname": nickname }),
+        serde_json::json!({ "username": &username, "nickname": &nickname }),
     )
-    .await
+    .await?;
+
+    let current_username = state.inner.username.read().await.clone();
+    if let Some(session_nickname) = current_user_nickname_update(
+        current_username.as_deref(),
+        &username,
+        nickname.as_deref(),
+    ) {
+        *state.inner.nickname.write().await = Some(session_nickname);
+    }
+
+    Ok(renamed)
+}
+
+#[cfg(test)]
+mod nickname_tests {
+    use super::{current_user_nickname_update, normalize_nickname};
+
+    #[test]
+    fn nickname_normalization_trims_and_clears_empty_values() {
+        assert_eq!(
+            normalize_nickname(Some("  Display Name  ".to_string())).unwrap(),
+            Some("Display Name".to_string())
+        );
+        assert_eq!(normalize_nickname(Some("  \t ".to_string())).unwrap(), None);
+        assert_eq!(normalize_nickname(None).unwrap(), None);
+    }
+
+    #[test]
+    fn nickname_length_uses_unicode_characters() {
+        assert!(normalize_nickname(Some("界".repeat(255))).is_ok());
+        assert!(normalize_nickname(Some("界".repeat(256))).is_err());
+    }
+
+    #[test]
+    fn only_the_current_users_nickname_updates_session_state() {
+        assert_eq!(
+            current_user_nickname_update(Some("alice"), "alice", Some("Alice")),
+            Some("Alice".to_string())
+        );
+        assert_eq!(
+            current_user_nickname_update(Some("alice"), "alice", None),
+            Some("alice".to_string())
+        );
+        assert_eq!(
+            current_user_nickname_update(Some("admin"), "alice", Some("Alice")),
+            None
+        );
+    }
 }
 
 #[tauri::command]

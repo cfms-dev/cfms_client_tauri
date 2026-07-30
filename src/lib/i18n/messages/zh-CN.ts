@@ -894,7 +894,13 @@ export const zh_CN = {
     title: '设置',
     account: {
       title: '用户账户',
-      description: '账户密码与二步验证',
+      description: '管理个人资料、账户密码与二步验证',
+      editNickname: '编辑昵称',
+      nicknameLabel: '昵称',
+      nicknameHint: '最多 {max} 个字符；留空并保存将恢复显示用户名。',
+      nicknameTooLong: '昵称不能超过 {max} 个字符。',
+      nicknameUpdated: '昵称已更新。',
+      nicknameUpdateFailed: '昵称更新失败。',
     },
     language: {
       title: '语言',

@@ -6,6 +6,7 @@ import {
   getUserInfo,
   listAuthLockouts,
   listBannedSubnets,
+  renameUser,
   unlockAuthLockouts,
 } from './admin';
 
@@ -68,6 +69,19 @@ describe('admin API', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('unlock_auth_lockouts', {
       locks,
       reason: 'Reviewed by administrator',
+    });
+  });
+
+  it.each([
+    ['Display Name', 'Display Name'],
+    [null, null],
+  ] as const)('passes nickname value %j to the rename command', async (nickname, expected) => {
+    invokeMock.mockResolvedValue(true);
+
+    await expect(renameUser('alice', nickname)).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('rename_user', {
+      username: 'alice',
+      nickname: expected,
     });
   });
 });

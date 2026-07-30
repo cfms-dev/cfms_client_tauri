@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import {
     cancelTwoFactorSetup,
@@ -9,6 +9,7 @@
     disableTwoFactor,
     getAuthStatus,
     getTwoFactorStatus,
+    renameUser,
     serverErrorMessage,
     setupTwoFactor,
     validateTwoFactor,
@@ -18,9 +19,16 @@
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ChangePasswordDialog from '$lib/components/ChangePasswordDialog.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import ProgressRing from '$lib/components/ProgressRing.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
 
+  const NICKNAME_MAX_LENGTH = 255;
+
   let showPasswordDialog = $state(false);
+  let editingNickname = $state(false);
+  let nicknameInput = $state('');
+  let nicknameInputElement = $state<HTMLInputElement | null>(null);
+  let nicknameBusy = $state(false);
   let authReady = $state(false);
   let twofa = $state<TwoFactorStatus | null>(null);
   let setup = $state<TwoFactorSetup | null>(null);
@@ -35,6 +43,21 @@
 
   const enabled = $derived(Boolean(twofa?.enabled));
   const statusLabel = $derived(enabled ? $t('common.enabled') : $t('common.disabled'));
+  const cleanNickname = $derived(nicknameInput.trim() || null);
+  const nicknameCharacterCount = $derived(Array.from(nicknameInput.trim()).length);
+  const nicknameTooLong = $derived(nicknameCharacterCount > NICKNAME_MAX_LENGTH);
+  const nicknameChanged = $derived.by(() => {
+    const username = authStore.username;
+    if (!username) return false;
+    return (cleanNickname ?? username) !== (authStore.displayName ?? username);
+  });
+  const canSaveNickname = $derived(
+    authStore.isLoggedIn
+      && Boolean(authStore.username)
+      && nicknameChanged
+      && !nicknameTooLong
+      && !nicknameBusy,
+  );
   const canChangePassword = $derived(
     authStore.isLoggedIn
       && Boolean(authStore.username)
@@ -100,6 +123,49 @@
     authStore.clear();
     notificationStore.success($t('more.passwordChanged'));
     await goto('/login', { replaceState: true });
+  }
+
+  async function beginNicknameEdit() {
+    if (!authStore.isLoggedIn || !authStore.username || nicknameBusy) return;
+    nicknameInput = authStore.displayName ?? authStore.username;
+    editingNickname = true;
+    await tick();
+    nicknameInputElement?.focus();
+    nicknameInputElement?.select();
+  }
+
+  function cancelNicknameEdit() {
+    if (nicknameBusy) return;
+    nicknameInput = '';
+    editingNickname = false;
+  }
+
+  function handleNicknameKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    cancelNicknameEdit();
+  }
+
+  async function saveNickname() {
+    const username = authStore.username;
+    if (!canSaveNickname || !username) return;
+
+    nicknameBusy = true;
+    try {
+      const success = await renameUser(username, cleanNickname);
+      if (!success) throw new Error($t('settings.account.nicknameUpdateFailed'));
+
+      if (authStore.isLoggedIn && authStore.username === username) {
+        authStore.nickname = cleanNickname ?? username;
+      }
+      nicknameInput = '';
+      editingNickname = false;
+      status = $t('settings.account.nicknameUpdated');
+    } catch (err) {
+      error = formatError(err);
+    } finally {
+      nicknameBusy = false;
+    }
   }
 
   async function refreshTwoFactorStatus(options?: { preserveVerifiedBackupCodes?: boolean }) {
@@ -199,6 +265,141 @@
     description={$t('settings.account.description')}
     icon="accountCircle"
   />
+
+  <section
+    class="overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container"
+    aria-label={$t('settings.account.nicknameLabel')}
+  >
+    {#if editingNickname}
+      <form
+        class="grid min-h-16 grid-cols-[6.5rem_minmax(0,1fr)_auto] items-stretch
+               sm:grid-cols-[9.5rem_minmax(0,1fr)_auto]"
+        aria-label={$t('settings.account.editNickname')}
+        onsubmit={(event) => {
+          event.preventDefault();
+          void saveNickname();
+        }}
+      >
+        <label
+          for="account-nickname-input"
+          class="flex items-center bg-md3-surface-container-high px-4 text-sm font-medium
+                 text-md3-on-surface sm:px-5"
+          style="font-family: var(--font-md3-sans);"
+        >
+          {$t('settings.account.nicknameLabel')}
+        </label>
+
+        <div class="min-w-0 px-3 py-2 sm:px-4">
+          <div class="relative">
+            <input
+              id="account-nickname-input"
+              bind:this={nicknameInputElement}
+              bind:value={nicknameInput}
+              class="w-full rounded-lg border bg-md3-surface px-3 py-2 pr-16 text-sm
+                     text-md3-on-surface outline-none transition-colors
+                     focus:border-md3-primary disabled:cursor-wait disabled:opacity-70"
+              class:border-md3-error={nicknameTooLong}
+              class:border-md3-outline={!nicknameTooLong}
+              type="text"
+              name="nickname"
+              autocomplete="off"
+              aria-describedby="nickname-help nickname-count"
+              aria-invalid={nicknameTooLong}
+              disabled={nicknameBusy}
+              onkeydown={handleNicknameKeydown}
+            />
+            <span
+              id="nickname-count"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs tabular-nums
+                     text-md3-on-surface-variant"
+              class:text-md3-error={nicknameTooLong}
+            >
+              {nicknameCharacterCount}/{NICKNAME_MAX_LENGTH}
+            </span>
+          </div>
+          <span
+            id="nickname-help"
+            class="mt-1 block text-xs leading-4"
+            class:text-md3-error={nicknameTooLong}
+            class:text-md3-on-surface-variant={!nicknameTooLong}
+          >
+            {$t(nicknameTooLong
+              ? 'settings.account.nicknameTooLong'
+              : 'settings.account.nicknameHint', {
+                values: { max: NICKNAME_MAX_LENGTH },
+              })}
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1.5 px-2 sm:gap-2 sm:px-3">
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border
+                   border-md3-outline px-2.5 text-sm font-medium text-md3-on-surface
+                   transition-colors hover:bg-md3-surface-container-high disabled:opacity-50 sm:px-3"
+            title={$t('common.cancel')}
+            aria-label={$t('common.cancel')}
+            disabled={nicknameBusy}
+            onclick={cancelNicknameEdit}
+          >
+            <Icon name="close" size="18px" />
+            <span class="hidden sm:inline">{$t('common.cancel')}</span>
+          </button>
+          <button
+            type="submit"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full
+                   bg-md3-primary px-2.5 text-sm font-medium text-md3-on-primary
+                   transition-colors hover:bg-md3-primary-emphasis
+                   disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
+            title={$t(nicknameBusy ? 'common.saving' : 'common.save')}
+            aria-label={$t(nicknameBusy ? 'common.saving' : 'common.save')}
+            disabled={!canSaveNickname}
+          >
+            {#if nicknameBusy}
+              <ProgressRing size={17} strokeWidth={2.2} label={$t('common.saving')} tone="inherit" />
+            {:else}
+              <Icon name="check" size="18px" />
+            {/if}
+            <span class="hidden sm:inline">{$t(nicknameBusy ? 'common.saving' : 'common.save')}</span>
+          </button>
+        </div>
+      </form>
+    {:else}
+      <div
+        class="grid min-h-14 grid-cols-[6.5rem_minmax(0,1fr)_auto] items-stretch
+               sm:grid-cols-[9.5rem_minmax(0,1fr)_auto]"
+      >
+        <div
+          class="flex items-center bg-md3-surface-container-high px-4 text-sm font-medium
+                 text-md3-on-surface sm:px-5"
+          style="font-family: var(--font-md3-sans);"
+        >
+          {$t('settings.account.nicknameLabel')}
+        </div>
+        <div class="flex min-w-0 items-center px-4 text-sm text-md3-on-surface sm:px-5">
+          <span class="truncate">
+            {authStore.displayName ?? authStore.username ?? $t('common.unknown')}
+          </span>
+        </div>
+        <div class="flex items-center px-2 sm:px-3">
+          <button
+            type="button"
+            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border
+                   border-md3-outline px-3 text-sm font-medium text-md3-on-surface
+                   transition-colors hover:bg-md3-surface-container-high
+                   disabled:cursor-not-allowed disabled:opacity-50"
+            title={$t('settings.account.editNickname')}
+            aria-label={$t('settings.account.editNickname')}
+            disabled={!authStore.isLoggedIn || !authStore.username}
+            onclick={() => void beginNicknameEdit()}
+          >
+            <Icon name="edit" size="18px" />
+            <span class="hidden sm:inline">{$t('settings.account.editNickname')}</span>
+          </button>
+        </div>
+      </div>
+    {/if}
+  </section>
 
   <section
     class="overflow-hidden rounded-xl border border-md3-outline

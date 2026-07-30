@@ -903,7 +903,13 @@ export const en = {
     title: 'Settings',
     account: {
       title: 'User Account',
-      description: 'Account password and two-factor authentication',
+      description: 'Manage your profile, account password, and two-factor authentication',
+      editNickname: 'Edit nickname',
+      nicknameLabel: 'Nickname',
+      nicknameHint: 'Up to {max} characters. Clear and save to display your username instead.',
+      nicknameTooLong: 'Nickname cannot exceed {max} characters.',
+      nicknameUpdated: 'Nickname updated.',
+      nicknameUpdateFailed: 'Failed to update nickname.',
     },
     language: {
       title: 'Language',

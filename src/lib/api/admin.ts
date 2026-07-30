@@ -28,7 +28,7 @@ export async function createUser(
 
 export async function renameUser(
   username: string,
-  nickname: string,
+  nickname: string | null,
 ): Promise<boolean> {
   return invoke("rename_user", { username, nickname });
 }
