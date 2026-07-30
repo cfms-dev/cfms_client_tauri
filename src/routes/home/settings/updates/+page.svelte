@@ -66,7 +66,7 @@
   }
 </script>
 
-<div class="channel-page">
+<div class="workspace-page settings-page-shell channel-page">
   <SettingsPageHeader
     title={$t('settings.updates.title')}
     description={$t('settings.updates.description')}
@@ -76,7 +76,7 @@
   />
 
   <section class="channel-section">
-    <div class="section-heading">
+    <div class="section-heading settings-section-heading">
       <h2>{$t('settings.updates.updateChannel')}</h2>
       <p>{channelDescription}</p>
     </div>
@@ -115,11 +115,7 @@
 
 <style>
   .channel-page {
-    width: min(720px, calc(100vw - 3rem));
-    margin: 0 auto;
-    padding: 2rem 0 3rem;
-    display: grid;
-    gap: 1.5rem;
+    gap: 1rem;
   }
 
   h2 {
@@ -244,8 +240,7 @@
 
   @media (max-width: 640px) {
     .channel-page {
-      width: min(100% - 2rem, 720px);
-      padding-top: 1.5rem;
+      width: min(100%, 45rem);
     }
   }
 </style>

@@ -55,8 +55,8 @@
   .settings-overview__header {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    margin-bottom: 1.25rem;
+    gap: 0.68rem;
+    margin-bottom: 1rem;
   }
 
   .settings-overview__header h1 {
@@ -68,45 +68,36 @@
 
   .settings-overview__mark {
     display: grid;
-    width: 48px;
-    height: 48px;
+    width: 30px;
+    height: 30px;
     flex: none;
     place-items: center;
-    border: 1px solid color-mix(in srgb, var(--color-md3-primary) 28%, var(--color-md3-outline));
-    border-radius: var(--explorer-radius-medium, 8px);
     color: var(--color-md3-primary-emphasis);
-    background: color-mix(in srgb, var(--color-md3-primary-container) 72%, transparent);
   }
 
   .settings-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-    overflow: hidden;
-    border-radius: var(--explorer-radius-medium, 8px);
-    padding: 1px;
-    background: var(--color-md3-outline);
+    column-gap: 1.5rem;
+    border-top: 1px solid var(--color-md3-outline);
   }
 
   .settings-entry {
     position: relative;
     display: grid;
     min-width: 0;
-    min-height: 76px;
-    grid-template-columns: 38px minmax(0, 1fr) 20px;
+    min-height: 64px;
+    grid-template-columns: 28px minmax(0, 1fr) 20px;
     align-items: center;
     gap: 0.8rem;
-    padding: 0.85rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-md3-outline) 62%, transparent);
+    padding: 0.72rem 0.35rem;
     color: var(--color-md3-on-surface);
-    background: var(--color-md3-surface-container);
+    background: transparent;
     text-align: left;
     transition:
       color var(--motion-duration-short4) var(--motion-easing-standard),
       background-color var(--motion-duration-short4) var(--motion-easing-standard);
-  }
-
-  .settings-entry:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
   }
 
   .settings-entry::after {
@@ -123,7 +114,7 @@
   }
 
   .settings-entry:hover {
-    background: var(--color-md3-surface-container-high);
+    background: color-mix(in srgb, var(--color-md3-primary-emphasis) 6%, transparent);
   }
 
   .settings-entry:hover::after,
@@ -137,12 +128,10 @@
 
   .settings-entry__icon {
     display: grid;
-    width: 38px;
-    height: 38px;
+    width: 28px;
+    height: 28px;
     place-items: center;
-    border-radius: var(--explorer-radius-small, 5px);
     color: var(--color-md3-primary-emphasis);
-    background: var(--color-md3-primary-container);
   }
 
   .settings-entry__copy {
@@ -187,11 +176,9 @@
   @media (max-width: 700px) {
     .settings-grid {
       grid-template-columns: minmax(0, 1fr);
+      column-gap: 0;
     }
 
-    .settings-entry:last-child:nth-child(odd) {
-      grid-column: auto;
-    }
   }
 
   @media (min-width: 640px) {
@@ -202,7 +189,7 @@
 
   @media (pointer: coarse) {
     .settings-entry {
-      min-height: 84px;
+      min-height: 72px;
     }
   }
 </style>

@@ -140,7 +140,7 @@
   }
 </script>
 
-<div class="appearance-page mx-auto max-w-2xl space-y-4 p-4 sm:p-6">
+<div class="workspace-page settings-page-shell appearance-page">
   <SettingsPageHeader
     title={$t('settings.appearance.title')}
     description={$t('settings.appearance.description')}
@@ -156,7 +156,7 @@
       : 'settings.appearance.globalScope')}
   </p>
 
-  <section class="appearance-section">
+  <section class="appearance-section settings-section">
     <div>
       <h2>{$t('settings.appearance.colorScheme')}</h2>
       <p>{$t('settings.appearance.colorSchemeHint')}</p>
@@ -219,7 +219,7 @@
     </div>
   </section>
 
-  <section class="appearance-section">
+  <section class="appearance-section settings-section">
     <div>
       <h2>{$t('settings.appearance.reduceMotion')}</h2>
       <p>{$t('settings.appearance.reduceMotionHint')}</p>
@@ -267,22 +267,16 @@
     align-items: center;
     gap: 0.5rem;
     margin: 0 0 0.7rem;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: var(--explorer-radius-medium, 0.75rem);
-    padding: 0.7rem 0.85rem;
+    border-top: 1px solid var(--color-md3-outline);
+    padding: 0.85rem 0 0;
     color: var(--color-md3-on-surface-variant);
-    background: color-mix(in srgb, var(--color-md3-primary-container) 30%, transparent);
     font-size: 0.78rem;
   }
 
   .appearance-section {
     display: grid;
     gap: 1rem;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: var(--explorer-radius-large, 0.75rem);
-    padding: 1.15rem;
-    background: color-mix(in srgb, var(--color-md3-surface-container) 82%, transparent);
-    backdrop-filter: blur(16px);
+    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
   }
 
   h2 { margin: 0; color: var(--color-md3-on-surface); font: 650 0.9rem/1.35 var(--font-md3-sans); }

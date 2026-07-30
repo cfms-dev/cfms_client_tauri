@@ -71,7 +71,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.tasks.title')}
     description={$t('settings.tasks.description')}
@@ -80,10 +80,9 @@
     onReset={resetTaskPreference}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-5">
-    <section class="space-y-4">
-      <div>
+  <div class="settings-section-list">
+    <section class="settings-section space-y-4">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.tasks.concurrencyTitle')}
         </h2>

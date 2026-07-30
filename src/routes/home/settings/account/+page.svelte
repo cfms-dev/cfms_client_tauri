@@ -260,22 +260,23 @@
   }
 </script>
 
-<div class="workspace-page account-settings-page">
+<div class="workspace-page settings-page-shell account-settings-page">
   <SettingsPageHeader
     title={$t('settings.account.title')}
     description={$t('settings.account.description')}
     icon="accountCircle"
   />
 
+  <div class="account-sections">
   <section
-    class="identity-panel"
+    class="identity-panel account-section"
     aria-label={$t('settings.account.nicknameLabel')}
   >
     <div class="identity-summary">
       <div class="identity-avatar">
         <AvatarPreview
           username={authStore.username ?? $t('common.unknownUser')}
-          size={68}
+          size={52}
           avatarPath={authStore.avatarPath}
         />
       </div>
@@ -393,14 +394,14 @@
   </section>
 
   <section
-    class="security-panel"
+    class="security-panel account-section"
     aria-label={$t('settings.account.description')}
   >
     <div class="security-row password-row">
-      <span class="security-icon" aria-hidden="true">
+      <span class="security-icon settings-row__icon" aria-hidden="true">
         <Icon name="password" size="21px" />
       </span>
-      <div class="security-copy">
+      <div class="security-copy settings-row__copy">
         <h2>{$t('settings.password.accountTitle')}</h2>
         <p>{$t('settings.password.accountHint')}</p>
         <p class="security-note">{$t('settings.password.sessionHint')}</p>
@@ -420,10 +421,10 @@
 
     <div class="twofa-section">
       <div class="security-row twofa-heading">
-        <span class="security-icon" aria-hidden="true">
+        <span class="security-icon settings-row__icon" aria-hidden="true">
           <Icon name="verifiedUser" size="21px" />
         </span>
-        <div class="security-copy">
+        <div class="security-copy settings-row__copy">
           <h2 id="account-twofa-title">
           {$t('settings.twofa.title')}
           </h2>
@@ -566,23 +567,25 @@
       </div>
     </div>
   </section>
+  </div>
 </div>
 
 <style>
   .account-settings-page {
-    display: grid;
-    width: min(100%, 48rem);
     gap: 1rem;
-    margin-inline: auto;
-    padding: 1.25rem;
+  }
+
+  .account-sections {
+    border-top: 1px solid var(--color-md3-outline);
+  }
+
+  .account-section + .account-section {
+    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
   }
 
   .identity-panel,
   .security-panel {
-    overflow: hidden;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: var(--explorer-radius-large, 12px);
-    background: var(--color-md3-surface-container);
+    min-width: 0;
   }
 
   .identity-summary {
@@ -590,16 +593,13 @@
     min-width: 0;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1rem;
-    padding: 1.15rem 1.25rem;
+    gap: 0.85rem;
+    padding: 0.9rem 0;
   }
 
   .identity-avatar {
     display: grid;
-    padding: 3px;
-    border: 1px solid color-mix(in srgb, var(--color-md3-primary) 34%, var(--color-md3-outline));
     border-radius: 9999px;
-    background: var(--color-md3-surface-container-high);
   }
 
   .identity-copy {
@@ -654,9 +654,8 @@
     grid-template-columns: 7.5rem minmax(0, 1fr) auto;
     align-items: start;
     gap: 0.85rem;
-    border-top: 1px solid var(--color-md3-outline);
-    padding: 1rem 1.25rem;
-    background: color-mix(in srgb, var(--color-md3-surface-container-high) 54%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
+    padding: 0.9rem 0 1rem;
   }
 
   .nickname-editor__label {
@@ -811,24 +810,22 @@
   .security-row {
     display: grid;
     min-width: 0;
-    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
     align-items: start;
     gap: 0.85rem;
   }
 
   .password-row {
     align-items: center;
-    padding: 1.15rem 1.25rem;
+    padding: 1rem 0;
   }
 
   .security-icon {
     display: grid;
-    width: 38px;
-    height: 38px;
+    width: 24px;
+    height: 24px;
     place-items: center;
-    border-radius: var(--explorer-radius-small, 5px);
     color: var(--color-md3-primary-emphasis);
-    background: var(--color-md3-primary-container);
   }
 
   .security-copy {
@@ -861,16 +858,15 @@
 
   .security-divider {
     height: 1px;
-    margin-inline: 1.25rem;
-    background: var(--color-md3-outline);
+    background: color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
   }
 
   .twofa-section {
-    padding: 1.15rem 1.25rem 1.25rem;
+    padding: 1rem 0 1.1rem;
   }
 
   .twofa-heading {
-    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
   }
 
   .status-chip {
@@ -903,7 +899,7 @@
   }
 
   .twofa-content {
-    margin-left: 3.3rem;
+    margin-left: 2.85rem;
   }
 
   .twofa-metadata {
@@ -1032,16 +1028,10 @@
     50% { opacity: 1; transform: scale(1); }
   }
 
-  @media (min-width: 640px) {
-    .account-settings-page {
-      padding: 1.5rem;
-    }
-  }
-
   @media (max-width: 640px) {
     .identity-summary {
       grid-template-columns: auto minmax(0, 1fr);
-      padding: 1rem;
+      padding-block: 0.9rem;
     }
 
     .identity-edit-button {
@@ -1052,7 +1042,7 @@
     .nickname-editor {
       grid-template-columns: minmax(0, 1fr);
       gap: 0.5rem;
-      padding: 1rem;
+      padding: 0.9rem 0 1rem;
     }
 
     .nickname-editor__label {
@@ -1065,15 +1055,11 @@
 
     .password-row,
     .twofa-section {
-      padding: 1rem;
-    }
-
-    .security-divider {
-      margin-inline: 1rem;
+      padding-block: 1rem;
     }
 
     .password-row {
-      grid-template-columns: 38px minmax(0, 1fr);
+      grid-template-columns: 24px minmax(0, 1fr);
     }
 
     .security-action {
@@ -1097,21 +1083,17 @@
   }
 
   @media (max-width: 420px) {
-    .account-settings-page {
-      padding: 1rem;
-    }
-
     .identity-summary {
       gap: 0.75rem;
     }
 
     .twofa-heading {
-      grid-template-columns: 34px minmax(0, 1fr);
+      grid-template-columns: 24px minmax(0, 1fr);
     }
 
     .twofa-heading .security-icon {
-      width: 34px;
-      height: 34px;
+      width: 24px;
+      height: 24px;
     }
 
     .status-chip {

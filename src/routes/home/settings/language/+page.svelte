@@ -65,7 +65,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.language.title')}
     icon="language"
@@ -73,9 +73,8 @@
     onReset={resetLanguage}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-4">
-    <div>
+  <section class="settings-section-list settings-section space-y-4">
+    <div class="settings-section-heading">
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.language.display')}
       </h2>
@@ -113,5 +112,5 @@
     <p class="text-xs text-md3-on-surface-variant">
       {$t('settings.language.restart')}
     </p>
-  </div>
+  </section>
 </div>

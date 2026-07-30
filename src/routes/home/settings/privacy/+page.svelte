@@ -56,7 +56,7 @@
 </script>
 
 {#if authStore.isLoggedIn}
-  <div class="p-6 space-y-4 max-w-lg mx-auto">
+  <div class="workspace-page settings-page-shell">
     <SettingsPageHeader
       title={$t('settings.privacy.title')}
       description={$t('settings.privacy.description')}
@@ -65,10 +65,10 @@
       onReset={resetPrivacyPreference}
     />
 
-    <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
-      <section class="space-y-4">
-        <div class="flex items-center justify-between gap-4">
-          <div class="min-w-0">
+    <div class="settings-section-list">
+      <section class="settings-section space-y-4">
+        <div class="settings-row">
+          <div class="settings-section-heading settings-row__copy">
             <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
               {$t('settings.privacy.screenshotProtection')}
             </h2>

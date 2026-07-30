@@ -610,3 +610,84 @@ html[data-theme="light"] :where(.explorer-shell, .workspace-palette) {
 .explorer-command-button[data-tone="danger"] {
   color: var(--explorer-danger);
 }
+
+/* ---------------------------------------------------------------------------
+ * Settings workspace — compact, linear and tonal
+ * --------------------------------------------------------------------------- */
+
+.settings-page-shell {
+  display: grid;
+  width: min(100%, 45rem);
+  gap: 1rem;
+  margin-inline: auto;
+  padding: 1.25rem;
+}
+
+.settings-section-list {
+  display: grid;
+  border-top: 1px solid var(--color-md3-outline);
+}
+
+.settings-section {
+  min-width: 0;
+  padding-block: 1rem;
+}
+
+.settings-section + .settings-section {
+  border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
+}
+
+.settings-section-heading {
+  display: grid;
+  min-width: 0;
+  gap: 0.24rem;
+}
+
+.settings-section-heading h2,
+.settings-section-heading p {
+  margin: 0;
+}
+
+.settings-section-heading h2 {
+  color: var(--color-md3-on-surface);
+  font: 650 0.88rem/1.35 var(--font-md3-sans);
+}
+
+.settings-section-heading p {
+  max-width: 70ch;
+  color: var(--color-md3-on-surface-variant);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.settings-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-row__copy {
+  min-width: 0;
+}
+
+.settings-row__icon {
+  display: grid;
+  width: 24px;
+  flex: none;
+  place-items: center;
+  color: var(--color-md3-primary-emphasis);
+}
+
+@media (min-width: 640px) {
+  .settings-page-shell {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .settings-page-shell {
+    padding: 1rem;
+  }
+}

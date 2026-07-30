@@ -58,7 +58,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.activity.title')}
     icon="history"
@@ -66,10 +66,9 @@
     onReset={resetActivityPreference}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-4">
-    <section class="space-y-3">
-      <div>
+  <div class="settings-section-list">
+    <section class="settings-section space-y-3">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.activity.recentVisits')}
         </h2>
@@ -78,7 +77,7 @@
         </p>
       </div>
 
-      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.activity.recordRecentVisits')}
         <MdSwitch
           checked={recordRecentVisits}

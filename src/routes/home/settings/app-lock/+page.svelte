@@ -271,7 +271,7 @@
 
 <svelte:window onkeydown={handlePinSetupKeydown} />
 
-<div class="mx-auto max-w-2xl space-y-4 p-6">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('appLock.settings.title')}
     description={$t('appLock.settings.description')}
@@ -281,11 +281,14 @@
   />
 
   {#if !authStore.isLoggedIn}
-    <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 text-sm text-md3-on-surface-variant">
-      {$t('appLock.settings.signInRequired')}
+    <div class="settings-section-list">
+      <section class="settings-section text-sm text-md3-on-surface-variant">
+        {$t('appLock.settings.signInRequired')}
+      </section>
     </div>
   {:else}
-    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+    <div class="settings-section-list">
+    <section class="settings-section">
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -304,7 +307,7 @@
       </div>
     </section>
 
-    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+    <section class="settings-section">
       <div class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -338,7 +341,7 @@
       </label>
     </section>
 
-    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+    <section class="settings-section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -379,7 +382,7 @@
     </section>
 
     {#if isMobile}
-      <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+      <section class="settings-section">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -422,7 +425,7 @@
       </section>
     {/if}
 
-    <section class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
+    <section class="settings-section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
@@ -491,6 +494,7 @@
         </button>
       </div>
     </section>
+    </div>
   {/if}
 </div>
 
@@ -550,8 +554,8 @@
     justify-content: center;
     gap: 0.45rem;
     border: 1px solid var(--color-md3-outline);
-    border-radius: 9999px;
-    background: color-mix(in srgb, var(--color-md3-surface-container-high) 72%, transparent);
+    border-radius: var(--explorer-radius-small, 5px);
+    background: transparent;
     color: var(--color-md3-on-surface);
     padding: 0.55rem 0.9rem;
     font-size: 0.8125rem;

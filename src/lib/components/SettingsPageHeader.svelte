@@ -67,7 +67,7 @@
 <style>
   .settings-page-header {
     display: grid;
-    gap: 1rem;
+    gap: 0.7rem;
   }
 
   .settings-back-button {
@@ -90,9 +90,8 @@
   }
 
   .settings-back-button:hover {
-    border-color: var(--color-md3-outline);
     color: var(--color-md3-on-surface);
-    background: var(--color-md3-surface-container-high);
+    background: color-mix(in srgb, var(--color-md3-on-surface) 7%, transparent);
   }
 
   .settings-back-button:active {
@@ -113,19 +112,16 @@
 
   .settings-heading {
     align-items: center;
-    gap: 0.85rem;
+    gap: 0.68rem;
   }
 
   .settings-heading-icon {
     display: grid;
-    width: 48px;
-    height: 48px;
+    width: 30px;
+    height: 30px;
     flex: none;
     place-items: center;
-    border: 1px solid color-mix(in srgb, var(--color-md3-primary) 28%, var(--color-md3-outline));
-    border-radius: var(--explorer-radius-medium, 8px);
     color: var(--color-md3-primary-emphasis);
-    background: color-mix(in srgb, var(--color-md3-primary-container) 72%, transparent);
   }
 
   .settings-heading-copy {
@@ -135,7 +131,7 @@
   .settings-heading-copy h1 {
     margin: 0;
     color: var(--color-md3-on-surface);
-    font: 700 1.35rem/1.2 var(--font-md3-sans);
+    font: 700 1.3rem/1.2 var(--font-md3-sans);
     letter-spacing: -0.018em;
     text-wrap: balance;
   }
@@ -168,8 +164,7 @@
   }
 
   .settings-reset-button:hover:not(:disabled) {
-    border-color: var(--color-md3-outline);
-    background: color-mix(in srgb, var(--color-md3-on-surface) 10%, transparent);
+    background: color-mix(in srgb, var(--color-md3-on-surface) 7%, transparent);
     color: var(--color-md3-on-surface);
     transform: translateY(-1px);
   }

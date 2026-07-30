@@ -142,7 +142,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.connection.title')}
     icon="connect"
@@ -150,14 +150,13 @@
     onReset={resetConnection}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-5">
-    <section class="space-y-3">
+  <div class="settings-section-list">
+    <section class="settings-section space-y-3">
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.basic')}
       </h2>
 
-      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.enableProxy')}
         <MdSwitch
           checked={config.enable_proxy}
@@ -167,7 +166,7 @@
         />
       </div>
 
-      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.followSystemProxy')}
         <MdSwitch
           checked={config.follow_system_proxy}
@@ -192,7 +191,7 @@
         </label>
       {/if}
 
-      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.forceIpv4')}
         <MdSwitch
           checked={config.force_ipv4}
@@ -203,8 +202,8 @@
       </div>
     </section>
 
-    <section class="space-y-3">
-      <div>
+    <section class="settings-section space-y-3">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.connection.history')}
         </h2>
@@ -213,7 +212,7 @@
         </p>
       </div>
 
-      <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+      <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.rememberAddresses')}
         <MdSwitch
           checked={config.remember_connection_addresses}
@@ -224,8 +223,8 @@
       </div>
     </section>
 
-    <section class="space-y-3">
-      <div>
+    <section class="settings-section space-y-3">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.connection.identity')}
         </h2>
@@ -259,8 +258,8 @@
       </label>
     </section>
 
-    <section class="space-y-3">
-      <div>
+    <section class="settings-section space-y-3">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.connection.caCertificates')}
         </h2>
@@ -281,7 +280,7 @@
       </div>
 
       <button
-        class="px-4 py-2 rounded-full font-medium text-sm
+        class="px-4 py-2 rounded-md font-medium text-sm
                bg-md3-secondary-container text-md3-on-secondary-container
                hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
         style="font-family: var(--font-md3-sans);"

@@ -88,7 +88,7 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.storage.title')}
     icon="storage"
@@ -96,16 +96,15 @@
     onReset={resetStoragePreference}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-4">
-    <div>
+  <section class="settings-section-list settings-section space-y-4">
+    <div class="settings-section-heading">
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.storage.pathTitle')}
       </h2>
       <p class="text-sm text-md3-on-surface-variant mt-1 break-words">{storagePath}</p>
     </div>
 
-    <div class="flex items-center justify-between gap-3 text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
+    <div class="settings-row text-sm text-md3-on-surface" style="font-family: var(--font-md3-sans);">
       {$t('settings.storage.useExternal')}
       <MdSwitch
         checked={useExternalStorage}
@@ -140,5 +139,5 @@
         </button>
       </div>
     </label>
-  </div>
+  </section>
 </div>

@@ -25,16 +25,16 @@
   }
 </script>
 
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.localData.title')}
     description={$t('settings.localData.description')}
     icon="backup"
   />
 
-  <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-5 backdrop-blur-sm">
-    <section class="space-y-4">
-      <div class="min-w-0">
+  <div class="settings-section-list">
+    <section class="settings-section space-y-4">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.localData.cardTitle')}
         </h2>
@@ -69,7 +69,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 9999px;
+    border-radius: var(--explorer-radius-small, 5px);
     padding-inline: 1rem;
     color: var(--color-md3-on-primary-container);
     background: var(--color-md3-primary-container);

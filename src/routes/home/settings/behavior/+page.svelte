@@ -114,7 +114,7 @@
 </script>
 
 {#if authStore.isLoggedIn}
-<div class="p-6 space-y-4 max-w-lg mx-auto">
+<div class="workspace-page settings-page-shell">
   <SettingsPageHeader
     title={$t('settings.behavior.title')}
     description={$t('settings.behavior.description')}
@@ -123,10 +123,9 @@
     onReset={resetBehavior}
   />
 
-  <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
-              border border-md3-outline p-5 space-y-5">
-    <section class="space-y-4">
-      <div>
+  <div class="settings-section-list">
+    <section class="settings-section space-y-4">
+      <div class="settings-section-heading">
         <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
           {$t('settings.behavior.rootBackTitle')}
         </h2>
@@ -150,7 +149,7 @@
             </span>
           </span>
           <a
-            class="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold
+            class="inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-semibold
                    text-md3-primary transition-colors hover:bg-md3-primary-container/30"
             href="/home/settings/app-lock"
           >
