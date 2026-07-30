@@ -901,6 +901,39 @@ export const en = {
   },
   settings: {
     title: 'Settings',
+    overview: {
+      groups: {
+        personalization: 'Personalization',
+        accessSecurity: 'Access and security',
+        dataOperations: 'Data and operations',
+        maintenance: 'Maintenance',
+      },
+      security: {
+        title: 'Protection status',
+        checking: 'Checking key protection settings...',
+        allEnabled: 'The 3 key protections checked here are enabled.',
+        attention: 'Protection settings suggested for review: {count}.',
+        unavailable: 'Some protection statuses are temporarily unavailable.',
+      },
+      status: {
+        checking: 'Checking',
+        unavailable: 'Status unavailable',
+        connected: 'Connected',
+        disconnected: 'Not connected',
+        twoFactorEnabled: 'Two-factor authentication on',
+        twoFactorDisabled: 'Two-factor authentication off',
+        screenProtectionEnabled: 'Screen protection on',
+        screenProtectionDisabled: 'Screen protection off',
+        screenProtectionUnsupported: 'Screen protection unavailable',
+        appLockEnabled: 'App Lock on',
+        appLockDisabled: 'App Lock off',
+      },
+      scope: {
+        device: 'This device',
+        account: 'Account',
+        accountDevice: 'Account · this device',
+      },
+    },
     account: {
       title: 'User Account',
       description: 'Manage your profile, account password, and two-factor authentication',
@@ -958,7 +991,7 @@ export const en = {
     },
     connection: {
       title: 'Connection',
-      description: 'Proxy, TLS and network settings',
+      description: 'Proxy, certificate and network settings',
       basic: 'Basic',
       enableProxy: 'Enable proxy',
       followSystemProxy: 'Follow system proxy settings',
@@ -998,8 +1031,8 @@ export const en = {
       selectExternalPath: 'Select external storage folder',
     },
     localData: {
-      title: 'Backup & Reset',
-      description: 'Manage application data and restore CFMS Client to its initial state',
+      title: 'App Data & Reset',
+      description: 'Remove local app data and restore CFMS Client to its initial state',
       cardTitle: 'Reset this app',
       cardDescription: 'Remove the app\'s personalized settings, user preferences, task history, caches, and downloaded content, restoring the app to its initial state.',
       openAction: 'Reset this app',
@@ -1051,7 +1084,7 @@ export const en = {
       signInRequired: 'Sign in before changing your account password.',
     },
     tasks: {
-      title: 'Tasks',
+      title: 'Transfer Scheduling',
       description: 'Upload and download scheduling',
       concurrencyTitle: 'Concurrent Transfers',
       concurrencyHint: 'Set how many uploads and downloads may run at the same time.',

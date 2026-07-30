@@ -10,6 +10,7 @@ const PRIVACY_PREFERENCE_VERSION = 1;
 class ScreenProtectionStoreImpl {
   userEnabled = $state(DEFAULT_SCREENSHOT_PROTECTION);
   initialized = $state(false);
+  initializationFailed = $state(false);
   supported = $state(true);
 
   private scopeKey: string | null = null;
@@ -23,6 +24,7 @@ class ScreenProtectionStoreImpl {
     const initializationId = ++this.initializationId;
     this.scopeKey = scopeKey;
     this.initialized = false;
+    this.initializationFailed = false;
     this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
 
     try {
@@ -32,6 +34,7 @@ class ScreenProtectionStoreImpl {
     } catch {
       if (initializationId !== this.initializationId || this.scopeKey !== scopeKey) return;
       this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
+      this.initializationFailed = true;
     } finally {
       if (initializationId === this.initializationId && this.scopeKey === scopeKey) {
         this.initialized = true;
@@ -60,12 +63,14 @@ class ScreenProtectionStoreImpl {
     if (this.scopeKey !== scopeKey) return;
     this.userEnabled = enabled;
     this.initialized = true;
+    this.initializationFailed = false;
   }
 
   resetForSignedOut() {
     this.initializationId += 1;
     this.scopeKey = null;
     this.initialized = false;
+    this.initializationFailed = false;
     this.userEnabled = DEFAULT_SCREENSHOT_PROTECTION;
   }
 

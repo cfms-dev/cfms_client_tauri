@@ -892,6 +892,39 @@ export const zh_CN = {
   },
   settings: {
     title: '设置',
+    overview: {
+      groups: {
+        personalization: '个性化',
+        accessSecurity: '访问与安全',
+        dataOperations: '数据与运作',
+        maintenance: '维护',
+      },
+      security: {
+        title: '保护状态',
+        checking: '正在读取关键保护设置...',
+        allEnabled: '此处检查的 3 项关键保护均已开启。',
+        attention: '有 {count} 项关键保护建议检查。',
+        unavailable: '部分保护状态暂时无法读取。',
+      },
+      status: {
+        checking: '正在读取',
+        unavailable: '状态不可用',
+        connected: '已连接',
+        disconnected: '未连接',
+        twoFactorEnabled: '二步验证已开启',
+        twoFactorDisabled: '二步验证未开启',
+        screenProtectionEnabled: '屏幕保护已开启',
+        screenProtectionDisabled: '屏幕保护未开启',
+        screenProtectionUnsupported: '屏幕保护不可用',
+        appLockEnabled: '应用锁已开启',
+        appLockDisabled: '应用锁未开启',
+      },
+      scope: {
+        device: '此设备',
+        account: '账户',
+        accountDevice: '账户 · 此设备',
+      },
+    },
     account: {
       title: '用户账户',
       description: '管理个人资料、账户密码与二步验证',
@@ -949,7 +982,7 @@ export const zh_CN = {
     },
     connection: {
       title: '连接',
-      description: '代理、TLS 与网络设置',
+      description: '代理、证书与网络设置',
       basic: '基础',
       enableProxy: '启用代理',
       followSystemProxy: '跟随系统代理设置',
@@ -989,8 +1022,8 @@ export const zh_CN = {
       selectExternalPath: '选择外部存储文件夹',
     },
     localData: {
-      title: '备份与重置',
-      description: '管理应用数据并将 CFMS Client 恢复到初始状态',
+      title: '应用数据与重置',
+      description: '删除本地应用数据并将 CFMS Client 恢复到初始状态',
       cardTitle: '重置此应用',
       cardDescription: '删除应用的个性化设置、用户偏好、任务历史、缓存及下载内容，将应用重置为初始状态。',
       openAction: '重置此应用',
@@ -1042,7 +1075,7 @@ export const zh_CN = {
       signInRequired: '请先登录，再修改账户密码。',
     },
     tasks: {
-      title: '任务',
+      title: '传输调度',
       description: '上传和下载调度',
       concurrencyTitle: '并发传输',
       concurrencyHint: '设置可同时运行的上传与下载任务数量。',

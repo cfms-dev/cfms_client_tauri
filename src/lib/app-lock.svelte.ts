@@ -65,6 +65,7 @@ const defaultSettings = (): AppLockSettings => ({
 class AppLockStoreImpl {
   settings = $state<AppLockSettings>(defaultSettings());
   initialized = $state(false);
+  initializationFailed = $state(false);
   locked = $state(false);
   pinSetupActive = $state(false);
   biometricAvailable = $state(false);
@@ -111,6 +112,7 @@ class AppLockStoreImpl {
 
   async init(scopeKey: string) {
     if (this.initialized && this.scopeKey === scopeKey) return;
+    this.initializationFailed = false;
     await this.refreshBiometricAvailability();
     await this.refreshPlatformAvailability();
 
@@ -134,11 +136,13 @@ class AppLockStoreImpl {
       this.settings = appLockSettings;
       this.scopeKey = scopeKey;
       this.initialized = true;
+      this.initializationFailed = false;
       this.rescheduleTimedLock();
     } catch {
       this.settings = defaultSettings();
       this.scopeKey = null;
       this.initialized = false;
+      this.initializationFailed = true;
       this.clearTimedLockTimer();
     }
   }
@@ -398,6 +402,7 @@ class AppLockStoreImpl {
   resetForSignedOut() {
     this.settings = defaultSettings();
     this.initialized = false;
+    this.initializationFailed = false;
     this.locked = false;
     this.pinSetupActive = false;
     this.scopeKey = null;

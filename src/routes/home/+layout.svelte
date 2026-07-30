@@ -67,6 +67,9 @@
         permission === 'apply_lockdown' || permission === 'manage_system'
       ),
   );
+  const isSettingsRoute = $derived(
+    $page.url.pathname === '/home/settings' || $page.url.pathname.startsWith('/home/settings/'),
+  );
   const isPublicUtilityRoute = $derived(
     $page.url.pathname === '/home/about'
       || $page.url.pathname === '/home/settings'
@@ -375,7 +378,11 @@
       <Icon name="sidebarToggle" size="20px" />
     </button>
 
-    <h1 class="explorer-route-title">{currentTitle}</h1>
+    {#if isSettingsRoute}
+      <span class="explorer-route-title">{currentTitle}</span>
+    {:else}
+      <h1 class="explorer-route-title">{currentTitle}</h1>
+    {/if}
 
     {#if authStore.isLoggedIn}
     <div class="explorer-topbar-actions">
