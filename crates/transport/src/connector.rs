@@ -195,6 +195,18 @@ impl Connection {
 
     /// Create a client-initiated virtual stream (odd stream ID).
     pub async fn create_stream(&self) -> Result<Stream> {
+        self.create_stream_with_capacity(STREAM_BUFFER).await
+    }
+
+    /// Create a client-initiated stream with a bounded application queue.
+    /// Dedicated transfer connections use a smaller queue so backpressure
+    /// reaches the WebSocket instead of accumulating large file messages.
+    pub async fn create_stream_with_capacity(&self, capacity: usize) -> Result<Stream> {
+        if capacity == 0 {
+            return Err(cfms_core::Error::Protocol(
+                "stream buffer capacity must be greater than zero".into(),
+            ));
+        }
         let id = {
             let mut next = self.next_stream_id.lock().await;
             let id = *next;
@@ -202,7 +214,7 @@ impl Connection {
             id
         };
 
-        let (tx, stream) = Stream::new(id, STREAM_BUFFER);
+        let (tx, stream) = Stream::new(id, capacity);
         self.streams.insert(id, tx);
         debug!("Created client stream {id}");
         Ok(stream)

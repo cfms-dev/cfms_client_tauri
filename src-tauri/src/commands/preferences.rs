@@ -43,6 +43,7 @@ pub async fn load_user_preference(
     .map_err(|e| format!("Preference load task failed: {e}"))??;
 
     pref.task_concurrency = pref.task_concurrency.normalized();
+    pref.transfer = pref.transfer.normalized();
     sync_runtime_preferences(&state, &pref);
 
     serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))
@@ -75,6 +76,7 @@ pub async fn save_user_preference(
     let mut preferences: UserPreference =
         serde_json::from_value(preferences).map_err(|e| format!("Invalid preference data: {e}"))?;
     preferences.task_concurrency = preferences.task_concurrency.normalized();
+    preferences.transfer = preferences.transfer.normalized();
     sync_runtime_preferences(&state, &preferences);
 
     let dek = {
@@ -225,6 +227,10 @@ pub async fn reset_preference_dek(
 fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference) {
     state.inner.download_max_concurrent.store(
         preferences.task_concurrency.max_downloads as usize,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    state.inner.download_max_chunk_size.store(
+        preferences.transfer.max_download_chunk_size as usize,
         std::sync::atomic::Ordering::Relaxed,
     );
 }

@@ -100,7 +100,17 @@ pub async fn download_avatar(
                     _message: &str,
                     _current: u64,
                     _total: u64| {};
-    let result = cfms_transfer::download::receive(&conn, task_id, &cache_path, &progress)
+    let max_chunk_size = state
+        .inner
+        .download_max_chunk_size
+        .load(std::sync::atomic::Ordering::Relaxed) as u32;
+    let result = cfms_transfer::download::receive(
+        &conn,
+        task_id,
+        &cache_path,
+        max_chunk_size,
+        &progress,
+    )
         .await
         .map_err(|e| format!("Avatar download failed: {e}"));
     conn.close().await;

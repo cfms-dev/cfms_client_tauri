@@ -120,6 +120,44 @@ impl UploadTransferSession {
     }
 }
 
+const MAX_UPLOAD_RETRIES: u32 = 3;
+
+fn upload_retry_delay(error: &cfms_core::Error, attempt: u32) -> Option<std::time::Duration> {
+    if attempt >= MAX_UPLOAD_RETRIES {
+        return None;
+    }
+
+    let fallback_seconds = 1u64 << attempt.min(3);
+    let seconds = match error {
+        cfms_core::Error::Connection(_) => fallback_seconds,
+        cfms_core::Error::Server {
+            code: 429,
+            retry_after_seconds,
+            ..
+        } => retry_after_seconds.unwrap_or(fallback_seconds),
+        cfms_core::Error::Server { code, .. } if matches!(*code, 500 | 502 | 503 | 504) => {
+            fallback_seconds
+        }
+        _ => return None,
+    };
+    Some(std::time::Duration::from_secs(seconds))
+}
+
+async fn wait_for_upload_resume(
+    control: &mut tokio::sync::watch::Receiver<Option<UploadInterruption>>,
+) -> Result<(), UploadInterruption> {
+    loop {
+        match *control.borrow() {
+            None => return Ok(()),
+            Some(UploadInterruption::Cancelled) => return Err(UploadInterruption::Cancelled),
+            Some(UploadInterruption::Paused) => {}
+        }
+        if control.changed().await.is_err() {
+            return Err(UploadInterruption::Cancelled);
+        }
+    }
+}
+
 struct CreateServerDirectoryResult {
     id: String,
 }
@@ -481,22 +519,6 @@ async fn upload_local_file<R: Runtime>(
         (task_id, document_id, false)
     };
 
-    if let Some(reason) = *upload_control.borrow() {
-        emit_interrupted_upload(app_handle, &upload_id, Some(&task_id), &file_name, reason);
-        state.active_uploads.unregister(&upload_id);
-        return Err(upload_interruption_message(reason).to_string());
-    }
-
-    let transfer_conn = match transfer_session.get(&state.inner).await {
-        Ok(conn) => conn,
-        Err(err) => {
-            state.active_uploads.unregister(&upload_id);
-            return Err(err);
-        }
-    };
-    state
-        .active_uploads
-        .set_transfer_conn(&upload_id, transfer_conn.clone());
     let emit_handle = app_handle.clone();
     let progress_upload_id = upload_id.clone();
     let progress_task_id = task_id.clone();
@@ -514,43 +536,110 @@ async fn upload_local_file<R: Runtime>(
         );
     };
 
-    let result = tokio::select! {
-        result = cfms_transfer::upload::send(&transfer_conn, &task_id, &source, &progress) => {
-            result.map_err(|err| format!("Upload failed: {err}"))
-        }
-        changed = upload_control.changed() => {
-            let reason = if changed.is_ok() {
-                (*upload_control.borrow()).unwrap_or(UploadInterruption::Cancelled)
-            } else {
-                UploadInterruption::Cancelled
-            };
-            Err(upload_interruption_message(reason).to_string())
-        }
-    };
-    if let Err(message) = result {
-        transfer_session.discard().await;
-        if let Some(reason) = *upload_control.borrow() {
+    let mut retry_attempt = 0u32;
+    loop {
+        let pending_interruption = *upload_control.borrow();
+        if let Some(reason) = pending_interruption {
+            transfer_session.discard().await;
             emit_interrupted_upload(app_handle, &upload_id, Some(&task_id), &file_name, reason);
-            state.active_uploads.unregister(&upload_id);
-            return Err(message);
+            if reason == UploadInterruption::Cancelled {
+                state.active_uploads.unregister(&upload_id);
+                return Err(upload_interruption_message(reason).to_string());
+            }
+            if let Err(cancelled) = wait_for_upload_resume(&mut upload_control).await {
+                emit_interrupted_upload(
+                    app_handle,
+                    &upload_id,
+                    Some(&task_id),
+                    &file_name,
+                    cancelled,
+                );
+                state.active_uploads.unregister(&upload_id);
+                return Err(upload_interruption_message(cancelled).to_string());
+            }
+            retry_attempt = 0;
+            emit_upload_progress(
+                app_handle,
+                &upload_id,
+                Some(&task_id),
+                &file_name,
+                0,
+                0,
+                "uploading",
+                Some("Resuming upload".to_string()),
+            );
         }
 
-        emit_upload_progress(
-            app_handle,
-            &upload_id,
-            Some(&task_id),
-            &file_name,
-            0,
-            0,
-            "failed",
-            Some(message.clone()),
-        );
-        state.active_uploads.unregister(&upload_id);
-        return Err(message);
-    }
+        let transfer_conn = match transfer_session.get(&state.inner).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                state.active_uploads.unregister(&upload_id);
+                return Err(err);
+            }
+        };
+        state
+            .active_uploads
+            .set_transfer_conn(&upload_id, transfer_conn.clone());
 
-    if transfer_conn.is_closed() {
-        transfer_session.discard().await;
+        let attempt_result = tokio::select! {
+            result = cfms_transfer::upload::send(
+                &transfer_conn,
+                &task_id,
+                &source,
+                false,
+                &progress,
+            ) => result,
+            _ = upload_control.changed() => Err(cfms_core::Error::Cancelled),
+        };
+        state.active_uploads.clear_transfer_conn(&upload_id);
+
+        match attempt_result {
+            Ok(()) => {
+                if transfer_conn.is_closed() {
+                    transfer_session.discard().await;
+                }
+                break;
+            }
+            Err(error) => {
+                transfer_session.discard().await;
+                if upload_control.borrow().is_some() {
+                    continue;
+                }
+                let Some(delay) = upload_retry_delay(&error, retry_attempt) else {
+                    let message = format!("Upload failed: {error}");
+                    emit_upload_progress(
+                        app_handle,
+                        &upload_id,
+                        Some(&task_id),
+                        &file_name,
+                        0,
+                        0,
+                        "failed",
+                        Some(message.clone()),
+                    );
+                    state.active_uploads.unregister(&upload_id);
+                    return Err(message);
+                };
+
+                retry_attempt += 1;
+                emit_upload_progress(
+                    app_handle,
+                    &upload_id,
+                    Some(&task_id),
+                    &file_name,
+                    0,
+                    0,
+                    "uploading",
+                    Some(format!(
+                        "Connection interrupted; resuming upload (attempt {retry_attempt}/{MAX_UPLOAD_RETRIES})"
+                    )),
+                );
+                tokio::select! {
+                    _ = tokio::time::sleep(delay) => {}
+                    _ = upload_control.changed() => {}
+                }
+            }
+        }
     }
 
     emit_upload_progress(

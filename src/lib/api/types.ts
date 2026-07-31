@@ -531,6 +531,7 @@ export interface UserPreference {
   root_back_button_behavior?: "background" | "exit" | null;
   privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;
+  transfer: TransferPreference;
   extensions?: Record<string, {
     enabled: boolean;
     install_epoch: string;
@@ -555,6 +556,10 @@ export interface PrivacyPreference {
 export interface TaskConcurrencyPreference {
   max_downloads: number;
   max_uploads: number;
+}
+
+export interface TransferPreference {
+  max_download_chunk_size: number;
 }
 
 export interface Favourites {

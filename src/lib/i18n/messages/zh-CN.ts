@@ -1082,6 +1082,11 @@ export const zh_CN = {
       maxDownloads: '最大并发下载数',
       maxUploads: '最大并发上传数',
       concurrentCount: '{count} 个任务',
+      downloadReliabilityTitle: '下载可靠性',
+      downloadReliabilityHint: '调整新下载任务在服务端使用的最大分块大小。',
+      maxDownloadChunkSize: '下载分块上限',
+      maxDownloadChunkSizeHint: '较小的分块更适合不稳定连接，并能减小断线后的重传量，但会增加协议、加密和磁盘写入开销。已有断点的任务会继续使用原分块大小。',
+      recommended: '推荐',
     },
     extensions: {
       title: '功能扩展',

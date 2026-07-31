@@ -372,7 +372,8 @@ class UploadStoreImpl {
   async resume(uploadId: string) {
     const task = this.tasks.get(uploadId);
     if (!task || task.status !== "paused") return;
-    await resumeUpload(uploadId);
+    const resumed = await resumeUpload(uploadId);
+    if (!resumed) return;
     this.tasks.set(uploadId, {
       ...task,
       status: "pending",

@@ -31,7 +31,11 @@ pub enum Error {
     /// Keeping the status code structured lets callers distinguish a terminal
     /// task rejection from a transient transport failure.
     #[error("server rejected request ({code}): {message}")]
-    Server { code: u32, message: String },
+    Server {
+        code: u32,
+        message: String,
+        retry_after_seconds: Option<u64>,
+    },
 
     /// A wrapped [`std::io::Error`].
     #[error("I/O error: {0}")]

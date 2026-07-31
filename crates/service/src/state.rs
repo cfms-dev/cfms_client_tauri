@@ -82,6 +82,8 @@ pub struct AppState {
 
     /// Runtime download queue concurrency, mirrored from user preferences.
     pub download_max_concurrent: AtomicUsize,
+    /// Maximum download chunk size advertised to protocol v20 servers.
+    pub download_max_chunk_size: AtomicUsize,
 
     /// Whether a 2FA verification is pending during login.
     /// When true, the user has submitted credentials but hasn't completed
@@ -132,6 +134,9 @@ impl AppState {
             app_lockdown: AtomicBool::new(false),
             lockdown_reason: RwLock::new(None),
             download_max_concurrent: AtomicUsize::new(cfms_core::DEFAULT_TASK_CONCURRENCY as usize),
+            download_max_chunk_size: AtomicUsize::new(
+                cfms_core::constants::DEFAULT_DOWNLOAD_CHUNK_SIZE as usize,
+            ),
             pending_2fa: AtomicBool::new(false),
             event_tx,
         })

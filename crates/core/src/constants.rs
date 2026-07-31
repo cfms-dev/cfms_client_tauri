@@ -8,10 +8,10 @@
 // Protocol version
 // ---------------------------------------------------------------------------
 /// Oldest wire-protocol version supported by this client.
-pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = 17;
+pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = 20;
 
 /// Newest wire-protocol version supported by this client.
-pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 18;
+pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 20;
 
 /// Current wire-protocol version advertised by this client.
 ///
@@ -65,6 +65,24 @@ pub const FRAME_HEADER_LEN: usize = 5;
 
 /// Prefix length used when constructing chunk nonces (8 bytes + 4 bytes index = 12).
 pub const CHUNK_NONCE_PREFIX_LEN: usize = 8;
+
+// ---------------------------------------------------------------------------
+// Transfer limits
+// ---------------------------------------------------------------------------
+
+pub const MIN_DOWNLOAD_CHUNK_SIZE: u32 = 16 * 1024;
+pub const DEFAULT_DOWNLOAD_CHUNK_SIZE: u32 = 64 * 1024;
+pub const MAX_DOWNLOAD_CHUNK_SIZE: u32 = 2 * 1024 * 1024;
+pub const DOWNLOAD_CHUNK_SIZE_OPTIONS: [u32; 8] = [
+    16 * 1024,
+    32 * 1024,
+    64 * 1024,
+    128 * 1024,
+    256 * 1024,
+    512 * 1024,
+    1024 * 1024,
+    2 * 1024 * 1024,
+];
 
 #[cfg(test)]
 mod tests {

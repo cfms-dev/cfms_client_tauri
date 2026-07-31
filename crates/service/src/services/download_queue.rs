@@ -343,7 +343,12 @@ impl QueueState {
         Ok(())
     }
 
-    pub fn retry_or_fail(&self, task_id: &str, error: &str) -> Result<DownloadTaskStatus> {
+    pub fn retry_or_fail(
+        &self,
+        task_id: &str,
+        error: &str,
+        retry_after_seconds: Option<u64>,
+    ) -> Result<DownloadTaskStatus> {
         let status = {
             let mut map = self.tasks.lock().unwrap();
             let Some(t) = map.get_mut(task_id) else {
@@ -362,9 +367,18 @@ impl QueueState {
                 t.completed_at = Some(unix_now());
                 DownloadTaskStatus::Failed
             } else {
-                t.status = DownloadTaskStatus::Pending;
+                let base_delay = 1u64 << t.retry_count.min(3);
+                let jitter = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos() as u64
+                    % 2;
+                let delay = retry_after_seconds.unwrap_or(base_delay + jitter);
+                t.status = DownloadTaskStatus::Scheduled;
+                t.scheduled_time = Some(unix_now().saturating_add(delay as i64));
+                t.pause_position = Some(t.current_bytes);
                 t.error = Some(error.to_string());
-                DownloadTaskStatus::Pending
+                DownloadTaskStatus::Scheduled
             }
         };
         self.save();
@@ -753,13 +767,15 @@ async fn download_worker(
                     tracing::error!(
                         "Download {task_id}: failed to create transfer connection: {e}"
                     );
-                    let _ = queue.mark_failed(&task_id, &e);
+                    let status = queue.retry_or_fail(&task_id, &e, None);
                     emit_task_update(&queue, &state, &task_id);
                     emit_active_count(&queue, &state);
-                    let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
-                        task_id: task_id.clone(),
-                        error: e,
-                    });
+                    if matches!(status, Ok(DownloadTaskStatus::Failed)) {
+                        let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
+                            task_id: task_id.clone(),
+                            error: e,
+                        });
+                    }
                     active.unregister(&task_id);
                     break;
                 }
@@ -882,19 +898,36 @@ async fn execute_download(
 
     // --- Phase 2: DOWNLOADING ---
     emit_active_count(&queue, &state);
-    let resume_state_path = queue.get(&task_id).and_then(|task| {
+    let preferred_chunk_size = state.download_max_chunk_size.load(Ordering::Relaxed).clamp(
+        cfms_core::constants::MIN_DOWNLOAD_CHUNK_SIZE as usize,
+        cfms_core::constants::MAX_DOWNLOAD_CHUNK_SIZE as usize,
+    ) as u32;
+    let resume_state = queue.get(&task_id).and_then(|task| {
         task.supports_resume.then(|| {
             let path = resume_state_path(&file_path, &task_id);
-            let offset = task
-                .pause_position
-                .filter(|position| *position > 0 && path.exists())
-                .unwrap_or(0);
-            (path, offset)
+            let hint = match cfms_transfer::download::persisted_resume_hint(&path) {
+                Ok(hint) => hint,
+                Err(error) => {
+                    tracing::warn!("Discarding invalid download checkpoint for {task_id}: {error}");
+                    cleanup_resume_state(&file_path, &task_id);
+                    None
+                }
+            };
+            let offset = hint.map(|hint| hint.offset).unwrap_or(0);
+            let max_chunk_size = hint
+                .map(|hint| {
+                    hint.chunk_size.clamp(
+                        cfms_core::constants::MIN_DOWNLOAD_CHUNK_SIZE,
+                        cfms_core::constants::MAX_DOWNLOAD_CHUNK_SIZE,
+                    )
+                })
+                .unwrap_or(preferred_chunk_size);
+            (path, offset, max_chunk_size)
         })
     });
-    let resume_offset = resume_state_path
+    let resume_offset = resume_state
         .as_ref()
-        .map(|(_, offset)| *offset)
+        .map(|(_, offset, _)| *offset)
         .unwrap_or(0);
     let _ = state.event_tx.send(ServiceEvent::DownloadProgress {
         task_id: task_id.clone(),
@@ -965,34 +998,40 @@ async fn execute_download(
 
     let dest = std::path::Path::new(&file_path);
 
-    let result: Option<cfms_core::Result<u64>> = if let Some((resume_state_path, resume_offset)) =
-        resume_state_path
-    {
-        tokio::select! {
-            r = cfms_transfer::download::receive_with_resume(
-                &transfer_conn,
-                &task_id,
-                dest,
-                resume_offset,
-                Some(&resume_state_path),
-                &on_progress,
-            ) => {
-                Some(r)
+    let result: Option<cfms_core::Result<u64>> =
+        if let Some((resume_state_path, resume_offset, max_chunk_size)) = resume_state {
+            tokio::select! {
+                r = cfms_transfer::download::receive_with_resume(
+                    &transfer_conn,
+                    &task_id,
+                    dest,
+                    resume_offset,
+                    Some(&resume_state_path),
+                    max_chunk_size,
+                    &on_progress,
+                ) => {
+                    Some(r)
+                }
+                _ = cancel_rx.wait_for(|c| *c) => {
+                    None
+                }
             }
-            _ = cancel_rx.wait_for(|c| *c) => {
-                None
+        } else {
+            tokio::select! {
+                r = cfms_transfer::download::receive(
+                    &transfer_conn,
+                    &task_id,
+                    dest,
+                    preferred_chunk_size,
+                    &on_progress,
+                ) => {
+                    Some(r)
+                }
+                _ = cancel_rx.wait_for(|c| *c) => {
+                    None
+                }
             }
-        }
-    } else {
-        tokio::select! {
-            r = cfms_transfer::download::receive(&transfer_conn, &task_id, dest, &on_progress) => {
-                Some(r)
-            }
-            _ = cancel_rx.wait_for(|c| *c) => {
-                None
-            }
-        }
-    };
+        };
 
     if *cancel_rx.borrow() {
         if queue
@@ -1075,11 +1114,21 @@ async fn execute_download(
             let error_msg = e.to_string();
             tracing::error!("Download {task_id} failed: {error_msg}");
 
-            // A server rejection is authoritative. In particular, download
-            // task IDs are one-shot: retrying the same ID after the server has
-            // completed or invalidated it can never succeed and only hides the
-            // useful response behind repeated protocol errors.
-            if matches!(e, cfms_core::Error::Server { .. }) {
+            let retry_after_seconds = match &e {
+                cfms_core::Error::Connection(_) => Some(None),
+                cfms_core::Error::Server {
+                    code: 429,
+                    retry_after_seconds: Some(seconds),
+                    ..
+                } => Some(Some(*seconds)),
+                cfms_core::Error::Server { code, .. } if matches!(*code, 500 | 502 | 503 | 504) => {
+                    Some(None)
+                }
+                _ => None,
+            };
+
+            if retry_after_seconds.is_none() {
+                cleanup_resume_state(&file_path, &task_id);
                 let _ = queue.mark_failed(&task_id, &error_msg);
                 emit_task_update(&queue, &state, &task_id);
                 emit_active_count(&queue, &state);
@@ -1090,7 +1139,7 @@ async fn execute_download(
                 return DownloadOutcome::discard_and_stop();
             }
 
-            match queue.retry_or_fail(&task_id, &error_msg) {
+            match queue.retry_or_fail(&task_id, &error_msg, retry_after_seconds.flatten()) {
                 Ok(DownloadTaskStatus::Failed) => {
                     emit_task_update(&queue, &state, &task_id);
                     emit_active_count(&queue, &state);

@@ -497,7 +497,7 @@ pub async fn upload_new_revision<R: Runtime>(
         .ok_or_else(|| "Server response missing task_id".to_string())?
         .to_string();
 
-    let transfer_conn = create_transfer_connection(&state.inner).await?;
+    let mut transfer_conn = create_transfer_connection(&state.inner).await?;
     let emit_handle = app_handle.clone();
     let progress_document_id = document_id.clone();
     let progress_task_id = task_id.clone();
@@ -519,10 +519,33 @@ pub async fn upload_new_revision<R: Runtime>(
         );
     };
 
-    let result =
-        cfms_transfer::upload::send(&transfer_conn, &task_id, &source.path, &progress).await;
+    let mut attempt = 0u32;
+    loop {
+        let result = cfms_transfer::upload::send(
+            &transfer_conn,
+            &task_id,
+            &source.path,
+            false,
+            &progress,
+        )
+        .await;
+        match result {
+            Ok(()) => break,
+            Err(error) => {
+                let Some(delay) = upload_retry_delay(&error, attempt) else {
+                    transfer_conn.close().await;
+                    return Err(format!("Upload failed: {error}"));
+                };
+                attempt += 1;
+                transfer_conn.close().await;
+                tokio::time::sleep(delay).await;
+                transfer_conn = create_transfer_connection(&state.inner).await?;
+                // Keep the same server task ID: protocol 20 returns its
+                // authoritative upload checkpoint on the next request.
+            }
+        }
+    }
     transfer_conn.close().await;
-    result.map_err(|e| format!("Upload failed: {e}"))?;
 
     let _ = app_handle.emit(
         "cfms:upload-revision-progress",
@@ -846,8 +869,11 @@ pub async fn pause_upload(
 }
 
 #[tauri::command]
-pub async fn resume_upload(_upload_id: String) -> Result<bool, String> {
-    Ok(true)
+pub async fn resume_upload(
+    state: tauri::State<'_, AppHandleState>,
+    upload_id: String,
+) -> Result<bool, String> {
+    Ok(state.active_uploads.resume(&upload_id))
 }
 
 #[tauri::command]

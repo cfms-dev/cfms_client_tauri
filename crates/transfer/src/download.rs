@@ -16,7 +16,7 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-use crate::chunks::ChunkStore;
+use crate::chunks::{ChunkStore, ResumeHint, TransferCheckpoint};
 use crate::decrypt::decrypt_chunk;
 use crate::verify;
 
@@ -29,6 +29,8 @@ use crate::verify;
 /// - `total_bytes` — total bytes expected for this phase (0 when unknown).
 pub type ProgressFn = dyn Fn(DownloadPhase, f64, &str, u64, u64) + Send + Sync;
 
+const DOWNLOAD_STREAM_BUFFER: usize = 32;
+
 /// Expected shape of the `download_file` / `transfer_file` server response.
 #[derive(Debug, Deserialize)]
 struct FileMetadataResponse {
@@ -38,15 +40,14 @@ struct FileMetadataResponse {
 
 #[derive(Debug, Deserialize)]
 struct FileMetadataData {
-    file_size: Option<u64>,
-    chunk_size: Option<u32>,
-    total_chunks: Option<u32>,
+    file_size: u64,
+    chunk_size: u32,
+    total_chunks: u32,
 }
 
 /// Expected shape of the decryption info message.
 #[derive(Debug, Deserialize)]
 struct DecryptionInfo {
-    #[allow(dead_code)]
     action: String,
     data: DecryptionInfoData,
 }
@@ -59,7 +60,6 @@ struct DecryptionInfoData {
 /// Named chunk data from the server.
 #[derive(Debug, Deserialize)]
 struct ChunkMessage {
-    #[allow(dead_code)]
     action: String,
     data: ChunkData,
 }
@@ -84,6 +84,11 @@ struct EmptyFileData {
     flag: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct TransferCompleteMessage {
+    action: String,
+}
+
 /// Receive an encrypted file from the server.
 ///
 /// This is a high-level async function that orchestrates the full download
@@ -102,9 +107,10 @@ pub async fn receive(
     conn: &Connection,
     task_id: &str,
     dest: &Path,
+    max_chunk_size: u32,
     on_progress: &ProgressFn,
 ) -> Result<u64> {
-    receive_with_resume(conn, task_id, dest, 0, None, on_progress).await
+    receive_with_resume(conn, task_id, dest, 0, None, max_chunk_size, on_progress).await
 }
 
 /// Normal response envelope used by request handlers when a transfer cannot
@@ -113,6 +119,13 @@ pub async fn receive(
 struct ServerErrorResponse {
     code: u32,
     message: String,
+    #[serde(default)]
+    data: ServerErrorData,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ServerErrorData {
+    retry_after_seconds: Option<u64>,
 }
 
 /// Receive an encrypted file, optionally resuming from a byte offset.
@@ -127,15 +140,24 @@ pub async fn receive_with_resume(
     dest: &Path,
     offset: u64,
     chunk_store_path: Option<&Path>,
+    max_chunk_size: u32,
     on_progress: &ProgressFn,
 ) -> Result<u64> {
-    let mut stream = conn.create_stream().await?;
+    if !(cfms_core::constants::MIN_DOWNLOAD_CHUNK_SIZE
+        ..=cfms_core::constants::MAX_DOWNLOAD_CHUNK_SIZE)
+        .contains(&max_chunk_size)
+    {
+        return Err(cfms_core::Error::Protocol(format!(
+            "invalid maximum download chunk size: {max_chunk_size}"
+        )));
+    }
+
+    let mut stream = conn
+        .create_stream_with_capacity(DOWNLOAD_STREAM_BUFFER)
+        .await?;
 
     // --- Step 1: request file metadata ---
-    let request = serde_json::json!({
-        "action": "download_file",
-        "data": { "task_id": task_id, "offset": offset }
-    });
+    let request = download_request(task_id, offset, max_chunk_size);
     stream
         .send(
             conn,
@@ -157,9 +179,22 @@ pub async fn receive_with_resume(
         )));
     }
 
-    let file_size = metadata.data.file_size.unwrap_or(0);
-    let chunk_size = metadata.data.chunk_size.unwrap_or(8192);
-    let total_chunks = metadata.data.total_chunks.unwrap_or(0);
+    let file_size = metadata.data.file_size;
+    let chunk_size = metadata.data.chunk_size;
+    let total_chunks = metadata.data.total_chunks;
+
+    if chunk_size == 0 || chunk_size > max_chunk_size {
+        return Err(cfms_core::Error::Protocol(format!(
+            "server selected invalid chunk size {chunk_size} for client maximum {max_chunk_size}"
+        )));
+    }
+
+    let expected_total_chunks = file_size.div_ceil(chunk_size as u64);
+    if u64::from(total_chunks) != expected_total_chunks {
+        return Err(cfms_core::Error::Protocol(format!(
+            "server reported {total_chunks} chunks, expected {expected_total_chunks}"
+        )));
+    }
 
     if offset > file_size {
         return Err(cfms_core::Error::Protocol(format!(
@@ -167,7 +202,7 @@ pub async fn receive_with_resume(
         )));
     }
 
-    if offset > 0 && offset % chunk_size as u64 != 0 {
+    if offset > 0 && offset != file_size && offset % chunk_size as u64 != 0 {
         return Err(cfms_core::Error::Protocol(format!(
             "resume offset {offset} is not aligned to chunk size {chunk_size}"
         )));
@@ -194,6 +229,11 @@ pub async fn receive_with_resume(
             0,
             0,
         );
+        stream.send(conn, b"complete".to_vec()).await?;
+        let completion_raw = stream.recv().await.ok_or_else(|| {
+            cfms_core::Error::Connection("stream closed before transfer completion".into())
+        })?;
+        parse_transfer_completion(&completion_raw)?;
         return Ok(0);
     }
 
@@ -206,9 +246,13 @@ pub async fn receive_with_resume(
     // --- Step 3: receive chunks into SQLite ---
     let store_owner = prepare_chunk_store(dest, chunk_store_path, offset)?;
     let db_path = store_owner.path();
-    let store = ChunkStore::open(&db_path)?;
+    let mut store = ChunkStore::open(&db_path)?;
 
-    let start_chunk = (offset / chunk_size as u64) as u32;
+    let start_chunk = if offset == file_size {
+        total_chunks
+    } else {
+        (offset / chunk_size as u64) as u32
+    };
     if start_chunk > total_chunks {
         return Err(cfms_core::Error::Protocol(format!(
             "resume chunk {start_chunk} exceeds total chunks {total_chunks}"
@@ -216,6 +260,12 @@ pub async fn receive_with_resume(
     }
 
     let remaining_chunks = total_chunks - start_chunk;
+    store.initialize_checkpoint(TransferCheckpoint {
+        file_size,
+        chunk_size,
+        total_chunks,
+        next_chunk: start_chunk,
+    })?;
     let mut received_chunks: u32 = 0;
 
     if offset > 0 {
@@ -236,6 +286,20 @@ pub async fn receive_with_resume(
         let chunk_msg: ChunkMessage = serde_json::from_slice(&chunk_raw)
             .map_err(|e| cfms_core::Error::Protocol(format!("invalid chunk message: {e}")))?;
 
+        if chunk_msg.action != "file_chunk" {
+            return Err(cfms_core::Error::Protocol(format!(
+                "unexpected chunk action: {}",
+                chunk_msg.action
+            )));
+        }
+        let expected_index = start_chunk + received_chunks;
+        if chunk_msg.data.index != expected_index {
+            return Err(cfms_core::Error::Protocol(format!(
+                "unexpected chunk index {}; expected {expected_index}",
+                chunk_msg.data.index
+            )));
+        }
+
         let prefix = chunk_msg
             .data
             .prefix
@@ -245,9 +309,9 @@ pub async fn receive_with_resume(
             .map_err(|e| cfms_core::Error::Protocol(format!("invalid prefix base64: {e}")))?
             .unwrap_or_default();
 
-        let mut prefix_arr = [0u8; 8];
-        let prefix_len = prefix.len().min(8);
-        prefix_arr[..prefix_len].copy_from_slice(&prefix[..prefix_len]);
+        let prefix_arr: [u8; 8] = prefix.try_into().map_err(|prefix: Vec<u8>| {
+            cfms_core::Error::Protocol(format!("unexpected chunk prefix length: {}", prefix.len()))
+        })?;
 
         let tag = chunk_msg
             .data
@@ -258,14 +322,14 @@ pub async fn receive_with_resume(
             .map_err(|e| cfms_core::Error::Protocol(format!("invalid tag base64: {e}")))?
             .unwrap_or_default();
 
-        let mut tag_arr = [0u8; 16];
-        let tag_len = tag.len().min(16);
-        tag_arr[..tag_len].copy_from_slice(&tag[..tag_len]);
+        let tag_arr: [u8; 16] = tag.try_into().map_err(|tag: Vec<u8>| {
+            cfms_core::Error::Protocol(format!("unexpected chunk tag length: {}", tag.len()))
+        })?;
 
         let chunk_data = base64ct::Base64::decode_vec(&chunk_msg.data.chunk)
             .map_err(|e| cfms_core::Error::Protocol(format!("invalid chunk base64: {e}")))?;
 
-        store.insert(chunk_msg.data.index, &prefix_arr, &tag_arr, &chunk_data)?;
+        store.record_chunk(chunk_msg.data.index, &prefix_arr, &tag_arr, &chunk_data)?;
 
         received_chunks += 1;
 
@@ -300,6 +364,12 @@ pub async fn receive_with_resume(
 
     let key_info: DecryptionInfo = serde_json::from_slice(&key_raw)
         .map_err(|e| cfms_core::Error::Protocol(format!("invalid key info: {e}")))?;
+    if key_info.action != "aes_key" {
+        return Err(cfms_core::Error::Protocol(format!(
+            "unexpected key action: {}",
+            key_info.action
+        )));
+    }
 
     let aes_key_bytes = base64ct::Base64::decode_vec(&key_info.data.key)
         .map_err(|e| cfms_core::Error::Protocol(format!("invalid key base64: {e}")))?;
@@ -376,18 +446,7 @@ pub async fn receive_with_resume(
 
         drop(writer);
 
-        // --- Step 6: clean up ---
-        on_progress(
-            DownloadPhase::Cleaning,
-            1.0,
-            "cleaning up temporary storage",
-            file_size,
-            file_size,
-        );
-        store.purge()?;
-        store_owner.cleanup()?;
-
-        // --- Step 7: verify ---
+        // --- Step 6: verify ---
         on_progress(
             DownloadPhase::Verifying,
             1.0,
@@ -403,6 +462,28 @@ pub async fn receive_with_resume(
         Ok::<_, cfms_core::Error>(())
     })?;
 
+    // The server keeps the task resumable until the client has durably
+    // produced and verified the destination. If this acknowledgement fails,
+    // the checkpoint remains available and a retry requests only the key.
+    stream.send(conn, b"complete".to_vec()).await?;
+
+    let completion_raw = stream.recv().await.ok_or_else(|| {
+        cfms_core::Error::Connection("stream closed before transfer completion".into())
+    })?;
+    parse_transfer_completion(&completion_raw)?;
+
+    // --- Step 7: clean up ---
+    on_progress(
+        DownloadPhase::Cleaning,
+        1.0,
+        "cleaning up temporary storage",
+        file_size,
+        file_size,
+    );
+    let cleanup_store = ChunkStore::open(&db_path)?;
+    cleanup_store.purge()?;
+    store_owner.cleanup()?;
+
     Ok(file_size)
 }
 
@@ -416,11 +497,31 @@ fn parse_metadata_response(raw: &[u8]) -> Result<FileMetadataResponse> {
         return Err(cfms_core::Error::Server {
             code: response.code,
             message: response.message,
+            retry_after_seconds: response.data.retry_after_seconds,
         });
     }
 
     serde_json::from_slice(raw)
         .map_err(|e| cfms_core::Error::Protocol(format!("invalid metadata response: {e}")))
+}
+
+fn download_request(task_id: &str, offset: u64, max_chunk_size: u32) -> serde_json::Value {
+    serde_json::json!({
+        "action": "download_file",
+        "data": {
+            "task_id": task_id,
+            "offset": offset,
+            "max_chunk_size": max_chunk_size
+        }
+    })
+}
+
+/// Inspect a protocol 20 persistent sidecar before opening a transfer stream.
+pub fn persisted_resume_hint(chunk_store_path: &Path) -> Result<Option<ResumeHint>> {
+    if !chunk_store_path.exists() {
+        return Ok(None);
+    }
+    ChunkStore::open(chunk_store_path)?.resume_hint()
 }
 
 enum ChunkStoreOwner {
@@ -510,9 +611,35 @@ fn parse_empty_file_marker(raw: &[u8]) -> Result<()> {
     )))
 }
 
+fn parse_transfer_completion(raw: &[u8]) -> Result<()> {
+    if let Ok(response) = serde_json::from_slice::<ServerErrorResponse>(raw)
+        && response.code != 200
+    {
+        return Err(cfms_core::Error::Server {
+            code: response.code,
+            message: response.message,
+            retry_after_seconds: response.data.retry_after_seconds,
+        });
+    }
+
+    let completion: TransferCompleteMessage = serde_json::from_slice(raw).map_err(|error| {
+        cfms_core::Error::Protocol(format!("invalid completion frame: {error}"))
+    })?;
+    if completion.action != "transfer_complete" {
+        return Err(cfms_core::Error::Protocol(format!(
+            "unexpected completion action: {}",
+            completion.action
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_empty_file_marker, parse_metadata_response};
+    use super::{
+        download_request, parse_empty_file_marker, parse_metadata_response,
+        parse_transfer_completion,
+    };
 
     #[test]
     fn empty_file_marker_accepts_reference_protocol() {
@@ -534,7 +661,7 @@ mod tests {
 
         assert!(matches!(
             err,
-            cfms_core::Error::Server { code: 400, ref message }
+            cfms_core::Error::Server { code: 400, ref message, .. }
                 if message == "Task is not in a valid state for download"
         ));
     }
@@ -545,6 +672,51 @@ mod tests {
         let metadata = parse_metadata_response(raw).unwrap();
 
         assert_eq!(metadata.action, "transfer_file");
-        assert_eq!(metadata.data.file_size, Some(12));
+        assert_eq!(metadata.data.file_size, 12);
+        assert_eq!(metadata.data.chunk_size, 8);
+        assert_eq!(metadata.data.total_chunks, 2);
+    }
+
+    #[test]
+    fn request_serializes_resume_and_client_chunk_limit() {
+        assert_eq!(
+            download_request("task-1", 131_072, 65_536),
+            serde_json::json!({
+                "action": "download_file",
+                "data": {
+                    "task_id": "task-1",
+                    "offset": 131_072,
+                    "max_chunk_size": 65_536
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn metadata_parser_preserves_rate_limit_delay() {
+        let raw = br#"{"code":429,"message":"slow down","data":{"retry_after_seconds":17}}"#;
+        let err = parse_metadata_response(raw).unwrap_err();
+
+        assert!(matches!(
+            err,
+            cfms_core::Error::Server {
+                code: 429,
+                retry_after_seconds: Some(17),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn completion_parser_accepts_protocol_frame() {
+        let raw = br#"{"action":"transfer_complete","data":{}}"#;
+        assert!(parse_transfer_completion(raw).is_ok());
+    }
+
+    #[test]
+    fn completion_parser_preserves_server_rejection() {
+        let raw = br#"{"code":410,"message":"Task ended","data":{"task_status":"expired"}}"#;
+        let error = parse_transfer_completion(raw).unwrap_err();
+        assert!(matches!(error, cfms_core::Error::Server { code: 410, .. }));
     }
 }

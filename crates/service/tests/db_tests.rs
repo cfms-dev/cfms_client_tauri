@@ -422,3 +422,47 @@ fn retry_ignores_non_failed_task() {
         DownloadTaskStatus::Completed
     );
 }
+
+#[test]
+fn transient_failure_schedules_backoff_and_preserves_checkpoint() {
+    let queue = download_queue::QueueState::new();
+    let mut task = make_task("weak-network", DownloadTaskStatus::Downloading);
+    task.current_bytes = 128 * 1024;
+    queue.insert(&task).unwrap();
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    let status = queue
+        .retry_or_fail("weak-network", "connection dropped", None)
+        .unwrap();
+    let scheduled = queue.get("weak-network").unwrap();
+
+    assert_eq!(status, DownloadTaskStatus::Scheduled);
+    assert_eq!(scheduled.pause_position, Some(128 * 1024));
+    assert_eq!(scheduled.retry_count, 1);
+    assert!(scheduled.scheduled_time.unwrap() >= before + 2);
+    assert!(scheduled.scheduled_time.unwrap() <= before + 3);
+}
+
+#[test]
+fn server_retry_after_overrides_exponential_delay() {
+    let queue = download_queue::QueueState::new();
+    queue
+        .insert(&make_task("rate-limited", DownloadTaskStatus::Downloading))
+        .unwrap();
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    queue
+        .retry_or_fail("rate-limited", "server rejected request (429)", Some(45))
+        .unwrap();
+
+    assert_eq!(
+        queue.get("rate-limited").unwrap().scheduled_time,
+        Some(before + 45)
+    );
+}

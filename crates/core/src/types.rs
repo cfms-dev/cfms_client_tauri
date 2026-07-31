@@ -431,6 +431,10 @@ pub struct UserPreference {
     #[serde(default)]
     pub task_concurrency: TaskConcurrencyPreference,
 
+    /// Download transfer reliability and chunk negotiation preferences.
+    #[serde(default)]
+    pub transfer: TransferPreference,
+
     /// Per-account activation, grants, and private settings for installed extensions.
     #[serde(default)]
     pub extensions: std::collections::BTreeMap<String, ExtensionPreference>,
@@ -449,6 +453,7 @@ impl Default for UserPreference {
             root_back_button_behavior: None,
             privacy: PrivacyPreference::default(),
             task_concurrency: TaskConcurrencyPreference::default(),
+            transfer: TransferPreference::default(),
             extensions: std::collections::BTreeMap::new(),
         }
     }
@@ -547,6 +552,44 @@ where
 pub const MIN_TASK_CONCURRENCY: u8 = 1;
 pub const DEFAULT_TASK_CONCURRENCY: u8 = 3;
 pub const MAX_TASK_CONCURRENCY: u8 = 8;
+
+/// Download protocol preferences stored per user.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct TransferPreference {
+    #[serde(default = "default_download_chunk_size")]
+    pub max_download_chunk_size: u32,
+}
+
+impl Default for TransferPreference {
+    fn default() -> Self {
+        Self {
+            max_download_chunk_size: cfms_core_default_download_chunk_size(),
+        }
+    }
+}
+
+impl TransferPreference {
+    pub fn normalized(self) -> Self {
+        let max_download_chunk_size = if crate::constants::DOWNLOAD_CHUNK_SIZE_OPTIONS
+            .contains(&self.max_download_chunk_size)
+        {
+            self.max_download_chunk_size
+        } else {
+            cfms_core_default_download_chunk_size()
+        };
+        Self {
+            max_download_chunk_size,
+        }
+    }
+}
+
+const fn cfms_core_default_download_chunk_size() -> u32 {
+    crate::constants::DEFAULT_DOWNLOAD_CHUNK_SIZE
+}
+
+fn default_download_chunk_size() -> u32 {
+    cfms_core_default_download_chunk_size()
+}
 
 /// Upload/download concurrency limits stored in user preferences.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -699,5 +742,22 @@ mod tests {
         let serialized = serde_json::to_value(parsed).unwrap();
         assert!(serialized.get("theme").is_none());
         assert_eq!(serialized["appearance"]["color_scheme"], "system");
+    }
+
+    #[test]
+    fn transfer_preference_defaults_and_rejects_unknown_chunk_sizes() {
+        let parsed: UserPreference = serde_json::from_str("{}").unwrap();
+        assert_eq!(
+            parsed.transfer.max_download_chunk_size,
+            crate::constants::DEFAULT_DOWNLOAD_CHUNK_SIZE
+        );
+
+        let invalid = TransferPreference {
+            max_download_chunk_size: 12345,
+        };
+        assert_eq!(
+            invalid.normalized().max_download_chunk_size,
+            crate::constants::DEFAULT_DOWNLOAD_CHUNK_SIZE
+        );
     }
 }

@@ -1091,6 +1091,11 @@ export const en = {
       maxDownloads: 'Maximum concurrent downloads',
       maxUploads: 'Maximum concurrent uploads',
       concurrentCount: '{count} task(s)',
+      downloadReliabilityTitle: 'Download Reliability',
+      downloadReliabilityHint: 'Set the largest server-side chunk used for new downloads.',
+      maxDownloadChunkSize: 'Download chunk limit',
+      maxDownloadChunkSizeHint: 'Smaller chunks work better on unstable connections and reduce retransmission after disconnects, but add protocol, encryption, and disk-write overhead. Downloads with an existing checkpoint keep their original chunk size.',
+      recommended: 'Recommended',
     },
     extensions: {
       title: 'Extensions',

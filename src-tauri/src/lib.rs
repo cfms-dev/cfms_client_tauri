@@ -71,6 +71,25 @@ impl ActiveUploadRegistry {
         }
     }
 
+    pub fn clear_transfer_conn(&self, upload_id: &str) {
+        let mut map = self.inner.lock().unwrap();
+        if let Some(active) = map.get_mut(upload_id) {
+            active.transfer_conn = None;
+        }
+    }
+
+    pub fn resume(&self, upload_id: &str) -> bool {
+        let map = self.inner.lock().unwrap();
+        let Some(active) = map.get(upload_id) else {
+            return false;
+        };
+        let is_paused = *active.control_tx.borrow() == Some(UploadInterruption::Paused);
+        if !is_paused {
+            return false;
+        }
+        active.control_tx.send(None).is_ok()
+    }
+
     pub fn unregister(&self, upload_id: &str) {
         let mut map = self.inner.lock().unwrap();
         map.remove(upload_id);

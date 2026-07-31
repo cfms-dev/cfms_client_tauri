@@ -24,10 +24,8 @@
 //!
 //! ```text
 //! Client                          Server
-//!   │── upload_file ──────────────▶│
-//!   │◀── transfer_file ───────────│
-//!   │── metadata (SHA-256, size) ─▶│
-//!   │◀── ready <chunk_size> ──────│
+//!   │── upload_file (metadata) ───▶│
+//!   │◀── transfer_file (offset) ──│
 //!   │── raw chunks … ─────────────▶│
 //!   │◀── confirmation ────────────│
 //! ```
