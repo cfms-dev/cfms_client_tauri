@@ -67,6 +67,20 @@ async fn remember_server_preference_dek(
     *stored = encrypted_dek;
 }
 
+/// Preserve the server status and structured response data across the Tauri
+/// string-error boundary so the frontend can route semantic states (such as
+/// lockdown) without displaying transport details to the user.
+fn format_server_response_error(response: &cfms_core::Response) -> String {
+    let mut error = format!("Server returned {}: {}", response.code, response.message);
+    let error_data =
+        serde_json::to_string(&response.data).unwrap_or_else(|_| "{}".to_string());
+    if error_data != "{}" && error_data != "null" {
+        error.push_str("\nCFMS_ERROR_DATA:");
+        error.push_str(&error_data);
+    }
+    error
+}
+
 fn is_transient_connection_error(error: &str) -> bool {
     let lower = error.to_ascii_lowercase();
     lower.contains("connection closed")
@@ -121,10 +135,7 @@ async fn upload_and_select_preference_dek(
     .await?;
 
     if upload_resp.code != 200 {
-        return Err(format!(
-            "upload_user_key returned {}: {}",
-            upload_resp.code, upload_resp.message
-        ));
+        return Err(format_server_response_error(&upload_resp));
     }
 
     let key_id = upload_resp.data["id"]
@@ -142,10 +153,7 @@ async fn upload_and_select_preference_dek(
     .await?;
 
     if set_resp.code != 200 {
-        return Err(format!(
-            "set_user_preference_dek returned {}: {}",
-            set_resp.code, set_resp.message
-        ));
+        return Err(format_server_response_error(&set_resp));
     }
 
     Ok(())
@@ -301,4 +309,42 @@ async fn ensure_preference_dek(
     }
 
     install_fresh_preference_dek(inner, password, username, token, conn).await
+}
+
+#[cfg(test)]
+mod response_error_tests {
+    use super::format_server_response_error;
+
+    #[test]
+    fn preserves_lockdown_status_and_reason() {
+        let response = cfms_core::Response {
+            code: 999,
+            message: "lockdown".to_string(),
+            data: serde_json::json!({
+                "status": true,
+                "reason": "Emergency maintenance",
+            }),
+            timestamp: 0.0,
+        };
+
+        assert_eq!(
+            format_server_response_error(&response),
+            "Server returned 999: lockdown\nCFMS_ERROR_DATA:{\"reason\":\"Emergency maintenance\",\"status\":true}"
+        );
+    }
+
+    #[test]
+    fn omits_empty_structured_data() {
+        let response = cfms_core::Response {
+            code: 500,
+            message: "failure".to_string(),
+            data: serde_json::json!({}),
+            timestamp: 0.0,
+        };
+
+        assert_eq!(
+            format_server_response_error(&response),
+            "Server returned 500: failure"
+        );
+    }
 }

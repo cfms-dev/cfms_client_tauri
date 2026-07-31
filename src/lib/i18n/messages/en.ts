@@ -167,6 +167,8 @@ export const en = {
     title: 'Lockdown',
     body:
       'The server is currently under lockdown. All file operations are suspended and the connection is being held. Please contact your system administrator for more information.',
+    signInIncomplete:
+      'Your credentials were accepted, but encryption and preference setup cannot finish during lockdown. You will need to sign in again after lockdown is lifted.',
     wait: 'Wait until the state is lifted or',
     quit: 'Quit',
     disconnect: 'Disconnect',

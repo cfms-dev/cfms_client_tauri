@@ -42,10 +42,12 @@
     validateFileShortcuts,
     clearAuthSession,
     serverErrorData,
+    isLockdownError,
     serverErrorMessage,
     serverRetryAfterSeconds,
     serverErrorStatus,
     type AuthStatus,
+    type ServerState,
   } from "$lib/api";
   import { downloadStore } from "$lib/stores.svelte";
   import { appearanceStore } from "$lib/appearance.svelte";
@@ -61,6 +63,7 @@
   import TwoFactorVerifyDialog from "$lib/components/TwoFactorVerifyDialog.svelte";
   import ChangePasswordDialog from "$lib/components/ChangePasswordDialog.svelte";
   import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/auth-transition";
+  import { shouldDeferPostLoginForLockdown } from '$lib/auth-lockdown';
   import { formatLocalDateTimeWithUtcOffset } from '$lib/date-time';
   import { flyScale } from '$lib/motion/transitions';
   import { info } from '@tauri-apps/plugin-log';
@@ -152,7 +155,8 @@
           authStore.avatarPath = path;
         }
       }
-    } catch {
+    } catch (error) {
+      if (isLockdownError(error)) throw error;
       // Non-fatal: avatar download failure does not block login.
     }
 
@@ -162,13 +166,15 @@
       await reloadTasksForUser();
       const tasks = await getDownloadTasks();
       downloadStore.setAll(tasks);
-    } catch {
+    } catch (error) {
+      if (isLockdownError(error)) throw error;
       // Non-fatal: task reload failure does not block login.
     }
 
     try {
       fileShortcutValidationStore.apply(await validateFileShortcuts());
-    } catch {
+    } catch (error) {
+      if (isLockdownError(error)) throw error;
       // Non-fatal: shortcut validation failure does not block login.
     }
 
@@ -293,6 +299,11 @@
   }
 
   async function handlePostLoginFailure(e: unknown) {
+    if (isLockdownError(e)) {
+      await enterLockdownAfterIncompleteLogin(e);
+      return;
+    }
+
     const message = formatError(e);
     if (isConnectionFlowError(e)) {
       await returnToConnectAfterPostLoginBlocked(message);
@@ -301,6 +312,64 @@
 
     await cancelAuthenticatedSession();
     notificationStore.error(message);
+  }
+
+  function lockdownReasonFromError(error: unknown): string | null | undefined {
+    const data = serverErrorData(error);
+    if (!data || !Object.hasOwn(data, 'reason')) return undefined;
+    if (typeof data.reason !== 'string') return null;
+    return data.reason.trim() || null;
+  }
+
+  async function enterLockdownAfterIncompleteLogin(
+    error?: unknown,
+    knownServerState?: ServerState,
+  ) {
+    if (knownServerState) {
+      serverStateStore.apply(knownServerState);
+    } else {
+      try {
+        serverStateStore.apply(await getServerState());
+      } catch {
+        /* Preserve the last known connection metadata. */
+      }
+    }
+
+    serverStateStore.lockdown = true;
+    const responseReason = lockdownReasonFromError(error);
+    if (responseReason !== undefined) {
+      serverStateStore.lockdownReason = responseReason;
+    }
+
+    try {
+      await clearAuthSession();
+    } catch {
+      /* Continue clearing the webview state even if native cleanup fails. */
+    }
+
+    authStore.clear();
+    password = "";
+    pendingPassword = "";
+    show2faDialog = false;
+    showCorruptedPreferenceDialog = false;
+    corruptedPreferenceResolver = null;
+    corruptedPreferenceRecoveryAvailable = false;
+    corruptedPreferenceCurrentPassword = "";
+    try {
+      await appearanceStore.load('global', true);
+    } catch {
+      /* Lockdown routing must not depend on an appearance preference read. */
+    }
+    await goto('/lockdown', { replaceState: true });
+  }
+
+  async function deferPostLoginIfLocked(authResult: AuthStatus): Promise<boolean> {
+    const serverState = await getServerState();
+    serverStateStore.apply(serverState);
+    if (!shouldDeferPostLoginForLockdown(serverState, authResult)) return false;
+
+    await enterLockdownAfterIncompleteLogin(undefined, serverState);
+    return true;
   }
 
   async function finalizeAuthenticatedLogin(authResult: AuthStatus) {
@@ -318,8 +387,10 @@
     password = "";
     pendingPassword = "";
 
-    // Navigate to home.
-    await goto("/home/overview");
+    const destination = shouldDeferPostLoginForLockdown(serverState, authStatus)
+      ? '/lockdown'
+      : '/home/overview';
+    await goto(destination);
   }
 
   const serverName = $derived(serverStateStore.serverName ?? "CFMS Server");
@@ -495,9 +566,12 @@
         return;
       }
 
-      // Regular success — animate the loading phases.
+      // Regular success — gate post-login work on the latest lockdown state.
       authStore.beginPostLogin();
       postLoginStarted = true;
+      if (await deferPostLoginIfLocked(authResult)) return;
+
+      // Animate the loading phases only after lockdown gating succeeds.
       loadingPhase = loadingPhases[0];
       await info("Login successful, running post-login loading phases...");
       if (!(await runLoadingPhases(
@@ -579,14 +653,17 @@
       return false;
     }
 
-    // 2FA is accepted. Close the modal before post-login loading begins so it
-    // doesn't cover the loading screen.
+    // 2FA is accepted. Close the modal before lockdown gating/loading begins
+    // so it does not cover the next full-screen state.
     show2faDialog = false;
 
     try {
-      // Success — animate the loading phases.
+      // Success — gate post-login work on the latest lockdown state.
       authStore.beginPostLogin();
       busy = true;
+      if (await deferPostLoginIfLocked(authResult)) return true;
+
+      // Animate the loading phases only after lockdown gating succeeds.
       loadingPhase = loadingPhases[0];
       if (!(await runLoadingPhases(
         username.trim(),

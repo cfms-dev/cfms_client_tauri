@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isAccessDeniedError, serverErrorData, serverErrorMessage, serverErrorStatus, serverRetryAfterSeconds } from './server-errors';
+import {
+  isAccessDeniedError,
+  isLockdownError,
+  serverErrorData,
+  serverErrorMessage,
+  serverErrorStatus,
+  serverRetryAfterSeconds,
+} from './server-errors';
 
 describe('server errors', () => {
   it('extracts status codes from generic server command failures', () => {
@@ -28,6 +35,17 @@ describe('server errors', () => {
     expect(serverErrorMessage(
       'Login failed: (429) Too many attempts\nCFMS_ERROR_DATA:{"retry_after_seconds":45}',
     )).toBe('Login failed: (429) Too many attempts');
+  });
+
+  it('recognizes lockdown responses and preserves their reason as metadata', () => {
+    const error = 'Server returned 999: lockdown\nCFMS_ERROR_DATA:{"status":true,"reason":"Emergency maintenance"}';
+    expect(isLockdownError(error)).toBe(true);
+    expect(serverErrorData(error)).toEqual({
+      status: true,
+      reason: 'Emergency maintenance',
+    });
+    expect(serverErrorMessage(error)).toBe('Server returned 999: lockdown');
+    expect(isLockdownError('Server returned 500: failure')).toBe(false);
   });
 
   it('reads and validates the retry delay from throttling errors', () => {

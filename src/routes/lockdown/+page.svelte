@@ -117,6 +117,15 @@
       {$t('lockdown.body')}
     </p>
 
+    {#if !authStore.isLoggedIn}
+      <p
+        class="text-sm font-medium leading-relaxed text-md3-warning"
+        role="status"
+      >
+        {$t('lockdown.signInIncomplete')}
+      </p>
+    {/if}
+
     {#if lockdownReason}
       <aside class="rounded-xl border border-md3-error/35 bg-md3-error-container/35 px-4 py-3 text-left">
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-md3-error">
@@ -140,20 +149,25 @@
       <p class="text-xs text-md3-on-surface-variant mb-4">
         {$t('lockdown.wait')}
       </p>
-      <div class="lockdown-action-grid">
-        <button
-          class="lockdown-action"
-          style="font-family: var(--font-md3-sans);"
-          onclick={handleLogout}
-          disabled={busyAction !== null || !serverStateStore.connected}
-        >
-          {#if busyAction === 'logout'}
-            <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-          {:else}
-            <Icon name="logout" size="18px" />
-          {/if}
-          {$t('lockdown.logout')}
-        </button>
+      <div
+        class="lockdown-action-grid"
+        class:lockdown-action-grid--signed-out={!authStore.isLoggedIn}
+      >
+        {#if authStore.isLoggedIn}
+          <button
+            class="lockdown-action"
+            style="font-family: var(--font-md3-sans);"
+            onclick={handleLogout}
+            disabled={busyAction !== null || !serverStateStore.connected}
+          >
+            {#if busyAction === 'logout'}
+              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+            {:else}
+              <Icon name="logout" size="18px" />
+            {/if}
+            {$t('lockdown.logout')}
+          </button>
+        {/if}
         <button
           class="lockdown-action"
           style="font-family: var(--font-md3-sans);"
@@ -227,6 +241,10 @@
   .lockdown-action--quit {
     grid-column: 1 / -1;
     color: var(--color-md3-error);
+  }
+
+  .lockdown-action-grid--signed-out .lockdown-action--quit {
+    grid-column: auto;
   }
 
   @media (max-width: 360px) {
