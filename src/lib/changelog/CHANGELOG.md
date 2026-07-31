@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.40.0
+**Released on:** 2026-07-31
+
+**Title:** Implement resumable file upload with progress tracking
+
+### Added
+- Implement resumable file upload with progress tracking
+
+--- 
+
 ## v0.39.0
 **Released on:** 2026-07-30
 
