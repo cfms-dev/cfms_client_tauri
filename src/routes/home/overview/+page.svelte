@@ -25,6 +25,7 @@
     notificationStore,
     serverStateStore,
   } from '$lib/stores.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);
@@ -73,7 +74,7 @@
         fileShortcutValidationStore.markUnavailable(record.type, record.id);
         eventLog.push('warning', `Shortcut is no longer accessible: ${record.type}:${record.id}`);
       } else {
-        notificationStore.error(err instanceof Error ? err.message : String(err));
+        notificationStore.error(formatUserFacingError(err));
       }
     } finally {
       openingId = null;

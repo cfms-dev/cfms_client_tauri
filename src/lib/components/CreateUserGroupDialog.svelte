@@ -5,6 +5,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let {
     onSave,
@@ -38,7 +39,7 @@
     try {
       await onSave(cleanGroupName, cleanDisplayName);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = false;
     }

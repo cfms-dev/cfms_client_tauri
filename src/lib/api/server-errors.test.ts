@@ -5,6 +5,7 @@ import {
   serverErrorData,
   serverErrorMessage,
   serverErrorStatus,
+  serverAvailability,
   serverRetryAfterSeconds,
 } from './server-errors';
 
@@ -54,6 +55,17 @@ describe('server errors', () => {
     )).toBe(46);
     expect(serverRetryAfterSeconds('failure\nCFMS_ERROR_DATA:{"retry_after_seconds":0}')).toBeNull();
     expect(serverRetryAfterSeconds('failure\nCFMS_ERROR_DATA:{"retry_after_seconds":"45"}')).toBeNull();
+  });
+
+  it('classifies protocol 21 rate and capacity responses', () => {
+    expect(serverAvailability(
+      'Server returned 429: slow down\nCFMS_ERROR_DATA:{"retry_after_seconds":8}',
+    )).toEqual({ kind: 'rate_limited', retryAfterSeconds: 8 });
+    expect(serverAvailability('Server returned 503: busy')).toEqual({
+      kind: 'server_busy',
+      retryAfterSeconds: null,
+    });
+    expect(serverAvailability('Server returned 403: denied')).toBeNull();
   });
 
   it('does not consume unrelated server and connection failures', () => {

@@ -3,6 +3,9 @@
 //! Configures the Tauri runtime, initialises background services, sets up
 //! the persistent SQLite database, and registers all IPC commands.
 
+#![allow(clippy::items_after_test_module)]
+#![allow(clippy::too_many_arguments)] // Tauri command signatures mirror the IPC contract.
+
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod background;
 mod commands;

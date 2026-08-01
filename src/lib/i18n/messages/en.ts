@@ -32,6 +32,10 @@ export const en = {
     avatarFor: 'Avatar for {username}',
     unknownUser: 'unknown user',
     breadcrumb: 'Breadcrumb',
+    tooManyRequests: 'Too many requests. Try again in a moment.',
+    tooManyRequestsRetry: 'Too many requests. Try again in {seconds} seconds.',
+    serverBusy: 'The server is busy. Try again in a moment.',
+    serverBusyRetry: 'The server is busy. Try again in {seconds} seconds.',
   },
   keyboard: {
     title: 'Keyboard shortcuts',
@@ -320,6 +324,7 @@ export const en = {
     searchNoResults: 'No results found for "{query}"',
     searchResultCount: 'Loaded {count} result(s) for "{query}"',
     searchOpenedParent: 'Opened the parent folder for {name}.',
+    searchPermissionRequired: 'You do not have permission to search files.',
     selectAll: 'Select all',
     selectNone: 'Select none',
     downloadSelected: 'Download selected',

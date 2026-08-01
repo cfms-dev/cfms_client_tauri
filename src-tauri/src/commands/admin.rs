@@ -241,10 +241,10 @@ pub async fn manage_user_status(
     reason: Option<String>,
 ) -> Result<bool, String> {
     let mut data = serde_json::json!({ "username": username, "status": status });
-    if status == "disabled" {
-        if let Some(reason) = non_empty_optional(reason) {
-            data["reason"] = serde_json::Value::String(reason);
-        }
+    if status == "disabled"
+        && let Some(reason) = non_empty_optional(reason)
+    {
+        data["reason"] = serde_json::Value::String(reason);
     }
     server_action_bool(&state, "manage_user_status", data).await
 }
@@ -256,10 +256,10 @@ pub async fn set_lockdown(
     reason: Option<String>,
 ) -> Result<bool, String> {
     let mut data = serde_json::json!({ "status": status });
-    if status {
-        if let Some(reason) = non_empty_optional(reason) {
-            data["reason"] = serde_json::Value::String(reason);
-        }
+    if status
+        && let Some(reason) = non_empty_optional(reason)
+    {
+        data["reason"] = serde_json::Value::String(reason);
     }
     let response = server_action_json(&state, "lockdown", data).await?;
     let applied_status = response

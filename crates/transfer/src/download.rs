@@ -125,6 +125,8 @@ struct ServerErrorResponse {
 
 #[derive(Debug, Default, Deserialize)]
 struct ServerErrorData {
+    scope: Option<String>,
+    limit: Option<u64>,
     retry_after_seconds: Option<u64>,
 }
 
@@ -202,7 +204,7 @@ pub async fn receive_with_resume(
         )));
     }
 
-    if offset > 0 && offset != file_size && offset % chunk_size as u64 != 0 {
+    if offset > 0 && offset != file_size && !offset.is_multiple_of(chunk_size as u64) {
         return Err(cfms_core::Error::Protocol(format!(
             "resume offset {offset} is not aligned to chunk size {chunk_size}"
         )));
@@ -497,6 +499,8 @@ fn parse_metadata_response(raw: &[u8]) -> Result<FileMetadataResponse> {
         return Err(cfms_core::Error::Server {
             code: response.code,
             message: response.message,
+            scope: response.data.scope,
+            limit: response.data.limit,
             retry_after_seconds: response.data.retry_after_seconds,
         });
     }
@@ -618,6 +622,8 @@ fn parse_transfer_completion(raw: &[u8]) -> Result<()> {
         return Err(cfms_core::Error::Server {
             code: response.code,
             message: response.message,
+            scope: response.data.scope,
+            limit: response.data.limit,
             retry_after_seconds: response.data.retry_after_seconds,
         });
     }
@@ -694,16 +700,18 @@ mod tests {
 
     #[test]
     fn metadata_parser_preserves_rate_limit_delay() {
-        let raw = br#"{"code":429,"message":"slow down","data":{"retry_after_seconds":17}}"#;
+        let raw = br#"{"code":429,"message":"slow down","data":{"scope":"account","limit":12,"retry_after_seconds":17}}"#;
         let err = parse_metadata_response(raw).unwrap_err();
 
         assert!(matches!(
             err,
             cfms_core::Error::Server {
                 code: 429,
+                scope: Some(ref scope),
+                limit: Some(12),
                 retry_after_seconds: Some(17),
                 ..
-            }
+            } if scope == "account"
         ));
     }
 

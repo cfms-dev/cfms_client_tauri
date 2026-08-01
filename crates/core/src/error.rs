@@ -18,6 +18,14 @@ pub enum Error {
     #[error("connection failed: {0}")]
     Connection(String),
 
+    /// The WebSocket upgrade was rejected with an HTTP response.
+    #[error("connection rejected ({status}): {message}")]
+    ConnectionRejected {
+        status: u16,
+        message: String,
+        retry_after_seconds: Option<u64>,
+    },
+
     /// The remote peer violated the wire protocol.
     #[error("protocol violation: {0}")]
     Protocol(String),
@@ -34,6 +42,8 @@ pub enum Error {
     Server {
         code: u32,
         message: String,
+        scope: Option<String>,
+        limit: Option<u64>,
         retry_after_seconds: Option<u64>,
     },
 

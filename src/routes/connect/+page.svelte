@@ -43,6 +43,7 @@
   import { openKeyboardShortcutHelp } from "$lib/keyboard";
   import { menuScale } from "$lib/motion/transitions";
   import { isServerAddressValid, parseServerAddress } from "$lib/server-address";
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
@@ -178,7 +179,7 @@
       if (parsed) {
         protocolError = parsed;
       } else {
-        notificationStore.error(msg);
+        notificationStore.error(formatUserFacingError(e));
       }
     } finally {
       busy = false;

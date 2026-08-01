@@ -33,6 +33,6 @@ pub mod stream;
 pub mod tls;
 
 // Re-exports
-pub use connector::Connection;
+pub use connector::{Connection, ConnectionCloseInfo};
 pub use frame::{FrameHeader, FrameKind};
 pub use stream::Stream;

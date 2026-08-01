@@ -198,9 +198,7 @@ impl QueueState {
                 })
                 .map(|task| task.task_id.clone());
 
-            let Some(next_id) = next_id else {
-                return None;
-            };
+            let next_id = next_id?;
 
             let task = map.get_mut(&next_id)?;
             task.started_at = Some(now);
@@ -367,13 +365,9 @@ impl QueueState {
                 t.completed_at = Some(unix_now());
                 DownloadTaskStatus::Failed
             } else {
-                let base_delay = 1u64 << t.retry_count.min(3);
-                let jitter = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .subsec_nanos() as u64
-                    % 2;
-                let delay = retry_after_seconds.unwrap_or(base_delay + jitter);
+                let delay = super::retry::retry_delay(t.retry_count as usize, retry_after_seconds)
+                    .as_secs()
+                    .max(1);
                 t.status = DownloadTaskStatus::Scheduled;
                 t.scheduled_time = Some(unix_now().saturating_add(delay as i64));
                 t.pause_position = Some(t.current_bytes);
@@ -764,16 +758,27 @@ async fn download_worker(
                     transfer_conn = Some(conn);
                 }
                 Err(e) => {
+                    let error_message = e.to_string();
                     tracing::error!(
                         "Download {task_id}: failed to create transfer connection: {e}"
                     );
-                    let status = queue.retry_or_fail(&task_id, &e, None);
+                    let status = if super::retry::is_transient_error(&e) {
+                        queue.retry_or_fail(
+                            &task_id,
+                            &error_message,
+                            super::retry::error_retry_after_seconds(&e),
+                        )
+                    } else {
+                        queue
+                            .mark_failed(&task_id, &error_message)
+                            .map(|_| DownloadTaskStatus::Failed)
+                    };
                     emit_task_update(&queue, &state, &task_id);
                     emit_active_count(&queue, &state);
                     if matches!(status, Ok(DownloadTaskStatus::Failed)) {
                         let _ = state.event_tx.send(ServiceEvent::DownloadFailed {
                             task_id: task_id.clone(),
-                            error: e,
+                            error: error_message,
                         });
                     }
                     active.unregister(&task_id);
@@ -799,10 +804,10 @@ async fn download_worker(
         .await;
         active.unregister(&task_id);
 
-        if !outcome.reuse_connection || conn.is_closed() {
-            if let Some(conn) = transfer_conn.take() {
-                conn.close().await;
-            }
+        if (!outcome.reuse_connection || conn.is_closed())
+            && let Some(conn) = transfer_conn.take()
+        {
+            conn.close().await;
         }
 
         if !outcome.continue_worker {
@@ -1002,7 +1007,7 @@ async fn execute_download(
         if let Some((resume_state_path, resume_offset, max_chunk_size)) = resume_state {
             tokio::select! {
                 r = cfms_transfer::download::receive_with_resume(
-                    &transfer_conn,
+                    transfer_conn,
                     &task_id,
                     dest,
                     resume_offset,
@@ -1019,7 +1024,7 @@ async fn execute_download(
         } else {
             tokio::select! {
                 r = cfms_transfer::download::receive(
-                    &transfer_conn,
+                    transfer_conn,
                     &task_id,
                     dest,
                     preferred_chunk_size,
@@ -1114,18 +1119,8 @@ async fn execute_download(
             let error_msg = e.to_string();
             tracing::error!("Download {task_id} failed: {error_msg}");
 
-            let retry_after_seconds = match &e {
-                cfms_core::Error::Connection(_) => Some(None),
-                cfms_core::Error::Server {
-                    code: 429,
-                    retry_after_seconds: Some(seconds),
-                    ..
-                } => Some(Some(*seconds)),
-                cfms_core::Error::Server { code, .. } if matches!(*code, 500 | 502 | 503 | 504) => {
-                    Some(None)
-                }
-                _ => None,
-            };
+            let retry_after_seconds = super::retry::is_transient_error(&e)
+                .then(|| super::retry::error_retry_after_seconds(&e));
 
             if retry_after_seconds.is_none() {
                 cleanup_resume_state(&file_path, &task_id);
@@ -1241,7 +1236,7 @@ fn cleanup_resume_state(file_path: &str, task_id: &str) {
 
 async fn create_transfer_connection(
     state: &AppState,
-) -> std::result::Result<cfms_transport::Connection, String> {
+) -> cfms_core::Result<cfms_transport::Connection> {
     let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
         let addr = state.server_address.read().await;
         let ca = state.ca_dir.read().await;
@@ -1261,20 +1256,18 @@ async fn create_transfer_connection(
         )
     };
 
-    let url = url.ok_or_else(|| "No server address configured".to_string())?;
-    let ca_dir = ca_dir.ok_or_else(|| "No CA directory configured".to_string())?;
+    let url = url.ok_or_else(|| cfms_core::Error::Other("No server address configured".into()))?;
+    let ca_dir =
+        ca_dir.ok_or_else(|| cfms_core::Error::Other("No CA directory configured".into()))?;
 
     let tls_config = cfms_transport::tls::build_config_with_identity(
         &ca_dir,
         disable_ssl,
         client_cert_path.as_deref(),
         client_key_path.as_deref(),
-    )
-    .map_err(|e| format!("TLS config error: {e}"))?;
+    )?;
 
-    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4)
-        .await
-        .map_err(|e| format!("Transfer connection failed: {e}"))
+    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await
 }
 
 // ---------------------------------------------------------------------------

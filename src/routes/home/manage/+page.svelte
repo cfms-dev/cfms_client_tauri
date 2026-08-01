@@ -21,7 +21,6 @@
     renameGroup,
     renameUser,
     resetUserPassword,
-    serverErrorMessage,
     unblockUser,
     viewAuditLogs,
     type AuditLogEntry,
@@ -36,6 +35,7 @@
   import { dialogStore } from '$lib/dialogs.svelte';
   import { canSetOtherUserAvatar } from '$lib/avatar-permissions';
   import { authStore, notificationStore } from '$lib/stores.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import CreateUserAccountDialog from '$lib/components/CreateUserAccountDialog.svelte';
   import CreateUserGroupDialog from '$lib/components/CreateUserGroupDialog.svelte';
@@ -1036,7 +1036,7 @@
   }
 
   function formatError(err: unknown) {
-    return serverErrorMessage(err);
+    return formatUserFacingError(err);
   }
 </script>
 

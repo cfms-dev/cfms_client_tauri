@@ -34,6 +34,7 @@
   import { extensionsStore } from '$lib/extensions.svelte';
   import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
   import { isIconName } from '$lib/icons';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let { children }: { children: Snippet } = $props();
 
@@ -224,7 +225,7 @@
       await getDocument(record.id, record.name);
       notificationStore.success($t('home.downloadQueued', { values: { name: record.name } }));
     } catch (error) {
-      notificationStore.error(error instanceof Error ? error.message : String(error));
+      notificationStore.error(formatUserFacingError(error));
     }
   }
 
@@ -236,7 +237,7 @@
       serverStateStore.lockdown = nextStatus;
       serverStateStore.lockdownReason = nextStatus ? reason ?? null : null;
     } catch (error) {
-      notificationStore.error(error instanceof Error ? error.message : String(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       lockdownBusy = false;
     }
@@ -335,7 +336,7 @@
       authStore.clear();
       await goto('/login', { replaceState: true });
     } catch (error) {
-      notificationStore.error(error instanceof Error ? error.message : String(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       accountActionBusy = false;
       accountMenuOpen = false;
@@ -352,7 +353,7 @@
       serverStateStore.clear();
       await goto('/connect', { replaceState: true });
     } catch (error) {
-      notificationStore.error(error instanceof Error ? error.message : String(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       accountActionBusy = false;
       accountMenuOpen = false;

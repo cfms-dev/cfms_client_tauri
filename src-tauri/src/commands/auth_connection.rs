@@ -123,33 +123,21 @@ pub async fn login(
                 .map(ToOwned::to_owned);
             remember_server_preference_dek(&state.inner, server_preference_dek).await;
 
-            Err(format!(
-                "Password must be changed before login: {}",
-                response.message
+            Err(format_server_error_parts(
+                response.code,
+                &format!(
+                    "Password must be changed before login: {}",
+                    response.message
+                ),
+                &response.data,
             ))
         }
 
         // --- Disabled account ---
-        4003 => {
-            let error_data = serde_json::to_string(&response.data)
-                .unwrap_or_else(|_| "{}".to_string());
-            Err(format!(
-                "Login failed: (4003) {}\nCFMS_ERROR_DATA:{}",
-                response.message, error_data
-            ))
-        }
+        4003 => Err(format_server_response_error(&response)),
 
         // --- Server-side error ---
-        other => {
-            let error_data = serde_json::to_string(&response.data)
-                .unwrap_or_else(|_| "{}".to_string());
-            let mut error = format!("Login failed: ({}) {}", other, response.message);
-            if error_data != "{}" && error_data != "null" {
-                error.push_str("\nCFMS_ERROR_DATA:");
-                error.push_str(&error_data);
-            }
-            Err(error)
-        }
+        _ => Err(format_server_response_error(&response)),
     }
 }
 
@@ -183,10 +171,21 @@ async fn send_login_request(
         .await
         .map_err(|e| format!("Failed to send login request: {e}"))?;
 
-    let response_bytes = stream
-        .recv()
-        .await
-        .ok_or_else(|| "Connection closed before login response".to_string())?;
+    let response_bytes = match stream.recv().await {
+        Some(response) => response,
+        None => {
+            if let Some(close) = conn.close_info()
+                && close.code == 1013
+            {
+                return Err(format_server_error_parts(
+                    503,
+                    &close.reason,
+                    &serde_json::json!({ "close_code": close.code }),
+                ));
+            }
+            return Err("Connection closed before login response".to_string());
+        }
+    };
 
     serde_json::from_slice(&response_bytes)
         .map_err(|e| format!("Invalid login response from server: {e}"))
@@ -346,10 +345,21 @@ pub async fn change_password(
         .await
         .map_err(|e| format!("Failed to send change-password request: {e}"))?;
 
-    let response_bytes = stream
-        .recv()
-        .await
-        .ok_or_else(|| "Connection closed before change-password response".to_string())?;
+    let response_bytes = match stream.recv().await {
+        Some(response) => response,
+        None => {
+            if let Some(close) = conn.close_info()
+                && close.code == 1013
+            {
+                return Err(format_server_error_parts(
+                    503,
+                    &close.reason,
+                    &serde_json::json!({ "close_code": close.code }),
+                ));
+            }
+            return Err("Connection closed before change-password response".to_string());
+        }
+    };
 
     // Politely close the stream.
     let _ = stream.send_final(&conn, vec![]).await;
@@ -379,14 +389,18 @@ pub async fn change_password(
                     tracing::warn!(
                         "Failed to roll back prepared preference DEK after password change rejection: {error}"
                     );
-                    return Err(format!(
-                        "({}) {}; additionally failed to restore the previous preference DEK: {}",
-                        response.code, response.message, error
+                    return Err(format_server_error_parts(
+                        response.code,
+                        &format!(
+                            "{}; additionally failed to restore the previous preference DEK: {error}",
+                            response.message
+                        ),
+                        &response.data,
                     ));
                 }
             }
         }
-        return Err(format!("({}) {}", response.code, response.message));
+        return Err(format_server_response_error(&response));
     }
 
     if let Some((dek, encrypted, _, _, _)) = prepared_dek_rewrap.take() {
@@ -597,7 +611,7 @@ pub async fn connect(
             tls_config,
             proxy_addr.as_deref(),
             connection_settings.force_ipv4,
-        ) => result.map_err(|e| format!("Connection failed: {e}")),
+        ) => result.map_err(|error| format_transport_error(&error)),
     };
     let conn = match connect_result {
         Ok(conn) => conn,
@@ -643,19 +657,27 @@ pub async fn connect(
             .await
             .map_err(|e| format!("Failed to send server_info request: {e}"))?;
 
-        let response_bytes = stream
-            .recv()
-            .await
-            .ok_or_else(|| "Connection closed before server_info response".to_string())?;
+        let response_bytes = match stream.recv().await {
+            Some(response) => response,
+            None => {
+                if let Some(close) = conn.close_info()
+                    && close.code == 1013
+                {
+                    return Err(format_server_error_parts(
+                        503,
+                        &close.reason,
+                        &serde_json::json!({ "close_code": close.code }),
+                    ));
+                }
+                return Err("Connection closed before server_info response".to_string());
+            }
+        };
 
         let response: cfms_core::Response = serde_json::from_slice(&response_bytes)
             .map_err(|e| format!("Invalid server_info response: {e}"))?;
 
         if response.code != 200 {
-            return Err(format!(
-                "Server returned {} from server_info: {}",
-                response.code, response.message
-            ));
+            return Err(format_server_response_error(&response));
         }
 
         serde_json::from_value(response.data)
@@ -1000,7 +1022,7 @@ pub async fn get_2fa_status(
     .await?;
 
     if resp.code != 200 {
-        return Err(format!("({}) {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     Ok(resp.data)
@@ -1023,7 +1045,7 @@ pub async fn setup_2fa(
     .await?;
 
     if resp.code != 200 {
-        return Err(format!("({}) {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     Ok(resp.data)
@@ -1047,7 +1069,7 @@ pub async fn validate_2fa(
     .await?;
 
     if resp.code != 200 {
-        return Err(format!("({}) {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     Ok(())
@@ -1068,7 +1090,7 @@ pub async fn cancel_2fa_setup(state: tauri::State<'_, AppHandleState>) -> Result
     .await?;
 
     if resp.code != 200 {
-        return Err(format!("({}) {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     Ok(())
@@ -1092,7 +1114,7 @@ pub async fn disable_2fa(
     .await?;
 
     if resp.code != 200 {
-        return Err(format!("({}) {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     Ok(())

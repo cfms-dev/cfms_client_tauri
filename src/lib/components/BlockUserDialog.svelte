@@ -7,6 +7,7 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import type { UserBlockTarget } from '$lib/api';
   import type { IconName } from '$lib/icons';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   type BlockType = 'read' | 'write' | 'move';
   type TargetType = UserBlockTarget['type'];
@@ -102,7 +103,7 @@
     try {
       await onSave(blockTypes, target, getExpiryTimestamp());
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = false;
     }

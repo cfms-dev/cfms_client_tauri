@@ -99,25 +99,64 @@ async fn try_refresh(
     username: &str,
     token: &str,
 ) -> Result<(String, i64), String> {
-    let conn = super::connection::ensure_connected(
+    let mut conn = super::connection::ensure_connected(
         state,
         super::connection::DEFAULT_RECONNECT_ATTEMPTS,
         false,
     )
     .await?;
 
-    let response = super::rpc::send_action_request(
-        &conn,
-        "refresh_token",
-        serde_json::json!({}),
-        username,
-        token,
-    )
-    .await?;
-
-    if response.code != 200 {
-        return Err(format!("server returned {}", response.code));
-    }
+    let response = {
+        let mut final_response = None;
+        for attempt in 1..=super::retry::MAX_BACKGROUND_RETRIES {
+            match super::rpc::send_action_request(
+                &conn,
+                "refresh_token",
+                serde_json::json!({}),
+                username,
+                token,
+            )
+            .await
+            {
+                Ok(response) if response.code == 200 => {
+                    final_response = Some(response);
+                    break;
+                }
+                Ok(response) if super::retry::is_transient_response(&response) => {
+                    if attempt == super::retry::MAX_BACKGROUND_RETRIES {
+                        return Err(format!(
+                            "server returned {} after retry attempts",
+                            response.code
+                        ));
+                    }
+                    tokio::time::sleep(super::retry::retry_delay(
+                        attempt,
+                        super::retry::response_retry_after_seconds(&response),
+                    ))
+                    .await;
+                }
+                Ok(response) => return Err(format!("server returned {}", response.code)),
+                Err(error) if super::retry::is_transient_error(&error) => {
+                    if attempt == super::retry::MAX_BACKGROUND_RETRIES {
+                        return Err(error.to_string());
+                    }
+                    tokio::time::sleep(super::retry::retry_delay(
+                        attempt,
+                        super::retry::error_retry_after_seconds(&error),
+                    ))
+                    .await;
+                    conn = super::connection::ensure_connected(
+                        state,
+                        super::connection::DEFAULT_RECONNECT_ATTEMPTS,
+                        true,
+                    )
+                    .await?;
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        final_response.ok_or_else(|| "token refresh exhausted retry attempts".to_string())?
+    };
 
     // Extract new token and expiry from response data.
     let data = response.data;

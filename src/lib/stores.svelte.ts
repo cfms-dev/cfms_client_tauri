@@ -79,6 +79,7 @@ class AuthStoreImpl {
   hasToken = $state(false);
   tokenExp = $state<number | null>(null);
   permissions = $state<string[]>([]);
+  permissionSnapshotRevision = $state(0);
   groups = $state<string[]>([]);
   avatarPath = $state<string | null>(null);
 
@@ -116,6 +117,7 @@ class AuthStoreImpl {
     this.hasToken = s.has_token;
     this.tokenExp = s.token_exp;
     this.permissions = s.permissions;
+    this.permissionSnapshotRevision += 1;
     this.groups = s.groups;
     this.avatarPath = s.avatar_path ?? this.avatarPath;
     this.requires2fa = s.requires_2fa ?? false;
@@ -140,6 +142,7 @@ class AuthStoreImpl {
     this.hasToken = false;
     this.tokenExp = null;
     this.permissions = [];
+    this.permissionSnapshotRevision += 1;
     this.groups = [];
     this.avatarPath = null;
     this.requires2fa = false;

@@ -49,6 +49,7 @@
     type AuthStatus,
     type ServerState,
   } from "$lib/api";
+  import { formatUserFacingError } from '$lib/user-facing-errors';
   import { downloadStore } from "$lib/stores.svelte";
   import { appearanceStore } from "$lib/appearance.svelte";
   import Icon from "$lib/components/Icon.svelte";
@@ -476,14 +477,14 @@
 
   /** Format an error message for display. */
   function formatError(e: unknown): string {
-    if (typeof e === "string" || e instanceof Error) return serverErrorMessage(e);
+    if (typeof e === "string" || e instanceof Error) return formatUserFacingError(e);
     return $t('login.unknownError');
   }
 
   /** Check whether an error indicates the server requires a password change
    *  before login (codes 4001 / 4002 in the reference implementation). */
   function isPasswordChangeRequired(e: unknown): boolean {
-    const msg = formatError(e);
+    const msg = serverErrorMessage(e);
     return msg.includes("Password must be changed before login");
   }
 

@@ -19,7 +19,7 @@ export function formatUnknown(value: unknown): string {
 }
 
 export function formatError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return formatUserFacingError(err);
 }
 
 export function isPickerCancel(message: string): boolean {
@@ -29,3 +29,4 @@ export function isPickerCancel(message: string): boolean {
     || normalized.includes('cancel')
     || normalized.includes('no folder was selected');
 }
+import { formatUserFacingError } from '$lib/user-facing-errors';

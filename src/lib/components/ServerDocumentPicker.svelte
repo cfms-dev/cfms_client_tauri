@@ -17,6 +17,7 @@
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   type PickerRow =
     | { kind: 'parent' }
@@ -70,7 +71,7 @@
       documents = response.documents;
       return true;
     } catch (err) {
-      loadError = err instanceof Error ? err.message : String(err);
+      loadError = formatUserFacingError(err);
       folders = [];
       documents = [];
       parentId = null;

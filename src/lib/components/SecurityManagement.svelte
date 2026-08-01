@@ -5,7 +5,6 @@
     deleteBannedSubnet,
     listAuthLockouts,
     listBannedSubnets,
-    serverErrorMessage,
     serverErrorStatus,
     unlockAuthLockouts,
     updateBannedSubnet,
@@ -15,6 +14,7 @@
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { notificationStore } from '$lib/stores.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
   import DialogActionButton from './DialogActionButton.svelte';
   import Icon from './Icon.svelte';
   import MdSwitch from './MdSwitch.svelte';
@@ -71,7 +71,7 @@
       subnets = await listBannedSubnets();
     } catch (error) {
       subnets = [];
-      notificationStore.error(serverErrorMessage(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       loadingSubnets = false;
     }
@@ -87,7 +87,7 @@
       lockouts = await listAuthLockouts();
     } catch (error) {
       lockouts = [];
-      notificationStore.error(serverErrorMessage(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       loadingLockouts = false;
     }
@@ -162,7 +162,7 @@
       editorRule = undefined;
       await loadSubnets();
     } catch (error) {
-      const errorMessage = serverErrorMessage(error);
+      const errorMessage = formatUserFacingError(error);
       const isSelfBlockConflict = serverErrorStatus(error) === 409
         && errorMessage.toLocaleLowerCase().includes('current ip');
       if (isSelfBlockConflict && !confirmSelfBlock) {
@@ -198,7 +198,7 @@
       notificationStore.success($t('manage.security.ruleDeleted'));
       await loadSubnets();
     } catch (error) {
-      notificationStore.error(serverErrorMessage(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       busyKey = null;
     }
@@ -236,7 +236,7 @@
       }
       await loadLockouts();
     } catch (error) {
-      notificationStore.error(serverErrorMessage(error));
+      notificationStore.error(formatUserFacingError(error));
     } finally {
       busyKey = null;
     }

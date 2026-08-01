@@ -50,10 +50,21 @@ where
         .await
         .map_err(|e| format!("Failed to send {action} request: {e}"))?;
 
-    let response_bytes = stream
-        .recv()
-        .await
-        .ok_or_else(|| format!("Connection closed before {action} response"))?;
+    let response_bytes = match stream.recv().await {
+        Some(response) => response,
+        None => {
+            if let Some(close) = conn.close_info()
+                && close.code == 1013
+            {
+                return Err(format_server_error_parts(
+                    503,
+                    &close.reason,
+                    &serde_json::json!({ "close_code": close.code }),
+                ));
+            }
+            return Err(format!("Connection closed before {action} response"));
+        }
+    };
 
     serde_json::from_slice::<cfms_core::Response<T>>(&response_bytes)
         .map_err(|e| format!("Invalid {action} response: {e}"))
@@ -71,14 +82,65 @@ async fn remember_server_preference_dek(
 /// string-error boundary so the frontend can route semantic states (such as
 /// lockdown) without displaying transport details to the user.
 fn format_server_response_error(response: &cfms_core::Response) -> String {
-    let mut error = format!("Server returned {}: {}", response.code, response.message);
-    let error_data =
-        serde_json::to_string(&response.data).unwrap_or_else(|_| "{}".to_string());
+    format_server_error_parts(response.code, &response.message, &response.data)
+}
+
+fn format_server_error_parts(
+    code: impl std::fmt::Display,
+    message: &str,
+    data: &serde_json::Value,
+) -> String {
+    let mut error = format!("Server returned {code}: {message}");
+    let error_data = serde_json::to_string(data).unwrap_or_else(|_| "{}".to_string());
     if error_data != "{}" && error_data != "null" {
         error.push_str("\nCFMS_ERROR_DATA:");
         error.push_str(&error_data);
     }
     error
+}
+
+fn format_transport_error(error: &cfms_core::Error) -> String {
+    match error {
+        cfms_core::Error::ConnectionRejected {
+            status,
+            message,
+            retry_after_seconds,
+        } => {
+            let mut data = serde_json::Map::new();
+            if let Some(seconds) = retry_after_seconds {
+                data.insert("retry_after_seconds".into(), (*seconds).into());
+            }
+            format_server_error_parts(
+                *status,
+                message,
+                &serde_json::Value::Object(data),
+            )
+        }
+        cfms_core::Error::Server {
+            code,
+            message,
+            scope,
+            limit,
+            retry_after_seconds,
+        } => {
+            let mut data = serde_json::Map::new();
+            if let Some(scope) = scope {
+                data.insert("scope".into(), scope.clone().into());
+            }
+            if let Some(limit) = limit {
+                data.insert("limit".into(), (*limit).into());
+            }
+            if let Some(seconds) = retry_after_seconds {
+                data.insert("retry_after_seconds".into(), (*seconds).into());
+            }
+            format_server_error_parts(
+                *code,
+                message,
+                &serde_json::Value::Object(data),
+            )
+        }
+        _ => format!("Connection failed: {error}"),
+    }
 }
 
 fn is_transient_connection_error(error: &str) -> bool {
@@ -313,7 +375,7 @@ async fn ensure_preference_dek(
 
 #[cfg(test)]
 mod response_error_tests {
-    use super::format_server_response_error;
+    use super::{format_server_response_error, format_transport_error};
 
     #[test]
     fn preserves_lockdown_status_and_reason() {
@@ -346,5 +408,56 @@ mod response_error_tests {
             format_server_response_error(&response),
             "Server returned 500: failure"
         );
+    }
+
+    #[test]
+    fn preserves_all_protocol_twenty_one_error_metadata() {
+        let response = cfms_core::Response {
+            code: 429,
+            message: "slow down".to_string(),
+            data: serde_json::json!({
+                "scope": "search:user:alice",
+                "limit": 12,
+                "retry_after_seconds": 6,
+            }),
+            timestamp: 0.0,
+        };
+
+        let formatted = format_server_response_error(&response);
+        assert!(formatted.starts_with("Server returned 429: slow down\nCFMS_ERROR_DATA:"));
+        assert!(formatted.contains("\"scope\":\"search:user:alice\""));
+        assert!(formatted.contains("\"limit\":12"));
+        assert!(formatted.contains("\"retry_after_seconds\":6"));
+    }
+
+    #[test]
+    fn preserves_rejected_handshake_retry_delay() {
+        let error = cfms_core::Error::ConnectionRejected {
+            status: 429,
+            message: "connection limit reached".to_string(),
+            retry_after_seconds: Some(8),
+        };
+
+        assert_eq!(
+            format_transport_error(&error),
+            "Server returned 429: connection limit reached\nCFMS_ERROR_DATA:{\"retry_after_seconds\":8}"
+        );
+    }
+
+    #[test]
+    fn preserves_transfer_server_error_metadata() {
+        let error = cfms_core::Error::Server {
+            code: 503,
+            message: "busy".to_string(),
+            scope: Some("server_concurrency".to_string()),
+            limit: Some(4),
+            retry_after_seconds: Some(2),
+        };
+
+        let formatted = format_transport_error(&error);
+        assert!(formatted.starts_with("Server returned 503: busy\nCFMS_ERROR_DATA:"));
+        assert!(formatted.contains("\"scope\":\"server_concurrency\""));
+        assert!(formatted.contains("\"limit\":4"));
+        assert!(formatted.contains("\"retry_after_seconds\":2"));
     }
 }

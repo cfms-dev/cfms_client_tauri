@@ -20,6 +20,7 @@
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   type MoveTargetRow =
     | { kind: 'parent' }
@@ -164,7 +165,7 @@
   }
 
   function formatError(err: unknown): string {
-    return err instanceof Error ? err.message : String(err);
+    return formatUserFacingError(err);
   }
 </script>
 

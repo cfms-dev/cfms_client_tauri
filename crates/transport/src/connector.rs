@@ -16,7 +16,7 @@ use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{self, Message};
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config};
 use tracing::{debug, error, info, warn};
 
@@ -28,6 +28,13 @@ use crate::stream::Stream;
 // ---------------------------------------------------------------------------
 
 type WsStream = WebSocketStream<MaybeTlsStream<MaybeProxyStream>>;
+
+/// Information supplied by the peer when it closes a WebSocket connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectionCloseInfo {
+    pub code: u16,
+    pub reason: String,
+}
 
 enum MaybeProxyStream {
     Direct(tokio::net::TcpStream),
@@ -113,6 +120,9 @@ pub struct Connection {
 
     /// Set once the receive loop exits or a send/close operation fails.
     closed: Arc<AtomicBool>,
+
+    /// Close code and reason supplied by the peer, when available.
+    close_info: Arc<std::sync::RwLock<Option<ConnectionCloseInfo>>>,
 }
 
 impl Connection {
@@ -156,7 +166,7 @@ impl Connection {
         let (ws_stream, _response) =
             client_async_tls_with_config(url, transport, None, Some(connector))
                 .await
-                .map_err(|e| cfms_core::Error::Connection(e.to_string()))?;
+                .map_err(map_handshake_error)?;
 
         info!("WebSocket connected to {url}");
 
@@ -171,6 +181,7 @@ impl Connection {
             new_streams_tx,
             next_stream_id: Arc::new(tokio::sync::Mutex::new(1)), // first odd ID
             closed: Arc::new(AtomicBool::new(false)),
+            close_info: Arc::new(std::sync::RwLock::new(None)),
         };
 
         // Spawn the receive dispatch loop.
@@ -178,9 +189,16 @@ impl Connection {
         let new_streams_tx = conn.new_streams_tx.clone();
         let ws_tx_for_close = Arc::clone(&conn.ws_tx);
         let closed = Arc::clone(&conn.closed);
+        let close_info = Arc::clone(&conn.close_info);
         tokio::spawn(async move {
-            if let Err(e) =
-                Self::recv_loop(ws_rx, streams, new_streams_tx, Arc::clone(&closed)).await
+            if let Err(e) = Self::recv_loop(
+                ws_rx,
+                streams,
+                new_streams_tx,
+                Arc::clone(&closed),
+                close_info,
+            )
+            .await
             {
                 error!("Receive loop exited with error: {e}");
             }
@@ -234,6 +252,11 @@ impl Connection {
         self.closed.load(Ordering::SeqCst)
     }
 
+    /// Return the peer-provided WebSocket close information, when available.
+    pub fn close_info(&self) -> Option<ConnectionCloseInfo> {
+        self.close_info.read().ok().and_then(|info| info.clone())
+    }
+
     /// Return whether two handles point at the same underlying connection.
     pub fn is_same_connection(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.closed, &other.closed)
@@ -277,6 +300,7 @@ impl Connection {
         streams: Arc<DashMap<u32, mpsc::Sender<Vec<u8>>>>,
         new_streams_tx: mpsc::Sender<Stream>,
         closed: Arc<AtomicBool>,
+        close_info: Arc<std::sync::RwLock<Option<ConnectionCloseInfo>>>,
     ) -> Result<()> {
         const PING_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -322,8 +346,16 @@ impl Connection {
                 Ok(Some(Ok(Message::Pong(_)))) => {
                     // Pong received.
                 }
-                Ok(Some(Ok(Message::Close(_)))) => {
-                    info!("WebSocket close frame received");
+                Ok(Some(Ok(Message::Close(frame)))) => {
+                    if let Some(frame) = frame {
+                        let info = close_info_from_frame(&frame);
+                        info!(code = info.code, reason = %info.reason, "WebSocket close frame received");
+                        if let Ok(mut stored) = close_info.write() {
+                            *stored = Some(info);
+                        }
+                    } else {
+                        info!("WebSocket close frame received");
+                    }
                     break;
                 }
                 Ok(Some(Ok(Message::Frame(_)))) => {
@@ -349,6 +381,42 @@ impl Connection {
         info!("Receive loop exited");
 
         Ok(())
+    }
+}
+
+fn map_handshake_error(error: tungstenite::Error) -> cfms_core::Error {
+    match error {
+        tungstenite::Error::Http(response) => {
+            let status = response.status().as_u16();
+            let retry_after_seconds = response
+                .headers()
+                .get("Retry-After")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse::<u64>().ok())
+                .filter(|value| *value > 0);
+            let message = response
+                .body()
+                .as_deref()
+                .and_then(|body| std::str::from_utf8(body).ok())
+                .map(str::trim)
+                .filter(|body| !body.is_empty())
+                .map(ToOwned::to_owned)
+                .or_else(|| response.status().canonical_reason().map(ToOwned::to_owned))
+                .unwrap_or_else(|| "WebSocket upgrade rejected".to_string());
+            cfms_core::Error::ConnectionRejected {
+                status,
+                message,
+                retry_after_seconds,
+            }
+        }
+        other => cfms_core::Error::Connection(other.to_string()),
+    }
+}
+
+fn close_info_from_frame(frame: &tungstenite::protocol::CloseFrame) -> ConnectionCloseInfo {
+    ConnectionCloseInfo {
+        code: frame.code.into(),
+        reason: frame.reason.to_string(),
     }
 }
 
@@ -380,9 +448,18 @@ fn parse_ws_url(url: &str) -> Result<(String, u16)> {
     Ok((host, port))
 }
 
+impl std::fmt::Debug for Connection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connection")
+            .field("stream_count", &self.streams.len())
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_ws_url;
+    use super::{close_info_from_frame, map_handshake_error, parse_ws_url};
+    use tokio_tungstenite::tungstenite::{self, protocol::frame::coding::CloseCode};
 
     #[test]
     fn parses_websocket_hosts_and_default_ports() {
@@ -409,12 +486,118 @@ mod tests {
         assert!(parse_ws_url("https://example.com:5104").is_err());
         assert!(parse_ws_url("example.com:5104").is_err());
     }
-}
 
-impl std::fmt::Debug for Connection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Connection")
-            .field("stream_count", &self.streams.len())
-            .finish()
+    #[test]
+    fn preserves_retry_after_from_rejected_handshake() {
+        let response = tungstenite::http::Response::builder()
+            .status(429)
+            .header("Retry-After", "7")
+            .body(Some(b"Too many connection attempts".to_vec()))
+            .unwrap();
+
+        let error = map_handshake_error(tungstenite::Error::Http(Box::new(response)));
+        assert!(matches!(
+            error,
+            cfms_core::Error::ConnectionRejected {
+                status: 429,
+                retry_after_seconds: Some(7),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn ignores_invalid_retry_after_from_rejected_handshake() {
+        let response = tungstenite::http::Response::builder()
+            .status(429)
+            .header("Retry-After", "later")
+            .body(None)
+            .unwrap();
+
+        let error = map_handshake_error(tungstenite::Error::Http(Box::new(response)));
+        assert!(matches!(
+            error,
+            cfms_core::Error::ConnectionRejected {
+                status: 429,
+                retry_after_seconds: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn accepts_rejected_handshake_without_retry_after() {
+        let response = tungstenite::http::Response::builder()
+            .status(429)
+            .body(None)
+            .unwrap();
+
+        let error = map_handshake_error(tungstenite::Error::Http(Box::new(response)));
+        assert!(matches!(
+            error,
+            cfms_core::Error::ConnectionRejected {
+                status: 429,
+                retry_after_seconds: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn preserves_try_again_later_close_information() {
+        let frame = tungstenite::protocol::CloseFrame {
+            code: CloseCode::Again,
+            reason: "Server connection capacity reached".into(),
+        };
+
+        let info = close_info_from_frame(&frame);
+        assert_eq!(info.code, 1013);
+        assert_eq!(info.reason, "Server connection capacity reached");
+    }
+
+    #[tokio::test]
+    async fn connection_exposes_peer_close_information() {
+        use futures_util::SinkExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut websocket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            websocket
+                .send(tungstenite::Message::Close(Some(
+                    tungstenite::protocol::CloseFrame {
+                        code: CloseCode::Again,
+                        reason: "Server connection capacity reached".into(),
+                    },
+                )))
+                .await
+                .unwrap();
+        });
+
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let tls = rustls::ClientConfig::builder()
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth();
+        let connection = super::Connection::connect(&format!("ws://{address}"), tls, None, true)
+            .await
+            .unwrap();
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !connection.is_closed() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("connection should observe the peer close");
+
+        assert_eq!(
+            connection.close_info(),
+            Some(super::ConnectionCloseInfo {
+                code: 1013,
+                reason: "Server connection capacity reached".to_string(),
+            })
+        );
+        server.await.unwrap();
     }
 }

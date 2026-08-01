@@ -45,6 +45,8 @@ struct ServerResponse {
 
 #[derive(Debug, Default, Deserialize)]
 struct ServerResponseData {
+    scope: Option<String>,
+    limit: Option<u64>,
     retry_after_seconds: Option<u64>,
 }
 
@@ -184,7 +186,10 @@ fn validate_negotiation(
         ));
     }
     if negotiation.data.offset != expected_file_size
-        && negotiation.data.offset % negotiation.data.chunk_size != 0
+        && !negotiation
+            .data
+            .offset
+            .is_multiple_of(negotiation.data.chunk_size)
     {
         return Err(cfms_core::Error::Protocol(format!(
             "upload resume offset {} is not aligned to chunk size {}",
@@ -207,6 +212,8 @@ fn server_error(response: ServerResponse) -> cfms_core::Error {
     cfms_core::Error::Server {
         code: response.code,
         message: response.message,
+        scope: response.data.scope,
+        limit: response.data.limit,
         retry_after_seconds: response.data.retry_after_seconds,
     }
 }

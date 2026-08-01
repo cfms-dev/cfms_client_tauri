@@ -130,16 +130,16 @@ pub async fn get_document(
 
     // Handle 403 (Access Denied)
     if resp.code == 403 {
-        return Err(format!("Access denied: {}", resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     // Handle 404 (Not Found)
     if resp.code == 404 {
-        return Err("Document not found on server".to_string());
+        return Err(format_server_response_error(&resp));
     }
 
     if resp.code != 200 {
-        return Err(format!("Server returned {}: {}", resp.code, resp.message));
+        return Err(format_server_response_error(&resp));
     }
 
     // Extract task data from the server response.
@@ -224,8 +224,7 @@ pub async fn get_document(
 fn download_display_filename(path_or_name: &str) -> String {
     path_or_name
         .split(['/', '\\'])
-        .filter(|part| !part.is_empty())
-        .next_back()
+        .rfind(|part| !part.is_empty())
         .unwrap_or(path_or_name)
         .to_string()
 }

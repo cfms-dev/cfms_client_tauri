@@ -7,6 +7,7 @@
   import ModalFrame from '$lib/components/ModalFrame.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import type { IconName } from '$lib/icons';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   interface EditorItem {
     id: string;
@@ -133,7 +134,7 @@
   }
 
   function formatError(err: unknown) {
-    return err instanceof Error ? err.message : String(err);
+    return formatUserFacingError(err);
   }
 </script>
 

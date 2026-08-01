@@ -206,6 +206,7 @@ pub struct DownloadTaskDto {
 /// Events emitted by background services and forwarded to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event", content = "data")]
+#[allow(clippy::large_enum_variant)] // Event payloads cross the serialized service boundary as values.
 pub enum ServiceEvent {
     /// A download's progress has changed.
     DownloadProgress {

@@ -18,6 +18,7 @@
   import { isMobilePlatform } from '$lib/platform';
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let busy = $state<string | null>(null);
   let catalogBusy = $state(false);
@@ -121,7 +122,7 @@
     return `${(value / 1024 ** 2).toFixed(1)} MiB`;
   }
 
-  function formatError(error: unknown) { return error instanceof Error ? error.message : String(error); }
+  function formatError(error: unknown) { return formatUserFacingError(error); }
 </script>
 
 {#if USER_EXTENSIONS_ENABLED}

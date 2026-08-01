@@ -442,8 +442,8 @@ fn transient_failure_schedules_backoff_and_preserves_checkpoint() {
     assert_eq!(status, DownloadTaskStatus::Scheduled);
     assert_eq!(scheduled.pause_position, Some(128 * 1024));
     assert_eq!(scheduled.retry_count, 1);
-    assert!(scheduled.scheduled_time.unwrap() >= before + 2);
-    assert!(scheduled.scheduled_time.unwrap() <= before + 3);
+    assert!(scheduled.scheduled_time.unwrap() > before);
+    assert!(scheduled.scheduled_time.unwrap() <= before + 2);
 }
 
 #[test]

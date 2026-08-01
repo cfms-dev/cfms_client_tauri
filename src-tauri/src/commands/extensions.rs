@@ -471,12 +471,12 @@ async fn ensure_extension_enabled(
     {
         return Err("Extension permissions changed and require renewed approval".into());
     }
-    if let Some(capability) = capability {
-        if !installation.manifest.requested_capabilities.iter().any(|item| item == capability)
+    if let Some(capability) = capability
+        && (!installation.manifest.requested_capabilities.iter().any(|item| item == capability)
             || !preference.granted_capabilities.iter().any(|item| item == capability)
-        {
-            return Err(format!("Extension capability {capability} is not authorized"));
-        }
+        )
+    {
+        return Err(format!("Extension capability {capability} is not authorized"));
     }
     Ok(())
 }

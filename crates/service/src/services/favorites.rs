@@ -290,6 +290,13 @@ async fn validate_item(
             access_denied.insert(id.to_string());
             invalid.remove(id);
         }
+        Ok(response) if super::retry::is_transient_response(&response) => {
+            tracing::debug!(
+                "Favorite {id} validation deferred after transient {action} response: ({}) {}",
+                response.code,
+                response.message
+            );
+        }
         Ok(response) => {
             invalid.insert(id.to_string());
             access_denied.remove(id);

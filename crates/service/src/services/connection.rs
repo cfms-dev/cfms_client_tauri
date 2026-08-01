@@ -1,9 +1,8 @@
 //! Primary connection watchdog and reconnect helpers.
 
+use cfms_core::ServiceEvent;
 use std::sync::Arc;
 use std::time::Duration;
-
-use cfms_core::ServiceEvent;
 use tokio::sync::watch;
 
 use crate::state::AppState;
@@ -85,10 +84,15 @@ pub async fn ensure_connected(
                     "Reconnect attempt {attempt}/{attempts} failed for {}: {error}",
                     config.url,
                 );
-                last_error = Some(error);
+                let is_transient = super::retry::is_transient_error(&error);
+                let retry_after_seconds = super::retry::error_retry_after_seconds(&error);
+                last_error = Some(error.to_string());
 
-                if attempt < attempts {
-                    tokio::time::sleep(backoff(attempt)).await;
+                if attempt < attempts && is_transient {
+                    tokio::time::sleep(super::retry::retry_delay(attempt, retry_after_seconds))
+                        .await;
+                } else if !is_transient {
+                    break;
                 }
             }
         }
@@ -146,25 +150,36 @@ async fn load_config(state: &AppState) -> Result<ConnectionConfig, String> {
     })
 }
 
-async fn connect_once(config: &ConnectionConfig) -> Result<cfms_transport::Connection, String> {
+async fn connect_once(config: &ConnectionConfig) -> cfms_core::Result<cfms_transport::Connection> {
     let tls_config = cfms_transport::tls::build_config_with_identity(
         &config.ca_dir,
         config.disable_ssl,
         config.client_cert_path.as_deref(),
         config.client_key_path.as_deref(),
-    )
-    .map_err(|e| format!("TLS config error: {e}"))?;
+    )?;
 
-    cfms_transport::Connection::connect(
+    let connection = cfms_transport::Connection::connect(
         &config.url,
         tls_config,
         config.proxy_addr.as_deref(),
         config.force_ipv4,
     )
-    .await
-    .map_err(|e| format!("Connection failed: {e}"))
-}
+    .await?;
 
-fn backoff(attempt: usize) -> Duration {
-    Duration::from_millis(350 * attempt as u64)
+    // Capacity rejections happen immediately after a successful WebSocket
+    // upgrade. Give the receive loop a brief opportunity to record 1013 so a
+    // watchdog reconnect is not reported as restored and then lost again.
+    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    if connection.is_closed()
+        && let Some(close) = connection.close_info()
+        && close.code == 1013
+    {
+        return Err(cfms_core::Error::ConnectionRejected {
+            status: 503,
+            message: close.reason,
+            retry_after_seconds: None,
+        });
+    }
+
+    Ok(connection)
 }

@@ -91,7 +91,9 @@ pub async fn download_avatar(
         let _ = std::fs::remove_file(&cache_path);
     }
 
-    let conn = create_transfer_connection(&state.inner).await?;
+    let conn = create_transfer_connection(&state.inner)
+        .await
+        .map_err(|error| format_transport_error(&error))?;
 
     // Download using the transfer protocol.
     // Progress is silently consumed (avatars are small; the reference does the same).

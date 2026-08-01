@@ -4,6 +4,11 @@ const LOGIN_STATUS_PATTERN = /\bLogin failed:\s*\((\d{3,4})\)\s+/i;
 const ERROR_DATA_MARKER = "\nCFMS_ERROR_DATA:";
 const LOCKDOWN_STATUS = 999;
 
+export type ServerAvailability = {
+  kind: 'rate_limited' | 'server_busy';
+  retryAfterSeconds: number | null;
+};
+
 /** Extract the server status code preserved in a Tauri command error string. */
 export function serverErrorStatus(error: unknown): number | null {
   const message = error instanceof Error ? error.message : String(error);
@@ -42,6 +47,18 @@ export function serverRetryAfterSeconds(error: unknown): number | null {
   const value = serverErrorData(error)?.retry_after_seconds;
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
   return Math.ceil(value);
+}
+
+/** Classify protocol 21 temporary request and capacity responses. */
+export function serverAvailability(error: unknown): ServerAvailability | null {
+  const status = serverErrorStatus(error);
+  if (status === 429) {
+    return { kind: 'rate_limited', retryAfterSeconds: serverRetryAfterSeconds(error) };
+  }
+  if (status === 503) {
+    return { kind: 'server_busy', retryAfterSeconds: serverRetryAfterSeconds(error) };
+  }
+  return null;
 }
 
 /** Return whether the server rejected an operation because lockdown is active. */

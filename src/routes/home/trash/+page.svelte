@@ -18,6 +18,7 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import VirtualList from '$lib/components/VirtualList.svelte';
   import { registerKeyboardCommands } from '$lib/keyboard';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   type TrashKind = 'directory' | 'document';
 
@@ -172,7 +173,7 @@
   }
 
   function formatError(err: unknown) {
-    return err instanceof Error ? err.message : String(err);
+    return formatUserFacingError(err);
   }
 
   function toggleSelectFolder(id: string) {

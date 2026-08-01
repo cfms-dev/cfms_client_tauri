@@ -312,13 +312,13 @@ impl ExtensionStore {
             return Err("A bundled extension already uses this extension id".into());
         }
         let version = validated.manifest.version.clone();
-        if let Some(existing) = self.get_installed(&id)? {
-            if existing.manifest.version == version {
-                if existing.package_digest == validated.package_digest {
-                    return Ok(existing);
-                }
-                return Err("Extension versions are immutable; publish a new version for changed package contents".into());
+        if let Some(existing) = self.get_installed(&id)?
+            && existing.manifest.version == version
+        {
+            if existing.package_digest == validated.package_digest {
+                return Ok(existing);
             }
+            return Err("Extension versions are immutable; publish a new version for changed package contents".into());
         }
         let destination = self.package_dir(&id, &version)?;
         let staging_root = self.root.join("staging");
@@ -920,10 +920,10 @@ fn compiled_trusted_keys() -> BTreeMap<String, VerifyingKey> {
             let Some((id, hex_key)) = entry.split_once(':') else {
                 continue;
             };
-            if let Ok(bytes) = decode_fixed_hex::<32>(hex_key.trim(), "Ed25519 public key") {
-                if let Ok(key) = VerifyingKey::from_bytes(&bytes) {
-                    keys.insert(id.trim().to_string(), key);
-                }
+            if let Ok(bytes) = decode_fixed_hex::<32>(hex_key.trim(), "Ed25519 public key")
+                && let Ok(key) = VerifyingKey::from_bytes(&bytes)
+            {
+                keys.insert(id.trim().to_string(), key);
             }
         }
     }

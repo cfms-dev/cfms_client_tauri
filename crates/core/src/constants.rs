@@ -11,7 +11,7 @@
 pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = 20;
 
 /// Newest wire-protocol version supported by this client.
-pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 20;
+pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 21;
 
 /// Current wire-protocol version advertised by this client.
 ///
@@ -109,5 +109,13 @@ mod tests {
         assert!(!is_supported_protocol_version(
             MAX_SUPPORTED_PROTOCOL_VERSION + 1
         ));
+    }
+
+    #[test]
+    fn supports_protocol_twenty_and_twenty_one() {
+        assert!(is_supported_protocol_version(20));
+        assert!(is_supported_protocol_version(21));
+        assert!(!is_supported_protocol_version(19));
+        assert!(!is_supported_protocol_version(22));
     }
 }

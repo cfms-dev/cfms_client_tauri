@@ -32,6 +32,10 @@ export const zh_CN = {
     avatarFor: '{username} 的头像',
     unknownUser: '未知用户',
     breadcrumb: '面包屑导航',
+    tooManyRequests: '请求过于频繁，请稍后重试。',
+    tooManyRequestsRetry: '请求过于频繁，请在 {seconds} 秒后重试。',
+    serverBusy: '服务器当前繁忙，请稍后重试。',
+    serverBusyRetry: '服务器当前繁忙，请在 {seconds} 秒后重试。',
   },
   keyboard: {
     title: '键盘快捷键',
@@ -314,6 +318,7 @@ export const zh_CN = {
     searchNoResults: '未找到与“{query}”匹配的结果',
     searchResultCount: '已加载 {count} 个与“{query}”匹配的结果',
     searchOpenedParent: '已打开 {name} 所在的父文件夹。',
+    searchPermissionRequired: '你没有搜索文件的权限。',
     selectAll: '全选',
     selectNone: '全不选',
     downloadSelected: '下载所选项',

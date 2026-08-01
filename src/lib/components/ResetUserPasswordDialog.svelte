@@ -5,6 +5,7 @@
   import MdSwitch from '$lib/components/MdSwitch.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import ModalFrame from '$lib/components/ModalFrame.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let {
     username,
@@ -101,7 +102,7 @@
         disableTwoFactorAfterReset,
       );
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = false;
     }

@@ -15,8 +15,8 @@
   import ModalFrame from './ModalFrame.svelte';
   import ProgressRing from './ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
-  import { serverErrorMessage } from '$lib/api';
   import { notificationStore } from '$lib/stores.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   interface Props {
     /** The username whose password is being changed. */
@@ -142,7 +142,7 @@
   }
 
   function formatError(err: unknown) {
-    return serverErrorMessage(err);
+    return formatUserFacingError(err);
   }
 </script>
 

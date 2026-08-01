@@ -10,7 +10,6 @@
     getAuthStatus,
     getTwoFactorStatus,
     renameUser,
-    serverErrorMessage,
     setupTwoFactor,
     validateTwoFactor,
     type TwoFactorSetup,
@@ -22,6 +21,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import SettingsPageHeader from '$lib/components/SettingsPageHeader.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
 
   const NICKNAME_MAX_LENGTH = 255;
 
@@ -256,7 +256,7 @@
   }
 
   function formatError(err: unknown): string {
-    return serverErrorMessage(err);
+    return formatUserFacingError(err);
   }
 </script>
 
