@@ -6,6 +6,7 @@
   // Reference: AccountBadge in reference/src/include/ui/components/account.py
 
   import { authStore } from '$lib/stores.svelte';
+  import { canSetOwnAvatar } from '$lib/avatar-permissions';
   import { _ as t } from 'svelte-i18n';
   import Icon from './Icon.svelte';
   import AvatarPreview from './AvatarPreview.svelte';
@@ -22,25 +23,34 @@
   const nickname = $derived(authStore.displayName);
   const groups = $derived(authStore.groups);
   const avatarPath = $derived(authStore.avatarPath);
+  const avatarEditable = $derived(
+    authStore.isLoggedIn && canSetOwnAvatar(authStore.permissions) && Boolean(onAvatarClick),
+  );
 </script>
 
 <div class="flex items-center gap-4">
-  <button
-    type="button"
-    class="relative rounded-full transition-transform hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-    title={$t('avatar.change')}
-    aria-label={$t('avatar.change')}
-    disabled={!authStore.isLoggedIn || avatarBusy || !onAvatarClick}
-    onclick={onAvatarClick}
-  >
-    <AvatarPreview username={username} size={56} avatarPath={avatarPath} />
-    <span
-      class="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-md3-primary text-md3-on-primary shadow"
-      aria-hidden="true"
+  {#if avatarEditable}
+    <button
+      type="button"
+      class="relative rounded-full transition-transform hover:scale-[1.03] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+      title={$t('avatar.change')}
+      aria-label={$t('avatar.change')}
+      disabled={avatarBusy}
+      onclick={onAvatarClick}
     >
-      <Icon name={avatarBusy ? 'refresh' : 'edit'} size="13px" />
-    </span>
-  </button>
+      <AvatarPreview username={username} size={56} avatarPath={avatarPath} />
+      <span
+        class="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full bg-md3-primary text-md3-on-primary shadow"
+        aria-hidden="true"
+      >
+        <Icon name={avatarBusy ? 'refresh' : 'edit'} size="13px" />
+      </span>
+    </button>
+  {:else}
+    <div class="relative rounded-full" aria-hidden="true">
+      <AvatarPreview username={username} size={56} avatarPath={avatarPath} />
+    </div>
+  {/if}
   <div class="min-w-0">
     <p
       class="text-base font-semibold text-md3-on-surface truncate"

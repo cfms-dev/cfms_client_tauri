@@ -34,6 +34,7 @@
     type UserBlockTarget,
   } from '$lib/api';
   import { dialogStore } from '$lib/dialogs.svelte';
+  import { canSetOtherUserAvatar } from '$lib/avatar-permissions';
   import { authStore, notificationStore } from '$lib/stores.svelte';
   import ContextMenu from '$lib/components/ContextMenu.svelte';
   import CreateUserAccountDialog from '$lib/components/CreateUserAccountDialog.svelte';
@@ -45,6 +46,7 @@
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
   import SecurityManagement from '$lib/components/SecurityManagement.svelte';
+  import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
   import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
@@ -66,6 +68,7 @@
     | { kind: 'create-group' }
     | { kind: 'user-groups'; user: ManagedUser }
     | { kind: 'user-permissions'; user: ManagedUser }
+    | { kind: 'user-avatar'; user: ManagedUser }
     | { kind: 'reset-password'; user: ManagedUser }
     | {
         kind: 'account-management';
@@ -164,6 +167,7 @@
   const canBlock = $derived(hasAnyPermission('block', 'manage_system'));
   const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
+  const canManageUserAvatars = $derived(canSetOtherUserAvatar(authStore.permissions));
   const canManageUserStatus = $derived(hasAnyPermission('manage_user_status', 'manage_system'));
   const canManage2fa = $derived(hasAnyPermission('manage_2fa'));
   const canListBannedSubnets = $derived(hasAnyPermission('list_banned_subnets'));
@@ -407,6 +411,14 @@
         disabled,
       },
       {
+        id: 'change-user-avatar',
+        label: $t('manage.changeUserAvatar'),
+        icon: 'accountCircle',
+        onSelect: () => handleChangeUserAvatar(user),
+        disabled,
+        hidden: !canManageUserAvatars,
+      },
+      {
         id: 'manage-account',
         label: $t('manage.accountManagement'),
         icon: 'manageAccounts',
@@ -559,6 +571,11 @@
 
   async function handleEditUserPermissions(user: ManagedUser) {
     activeDialog = { kind: 'user-permissions', user };
+  }
+
+  function handleChangeUserAvatar(user: ManagedUser) {
+    if (!canManageUserAvatars || busyKey !== null) return;
+    activeDialog = { kind: 'user-avatar', user };
   }
 
   async function handleResetPassword(user: ManagedUser) {
@@ -1149,6 +1166,7 @@
                   {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
                   {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                  {@render ActionButton('accountCircle', canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => handleChangeUserAvatar(user), !canManageUserAvatars || busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                   {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
@@ -1162,6 +1180,7 @@
                       {@render ActionButton('info', $t('manage.properties'), () => handleViewUser(user), busyKey !== null)}
                       {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
+                      {@render ActionButton('accountCircle', canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => handleChangeUserAvatar(user), !canManageUserAvatars || busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                       {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
@@ -1392,6 +1411,12 @@
     onSave={saveCreatedGroup}
     onClose={() => (activeDialog = null)}
   />
+{:else if activeDialog?.kind === 'user-avatar'}
+  <UserAvatarPicker
+    username={activeDialog.user.username}
+    requireSuperPermission={true}
+    onClose={() => (activeDialog = null)}
+  />
 {:else if activeDialog?.kind === 'user-groups'}
   <ManageListEditorDialog
     title={$t('manage.editUserGroupsTitle', { values: { username: activeDialog.user.username } })}
@@ -1601,11 +1626,13 @@
 
 {#snippet ActionButton(icon: IconName, title: string, onClick: () => void | Promise<void>, disabled = false, danger = false)}
   <button
-    class="p-1.5 rounded-full transition-colors disabled:opacity-40
+    type="button"
+    class="p-1.5 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40
            {danger
              ? 'text-md3-error hover:bg-md3-error-container/40'
              : 'text-md3-on-surface-variant hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis'}"
     {title}
+    aria-label={title}
     onclick={onClick}
     {disabled}
   >

@@ -9,6 +9,7 @@
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import { authStore } from '$lib/stores.svelte';
+  import { canSetOwnAvatar } from '$lib/avatar-permissions';
   import { appUpdateState } from '$lib/app-update-state.svelte';
   import AccountBadge from '$lib/components/AccountBadge.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -22,6 +23,11 @@
   );
 
   let showAvatarPicker = $state(false);
+  const canChangeOwnAvatar = $derived(canSetOwnAvatar(authStore.permissions));
+
+  function openAvatarPicker() {
+    if (canChangeOwnAvatar) showAvatarPicker = true;
+  }
 
   interface MenuEntry {
     label: string;
@@ -54,7 +60,7 @@
   <div class="bg-md3-surface-container/70 backdrop-blur-sm rounded-xl
               border border-md3-outline p-5">
     <AccountBadge
-      onAvatarClick={() => (showAvatarPicker = true)}
+      onAvatarClick={openAvatarPicker}
     />
   </div>
 
@@ -111,6 +117,6 @@
   }
 </style>
 
-{#if showAvatarPicker}
+{#if showAvatarPicker && canChangeOwnAvatar}
   <UserAvatarPicker onClose={() => (showAvatarPicker = false)} />
 {/if}

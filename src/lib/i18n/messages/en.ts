@@ -51,8 +51,13 @@ export const en = {
   avatar: {
     change: 'Change avatar',
     selectTitle: 'Select Image Document',
+    selectTitleFor: 'Select Image Document for {username}',
+    targetAccessHint: 'Choose an image document that {username} is allowed to read.',
     updated: 'Avatar updated.',
+    updatedFor: 'Avatar updated for {username}.',
     setFailed: 'Failed to set avatar.',
+    accessOrPermissionDenied:
+      'The avatar could not be updated. Check your permission and confirm that {username} can read the selected image.',
   },
   nav: {
     home: 'Home',
@@ -654,6 +659,8 @@ export const en = {
     auditLogs: 'Audit Logs',
     properties: 'Properties',
     changeNickname: 'Change nickname',
+    changeUserAvatar: 'Change user avatar',
+    avatarPermissionRequired: 'Changing user avatars requires super_set_user_avatar permission',
     editGroups: 'Edit groups',
     editPermissions: 'Edit permissions',
     resetPassword: 'Reset password',

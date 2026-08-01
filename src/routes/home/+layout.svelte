@@ -14,6 +14,7 @@
   } from '$lib/stores.svelte';
   import { appLockStore } from '$lib/app-lock.svelte';
   import { consumeConnectToUtilityTransition } from '$lib/auth-transition';
+  import { canSetOwnAvatar } from '$lib/avatar-permissions';
   import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '$lib/api';
   import { favoriteRecordsFromPreference, type FileRecord } from '$lib/file-preferences';
   import Icon from '$lib/components/Icon.svelte';
@@ -66,6 +67,9 @@
       && authStore.permissions.some((permission) =>
         permission === 'apply_lockdown' || permission === 'manage_system'
       ),
+  );
+  const canChangeOwnAvatar = $derived(
+    authStore.isLoggedIn && canSetOwnAvatar(authStore.permissions),
   );
   const isSettingsRoute = $derived(
     $page.url.pathname === '/home/settings' || $page.url.pathname.startsWith('/home/settings/'),
@@ -246,6 +250,7 @@
   function openAvatarPicker(event: MouseEvent) {
     event.stopPropagation();
     closeAccountMenu();
+    if (!canChangeOwnAvatar) return;
     showAvatarPicker = true;
   }
 
@@ -431,21 +436,27 @@
         {#if accountMenuOpen}
           <div class="explorer-account-menu" role="menu" tabindex="-1" onkeydown={handleAccountMenuKeydown}>
             <div class="explorer-account-summary" role="presentation">
-              <button
-                data-menu-item
-                type="button"
-                class="explorer-account-avatar"
-                role="menuitem"
-                tabindex="-1"
-                title={$t('avatar.change')}
-                aria-label={$t('avatar.change')}
-                onclick={openAvatarPicker}
-              >
-                <AvatarPreview username={authStore.username ?? ''} avatarPath={authStore.avatarPath} size={42} />
-                <span class="explorer-account-avatar-edit" aria-hidden="true">
-                  <Icon name="edit" size="11px" />
-                </span>
-              </button>
+              {#if canChangeOwnAvatar}
+                <button
+                  data-menu-item
+                  type="button"
+                  class="explorer-account-avatar"
+                  role="menuitem"
+                  tabindex="-1"
+                  title={$t('avatar.change')}
+                  aria-label={$t('avatar.change')}
+                  onclick={openAvatarPicker}
+                >
+                  <AvatarPreview username={authStore.username ?? ''} avatarPath={authStore.avatarPath} size={42} />
+                  <span class="explorer-account-avatar-edit" aria-hidden="true">
+                    <Icon name="edit" size="11px" />
+                  </span>
+                </button>
+              {:else}
+                <div class="explorer-account-avatar" aria-hidden="true">
+                  <AvatarPreview username={authStore.username ?? ''} avatarPath={authStore.avatarPath} size={42} />
+                </div>
+              {/if}
               <span class="explorer-account-identity">
                 <strong>{accountDisplayName}</strong>
                 <small>{authStore.username ?? $t('common.unknown')}</small>
@@ -567,7 +578,7 @@
   </div>
 </div>
 
-{#if showAvatarPicker}
+{#if showAvatarPicker && canChangeOwnAvatar}
   <UserAvatarPicker onClose={() => (showAvatarPicker = false)} />
 {/if}
 
@@ -610,7 +621,7 @@
   .explorer-account-menu button:disabled { opacity: 0.45; }
   .explorer-account-summary { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; padding: 0.65rem; }
   .explorer-account-menu .explorer-account-avatar { position: relative; display: grid; width: 42px; height: 42px; place-items: center; overflow: visible; border-radius: 999px; padding: 0; transition: transform 140ms ease, box-shadow 140ms ease; }
-  .explorer-account-menu .explorer-account-avatar:hover { transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--explorer-accent) 22%, transparent); }
+  .explorer-account-menu button.explorer-account-avatar:hover { transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--explorer-accent) 22%, transparent); }
   .explorer-account-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: grid; width: 17px; height: 17px; place-items: center; border: 2px solid var(--explorer-surface-raised); border-radius: 999px; color: var(--explorer-background); background: var(--explorer-accent); }
   .explorer-account-identity { display: grid; min-width: 0; }
   .explorer-account-identity strong, .explorer-account-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

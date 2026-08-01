@@ -25,11 +25,13 @@
 
   let {
     title,
+    description,
     documentFilter = () => true,
     onSelect,
     onCancel,
   }: {
     title: string;
+    description?: string;
     documentFilter?: (document: ServerDocumentEntry) => boolean;
     onSelect: (document: ServerDocumentEntry) => void;
     onCancel: () => void;
@@ -117,6 +119,11 @@
 <ModalFrame {title} maxWidth="max-w-3xl" closeLabel={$t('common.close')} onClose={onCancel}>
   <div class="flex max-h-[78vh] flex-col">
     <div class="space-y-3 border-b border-md3-outline/60 p-5">
+      {#if description}
+        <p class="max-w-[70ch] text-xs leading-5 text-md3-on-surface-variant">
+          {description}
+        </p>
+      {/if}
       <div class="flex min-w-0 items-center gap-2 text-sm text-md3-on-surface-variant">
         <span class="text-md3-primary-emphasis"><Icon name="folderOpen" size="18px" /></span>
         <span class="shrink-0 font-medium">{$t('files.currentLocation')}</span>

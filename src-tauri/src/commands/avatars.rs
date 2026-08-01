@@ -186,18 +186,12 @@ pub async fn set_user_avatar(
     username: String,
     document_id: String,
 ) -> Result<bool, String> {
-    let (conn, auth_username, token) = get_connection_auth(&state).await?;
-
-    let resp = send_action_request(
-        &conn,
+    server_action_bool(
+        &state,
         "set_user_avatar",
         serde_json::json!({"username": username, "document_id": document_id}),
-        &auth_username,
-        &token,
     )
-    .await?;
-
-    Ok(resp.code == 200)
+    .await
 }
 
 // ---------------------------------------------------------------------------
