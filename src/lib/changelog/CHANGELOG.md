@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.41.1
+**Released on:** 2026-08-02
+
+**Title:** Bugfix
+
+### Fixed
+- Implement directory request timeout handling and improve error messaging
+
+--- 
+
 ## v0.41.0
 **Released on:** 2026-08-02
 
