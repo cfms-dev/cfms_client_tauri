@@ -11,10 +11,22 @@ export type DirectoryLoadContinuation =
   | { status: 'cancelled' }
   | { status: 'partial-error'; cursor: string; error: unknown };
 
+export const DIRECTORY_REQUEST_TIMEOUT_MS = 30_000;
+
+export class DirectoryRequestTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`Directory request timed out after ${Math.ceil(timeoutMs / 1_000)} seconds.`);
+    this.name = 'DirectoryRequestTimeoutError';
+  }
+}
+
 export class DirectoryLoadController {
   private generation = 0;
 
-  constructor(private readonly fetchPage: DirectoryPageFetcher) {}
+  constructor(
+    private readonly fetchPage: DirectoryPageFetcher,
+    private readonly requestTimeoutMs = DIRECTORY_REQUEST_TIMEOUT_MS,
+  ) {}
 
   begin(): number {
     this.generation += 1;
@@ -35,7 +47,10 @@ export class DirectoryLoadController {
     cursor: string | null,
     pageSize: number,
   ): Promise<ListDirectoryPageResponse | null> {
-    const page = await this.fetchPage(folderId, cursor, pageSize);
+    const page = await withTimeout(
+      this.fetchPage(folderId, cursor, pageSize),
+      this.requestTimeoutMs,
+    );
     return this.isCurrent(generation) ? page : null;
   }
 
@@ -64,4 +79,25 @@ export class DirectoryLoadController {
     }
     return { status: 'cancelled' };
   }
+}
+
+function withTimeout<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return request;
+
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new DirectoryRequestTimeoutError(timeoutMs));
+    }, timeoutMs);
+
+    request.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 }

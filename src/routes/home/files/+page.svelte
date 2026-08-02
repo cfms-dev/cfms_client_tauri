@@ -126,7 +126,10 @@
     type ProgressiveSortSnapshot,
   } from '$lib/files/sort-worker-client';
   import { DIRECTORY_PAGE_SIZE } from '$lib/files/progressive-listing';
-  import { DirectoryLoadController } from '$lib/files/directory-load-controller';
+  import {
+    DirectoryLoadController,
+    DirectoryRequestTimeoutError,
+  } from '$lib/files/directory-load-controller';
   import { canSearchFiles } from '$lib/files/search-permissions';
   import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
   import {
@@ -611,8 +614,8 @@
   }
 
   function handleDirectorySorterError(sortError: unknown) {
-    directoryLoadError = formatError(sortError);
-    directoryLoadPhase = directoryLoadedCount > 0 ? 'partial-error' : 'idle';
+    directoryLoadError = formatDirectoryLoadError(sortError);
+    directoryLoadPhase = 'partial-error';
     loading = false;
     resolveFirstDirectorySnapshot?.(false);
     resolveFirstDirectorySnapshot = null;
@@ -654,9 +657,23 @@
   }
 
   function retryDirectoryLoad() {
-    if (directoryLoadPhase !== 'partial-error' || !directoryNextCursor) return;
+    if (directoryLoadPhase !== 'partial-error') return;
     directoryLoadError = null;
-    void continueDirectoryLoad(directoryGeneration, directoryNextCursor);
+    if (directoryNextCursor && directoryLoadedCount > 0) {
+      void continueDirectoryLoad(directoryGeneration, directoryNextCursor);
+      return;
+    }
+    void loadDirectory(
+      currentFolderId,
+      true,
+      activeDirectoryReturnNavigation ?? undefined,
+    );
+  }
+
+  function formatDirectoryLoadError(loadError: unknown) {
+    return loadError instanceof DirectoryRequestTimeoutError
+      ? $t('workspace.directoryRequestTimedOut')
+      : formatError(loadError);
   }
 
   function showDirectoryAccessDenied(
@@ -720,12 +737,12 @@
       return true;
     } catch (e) {
       if (generation !== directoryGeneration) return false;
-      directoryLoadError = formatError(e);
-      directoryLoadPhase = 'idle';
+      directoryLoadError = formatDirectoryLoadError(e);
+      directoryLoadPhase = 'partial-error';
       if (isAccessDeniedError(e)) {
         showDirectoryAccessDenied(normalizedFolderId, deniedReturnNavigation);
       } else {
-        error = String(e);
+        error = directoryLoadError;
       }
       if (!preserveOnError && !directoryAccessDenied) {
         folders = [];
@@ -734,7 +751,7 @@
       }
       return false;
     } finally {
-      if (generation === directoryGeneration && directoryLoadPhase === 'idle') loading = false;
+      if (generation === directoryGeneration && directoryLoadPhase !== 'initial-loading') loading = false;
     }
   }
 
@@ -3756,7 +3773,7 @@
     primary={statusBarPrimary}
     secondary={statusBarSecondary}
     tone={directoryLoadPhase === 'partial-error' ? 'danger' : 'default'}
-    actionLabel={directoryLoadPhase === 'partial-error' && directoryNextCursor ? $t('workspace.continueLoading') : ''}
+    actionLabel={directoryLoadPhase === 'partial-error' ? $t('workspace.retryLoading') : ''}
     onAction={retryDirectoryLoad}
   />
 </div>

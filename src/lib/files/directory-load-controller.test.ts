@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ListDirectoryPageResponse } from '$lib/api';
-import { DirectoryLoadController } from './directory-load-controller';
+import {
+  DirectoryLoadController,
+  DirectoryRequestTimeoutError,
+} from './directory-load-controller';
 
 function page(id: string, nextCursor: string | null): ListDirectoryPageResponse {
   return {
@@ -14,6 +17,10 @@ function page(id: string, nextCursor: string | null): ListDirectoryPageResponse 
 }
 
 describe('DirectoryLoadController', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('drops a page that resolves after navigation changes generation', async () => {
     let resolvePage!: (value: ListDirectoryPageResponse) => void;
     const fetcher = vi.fn(() => new Promise<ListDirectoryPageResponse>((resolve) => { resolvePage = resolve; }));
@@ -46,5 +53,29 @@ describe('DirectoryLoadController', () => {
 
     expect(resumed).toEqual({ status: 'complete' });
     expect(received).toEqual(['one', 'two']);
+  });
+
+  it('rejects a page request that never settles instead of leaving the UI loading forever', async () => {
+    vi.useFakeTimers();
+    const controller = new DirectoryLoadController(
+      () => new Promise<ListDirectoryPageResponse>(() => {}),
+      5_000,
+    );
+    const request = controller.requestPage(controller.begin(), null, null, 128);
+    const rejection = expect(request).rejects.toEqual(new DirectoryRequestTimeoutError(5_000));
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await rejection;
+  });
+
+  it('clears the request timeout after a page resolves', async () => {
+    vi.useFakeTimers();
+    const controller = new DirectoryLoadController(async () => page('ready', null), 5_000);
+
+    await expect(controller.requestPage(controller.begin(), null, null, 128)).resolves.toEqual(
+      page('ready', null),
+    );
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

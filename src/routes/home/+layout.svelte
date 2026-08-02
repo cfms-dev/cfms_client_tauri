@@ -34,6 +34,7 @@
   import { extensionsStore } from '$lib/extensions.svelte';
   import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
   import { isIconName } from '$lib/icons';
+  import { transitionOutOfSession } from '$lib/session-exit';
   import { formatUserFacingError } from '$lib/user-facing-errors';
 
   let { children }: { children: Snippet } = $props();
@@ -332,9 +333,11 @@
     if (accountActionBusy) return;
     accountActionBusy = true;
     try {
-      await clearAuthSession();
-      authStore.clear();
-      await goto('/login', { replaceState: true });
+      await transitionOutOfSession({
+        clearLocalState: () => authStore.clear(),
+        clearBackendState: clearAuthSession,
+        navigate: () => goto('/login', { replaceState: true }),
+      });
     } catch (error) {
       notificationStore.error(formatUserFacingError(error));
     } finally {
@@ -347,11 +350,14 @@
     if (accountActionBusy) return;
     accountActionBusy = true;
     try {
-      await disconnect();
-      await clearAuthSession();
-      authStore.clear();
-      serverStateStore.clear();
-      await goto('/connect', { replaceState: true });
+      await transitionOutOfSession({
+        clearLocalState: () => {
+          authStore.clear();
+          serverStateStore.clear();
+        },
+        clearBackendState: disconnect,
+        navigate: () => goto('/connect', { replaceState: true }),
+      });
     } catch (error) {
       notificationStore.error(formatUserFacingError(error));
     } finally {
