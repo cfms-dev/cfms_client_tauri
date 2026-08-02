@@ -62,7 +62,10 @@ describe('lockdown page authentication states', () => {
   it('explains an incomplete login and hides logout for signed-out users', () => {
     render(LockdownPage);
 
+    expect(screen.getByRole('main', { name: 'lockdown.title' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'lockdown.title' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('lockdown.signInIncomplete');
+    expect(screen.queryByRole('note')).toBeNull();
     expect(screen.queryByRole('button', { name: 'lockdown.logout' })).toBeNull();
     expect(screen.getByRole('button', { name: 'lockdown.disconnect' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'lockdown.quit' })).toBeTruthy();
@@ -74,5 +77,25 @@ describe('lockdown page authentication states', () => {
 
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByRole('button', { name: 'lockdown.logout' })).toBeTruthy();
+  });
+
+  it('shows a provided lockdown reason without changing its content', () => {
+    mocks.serverStateStore.lockdownReason = '  Emergency maintenance\nContact the administrator.  ';
+    render(LockdownPage);
+
+    const reason = screen.getByRole('note');
+    expect(reason.textContent).toContain('lockdown.reasonLabel');
+    expect(reason.textContent).toContain('Emergency maintenance\nContact the administrator.');
+  });
+
+  it('disables logout when the authenticated session is no longer connected', () => {
+    mocks.authStore.isLoggedIn = true;
+    mocks.serverStateStore.connected = false;
+    render(LockdownPage);
+
+    const logoutButton = screen.getByRole('button', { name: 'lockdown.logout' });
+    expect(logoutButton.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'lockdown.disconnect' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'lockdown.quit' }).hasAttribute('disabled')).toBe(false);
   });
 });
