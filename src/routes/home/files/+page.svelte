@@ -6,7 +6,7 @@
   //
   // Reference: get_directory / get_document in reference/src/include/ui/util/path.py
 
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -509,25 +509,29 @@
   $effect(() => {
     const allowedBySnapshot = hasSearchPermission;
     const snapshotRevision = authStore.permissionSnapshotRevision;
-    if (allowedBySnapshot && snapshotRevision !== previousPermissionSnapshotRevision) {
-      searchDeniedByServer = false;
-    }
-    previousPermissionSnapshotRevision = snapshotRevision;
+    const deniedByServer = searchDeniedByServer;
 
-    if (allowedBySnapshot && !searchDeniedByServer) return;
-    clearSearchPreviewDebounce();
-    clearSearchPreviewPanelPosition();
-    searchPreviewRunId += 1;
-    searchRunId += 1;
-    searchPreview = {
-      ...searchPreview,
-      open: false,
-      loading: false,
-      loadingMore: false,
-      results: null,
-    };
-    searchDialog = { ...searchDialog, open: false, loading: false };
-    searchPreviewActiveIndex = -1;
+    untrack(() => {
+      if (allowedBySnapshot && snapshotRevision !== previousPermissionSnapshotRevision) {
+        searchDeniedByServer = false;
+      }
+      previousPermissionSnapshotRevision = snapshotRevision;
+
+      if (allowedBySnapshot && !deniedByServer) return;
+      clearSearchPreviewDebounce();
+      clearSearchPreviewPanelPosition();
+      searchPreviewRunId += 1;
+      searchRunId += 1;
+      searchPreview = {
+        ...searchPreview,
+        open: false,
+        loading: false,
+        loadingMore: false,
+        results: null,
+      };
+      searchDialog = { ...searchDialog, open: false, loading: false };
+      searchPreviewActiveIndex = -1;
+    });
   });
 
   $effect(() => {

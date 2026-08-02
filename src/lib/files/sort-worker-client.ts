@@ -5,9 +5,10 @@ import {
   type SortField,
   type SortedFileEntries,
 } from './sorting';
-import { ProgressiveListingAccumulator } from './progressive-listing';
+import { DIRECTORY_PAGE_SIZE, ProgressiveListingAccumulator } from './progressive-listing';
 
 const WORKER_SORT_THRESHOLD = 400;
+const PROGRESSIVE_WORKER_RESPONSE_TIMEOUT_MS = 1_000;
 
 interface SortResponse extends SortedFileEntries {
   type?: 'sort-once';
@@ -120,46 +121,139 @@ export function createProgressiveDirectorySorter(
   let fallbackField: SortField = 'name';
   let fallbackDirection: SortDirection = 'asc';
   const fallbackAccumulator = new ProgressiveListingAccumulator();
+  let pendingFallbackSnapshot: ProgressiveSortSnapshot | null = null;
+  let fallbackTimeout: ReturnType<typeof setTimeout> | null = null;
+  let lastPublishedSnapshot: Pick<
+    ProgressiveSortSnapshot,
+    'generation' | 'revision' | 'loadedCount' | 'complete'
+  > | null = null;
+
+  function clearFallbackTimeout() {
+    if (fallbackTimeout === null) return;
+    clearTimeout(fallbackTimeout);
+    fallbackTimeout = null;
+  }
+
+  function publishSnapshot(snapshot: ProgressiveSortSnapshot) {
+    if (
+      lastPublishedSnapshot
+      && snapshot.generation === lastPublishedSnapshot.generation
+      && snapshot.revision === lastPublishedSnapshot.revision
+      && snapshot.loadedCount === lastPublishedSnapshot.loadedCount
+      && snapshot.complete === lastPublishedSnapshot.complete
+    ) return;
+    lastPublishedSnapshot = snapshot;
+    onSnapshot(snapshot);
+  }
+
+  function disableWorker(reason: unknown) {
+    clearFallbackTimeout();
+    progressiveWorker?.terminate();
+    progressiveWorker = null;
+    if (reason) {
+      console.warn('Progressive file sorter stopped responding; using the main thread.', reason);
+    }
+  }
+
+  function publishPendingFallback() {
+    const snapshot = pendingFallbackSnapshot;
+    pendingFallbackSnapshot = null;
+    if (!snapshot) return;
+    disableWorker(new Error('Progressive file sorter response timed out.'));
+    publishSnapshot(snapshot);
+  }
+
+  function armFallback(snapshot: ProgressiveSortSnapshot) {
+    pendingFallbackSnapshot = snapshot;
+    clearFallbackTimeout();
+    fallbackTimeout = setTimeout(
+      publishPendingFallback,
+      PROGRESSIVE_WORKER_RESPONSE_TIMEOUT_MS,
+    );
+  }
+
+  function snapshotFallback(revision = fallbackRevision): ProgressiveSortSnapshot | null {
+    const snapshot = fallbackAccumulator.snapshot(fallbackField, fallbackDirection);
+    if (snapshot.loadedCount === 0 && !snapshot.complete) return null;
+    return {
+      generation: fallbackGeneration,
+      revision,
+      ...snapshot,
+    };
+  }
 
   if (progressiveWorker) {
     progressiveWorker.onmessage = (event: MessageEvent<ProgressiveSortSnapshot & { type: string; clientId: number }>) => {
       if (event.data.type !== 'progressive-snapshot' || event.data.clientId !== clientId) return;
-      onSnapshot(event.data);
+      if (
+        pendingFallbackSnapshot
+        && event.data.generation === pendingFallbackSnapshot.generation
+        && event.data.revision === pendingFallbackSnapshot.revision
+        && event.data.loadedCount >= pendingFallbackSnapshot.loadedCount
+      ) {
+        pendingFallbackSnapshot = null;
+        clearFallbackTimeout();
+      }
+      publishSnapshot(event.data);
     };
-    progressiveWorker.onerror = (event) => onError(event.error ?? new Error(event.message));
+    progressiveWorker.onerror = (event) => {
+      const snapshot = pendingFallbackSnapshot ?? snapshotFallback();
+      pendingFallbackSnapshot = null;
+      disableWorker(event.error ?? new Error(event.message));
+      if (snapshot) publishSnapshot(snapshot);
+    };
+    progressiveWorker.onmessageerror = () => {
+      const snapshot = pendingFallbackSnapshot ?? snapshotFallback();
+      pendingFallbackSnapshot = null;
+      disableWorker(new Error('Progressive file sorter returned an unreadable response.'));
+      if (snapshot) publishSnapshot(snapshot);
+    };
   }
 
   return {
     reset(generation, revision, field, direction) {
-      if (progressiveWorker) {
-        progressiveWorker.postMessage({ type: 'progressive-reset', clientId, generation, revision, field, direction });
-        return;
-      }
+      clearFallbackTimeout();
+      pendingFallbackSnapshot = null;
       fallbackGeneration = generation;
       fallbackRevision = revision;
       fallbackField = field;
       fallbackDirection = direction;
       fallbackAccumulator.reset();
+      if (progressiveWorker) {
+        try {
+          progressiveWorker.postMessage({ type: 'progressive-reset', clientId, generation, revision, field, direction });
+        } catch (error) {
+          disableWorker(error);
+        }
+      }
     },
     append(generation, revision, folders, documents, complete) {
-      if (progressiveWorker) {
-        progressiveWorker.postMessage({ type: 'progressive-append', clientId, generation, revision, folders, documents, complete });
-        return;
-      }
       try {
         if (generation !== fallbackGeneration) return;
         fallbackRevision = revision;
         const snapshot = fallbackAccumulator.append(folders, documents, complete, fallbackField, fallbackDirection);
-        if (snapshot) onSnapshot({ generation, revision, ...snapshot });
+        const progressiveSnapshot = snapshot ? { generation, revision, ...snapshot } : null;
+        if (progressiveWorker) {
+          try {
+            progressiveWorker.postMessage({ type: 'progressive-append', clientId, generation, revision, folders, documents, complete });
+          } catch (error) {
+            disableWorker(error);
+          }
+        }
+        if (!progressiveSnapshot) return;
+        if (!progressiveWorker) {
+          publishSnapshot(progressiveSnapshot);
+        } else if (progressiveSnapshot.loadedCount <= DIRECTORY_PAGE_SIZE) {
+          publishSnapshot(progressiveSnapshot);
+          armFallback(progressiveSnapshot);
+        } else {
+          armFallback(progressiveSnapshot);
+        }
       } catch (error) {
         onError(error);
       }
     },
     resort(generation, revision, field, direction) {
-      if (progressiveWorker) {
-        progressiveWorker.postMessage({ type: 'progressive-resort', clientId, generation, revision, field, direction });
-        return;
-      }
       fallbackRevision = revision;
       fallbackField = field;
       fallbackDirection = direction;
@@ -167,14 +261,24 @@ export function createProgressiveDirectorySorter(
         if (generation !== fallbackGeneration) return;
         const snapshot = fallbackAccumulator.snapshot(field, direction);
         if (snapshot.loadedCount === 0 && !snapshot.complete) return;
-        onSnapshot({ generation, revision, ...snapshot });
+        const progressiveSnapshot = { generation, revision, ...snapshot };
+        if (progressiveWorker) {
+          try {
+            progressiveWorker.postMessage({ type: 'progressive-resort', clientId, generation, revision, field, direction });
+          } catch (error) {
+            disableWorker(error);
+          }
+        }
+        if (!progressiveWorker) publishSnapshot(progressiveSnapshot);
+        else armFallback(progressiveSnapshot);
       } catch (error) {
         onError(error);
       }
     },
     dispose() {
-      progressiveWorker?.terminate();
-      progressiveWorker = null;
+      clearFallbackTimeout();
+      pendingFallbackSnapshot = null;
+      disableWorker(null);
       fallbackGeneration += 1;
     },
   };

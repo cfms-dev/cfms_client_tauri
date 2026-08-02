@@ -576,7 +576,7 @@
       data-programmatic-focus="true"
       tabindex="-1"
     >
-      {#key `${$page.url.pathname}:${routeReloadToken}`}
+      {#key routeReloadToken}
         <div class="explorer-route-view">
           {@render children()}
         </div>
