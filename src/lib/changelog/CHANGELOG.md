@@ -4,6 +4,16 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.41.2
+**Released on:** 2026-08-02
+
+**Title:** Bugfix
+
+### Added
+- Enhance progressive directory sorter with timeout handling and fallback logic
+
+--- 
+
 ## v0.41.1
 **Released on:** 2026-08-02
 
