@@ -4,6 +4,19 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.41.0
+**Released on:** 2026-08-02
+
+**Title:** Protocol Version 21
+
+### Added
+- Enhance lockdown page with improved structure and additional tests
+- Refactor error handling and user-facing messages
+- Add avatar permissions and implement user avatar management features
+- Implement lockdown handling and user feedback in authentication flow
+
+--- 
+
 ## v0.40.0
 **Released on:** 2026-07-31
 
