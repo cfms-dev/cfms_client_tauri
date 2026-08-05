@@ -1,8 +1,15 @@
+<!--
+  THESIS: Time anchors lockdown; the screen refuses the generic centered alert card.
+  OWN-WORLD: Carbon fields, one rose security signal, exact rules, and compact controls.
+  STORY: See the suspended state, read its reason, then wait or leave safely.
+  FIRST VIEWPORT: A monumental clock and slim status line float above one lower operations shelf.
+  FORM: Time Horizon, grounded structure 3, approved lower-shelf staging; seed 7ec1ca98.
+-->
 <script lang="ts">
   // Lockdown screen
   //
   // Full-screen overlay shown when the server is in emergency lockdown mode.
-  // Prevents all interaction except quitting the application.
+  // Suspends file interaction while keeping session-exit and app-lock actions available.
   //
   // Reference: LockdownModel in reference/src/include/ui/models/misc/lockdown.py
 
@@ -104,97 +111,111 @@
     </div>
   {/if}
 
-  <section class="lockdown-panel">
-    <header class="lockdown-header">
-      <span class="lockdown-symbol" aria-hidden="true">
-        <Icon name="emergencyHome" size="56px" />
-      </span>
+  <section class="lockdown-stage">
+    <div class="lockdown-hero">
+      <time
+        class="lockdown-clock"
+        datetime={currentTime || undefined}
+      >
+        {currentTime || '--:--:--'}
+      </time>
 
-      <div class="lockdown-heading-copy">
-        <div class="lockdown-title-row">
+      <header class="lockdown-status-line">
+        <span class="lockdown-symbol" aria-hidden="true">
+          <Icon name="emergencyHome" size="24px" />
+        </span>
+        <div class="lockdown-status-copy">
           <h1 id="lockdown-title">{$t('lockdown.title')}</h1>
-          <time class="lockdown-clock">{currentTime || '--:--:--'}</time>
+          <p id="lockdown-description" class="lockdown-description">
+            {$t('lockdown.body')}
+          </p>
+        </div>
+      </header>
+    </div>
+
+    <footer
+      class="lockdown-shelf"
+      class:lockdown-shelf--single={authStore.isLoggedIn && !lockdownReason}
+    >
+      {#if !authStore.isLoggedIn || lockdownReason}
+        <div class="lockdown-context">
+          {#if lockdownReason}
+            <aside class="lockdown-reason" role="note" aria-labelledby="lockdown-reason-label">
+              <p id="lockdown-reason-label" class="lockdown-context-label">
+                {$t('lockdown.reasonLabel')}
+              </p>
+              <p class="lockdown-context-copy">
+                {lockdownReason}
+              </p>
+            </aside>
+          {/if}
+
+          {#if !authStore.isLoggedIn}
+            <div class="lockdown-session-note" role="status">
+              <span class="lockdown-detail-icon" aria-hidden="true">
+                <Icon name="warningAmber" size="20px" />
+              </span>
+              <p class="lockdown-context-copy">{$t('lockdown.signInIncomplete')}</p>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="lockdown-operations">
+        <div class="lockdown-action-copy">
+          <p class="lockdown-wait-copy">{$t('lockdown.wait')}</p>
+          <p class="lockdown-quit-hint">{$t('lockdown.quitHint')}</p>
         </div>
 
-        <p id="lockdown-description" class="lockdown-description">
-          {$t('lockdown.body')}
-        </p>
-      </div>
-    </header>
-
-    {#if !authStore.isLoggedIn}
-      <p
-        class="lockdown-session-note"
-        role="status"
-      >
-        {$t('lockdown.signInIncomplete')}
-      </p>
-    {/if}
-
-    {#if lockdownReason}
-      <aside class="lockdown-reason" role="note" aria-labelledby="lockdown-reason-label">
-        <p id="lockdown-reason-label" class="lockdown-reason-label">
-          {$t('lockdown.reasonLabel')}
-        </p>
-        <p class="lockdown-reason-copy">
-          {lockdownReason}
-        </p>
-      </aside>
-    {/if}
-
-    <footer class="lockdown-footer">
-      <p class="lockdown-wait-copy">
-        {$t('lockdown.wait')}
-      </p>
-      <div
-        class="lockdown-action-grid"
-        class:lockdown-action-grid--signed-out={!authStore.isLoggedIn}
-      >
-        {#if authStore.isLoggedIn}
+        <div
+          class="lockdown-actions"
+          class:lockdown-actions--signed-out={!authStore.isLoggedIn}
+        >
           <DialogActionButton
-            class="lockdown-action-button"
-            variant="secondary"
-            onclick={handleLogout}
-            disabled={busyAction !== null || !serverStateStore.connected}
+            class="lockdown-action-button lockdown-action-button--primary"
+            variant="primary"
+            onclick={handleDisconnect}
+            disabled={busyAction !== null}
           >
-            {#if busyAction === 'logout'}
+            {#if busyAction === 'disconnect'}
               <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
             {:else}
-              <Icon name="logout" size="18px" />
+              <Icon name="connect" size="18px" />
             {/if}
-            {$t('lockdown.logout')}
+            {$t('lockdown.disconnect')}
           </DialogActionButton>
-        {/if}
-        <DialogActionButton
-          class="lockdown-action-button"
-          variant="primary"
-          onclick={handleDisconnect}
-          disabled={busyAction !== null}
-        >
-          {#if busyAction === 'disconnect'}
-            <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-          {:else}
-            <Icon name="connect" size="18px" />
+
+          {#if authStore.isLoggedIn}
+            <DialogActionButton
+              class="lockdown-action-button"
+              variant="secondary"
+              onclick={handleLogout}
+              disabled={busyAction !== null || !serverStateStore.connected}
+            >
+              {#if busyAction === 'logout'}
+                <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+              {:else}
+                <Icon name="logout" size="18px" />
+              {/if}
+              {$t('lockdown.logout')}
+            </DialogActionButton>
           {/if}
-          {$t('lockdown.disconnect')}
-        </DialogActionButton>
-        <DialogActionButton
-          class="lockdown-action-button"
-          variant="danger"
-          onclick={handleQuit}
-          disabled={busyAction !== null}
-        >
-          {#if busyAction === 'quit'}
-            <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-          {:else}
-            <Icon name="close" size="18px" />
-          {/if}
-          {$t('lockdown.quit')}
-        </DialogActionButton>
+
+          <DialogActionButton
+            class="lockdown-action-button lockdown-action-button--quit"
+            variant="secondary"
+            onclick={handleQuit}
+            disabled={busyAction !== null}
+          >
+            {#if busyAction === 'quit'}
+              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+            {:else}
+              <Icon name="close" size="18px" />
+            {/if}
+            {$t('lockdown.quit')}
+          </DialogActionButton>
+        </div>
       </div>
-      <p class="lockdown-quit-hint">
-        {$t('lockdown.quitHint')}
-      </p>
     </footer>
   </section>
 </main>
@@ -205,14 +226,14 @@
     z-index: 50;
     inset: 0;
     box-sizing: border-box;
-    display: grid;
+    display: flex;
     min-block-size: 100dvh;
-    place-items: center;
+    flex-direction: column;
     overflow: auto;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 4.75rem);
-    padding-block-end: calc(var(--safe-area-bottom, 0px) + 2rem);
-    padding-inline-start: max(1.25rem, var(--safe-area-left, 0px));
-    padding-inline-end: max(1.25rem, var(--safe-area-right, 0px));
+    padding-block-start: calc(var(--safe-area-top, 0px) + 4.25rem);
+    padding-block-end: max(1.25rem, var(--safe-area-bottom, 0px));
+    padding-inline-start: max(1.5rem, var(--safe-area-left, 0px));
+    padding-inline-end: max(1.5rem, var(--safe-area-right, 0px));
     background: var(--explorer-background);
   }
 
@@ -231,97 +252,119 @@
     block-size: 40px;
   }
 
-  .lockdown-panel {
+  .lockdown-stage {
     box-sizing: border-box;
-    inline-size: min(100%, 580px);
-    border: 1px solid var(--explorer-border);
-    border-radius: var(--explorer-radius-large);
-    padding: clamp(1.25rem, 3vw, 2rem);
+    display: grid;
+    grid-template-rows: minmax(18rem, 1fr) auto;
+    inline-size: min(100%, 1180px);
+    min-block-size: calc(100dvh - 6.75rem);
+    flex: none;
+    margin: auto;
     color: var(--explorer-text);
-    background: var(--explorer-surface);
     animation: lockdown-enter var(--motion-duration-medium2)
       var(--motion-easing-emphasized-decelerate) both;
   }
 
-  .lockdown-header {
+  .lockdown-hero {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
-    gap: 1.25rem;
+    min-inline-size: 0;
+    place-content: center;
+    padding: clamp(2.25rem, 7vh, 5rem) clamp(0rem, 2vw, 1.5rem)
+      clamp(2.25rem, 5vh, 3.75rem);
+    text-align: center;
+  }
+
+  .lockdown-clock {
+    color: var(--explorer-text);
+    font: 600 clamp(4rem, 11vw, 6rem)/1 var(--font-md3-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    text-wrap: nowrap;
+  }
+
+  .lockdown-status-line {
+    display: flex;
+    max-inline-size: 850px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    margin: clamp(1.75rem, 4vh, 2.75rem) auto 0;
   }
 
   .lockdown-symbol {
     display: inline-flex;
-    inline-size: 72px;
-    block-size: 72px;
+    inline-size: 32px;
+    block-size: 32px;
     flex: none;
     align-items: center;
     justify-content: center;
-    border: 1px solid color-mix(in srgb, var(--explorer-danger) 32%, transparent);
-    border-radius: var(--explorer-radius-large);
+    border: 1px solid color-mix(in srgb, var(--explorer-danger) 46%, transparent);
+    border-radius: var(--explorer-radius-small);
     color: var(--explorer-danger);
-    background: color-mix(in srgb, var(--explorer-danger) 10%, transparent);
+    background: color-mix(in srgb, var(--explorer-danger) 9%, transparent);
   }
 
-  .lockdown-heading-copy {
-    min-inline-size: 0;
-  }
-
-  .lockdown-title-row {
+  .lockdown-status-copy {
     display: flex;
-    min-block-size: 2rem;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
+    min-inline-size: 0;
+    align-items: center;
+    text-align: start;
   }
 
-  .lockdown-title-row h1 {
-    margin: 0;
-    color: var(--explorer-text);
-    font: 700 clamp(1.45rem, 4vw, 2rem)/1.15 var(--font-md3-sans);
-    letter-spacing: -0.025em;
-  }
-
-  .lockdown-clock {
+  .lockdown-status-copy h1 {
     flex: none;
-    color: var(--explorer-text-muted);
-    font: 500 0.8rem/1.5 var(--font-md3-mono);
-    font-variant-numeric: tabular-nums;
+    margin: 0;
+    border-inline-end: 1px solid var(--explorer-border-strong);
+    padding-inline-end: 1rem;
+    color: var(--explorer-danger);
+    font: 700 1.0625rem/1.3 var(--font-md3-sans);
+    letter-spacing: -0.015em;
   }
 
   .lockdown-description {
     max-inline-size: 68ch;
-    margin: 0.6rem 0 0;
+    margin: 0;
+    padding-inline-start: 1rem;
     color: var(--explorer-text-muted);
-    font: 400 0.875rem/1.6 var(--font-md3-sans);
+    font: 400 0.8125rem/1.55 var(--font-md3-sans);
   }
 
-  .lockdown-session-note {
-    margin: 1.25rem 0 0;
-    border: 1px solid color-mix(in srgb, var(--explorer-warning) 30%, transparent);
-    border-radius: var(--explorer-radius-medium);
-    padding: 0.75rem 0.875rem;
-    color: var(--explorer-warning);
-    background: color-mix(in srgb, var(--explorer-warning) 8%, transparent);
-    font: 500 0.8125rem/1.55 var(--font-md3-sans);
+  .lockdown-shelf {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(30rem, 0.95fr);
+    border-block-start: 1px solid var(--explorer-border-strong);
+    border-radius: var(--explorer-radius-large) var(--explorer-radius-large) 0 0;
+    background: var(--explorer-surface);
+  }
+
+  .lockdown-shelf--single {
+    grid-template-columns: 1fr;
+  }
+
+  .lockdown-context {
+    display: grid;
+    min-inline-size: 0;
+    align-content: center;
+    padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  }
+
+  .lockdown-context > :global(* + *) {
+    margin-block-start: 1rem;
+    border-block-start: 1px solid var(--explorer-border);
+    padding-block-start: 1rem;
   }
 
   .lockdown-reason {
-    margin-block-start: 1.25rem;
-    border: 1px solid color-mix(in srgb, var(--explorer-danger) 28%, var(--explorer-border));
-    border-radius: var(--explorer-radius-medium);
-    padding: 0.875rem 1rem;
-    background: color-mix(in srgb, var(--explorer-danger) 7%, var(--explorer-surface-raised));
+    min-inline-size: 0;
   }
 
-  .lockdown-reason-label {
-    margin: 0 0 0.35rem;
-    color: var(--explorer-danger);
-    font: 650 0.75rem/1.25 var(--font-md3-sans);
-    letter-spacing: 0.025em;
+  .lockdown-context-label {
+    margin: 0 0 0.55rem;
+    color: var(--explorer-text-muted);
+    font: 600 0.75rem/1.3 var(--font-md3-sans);
   }
 
-  .lockdown-reason-copy {
+  .lockdown-context-copy {
     margin: 0;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -329,50 +372,87 @@
     font: 400 0.875rem/1.6 var(--font-md3-sans);
   }
 
-  .lockdown-footer {
-    margin-block-start: 1.5rem;
-    border-block-start: 1px solid var(--explorer-border);
-    padding-block-start: 1.25rem;
+  .lockdown-session-note {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+  }
+
+  .lockdown-detail-icon {
+    display: inline-flex;
+    color: var(--explorer-warning);
+  }
+
+  .lockdown-operations {
+    display: grid;
+    min-inline-size: 0;
+    align-content: center;
+    gap: 1.1rem;
+    border-inline-start: 1px solid var(--explorer-border);
+    padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  }
+
+  .lockdown-shelf--single .lockdown-operations {
+    inline-size: min(100%, 48rem);
+    justify-self: end;
+    border-inline-start: 0;
+  }
+
+  .lockdown-action-copy {
+    min-inline-size: 0;
   }
 
   .lockdown-wait-copy {
-    margin: 0 0 0.75rem;
-    color: var(--explorer-text-muted);
-    font: 500 0.75rem/1.4 var(--font-md3-sans);
+    margin: 0;
+    color: var(--explorer-text);
+    font: 600 0.8125rem/1.45 var(--font-md3-sans);
   }
 
-  .lockdown-action-grid {
+  .lockdown-quit-hint {
+    max-inline-size: 66ch;
+    margin: 0.4rem 0 0;
+    color: var(--explorer-text-muted);
+    font: 400 0.75rem/1.5 var(--font-md3-sans);
+  }
+
+  .lockdown-actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.625rem;
   }
 
-  .lockdown-action-grid--signed-out {
+  .lockdown-actions--signed-out {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .lockdown-action-grid :global(.lockdown-action-button) {
+  .lockdown-actions :global(.lockdown-action-button) {
     min-block-size: 40px;
     inline-size: 100%;
   }
 
-  .lockdown-quit-hint {
-    margin: 0.75rem 0 0;
-    color: var(--explorer-text-muted);
-    font: 400 0.75rem/1.5 var(--font-md3-sans);
+  .lockdown-actions :global(.lockdown-action-button--quit) {
+    border-color: color-mix(in srgb, var(--explorer-danger) 32%, var(--explorer-border));
+    color: var(--explorer-danger);
+  }
+
+  .lockdown-actions :global(.lockdown-action-button--quit:hover:not(:disabled)) {
+    border-color: color-mix(in srgb, var(--explorer-danger) 54%, var(--explorer-border));
+    color: var(--explorer-danger);
+    background: color-mix(in srgb, var(--explorer-danger) 8%, transparent);
   }
 
   @keyframes lockdown-enter {
     from {
       opacity: 0.82;
       transform: translateY(8px);
-      filter: blur(3px);
+      clip-path: inset(0 0 4% 0 round var(--explorer-radius-large));
     }
 
     to {
       opacity: 1;
       transform: translateY(0);
-      filter: blur(0);
+      clip-path: inset(0 0 0 0 round var(--explorer-radius-large));
     }
   }
 
@@ -382,59 +462,102 @@
       block-size: 44px;
     }
 
-    .lockdown-action-grid :global(.lockdown-action-button) {
+    .lockdown-actions :global(.lockdown-action-button) {
       min-block-size: 44px;
     }
   }
 
-  @media (max-width: 520px) {
+  @media (max-width: 820px) {
+    .lockdown-stage {
+      grid-template-rows: auto auto;
+    }
+
+    .lockdown-shelf {
+      grid-template-columns: 1fr;
+    }
+
+    .lockdown-operations {
+      border-block-start: 1px solid var(--explorer-border);
+      border-inline-start: 0;
+    }
+
+    .lockdown-shelf--single .lockdown-operations {
+      inline-size: 100%;
+    }
+  }
+
+  @media (max-width: 620px) {
     .lockdown-shell {
       padding-block-start: calc(var(--safe-area-top, 0px) + 4.25rem);
-      padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+      padding-block-end: max(0.875rem, var(--safe-area-bottom, 0px));
       padding-inline-start: max(0.875rem, var(--safe-area-left, 0px));
       padding-inline-end: max(0.875rem, var(--safe-area-right, 0px));
     }
 
-    .lockdown-panel {
-      padding: 1.25rem;
+    .lockdown-stage {
+      min-block-size: calc(100dvh - 5.125rem);
     }
 
-    .lockdown-header {
-      grid-template-columns: 1fr;
-      justify-items: center;
-      gap: 1rem;
-      text-align: center;
+    .lockdown-hero {
+      padding-block-start: 2.25rem;
+      padding-block-end: 2rem;
     }
 
-    .lockdown-symbol {
-      inline-size: 64px;
-      block-size: 64px;
+    .lockdown-clock {
+      font-size: clamp(3rem, 15vw, 4.5rem);
     }
 
-    .lockdown-title-row {
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
+    .lockdown-status-line {
+      max-inline-size: 31rem;
+      align-items: start;
+      margin-block-start: 1.75rem;
+    }
+
+    .lockdown-status-copy {
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .lockdown-status-copy h1 {
+      border-inline-end: 0;
+      padding-inline-end: 0;
     }
 
     .lockdown-description {
-      margin-block-start: 0.75rem;
+      padding-inline-start: 0;
     }
 
-    .lockdown-action-grid {
+    .lockdown-context,
+    .lockdown-operations {
+      padding: 1.25rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .lockdown-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .lockdown-actions--signed-out {
       grid-template-columns: 1fr;
     }
   }
 
-  @media (max-height: 640px) and (min-width: 521px) {
-    .lockdown-shell {
-      place-items: start center;
-      padding-block-start: calc(var(--safe-area-top, 0px) + 4.25rem);
-      padding-block-end: calc(var(--safe-area-bottom, 0px) + 1.25rem);
+  @media (max-height: 640px) and (min-width: 821px) {
+    .lockdown-stage {
+      grid-template-rows: minmax(14rem, 1fr) auto;
     }
 
-    .lockdown-panel {
-      padding-block: 1.25rem;
+    .lockdown-hero {
+      padding-block: 1.75rem;
+    }
+
+    .lockdown-clock {
+      font-size: clamp(3.75rem, 10vw, 5rem);
+    }
+
+    .lockdown-status-line {
+      margin-block-start: 1.5rem;
     }
   }
 </style>

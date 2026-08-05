@@ -59,6 +59,17 @@ afterEach(() => {
 });
 
 describe('lockdown page authentication states', () => {
+  it('presents an accessible 24-hour clock without announcing every tick', () => {
+    render(LockdownPage);
+
+    const clock = document.querySelector('time.lockdown-clock');
+    expect(clock).toBeTruthy();
+    expect(clock?.textContent?.trim()).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(clock?.getAttribute('datetime')).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(clock?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(clock?.hasAttribute('aria-live')).toBe(false);
+  });
+
   it('explains an incomplete login and hides logout for signed-out users', () => {
     render(LockdownPage);
 
