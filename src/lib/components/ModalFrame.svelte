@@ -1,9 +1,30 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { flyScale } from '$lib/motion/transitions';
+  import { isMobilePlatform } from '$lib/platform';
   import Icon from '$lib/components/Icon.svelte';
+
+  const DRAG_THRESHOLD = 4;
+
+  type DragBounds = {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
+
+  type DragSession = {
+    pointerId: number;
+    captureElement: HTMLDivElement;
+    startClientX: number;
+    startClientY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    bounds: DragBounds;
+    active: boolean;
+  };
 
   let {
     title,
@@ -25,7 +46,63 @@
     children: Snippet;
   } = $props();
 
+  let backdropElement = $state<HTMLDivElement | null>(null);
+  let positionerElement = $state<HTMLDivElement | null>(null);
   let panelElement = $state<HTMLDivElement | null>(null);
+  let dragAvailable = $state(false);
+  let dragSession = $state<DragSession | null>(null);
+  let offsetX = $state(0);
+  let offsetY = $state(0);
+  let dragFrame: number | null = null;
+  let clampFrame: number | null = null;
+  let pendingClientX = 0;
+  let pendingClientY = 0;
+
+  onMount(() => {
+    try {
+      dragAvailable = !isMobilePlatform();
+    } catch {
+      dragAvailable = typeof window.matchMedia !== 'function'
+        || window.matchMedia('(any-pointer: fine)').matches;
+    }
+  });
+
+  onDestroy(() => {
+    finishDrag();
+    cancelFrame(dragFrame);
+    cancelFrame(clampFrame);
+  });
+
+  $effect(() => {
+    if (open) return;
+    resetDialogPosition();
+  });
+
+  $effect(() => {
+    if (
+      !open
+      || !backdropElement
+      || !positionerElement
+      || typeof window === 'undefined'
+    ) return;
+
+    const handleViewportResize = () => {
+      finishDrag();
+      scheduleClamp();
+    };
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(scheduleClamp);
+
+    observer?.observe(backdropElement);
+    observer?.observe(positionerElement);
+    window.addEventListener('resize', handleViewportResize);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', handleViewportResize);
+    };
+  });
 
   $effect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -107,40 +184,243 @@
   function handleBackdropClick() {
     if (dismissible && closeOnBackdrop) onClose();
   }
+
+  function handleHeaderPointerDown(event: PointerEvent) {
+    if (
+      !dragAvailable
+      || !isTopmostDialog()
+      || event.button !== 0
+      || !event.isPrimary
+      || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')
+      || (event.target instanceof Element && event.target.closest('.modal-close'))
+    ) return;
+
+    const bounds = calculateDragBounds();
+    if (!bounds) return;
+
+    dragSession = {
+      pointerId: event.pointerId,
+      captureElement: event.currentTarget as HTMLDivElement,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOffsetX: offsetX,
+      startOffsetY: offsetY,
+      bounds,
+      active: false,
+    };
+  }
+
+  function handleHeaderPointerMove(event: PointerEvent) {
+    const session = dragSession;
+    if (!session || session.pointerId !== event.pointerId) return;
+
+    if (!session.active) {
+      const distance = Math.hypot(
+        event.clientX - session.startClientX,
+        event.clientY - session.startClientY,
+      );
+      if (distance < DRAG_THRESHOLD) return;
+
+      try {
+        session.captureElement.setPointerCapture(event.pointerId);
+      } catch {
+        dragSession = null;
+        return;
+      }
+      dragSession = { ...session, active: true };
+    }
+
+    event.preventDefault();
+    pendingClientX = event.clientX;
+    pendingClientY = event.clientY;
+    if (dragFrame !== null) return;
+    dragFrame = requestFrame(() => {
+      dragFrame = null;
+      applyDragPosition(pendingClientX, pendingClientY);
+    });
+  }
+
+  function handleHeaderPointerUp(event: PointerEvent) {
+    if (!dragSession || dragSession.pointerId !== event.pointerId) return;
+    if (dragSession.active) applyDragPosition(event.clientX, event.clientY);
+    finishDrag();
+    scheduleClamp();
+  }
+
+  function handleHeaderPointerCancel(event: PointerEvent) {
+    if (!dragSession || dragSession.pointerId !== event.pointerId) return;
+    finishDrag();
+    scheduleClamp();
+  }
+
+  function handleLostPointerCapture(event: PointerEvent) {
+    if (!dragSession || dragSession.pointerId !== event.pointerId) return;
+    cancelFrame(dragFrame);
+    dragFrame = null;
+    dragSession = null;
+    scheduleClamp();
+  }
+
+  function applyDragPosition(clientX: number, clientY: number) {
+    const session = dragSession;
+    if (!session?.active) return;
+    offsetX = clamp(
+      session.startOffsetX + clientX - session.startClientX,
+      session.bounds.minX,
+      session.bounds.maxX,
+    );
+    offsetY = clamp(
+      session.startOffsetY + clientY - session.startClientY,
+      session.bounds.minY,
+      session.bounds.maxY,
+    );
+  }
+
+  function finishDrag() {
+    const session = dragSession;
+    cancelFrame(dragFrame);
+    dragFrame = null;
+    dragSession = null;
+    if (!session?.active) return;
+    try {
+      session.captureElement.releasePointerCapture(session.pointerId);
+    } catch {
+      // Pointer capture may already have been released by the user agent.
+    }
+  }
+
+  function resetDialogPosition() {
+    finishDrag();
+    cancelFrame(clampFrame);
+    clampFrame = null;
+    offsetX = 0;
+    offsetY = 0;
+  }
+
+  function scheduleClamp() {
+    if (dragSession || clampFrame !== null) return;
+    clampFrame = requestFrame(() => {
+      clampFrame = null;
+      clampDialogToViewport();
+    });
+  }
+
+  function clampDialogToViewport() {
+    const bounds = calculateDragBounds();
+    if (!bounds) return;
+    offsetX = clamp(offsetX, bounds.minX, bounds.maxX);
+    offsetY = clamp(offsetY, bounds.minY, bounds.maxY);
+  }
+
+  function calculateDragBounds(): DragBounds | null {
+    if (!backdropElement || !positionerElement) return null;
+
+    const backdropRect = backdropElement.getBoundingClientRect();
+    const panelRect = positionerElement.getBoundingClientRect();
+    const backdropStyle = window.getComputedStyle(backdropElement);
+    const safeLeft = backdropRect.left + cssPixels(backdropStyle.paddingLeft);
+    const safeTop = backdropRect.top + cssPixels(backdropStyle.paddingTop);
+    const safeRight = backdropRect.right - cssPixels(backdropStyle.paddingRight);
+    const safeBottom = backdropRect.bottom - cssPixels(backdropStyle.paddingBottom);
+    const availableWidth = Math.max(0, safeRight - safeLeft);
+    const availableHeight = Math.max(0, safeBottom - safeTop);
+
+    const horizontalBounds = panelRect.width > availableWidth
+      ? { min: 0, max: 0 }
+      : {
+          min: offsetX + safeLeft - panelRect.left,
+          max: offsetX + safeRight - panelRect.right,
+        };
+    const verticalBounds = panelRect.height > availableHeight
+      ? { min: 0, max: 0 }
+      : {
+          min: offsetY + safeTop - panelRect.top,
+          max: offsetY + safeBottom - panelRect.bottom,
+        };
+
+    return {
+      minX: horizontalBounds.min,
+      maxX: horizontalBounds.max,
+      minY: verticalBounds.min,
+      maxY: verticalBounds.max,
+    };
+  }
+
+  function cssPixels(value: string) {
+    const pixels = Number.parseFloat(value);
+    return Number.isFinite(pixels) ? pixels : 0;
+  }
+
+  function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function requestFrame(callback: FrameRequestCallback) {
+    if (typeof window.requestAnimationFrame === 'function') {
+      return window.requestAnimationFrame(callback);
+    }
+    return window.setTimeout(() => callback(performance.now()), 16);
+  }
+
+  function cancelFrame(frame: number | null) {
+    if (frame === null) return;
+    if (typeof window.cancelAnimationFrame === 'function') {
+      window.cancelAnimationFrame(frame);
+    } else {
+      window.clearTimeout(frame);
+    }
+  }
 </script>
 
 {#if open}
   <div
+    bind:this={backdropElement}
     class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+    class:modal-drag-enabled={dragAvailable}
+    class:modal-dragging={dragSession?.active}
     role="presentation"
     transition:fade|global={{ duration: 140 }}
     onclick={handleBackdropClick}
   >
     <div
-      bind:this={panelElement}
-      class={`modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden`}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      tabindex="-1"
-      transition:flyScale|global={{ y: 12, duration: 200 }}
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={handleKeydown}
+      bind:this={positionerElement}
+      class={`modal-positioner relative w-full ${maxWidth}`}
+      style:translate={`${offsetX}px ${offsetY}px`}
     >
-      <div class="modal-header relative flex shrink-0 items-center justify-between gap-3">
-        <h2 class="modal-title min-w-0 truncate text-md3-on-surface">{title}</h2>
-        <button
-          type="button"
-          class="modal-close grid shrink-0 place-items-center text-md3-on-surface-variant"
-          aria-label={closeLabel}
-          disabled={!dismissible}
-          onclick={onClose}
+      <div
+        bind:this={panelElement}
+        class="modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabindex="-1"
+        transition:flyScale|global={{ y: 12, duration: 200 }}
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={handleKeydown}
+      >
+        <div
+          class="modal-header relative flex shrink-0 items-center justify-between gap-3"
+          role="presentation"
+          onpointerdown={handleHeaderPointerDown}
+          onpointermove={handleHeaderPointerMove}
+          onpointerup={handleHeaderPointerUp}
+          onpointercancel={handleHeaderPointerCancel}
+          onlostpointercapture={handleLostPointerCapture}
         >
-          <Icon name="close" size="20px" />
-        </button>
-      </div>
-      <div class="modal-content relative min-h-0 overflow-auto">
-        {@render children()}
+          <h2 class="modal-title min-w-0 truncate text-md3-on-surface">{title}</h2>
+          <button
+            type="button"
+            class="modal-close grid shrink-0 place-items-center text-md3-on-surface-variant"
+            aria-label={closeLabel}
+            disabled={!dismissible}
+            onclick={onClose}
+          >
+            <Icon name="close" size="20px" />
+          </button>
+        </div>
+        <div class="modal-content relative min-h-0 overflow-auto">
+          {@render children()}
+        </div>
       </div>
     </div>
   </div>
@@ -175,6 +455,20 @@
     background: color-mix(in srgb, var(--color-md3-surface-container-high) 46%, transparent);
   }
 
+  .modal-drag-enabled .modal-header {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .modal-dragging .modal-header {
+    cursor: grabbing;
+  }
+
+  .modal-dragging .modal-positioner {
+    will-change: translate;
+  }
+
   .modal-title {
     margin: 0;
     font-size: 0.9375rem;
@@ -193,6 +487,11 @@
       background-color var(--motion-duration-short3) var(--motion-easing-standard),
       color var(--motion-duration-short3) var(--motion-easing-standard),
       transform var(--motion-duration-short3) var(--motion-easing-standard);
+  }
+
+  .modal-drag-enabled .modal-close {
+    cursor: pointer;
+    touch-action: manipulation;
   }
 
   .modal-close:hover {
