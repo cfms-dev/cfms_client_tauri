@@ -82,6 +82,70 @@ describe('DialogHost choice dialog', () => {
     render(DialogHost);
 
     expect(screen.queryByRole('checkbox')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Cancel' }).parentElement?.classList.contains('ml-auto')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Cancel' }).parentElement?.classList.contains('choice-footer-actions')).toBe(true);
+  });
+
+  it('maps choice intents to their visual treatment and focuses the safe primary action', async () => {
+    void dialogStore.choose({
+      title: 'Name conflict',
+      message: 'Choose how to handle the conflict.',
+      choices: [
+        { value: 'overwrite', label: 'Replace existing items', intent: 'danger' },
+        { value: 'keep_both', label: 'Keep both', intent: 'primary' },
+        { value: 'skip', label: 'Skip conflicting items' },
+      ],
+      cancelLabel: 'Cancel',
+    });
+
+    render(DialogHost);
+
+    expect(screen.getByRole('button', { name: 'Replace existing items' }).dataset.intent).toBe('danger');
+    expect(screen.getByRole('button', { name: 'Keep both' }).dataset.intent).toBe('primary');
+    expect(screen.getByRole('button', { name: 'Skip conflicting items' }).dataset.intent).toBe('neutral');
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep both' })));
+  });
+
+  it('resets apply-to-all before showing the next queued conflict', async () => {
+    const firstResolution = dialogStore.choose({
+      title: 'First conflict',
+      message: 'Choose how to handle the first conflict.',
+      choices: [{ value: 'keep_both', label: 'Keep the first pair' }],
+      applyToAllLabel: 'Apply to following conflicts',
+      cancelLabel: 'Cancel',
+    });
+    const secondResolution = dialogStore.choose({
+      title: 'Second conflict',
+      message: 'Choose how to handle the second conflict.',
+      choices: [{ value: 'skip', label: 'Skip the second item' }],
+      applyToAllLabel: 'Apply to following conflicts',
+      cancelLabel: 'Cancel',
+    });
+
+    render(DialogHost);
+
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Apply to following conflicts' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Keep the first pair' }));
+    await expect(firstResolution).resolves.toEqual({ value: 'keep_both', applyToAll: true });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Skip the second item' })).toBeTruthy());
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Apply to following conflicts' }).checked).toBe(false);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Skip the second item' }));
+    await expect(secondResolution).resolves.toEqual({ value: 'skip', applyToAll: false });
+  });
+
+  it('cancels a choice without returning a partial resolution', async () => {
+    const resolution = dialogStore.choose({
+      title: 'Name conflict',
+      message: 'Choose how to handle the conflict.',
+      choices: [{ value: 'skip', label: 'Skip conflicting item' }],
+      cancelLabel: 'Cancel',
+    });
+
+    render(DialogHost);
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await expect(resolution).resolves.toBeNull();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });
