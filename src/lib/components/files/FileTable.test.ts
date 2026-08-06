@@ -426,6 +426,23 @@ describe('FileTable column resizing', () => {
 });
 
 describe('FileTable keyboard navigation', () => {
+  function setCompactViewportLayout(
+    container: HTMLElement,
+    viewport: HTMLElement,
+  ) {
+    const header = container.querySelector<HTMLElement>('.file-table-header')!;
+    const listSpace = container.querySelector<HTMLElement>('.file-table-list-space')!;
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 120 },
+    });
+    Object.defineProperties(header, {
+      offsetHeight: { configurable: true, value: 36 },
+    });
+    Object.defineProperties(listSpace, {
+      offsetTop: { configurable: true, value: 36 },
+    });
+  }
+
   it('enters the table at the first row when the document has lost row focus', async () => {
     const { container, onRowKeydown } = renderTable([
       { id: 'folder-1', name: 'First', created_time: null },
@@ -456,6 +473,58 @@ describe('FileTable keyboard navigation', () => {
     expect(document.activeElement).toBe(rows[1]);
     expect(rows[1].tabIndex).toBe(0);
     expect(onRowKeydown).toHaveBeenCalledWith(expect.objectContaining({ key: 'ArrowDown' }), expect.objectContaining({ kind: 'folder' }));
+  });
+
+  it('scrolls down only enough to reveal the complete keyboard target row', async () => {
+    const folders = Array.from({ length: 4 }, (_, index) => ({
+      id: `folder-${index}`,
+      name: `Folder ${index}`,
+      created_time: null,
+    }));
+    const { container, viewport } = renderTable(folders);
+    setCompactViewportLayout(container, viewport);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+
+    rows[1].focus();
+    await fireEvent.keyDown(rows[1], { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(rows[2]);
+    expect(viewport.scrollTop).toBe(36);
+  });
+
+  it('scrolls up only enough to uncover a row hidden by the sticky header', async () => {
+    const folders = Array.from({ length: 4 }, (_, index) => ({
+      id: `folder-${index}`,
+      name: `Folder ${index}`,
+      created_time: null,
+    }));
+    const { container, viewport } = renderTable(folders);
+    setCompactViewportLayout(container, viewport);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+    viewport.scrollTop = 80;
+
+    rows[2].focus();
+    await fireEvent.keyDown(rows[2], { key: 'ArrowUp' });
+
+    expect(document.activeElement).toBe(rows[1]);
+    expect(viewport.scrollTop).toBe(40);
+  });
+
+  it('keeps the viewport still when the keyboard target is already fully visible', async () => {
+    const folders = Array.from({ length: 4 }, (_, index) => ({
+      id: `folder-${index}`,
+      name: `Folder ${index}`,
+      created_time: null,
+    }));
+    const { container, viewport } = renderTable(folders);
+    setCompactViewportLayout(container, viewport);
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-file-table-row]'));
+
+    rows[0].focus();
+    await fireEvent.keyDown(rows[0], { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(rows[1]);
+    expect(viewport.scrollTop).toBe(0);
   });
 
   it('moves by one viewport page without constructing a row-key array', async () => {

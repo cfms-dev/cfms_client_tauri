@@ -192,6 +192,7 @@
     const count = rowCount;
     const enabled = virtualized;
     const element = scrollViewport;
+    const stickyHeaderHeight = tableHeader?.offsetHeight ?? 0;
     untrack(() => {
       $rowVirtualizer.setOptions({
         count,
@@ -200,6 +201,10 @@
         overscan: OVERSCAN_ROWS,
         enabled,
         initialRect: { width: 0, height: DEFAULT_VIEWPORT_HEIGHT },
+        // Virtual rows start below the sticky table header. Reserve that
+        // covered space when deciding whether the last visible row needs to
+        // move, matching the native list-view "ensure visible" behavior.
+        scrollPaddingEnd: stickyHeaderHeight,
       });
     });
   });
@@ -574,10 +579,33 @@
     return () => document.removeEventListener('keydown', handleUnfocusedTableEntry);
   });
 
+  function ensureRowVisible(index: number) {
+    if (!scrollViewport) return;
+    if (virtualized) {
+      $rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+      return;
+    }
+
+    const listTop = listSpace?.offsetTop ?? 0;
+    const stickyHeaderHeight = tableHeader?.offsetHeight ?? 0;
+    const rowTop = listTop + index * ROW_HEIGHT;
+    const rowBottom = rowTop + ROW_HEIGHT;
+    const visibleTop = scrollViewport.scrollTop + stickyHeaderHeight;
+    const visibleBottom = scrollViewport.scrollTop + scrollViewport.clientHeight;
+
+    // Scroll only as far as needed to reveal the complete target row. This
+    // preserves the user's spatial context instead of centering every move.
+    if (rowTop < visibleTop) {
+      scrollViewport.scrollTop = Math.max(0, rowTop - stickyHeaderHeight);
+    } else if (rowBottom > visibleBottom) {
+      scrollViewport.scrollTop = rowBottom - scrollViewport.clientHeight;
+    }
+  }
+
   async function focusRow(event: KeyboardEvent, row: FileTableRow, index: number) {
     activeRowKey = rowKey(row);
     onRowKeydown(event, row);
-    if (virtualized) $rowVirtualizer.scrollToIndex(index, { align: 'auto' });
+    ensureRowVisible(index);
     await tick();
     scrollViewport?.querySelector<HTMLButtonElement>(`[data-file-row-index="${index}"]`)
       ?.focus({ preventScroll: true });
