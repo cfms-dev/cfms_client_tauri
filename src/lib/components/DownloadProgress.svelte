@@ -9,6 +9,7 @@
 
   import type { DownloadTaskStatus } from "../api";
   import { _ as t } from 'svelte-i18n';
+  import { formatByteRate } from '$lib/transfer-speed';
 
   interface Props {
     progress: number;
@@ -17,9 +18,10 @@
     status: DownloadTaskStatus;
     completedText?: string;
     ariaLabel?: string;
+    bytesPerSecond?: number;
   }
 
-  let { progress, currentBytes, totalBytes, status, completedText, ariaLabel }: Props = $props();
+  let { progress, currentBytes, totalBytes, status, completedText, ariaLabel, bytesPerSecond = 0 }: Props = $props();
 
   function barColor(): string {
     switch (status) {
@@ -75,9 +77,7 @@
   <!-- Info row (mirrors reference _get_progress_info) -->
   <div class="flex justify-between text-xs mb-1 {labelClass}">
     <span>
-      {#if status === "completed"}
-        <span class="text-md3-success font-medium">{$t('tasks.complete')}</span>
-      {:else if status === "failed"}
+      {#if status === "failed"}
         <span class="text-md3-error font-medium">{$t('tasks.failed')}</span>
       {:else if status === "cancelled"}
         <span class="text-md3-on-surface-variant font-medium">{$t('tasks.cancelled')}</span>
@@ -93,9 +93,11 @@
       {:else if status === "failed" || status === "cancelled" || status === "deleted"}
         <!-- empty — reference shows nothing for these statuses -->
       {:else if totalBytes > 0}
-        {formatBytes(currentBytes)} / {formatBytes(totalBytes)} ({pct}%)
+        {formatBytes(currentBytes)} / {formatBytes(totalBytes)} ({pct}%){#if bytesPerSecond > 0} · {formatByteRate(bytesPerSecond)}{/if}
       {:else if progress > 0}
-        {pct}%
+        {pct}%{#if bytesPerSecond > 0} · {formatByteRate(bytesPerSecond)}{/if}
+      {:else if bytesPerSecond > 0}
+        {formatByteRate(bytesPerSecond)}
       {:else}
         {$t('tasks.waitingToStart')}
       {/if}

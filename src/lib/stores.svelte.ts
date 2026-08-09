@@ -15,6 +15,7 @@ import type {
   ServerState,
   ServerInfo,
 } from "./api";
+import { TransferSpeedTracker } from "./transfer-speed";
 
 // ---------------------------------------------------------------------------
 // Server state stores
@@ -168,6 +169,8 @@ function normalizeNickname(nickname: string | null, username: string | null) {
 
 class DownloadStoreImpl {
   tasks = $state<Map<string, DownloadTaskDto>>(new Map());
+  speeds = $state<Map<string, number>>(new Map());
+  private speedTracker = new TransferSpeedTracker();
   /** Number of badge-eligible tasks (mirrors _ACTIVE_BADGE_STATUSES). */
   activeBadgeCount = $state(0);
 
@@ -178,6 +181,9 @@ class DownloadStoreImpl {
       next.set(t.task_id, t);
     }
     this.tasks = next;
+    const runningIds = new Set(tasks.filter((task) => task.status === "downloading").map((task) => task.task_id));
+    this.speedTracker.retain(runningIds);
+    this.speeds = new Map([...this.speeds].filter(([id]) => runningIds.has(id)));
   }
 
   /** Upsert a single task into the map. */
@@ -191,6 +197,7 @@ class DownloadStoreImpl {
   remove(taskId: string) {
     this.tasks.delete(taskId);
     this.tasks = new Map(this.tasks);
+    this.clearSpeed(taskId);
   }
 
   /** Update progress for a single task (from DownloadProgress event). */
@@ -225,6 +232,14 @@ class DownloadStoreImpl {
 
       this.tasks.set(taskId, newTask);
 
+      if (phase === "downloading") {
+        const nextSpeeds = new Map(this.speeds);
+        nextSpeeds.set(taskId, this.speedTracker.update(taskId, currentBytes));
+        this.speeds = nextSpeeds;
+      } else {
+        this.clearSpeed(taskId);
+      }
+
       this.tasks = new Map(this.tasks);
     }
   }
@@ -240,6 +255,7 @@ class DownloadStoreImpl {
 
       this.tasks.set(taskId, newTask);
       this.tasks = new Map(this.tasks);
+      this.clearSpeed(taskId);
     }
   }
 
@@ -250,6 +266,7 @@ class DownloadStoreImpl {
       task.status = "failed";
       task.error = error;
       this.tasks = new Map(this.tasks);
+      this.clearSpeed(taskId);
     }
   }
 
@@ -259,6 +276,7 @@ class DownloadStoreImpl {
     if (task) {
       task.status = "paused";
       this.tasks = new Map(this.tasks);
+      this.clearSpeed(taskId);
     }
   }
 
@@ -268,7 +286,16 @@ class DownloadStoreImpl {
     if (task) {
       task.status = "cancelled";
       this.tasks = new Map(this.tasks);
+      this.clearSpeed(taskId);
     }
+  }
+
+  private clearSpeed(taskId: string) {
+    this.speedTracker.forget(taskId);
+    if (!this.speeds.has(taskId)) return;
+    const nextSpeeds = new Map(this.speeds);
+    nextSpeeds.delete(taskId);
+    this.speeds = nextSpeeds;
   }
 
   // Derived views

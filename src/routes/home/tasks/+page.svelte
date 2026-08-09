@@ -403,10 +403,10 @@
           {:else if row.kind === 'upload'}
             <UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={pendingUploadActions.has(row.task.upload_id)} />
           {:else if row.row.kind === 'group'}
-            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} pendingAction={pendingGroupActions.has(row.row.group.id) ? 'cancel' : null} />
+            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} bytesPerSecond={row.row.group.tasks.reduce((sum, task) => sum + (downloadStore.speeds.get(task.task_id) ?? 0), 0)} pendingAction={pendingGroupActions.has(row.row.group.id) ? 'cancel' : null} />
           {:else}
             <div class:group-child={row.row.kind === 'group-task'}>
-              <DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} pendingAction={pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} />
+              <DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} bytesPerSecond={downloadStore.speeds.get(row.row.task.task_id) ?? 0} pendingAction={pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} />
             </div>
           {/if}
         {/snippet}

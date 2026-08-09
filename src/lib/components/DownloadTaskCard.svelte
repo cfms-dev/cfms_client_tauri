@@ -24,9 +24,10 @@
     onRemove: (id: string) => Promise<void>;
     onDeleteFile: (id: string) => Promise<void>;
     pendingAction?: PendingAction;
+    bytesPerSecond?: number;
   }
 
-  let { task, onPause, onResume, onRetry, onCancel, onOpen, onRemove, onDeleteFile, pendingAction = null }: Props = $props();
+  let { task, onPause, onResume, onRetry, onCancel, onOpen, onRemove, onDeleteFile, pendingAction = null, bytesPerSecond = 0 }: Props = $props();
   let expanded = $state(false);
   const capabilities = $derived(downloadCapabilities(task));
   const displayName = $derived(formatPathFilename(task.filename));
@@ -74,7 +75,7 @@
     <div class="task-progress">
       <DownloadProgress
         progress={task.progress} currentBytes={task.current_bytes} totalBytes={task.total_bytes}
-        status={task.status} ariaLabel={$t('tasks.progressFor', { values: { name: displayName } })}
+        status={task.status} {bytesPerSecond} ariaLabel={$t('tasks.progressFor', { values: { name: displayName } })}
       />
     </div>
 

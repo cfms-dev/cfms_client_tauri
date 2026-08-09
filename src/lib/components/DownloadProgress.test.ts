@@ -15,6 +15,21 @@ beforeAll(() => {
 });
 
 describe('DownloadProgress accessibility', () => {
+  it('shows completed copy once and appends active transfer speed', () => {
+    const { unmount } = render(DownloadProgress, {
+      progress: 1, currentBytes: 100, totalBytes: 100, status: 'completed',
+    });
+    expect(screen.getAllByText('Downloaded')).toHaveLength(1);
+    expect(screen.queryByText('Complete')).toBeNull();
+    unmount();
+
+    render(DownloadProgress, {
+      progress: 0.5, currentBytes: 1024, totalBytes: 2048,
+      status: 'downloading', bytesPerSecond: 1536,
+    });
+    expect(screen.getByText(/1\.5 KiB\/s/)).toBeTruthy();
+  });
+
   it('exposes a numeric value for determinate progress', () => {
     render(DownloadProgress, {
       progress: 0.42, currentBytes: 42, totalBytes: 100,

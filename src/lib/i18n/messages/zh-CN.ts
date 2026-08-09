@@ -557,7 +557,6 @@ export const zh_CN = {
     pause: '暂停',
     resume: '恢复',
     cancel: '取消',
-    complete: '完成',
     downloadCompleted: '下载已完成',
     waitingToStart: '等待开始',
     retryWaiting: '等待自动重试',

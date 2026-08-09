@@ -563,7 +563,6 @@ export const en = {
     pause: 'Pause',
     resume: 'Resume',
     cancel: 'Cancel',
-    complete: 'Complete',
     downloadCompleted: 'Download completed',
     waitingToStart: 'Waiting to start',
     retryWaiting: 'Waiting to retry',

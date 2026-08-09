@@ -2,6 +2,7 @@
   import { _ as t } from 'svelte-i18n';
   import { canDeleteDownloadTaskGroupFiles, type DownloadTaskGroup } from '$lib/download-task-groups';
   import { flyScale } from '$lib/motion/transitions';
+  import { formatByteRate } from '$lib/transfer-speed';
   import Icon from './Icon.svelte';
   import ProgressRing from './ProgressRing.svelte';
 
@@ -19,6 +20,7 @@
     onDeleteFiles: (groupId: string) => Promise<void>;
     deleting?: BatchDeleteProgress | null;
     pendingAction?: PendingAction;
+    bytesPerSecond?: number;
     onContextMenu?: (event: MouseEvent | KeyboardEvent, group: DownloadTaskGroup) => void;
   }
 
@@ -33,6 +35,7 @@
     onDeleteFiles,
     deleting = null,
     pendingAction = null,
+    bytesPerSecond = 0,
     onContextMenu,
   }: Props = $props();
 
@@ -156,8 +159,11 @@
         : $t('tasks.batchProgressPending'))}
     </span>
     <span class="batch-progress-cell">
-      <span class="batch-percent">
-        {percent === null ? $t('tasks.batchProgressPending') : `${percent}%`}
+      <span class="batch-progress-meta">
+        <span class="batch-speed">{bytesPerSecond > 0 ? formatByteRate(bytesPerSecond) : ''}</span>
+        <span class="batch-percent">
+          {percent === null ? $t('tasks.batchProgressPending') : `${percent}%`}
+        </span>
       </span>
       <span
         class="batch-progress"
@@ -305,7 +311,6 @@
   }
 
   .batch-percent {
-    justify-self: end;
     color: var(--explorer-accent);
     font-size: 0.8rem;
     font-weight: 700;
@@ -339,6 +344,23 @@
     min-width: 0;
     align-items: center;
     gap: 0.3rem;
+  }
+
+  .batch-progress-meta {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .batch-speed {
+    overflow: hidden;
+    color: var(--explorer-text-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .batch-secondary-actions {
