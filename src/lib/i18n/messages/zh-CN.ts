@@ -616,6 +616,7 @@ export const zh_CN = {
     batchPausedCount: '{count} 个已暂停',
     batchFailedCount: '{count} 个失败',
     batchCancelledCount: '{count} 个已取消',
+    batchDeletedCount: '{count} 个文件已删除',
     deleteBatchFiles: '删除文件',
     batchDeleting: '删除中',
     batchDeletingProgress: '正在删除文件 · {current}/{total}（{percent}%）',

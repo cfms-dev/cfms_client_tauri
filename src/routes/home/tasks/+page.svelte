@@ -10,7 +10,10 @@
   } from '$lib/api';
   import { downloadStore, uploadStore } from '$lib/stores.svelte';
   import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopActiveDownloadBatch } from '$lib/download-batch-control';
-  import { buildDownloadTaskRows, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
+  import {
+    buildDownloadTaskSections,
+    type DownloadTaskGroup, type DownloadTaskRow,
+  } from '$lib/download-task-groups';
   import {
     TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery, sortSectionTasks,
     uploadSection, type TransferSectionFilter, type TransferSectionKey,
@@ -82,15 +85,14 @@
 
   function buildDownloadPageRows(): DownloadPageRow[] {
     const rows: DownloadPageRow[] = [];
-    for (const section of TRANSFER_SECTION_ORDER) {
-      if (sectionFilter !== 'all' && sectionFilter !== section) continue;
-      const tasks = sortSectionTasks(visibleDownloads.filter((task) => downloadSection(task) === section), section);
-      const batchSnapshots = section === 'active' ? $downloadBatchSnapshots : [];
-      if (tasks.length === 0 && batchSnapshots.length === 0) continue;
-      rows.push({ kind: 'section', section, count: tasks.length });
-      if (collapsedSections.has(section)) continue;
-      for (const row of buildDownloadTaskRows(tasks, expandedGroups, batchSnapshots)) {
-        rows.push({ kind: 'download', section, row });
+    for (const group of buildDownloadTaskSections(
+      downloadTasks, expandedGroups, $downloadBatchSnapshots, searchQuery,
+    )) {
+      if (sectionFilter !== 'all' && sectionFilter !== group.section) continue;
+      rows.push({ kind: 'section', section: group.section, count: group.count });
+      if (collapsedSections.has(group.section)) continue;
+      for (const row of group.rows) {
+        rows.push({ kind: 'download', section: group.section, row });
       }
     }
     return rows;
@@ -420,7 +422,8 @@
   .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: .75rem; border-bottom: 1px solid var(--color-md3-outline); background: var(--color-md3-surface-container-high); padding: .35rem .55rem; }
   .section-toggle { display: flex; align-items: center; gap: .4rem; min-width: 0; color: var(--color-md3-on-surface); }.section-toggle strong { font-size: .8125rem; }.section-toggle span { font-size: .6875rem; color: var(--color-md3-on-surface-variant); }
   .section-action { min-height: 30px; border-radius: 5px; padding: .2rem .55rem; font-size: .6875rem; font-weight: 600; color: var(--color-md3-primary-emphasis); }.section-action:hover { background: var(--color-md3-primary-container); }
-  .group-child { padding-left: 1.5rem; background: color-mix(in srgb, var(--color-md3-surface-container-high) 45%, transparent); }
+  .group-child { position: relative; padding-left: 1.5rem; background: color-mix(in srgb, var(--color-md3-surface-container-high) 45%, transparent); }
+  .group-child::before { position: absolute; top: 0; bottom: 0; left: .72rem; width: 1px; background: color-mix(in srgb, var(--color-md3-primary) 45%, var(--color-md3-outline)); content: ''; }
   .empty-state { display: grid; min-height: 260px; place-items: center; align-content: center; gap: .45rem; padding: 2rem; text-align: center; color: var(--color-md3-on-surface-variant); }.empty-state h2 { font-size: .9375rem; font-weight: 650; color: var(--color-md3-on-surface); }.empty-state p { max-width: 52ch; font-size: .8125rem; }
   @media (max-width: 640px) { .task-page { padding: .85rem; }.task-toolbar { align-items: stretch; }.search-field { flex-basis: 100%; }.task-summary { width: 100%; }.section-filter { flex: 1; }.group-child { padding-left: .65rem; } }
   @media (pointer: coarse) { .icon-button { width: 44px; height: 44px; }.task-tabs button { min-height: 44px; }.section-action { min-height: 40px; } }
