@@ -33,6 +33,7 @@ export const ICONS = {
   pause:         'pause',
   resume:        'play_arrow',
   refresh:       'refresh',
+  linkOff:       'link_off',
   download:      'download',
   upload:        'upload',
   openInNew:     'open_in_new',

@@ -32,18 +32,42 @@
   let busyAction = $state<'quit' | 'disconnect' | 'logout' | null>(null);
   const lockdownReason = $derived(serverStateStore.lockdownReason?.trim() ?? '');
 
-  let timerInterval: ReturnType<typeof setInterval> | null = null;
+  const clockFormatter = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  let clockTimer: ReturnType<typeof setTimeout> | null = null;
 
   function updateClock() {
-    const now = new Date();
-    currentTime = now.toLocaleTimeString('en-US', { hour12: false });
+    currentTime = clockFormatter.format(new Date());
+  }
+
+  function scheduleClockUpdate() {
+    updateClock();
+    const millisecondsUntilNextSecond = 1000 - (Date.now() % 1000);
+    clockTimer = setTimeout(scheduleClockUpdate, millisecondsUntilNextSecond + 16);
+  }
+
+  function resyncClock() {
+    if (clockTimer !== null) clearTimeout(clockTimer);
+    scheduleClockUpdate();
   }
 
   onMount(() => {
-    updateClock();
-    timerInterval = setInterval(updateClock, 500);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') resyncClock();
+    };
+
+    resyncClock();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', resyncClock);
+
     return () => {
-      if (timerInterval) clearInterval(timerInterval);
+      if (clockTimer !== null) clearTimeout(clockTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', resyncClock);
     };
   });
 
@@ -180,7 +204,7 @@
             {#if busyAction === 'disconnect'}
               <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
             {:else}
-              <Icon name="connect" size="18px" />
+              <Icon name="linkOff" size="18px" />
             {/if}
             {$t('lockdown.disconnect')}
           </DialogActionButton>
@@ -293,15 +317,10 @@
 
   .lockdown-symbol {
     display: inline-flex;
-    inline-size: 32px;
-    block-size: 32px;
     flex: none;
     align-items: center;
     justify-content: center;
-    border: 1px solid color-mix(in srgb, var(--explorer-danger) 46%, transparent);
-    border-radius: var(--explorer-radius-small);
     color: var(--explorer-danger);
-    background: color-mix(in srgb, var(--explorer-danger) 9%, transparent);
   }
 
   .lockdown-status-copy {
@@ -333,8 +352,8 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(30rem, 0.95fr);
     border-block-start: 1px solid var(--explorer-border-strong);
-    border-radius: var(--explorer-radius-large) var(--explorer-radius-large) 0 0;
-    background: var(--explorer-surface);
+    border-radius: 0;
+    background: transparent;
   }
 
   .lockdown-shelf--single {
@@ -394,9 +413,12 @@
   }
 
   .lockdown-shelf--single .lockdown-operations {
-    inline-size: min(100%, 48rem);
-    justify-self: end;
+    inline-size: 100%;
     border-inline-start: 0;
+  }
+
+  .lockdown-shelf--single .lockdown-actions {
+    justify-content: center;
   }
 
   .lockdown-action-copy {
@@ -418,26 +440,42 @@
 
   .lockdown-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.625rem;
+    grid-template-columns: repeat(3, max-content);
+    justify-content: end;
+    gap: 0.375rem;
   }
 
   .lockdown-actions--signed-out {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, max-content);
   }
 
   .lockdown-actions :global(.lockdown-action-button) {
     min-block-size: 40px;
-    inline-size: 100%;
+    inline-size: auto;
+    justify-self: center;
+    border: 0;
+    border-radius: 999px;
+    padding-inline: 0.875rem;
+    box-shadow: none;
+    white-space: nowrap;
+  }
+
+  .lockdown-actions :global(.lockdown-action-button--primary) {
+    color: var(--explorer-accent);
+    background: transparent;
+  }
+
+  .lockdown-actions :global(.lockdown-action-button--primary:hover:not(:disabled)) {
+    color: var(--explorer-accent);
+    background: var(--explorer-accent-soft);
+    box-shadow: none;
   }
 
   .lockdown-actions :global(.lockdown-action-button--quit) {
-    border-color: color-mix(in srgb, var(--explorer-danger) 32%, var(--explorer-border));
     color: var(--explorer-danger);
   }
 
   .lockdown-actions :global(.lockdown-action-button--quit:hover:not(:disabled)) {
-    border-color: color-mix(in srgb, var(--explorer-danger) 54%, var(--explorer-border));
     color: var(--explorer-danger);
     background: color-mix(in srgb, var(--explorer-danger) 8%, transparent);
   }
@@ -535,11 +573,12 @@
 
   @media (max-width: 480px) {
     .lockdown-actions {
-      grid-template-columns: 1fr;
+      grid-template-columns: max-content;
+      justify-content: center;
     }
 
     .lockdown-actions--signed-out {
-      grid-template-columns: 1fr;
+      grid-template-columns: max-content;
     }
   }
 

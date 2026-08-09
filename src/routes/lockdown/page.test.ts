@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import LockdownPage from './+page.svelte';
 
@@ -52,6 +53,7 @@ vi.mock('svelte-i18n', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
   mocks.authStore.isLoggedIn = false;
   mocks.serverStateStore.connected = true;
@@ -70,6 +72,21 @@ describe('lockdown page authentication states', () => {
     expect(clock?.hasAttribute('aria-live')).toBe(false);
   });
 
+  it('resynchronizes the clock immediately when the window regains focus', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 2, 12, 0, 0, 250));
+    render(LockdownPage);
+
+    const clock = document.querySelector('time.lockdown-clock');
+    expect(clock?.textContent?.trim()).toBe('12:00:00');
+
+    vi.setSystemTime(new Date(2026, 0, 2, 12, 0, 5, 250));
+    window.dispatchEvent(new Event('focus'));
+    await tick();
+
+    expect(clock?.textContent?.trim()).toBe('12:00:05');
+  });
+
   it('explains an incomplete login and hides logout for signed-out users', () => {
     render(LockdownPage);
 
@@ -78,7 +95,9 @@ describe('lockdown page authentication states', () => {
     expect(screen.getByRole('status').textContent).toContain('lockdown.signInIncomplete');
     expect(screen.queryByRole('note')).toBeNull();
     expect(screen.queryByRole('button', { name: 'lockdown.logout' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'lockdown.disconnect' })).toBeTruthy();
+    const disconnectButton = screen.getByRole('button', { name: 'lockdown.disconnect' });
+    expect(disconnectButton).toBeTruthy();
+    expect(disconnectButton.querySelector('[data-icon="linkOff"]')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'lockdown.quit' })).toBeTruthy();
   });
 
