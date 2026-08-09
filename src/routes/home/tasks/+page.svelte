@@ -20,11 +20,14 @@
   } from '$lib/transfer-task-view';
   import { registerKeyboardCommands } from '$lib/keyboard';
   import { pickDirectory } from '$lib/directory-picker';
+  import { flyScale } from '$lib/motion/transitions';
+  import type { IconName } from '$lib/icons';
   import VirtualList from '$lib/components/VirtualList.svelte';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import TaskActionButton from '$lib/components/TaskActionButton.svelte';
 
   type TaskTab = 'downloads' | 'uploads';
   type DownloadPageRow =
@@ -283,6 +286,17 @@
     if (section === 'waiting') return $t('tasks.resumePaused');
     return $t('tasks.clearHistory');
   }
+  function sectionActionIcon(section: TransferSectionKey): IconName {
+    if (section === 'attention') return 'restartAlt';
+    if (section === 'active') return 'pause';
+    if (section === 'waiting') return 'resume';
+    return 'clearAll';
+  }
+  function sectionActionTone(section: TransferSectionKey): 'primary' | 'warning' | 'danger' {
+    if (section === 'active') return 'warning';
+    if (section === 'history') return 'danger';
+    return 'primary';
+  }
   function sectionActionAvailable(section: TransferSectionKey) {
     if (activeTab === 'downloads') {
       const tasks = visibleDownloads.filter((task) => downloadSection(task) === section);
@@ -344,7 +358,7 @@
     <label class="search-field">
       <Icon name="search" size="18px" />
       <span class="sr-only">{$t('tasks.search')}</span>
-      <input bind:value={searchQuery} placeholder={$t('tasks.searchPlaceholder')} />
+      <input data-focus-ring="delegated" bind:value={searchQuery} placeholder={$t('tasks.searchPlaceholder')} />
       {#if searchQuery}<button onclick={() => (searchQuery = '')} aria-label={$t('common.clear')}><Icon name="close" size="16px" /></button>{/if}
     </label>
     <label class="section-filter">
@@ -361,10 +375,10 @@
   </div>
 
   {#if errorMessage}
-    <div class="error-banner" role="alert"><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
+    <div class="error-banner" role="alert" transition:flyScale={{ y: -4, duration: 180 }}><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
   {/if}
   {#if batchFeedback}
-    <div class:error={batchFeedback.failed} class="batch-feedback" role="status"><Icon name={batchFeedback.failed ? 'warning' : 'checkCircle'} size="18px" /><span>{batchFeedback.message}</span><button onclick={() => (batchFeedback = null)} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
+    <div class:error={batchFeedback.failed} class="batch-feedback" role="status" transition:flyScale={{ y: -4, duration: 180 }}><Icon name={batchFeedback.failed ? 'warning' : 'checkCircle'} size="18px" /><span>{batchFeedback.message}</span><button onclick={() => (batchFeedback = null)} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
   {/if}
 
   <section class="task-list-shell" aria-busy={loading}>
@@ -379,10 +393,12 @@
           {#if row.kind === 'section'}
             <div class="section-header">
               <button class="section-toggle" onclick={() => toggleSection(row.section)} aria-expanded={!collapsedSections.has(row.section)}>
-                <Icon name={collapsedSections.has(row.section) ? 'expandMore' : 'expandLess'} size="18px" />
+                <span class:section-chevron-expanded={!collapsedSections.has(row.section)} class="section-chevron"><Icon name="expandMore" size="18px" /></span>
                 <strong>{sectionLabel(row.section)}</strong><span>{row.count}</span>
               </button>
-              {#if sectionActionAvailable(row.section)}<button class="section-action" onclick={() => handleSectionAction(row.section)}>{sectionActionLabel(row.section)}</button>{/if}
+              {#if sectionActionAvailable(row.section)}
+                <TaskActionButton presentation="labelled" icon={sectionActionIcon(row.section)} label={sectionActionLabel(row.section)} tone={sectionActionTone(row.section)} onclick={() => handleSectionAction(row.section)} />
+              {/if}
             </div>
           {:else if row.kind === 'upload'}
             <UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={pendingUploadActions.has(row.task.upload_id)} />
@@ -396,35 +412,101 @@
         {/snippet}
       </VirtualList>
     {:else if !loading}
-      <div class="empty-state"><Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="44px" /><h2>{activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks')}</h2><p>{searchQuery ? $t('tasks.noSearchResults') : $t('tasks.emptyHint')}</p></div>
+      <div class="empty-state" transition:flyScale={{ y: 8, duration: 220 }}><Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="44px" /><h2>{activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks')}</h2><p>{searchQuery ? $t('tasks.noSearchResults') : $t('tasks.emptyHint')}</p></div>
     {/if}
   </section>
 </div>
 
 <style>
-  .task-page { display: flex; min-width: 0; flex-direction: column; gap: 1rem; padding: 1rem 1.25rem; }
+  .task-page {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1rem clamp(1rem, 2vw, 1.5rem) 1.5rem;
+  }
+
   .task-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-  .task-header h1 { font-size: 1.25rem; font-weight: 700; color: var(--color-md3-on-surface); }
-  .task-header p { margin-top: .2rem; font-size: .8125rem; color: var(--color-md3-on-surface-variant); }
-  .icon-button { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 999px; color: var(--color-md3-on-surface-variant); }
-  .icon-button:hover { background: var(--color-md3-surface-container-high); }.icon-button:disabled { opacity: .45; }
-  .task-tabs { display: flex; width: fit-content; gap: .2rem; border-bottom: 1px solid var(--color-md3-outline); }
-  .task-tabs button { display: flex; align-items: center; gap: .4rem; min-height: 38px; padding: .35rem .65rem; border-bottom: 2px solid transparent; font-size: .8125rem; font-weight: 600; color: var(--color-md3-on-surface-variant); }
-  .task-tabs button.active { border-color: var(--color-md3-primary); color: var(--color-md3-on-surface); }.task-tabs span { font-size: .6875rem; opacity: .7; }
-  .task-toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: .65rem; padding: .55rem; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container); }
-  .search-field { display: flex; min-width: min(280px, 100%); flex: 1; align-items: center; gap: .45rem; min-height: 38px; padding: 0 .65rem; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container-high); color: var(--color-md3-on-surface-variant); }
-  .search-field:focus-within { border-color: var(--color-md3-primary); box-shadow: inset 0 0 0 1px var(--color-md3-primary); }.search-field input { min-width: 0; flex: 1; background: transparent; font-size: .8125rem; color: var(--color-md3-on-surface); outline: none; }
-  .section-filter { display: flex; align-items: center; gap: .4rem; font-size: .75rem; color: var(--color-md3-on-surface-variant); }.section-filter select { min-height: 36px; border-radius: 5px; background: var(--color-md3-surface-container-high); padding: 0 .55rem; color: var(--color-md3-on-surface); }
-  .task-summary { display: flex; gap: .75rem; font-size: .75rem; color: var(--color-md3-on-surface-variant); }.task-summary .attention { color: var(--color-md3-error); }
-  .error-banner { display: flex; align-items: center; gap: .5rem; border: 1px solid color-mix(in srgb, var(--color-md3-error) 45%, transparent); border-radius: 8px; background: var(--color-md3-error-container); padding: .55rem .7rem; font-size: .8125rem; color: var(--color-md3-on-error-container); }.error-banner span { flex: 1; }
-  .batch-feedback { display: flex; align-items: center; gap: .5rem; border: 1px solid color-mix(in srgb, var(--color-md3-success) 38%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--color-md3-success) 10%, var(--color-md3-surface-container)); padding: .55rem .7rem; font-size: .8125rem; color: var(--color-md3-on-surface); }.batch-feedback.error { border-color: color-mix(in srgb, var(--color-md3-error) 45%, transparent); background: var(--color-md3-error-container); color: var(--color-md3-on-error-container); }.batch-feedback span { flex: 1; overflow-wrap: anywhere; }
-  .task-list-shell { min-width: 0; overflow: hidden; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container); }
-  .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: .75rem; border-bottom: 1px solid var(--color-md3-outline); background: var(--color-md3-surface-container-high); padding: .35rem .55rem; }
-  .section-toggle { display: flex; align-items: center; gap: .4rem; min-width: 0; color: var(--color-md3-on-surface); }.section-toggle strong { font-size: .8125rem; }.section-toggle span { font-size: .6875rem; color: var(--color-md3-on-surface-variant); }
-  .section-action { min-height: 30px; border-radius: 5px; padding: .2rem .55rem; font-size: .6875rem; font-weight: 600; color: var(--color-md3-primary-emphasis); }.section-action:hover { background: var(--color-md3-primary-container); }
-  .group-child { position: relative; padding-left: 1.5rem; background: color-mix(in srgb, var(--color-md3-surface-container-high) 45%, transparent); }
-  .group-child::before { position: absolute; top: 0; bottom: 0; left: .72rem; width: 1px; background: color-mix(in srgb, var(--color-md3-primary) 45%, var(--color-md3-outline)); content: ''; }
-  .empty-state { display: grid; min-height: 260px; place-items: center; align-content: center; gap: .45rem; padding: 2rem; text-align: center; color: var(--color-md3-on-surface-variant); }.empty-state h2 { font-size: .9375rem; font-weight: 650; color: var(--color-md3-on-surface); }.empty-state p { max-width: 52ch; font-size: .8125rem; }
-  @media (max-width: 640px) { .task-page { padding: .85rem; }.task-toolbar { align-items: stretch; }.search-field { flex-basis: 100%; }.task-summary { width: 100%; }.section-filter { flex: 1; }.group-child { padding-left: .65rem; } }
-  @media (pointer: coarse) { .icon-button { width: 44px; height: 44px; }.task-tabs button { min-height: 44px; }.section-action { min-height: 40px; } }
+  .task-header h1 { color: var(--explorer-text); font-size: 1.25rem; font-weight: 700; }
+  .task-header p { max-width: 68ch; margin-top: 0.2rem; color: var(--explorer-text-muted); font-size: 0.8125rem; }
+
+  .icon-button { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 999px; color: var(--explorer-text-muted); transition: color 120ms var(--motion-easing-standard), background-color 120ms var(--motion-easing-standard), transform 120ms var(--motion-easing-standard); }
+  .icon-button:hover:not(:disabled) { background: var(--explorer-surface-hover); color: var(--explorer-text); }
+  .icon-button:active:not(:disabled) { transform: scale(0.94); }
+  .icon-button:disabled { opacity: 0.45; }
+
+  .task-tabs { display: flex; width: fit-content; gap: 0.2rem; border-bottom: 1px solid var(--explorer-border); }
+  .task-tabs button { display: flex; min-height: 38px; align-items: center; gap: 0.4rem; border-bottom: 2px solid transparent; padding: 0.35rem 0.65rem; color: var(--explorer-text-muted); font-size: 0.8125rem; font-weight: 600; transition: color 140ms var(--motion-easing-standard), border-color 180ms var(--motion-easing-standard), background-color 140ms var(--motion-easing-standard); }
+  .task-tabs button:hover { color: var(--explorer-text); background: var(--explorer-surface-hover); }
+  .task-tabs button.active { border-color: var(--explorer-accent); color: var(--explorer-text); }
+  .task-tabs span { color: var(--explorer-text-muted); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+
+  .task-toolbar { display: grid; min-width: 0; grid-template-columns: minmax(240px, 1fr) auto auto; align-items: center; gap: 0.65rem; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); padding: 0.55rem; background: var(--explorer-surface); }
+  .search-field { display: flex; min-width: 0; min-height: 40px; align-items: center; gap: 0.5rem; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); padding: 0 0.65rem; color: var(--explorer-text-muted); background: var(--explorer-surface-raised); transition: border-color 140ms var(--motion-easing-standard), box-shadow 140ms var(--motion-easing-standard), background-color 140ms var(--motion-easing-standard); }
+  .search-field:focus-within { border-color: var(--explorer-accent); box-shadow: inset 0 0 0 1px var(--explorer-accent); }
+  .search-field input,
+  .search-field input:focus { min-width: 0; width: 100%; flex: 1; appearance: none; border: 0 !important; outline: 0; padding: 0; color: var(--explorer-text); background: transparent; box-shadow: none !important; font: 400 0.8125rem/1.4 var(--font-md3-sans); }
+  .search-field input::placeholder { color: var(--explorer-text-muted); opacity: 1; }
+  .search-field button { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: 999px; color: var(--explorer-text-muted); transition: color 120ms var(--motion-easing-standard), background-color 120ms var(--motion-easing-standard), transform 120ms var(--motion-easing-standard); }
+  .search-field button:hover { color: var(--explorer-text); background: var(--explorer-surface-hover); }
+  .search-field button:active { transform: scale(0.92); }
+
+  .section-filter { display: flex; align-items: center; gap: 0.45rem; color: var(--explorer-text-muted); font-size: 0.75rem; white-space: nowrap; }
+  .section-filter select { min-width: 112px; min-height: 36px; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-small); padding: 0 1.8rem 0 0.55rem; color: var(--explorer-text); background-color: var(--explorer-surface-raised); }
+  .task-summary { display: flex; justify-self: end; gap: 0.75rem; color: var(--explorer-text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .task-summary .attention { color: var(--explorer-danger); }
+
+  .error-banner,
+  .batch-feedback { display: flex; align-items: center; gap: 0.5rem; border-radius: var(--explorer-radius-medium); padding: 0.55rem 0.7rem; color: var(--explorer-text); font-size: 0.8125rem; }
+  .error-banner { border: 1px solid color-mix(in srgb, var(--explorer-danger) 45%, transparent); color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); }
+  .batch-feedback { border: 1px solid color-mix(in srgb, var(--explorer-success) 38%, transparent); background: color-mix(in srgb, var(--explorer-success) 10%, var(--explorer-surface)); }
+  .batch-feedback.error { border-color: color-mix(in srgb, var(--explorer-danger) 45%, transparent); color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); }
+  .error-banner span,
+  .batch-feedback span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+
+  .task-list-shell { min-width: 0; overflow: hidden; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); background: var(--explorer-surface); }
+  .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 0.75rem; border-bottom: 1px solid var(--explorer-border); padding: 0.35rem 0.55rem; background: var(--explorer-surface-raised); }
+  .section-toggle { display: flex; min-width: 0; align-items: center; gap: 0.4rem; color: var(--explorer-text); }
+  .section-chevron { display: inline-flex; transition: transform 180ms var(--motion-easing-emphasized-decelerate); }
+  .section-chevron-expanded { transform: rotate(180deg); }
+  .section-toggle strong { font-size: 0.8125rem; }
+  .section-toggle span { color: var(--explorer-text-muted); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+
+  .group-child { position: relative; padding-left: 1.5rem; background: color-mix(in srgb, var(--explorer-surface-raised) 48%, var(--explorer-surface)); }
+  .group-child::before { position: absolute; top: 0; bottom: 0; left: 0.72rem; width: 1px; background: color-mix(in srgb, var(--explorer-accent) 45%, var(--explorer-border)); content: ''; }
+  .empty-state { display: grid; min-height: 260px; place-items: center; align-content: center; gap: 0.45rem; padding: 2rem; color: var(--explorer-text-muted); text-align: center; }
+  .empty-state h2 { color: var(--explorer-text); font-size: 0.9375rem; font-weight: 650; }
+  .empty-state p { max-width: 52ch; font-size: 0.8125rem; }
+
+  @media (max-width: 780px) {
+    .task-toolbar { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+    .search-field { grid-column: 1 / -1; }
+    .task-summary { grid-column: 2; }
+  }
+
+  @media (max-width: 520px) {
+    .task-page { padding: 0.85rem; }
+    .task-toolbar { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+    .section-filter,
+    .task-summary { grid-column: 1; justify-self: stretch; }
+    .section-filter select { flex: 1; }
+    .task-summary { justify-content: space-between; }
+    .group-child { padding-left: 0.8rem; }
+    .group-child::before { left: 0.38rem; }
+  }
+
+  @media (pointer: coarse) {
+    .icon-button { width: 44px; height: 44px; }
+    .task-tabs button { min-height: 44px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon-button,
+    .task-tabs button,
+    .search-field,
+    .search-field button,
+    .section-chevron { transition: none; }
+    .icon-button:active:not(:disabled),
+    .search-field button:active { transform: none; }
+  }
 </style>

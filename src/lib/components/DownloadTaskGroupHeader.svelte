@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import { canDeleteDownloadTaskGroupFiles, type DownloadTaskGroup } from '$lib/download-task-groups';
+  import { flyScale } from '$lib/motion/transitions';
   import Icon from './Icon.svelte';
   import ProgressRing from './ProgressRing.svelte';
 
@@ -185,13 +186,13 @@
         disabled={isDeleting}
         onclick={() => onToggle(group.id)}
       >
-        <Icon name={expanded ? 'expandLess' : 'expandMore'} size="18px" />
+        <span class:batch-chevron-expanded={expanded} class="batch-chevron"><Icon name="expandMore" size="18px" /></span>
       </button>
     </span>
   </div>
 
   {#if expanded && hasSecondaryActions}
-    <div class="batch-secondary-actions">
+    <div class="batch-secondary-actions" transition:flyScale={{ y: -4, duration: 160 }}>
       {#if canPause && primaryAction !== 'pause'}
         <button type="button" class="batch-action batch-action-warning" disabled={Boolean(pendingAction) || isDeleting} onclick={() => runAction(onPause)}><Icon name="pause" size="14px" />{$t('tasks.pause')}</button>
       {/if}
@@ -218,17 +219,17 @@
   .batch-card {
     min-width: 0;
     overflow: hidden;
-    border-bottom: 1px solid var(--color-md3-outline);
-    background: var(--color-md3-surface-container);
+    border-bottom: 1px solid var(--explorer-border);
+    background: var(--explorer-surface);
     transition: background-color 180ms var(--motion-easing-standard);
   }
 
   .batch-card:hover {
-    background: var(--color-md3-surface-container-high);
+    background: var(--explorer-surface-hover);
   }
 
   .batch-card-deleting {
-    background: var(--color-md3-error-container);
+    background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface));
   }
 
   .batch-summary {
@@ -247,20 +248,20 @@
     display: grid;
     align-items: center;
     justify-content: center;
-    color: var(--color-md3-primary-emphasis);
+    color: var(--explorer-folder);
   }
 
   .batch-folder {
     height: 28px;
     width: 28px;
-    color: var(--color-md3-primary-emphasis);
+    color: var(--explorer-folder);
     transition:
       background-color 180ms var(--motion-easing-standard),
       color 180ms var(--motion-easing-standard);
   }
 
   .batch-folder-cancelled {
-    color: var(--color-md3-on-surface-variant);
+    color: var(--explorer-text-muted);
   }
 
   .batch-copy {
@@ -274,7 +275,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--color-md3-on-surface);
+    color: var(--explorer-text);
     font-size: 0.875rem;
     font-weight: 650;
   }
@@ -284,14 +285,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--color-md3-on-surface-variant);
+    color: var(--explorer-text-muted);
     font-size: 0.75rem;
   }
 
   .batch-state {
     min-width: 0;
     overflow: hidden;
-    color: var(--color-md3-on-surface-variant);
+    color: var(--explorer-text-muted);
     font-size: 0.75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -305,7 +306,7 @@
 
   .batch-percent {
     justify-self: end;
-    color: var(--color-md3-primary-emphasis);
+    color: var(--explorer-accent);
     font-size: 0.8rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -316,14 +317,14 @@
     height: 0.25rem;
     overflow: hidden;
     border-radius: 9999px;
-    background: var(--color-md3-surface-container-high);
+    background: var(--explorer-surface-raised);
   }
 
   .batch-progress span {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--color-md3-primary);
+    background: var(--explorer-accent);
     transition: width 260ms var(--motion-easing-emphasized-decelerate);
   }
 
@@ -343,7 +344,7 @@
   .batch-secondary-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
-    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 65%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--explorer-border) 65%, transparent);
     padding: 0.4rem 0.7rem 0.45rem 3rem;
   }
 
@@ -359,7 +360,8 @@
     font-weight: 600;
     transition:
       filter 160ms var(--motion-easing-standard),
-      opacity 160ms var(--motion-easing-standard);
+      opacity 160ms var(--motion-easing-standard),
+      transform 120ms var(--motion-easing-standard);
   }
 
   .batch-primary-action {
@@ -372,18 +374,26 @@
     height: 36px;
     place-items: center;
     border-radius: 999px;
-    color: var(--color-md3-on-surface-variant);
+    color: var(--explorer-text-muted);
+    transition: color 120ms var(--motion-easing-standard), background-color 120ms var(--motion-easing-standard), transform 120ms var(--motion-easing-standard);
   }
 
+  .batch-chevron { display: inline-flex; transition: transform 180ms var(--motion-easing-emphasized-decelerate); }
+  .batch-chevron-expanded { transform: rotate(180deg); }
+
   .batch-expand:hover:not(:disabled) {
-    background: var(--color-md3-surface-container-highest);
-    color: var(--color-md3-on-surface);
+    background: var(--explorer-surface-selected);
+    color: var(--explorer-text);
   }
 
   .batch-primary-action:hover:not(:disabled),
   .batch-action:hover:not(:disabled) {
     filter: brightness(1.08);
   }
+
+  .batch-primary-action:active:not(:disabled),
+  .batch-action:active:not(:disabled),
+  .batch-expand:active:not(:disabled) { transform: scale(0.94); }
 
   .batch-primary-action:disabled,
   .batch-action:disabled,
@@ -396,15 +406,15 @@
   }
 
   .batch-action-warning {
-    color: var(--color-md3-warning);
+    color: var(--explorer-warning);
   }
 
   .batch-action-primary {
-    color: var(--color-md3-primary-emphasis);
+    color: var(--explorer-accent);
   }
 
   .batch-action-danger {
-    color: var(--color-md3-error);
+    color: var(--explorer-danger);
   }
 
   @keyframes batch-progress-sweep {
@@ -436,6 +446,16 @@
 
   @media (prefers-reduced-motion: reduce) {
     .batch-progress-indeterminate span { animation: none; }
+    .batch-card,
+    .batch-folder,
+    .batch-progress span,
+    .batch-primary-action,
+    .batch-action,
+    .batch-expand,
+    .batch-chevron { transition: none; }
+    .batch-primary-action:active:not(:disabled),
+    .batch-action:active:not(:disabled),
+    .batch-expand:active:not(:disabled) { transform: none; }
   }
 
 </style>

@@ -118,7 +118,7 @@
       ></div>
     {/if}
     <div
-      class="relative h-full {barClass} rounded-full transition-[width] duration-300 ease-out overflow-hidden"
+      class="transfer-progress-value relative h-full {barClass} rounded-full overflow-hidden"
       style="width: {Math.max(pct, animate ? 2 : 0)}%"
     >
       {#if animate}
@@ -129,7 +129,15 @@
 </div>
 
 <style>
+  .transfer-progress-value {
+    transition: width var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate);
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .transfer-progress-value {
+      transition: none;
+    }
+
     .transfer-progress :global(.animate-shimmer),
     .transfer-progress :global(.animate-progress-stripe) {
       animation: none !important;
