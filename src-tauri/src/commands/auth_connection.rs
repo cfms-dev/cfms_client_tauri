@@ -265,6 +265,7 @@ async fn apply_successful_login_response(
     remember_server_preference_dek(&state.inner, server_preference_dek).await;
     if clear_tasks {
         state.tasks.clear();
+        state.upload_tasks.clear();
     }
 
     Ok(token)

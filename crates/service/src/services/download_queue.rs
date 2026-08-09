@@ -467,6 +467,33 @@ impl QueueState {
         existed
     }
 
+    /// Remove terminal history entries without touching completed output files.
+    pub fn remove_terminal(&self, ids: &[String]) -> (Vec<String>, Vec<(String, String)>) {
+        let mut succeeded = Vec::new();
+        let mut failed = Vec::new();
+        {
+            let mut map = self.tasks.lock().unwrap();
+            for id in ids {
+                match map.get(id) {
+                    None => failed.push((id.clone(), "Task not found".into())),
+                    Some(task) if !task.status.is_terminal() => failed.push((
+                        id.clone(),
+                        "Only finished download records can be removed".into(),
+                    )),
+                    Some(task) => {
+                        cleanup_resume_state(&task.file_path, &task.task_id);
+                        map.remove(id);
+                        succeeded.push(id.clone());
+                    }
+                }
+            }
+        }
+        if !succeeded.is_empty() {
+            self.save();
+        }
+        (succeeded, failed)
+    }
+
     pub fn set_pause_position(&self, task_id: &str, position: u64) -> Result<()> {
         {
             let mut map = self.tasks.lock().unwrap();

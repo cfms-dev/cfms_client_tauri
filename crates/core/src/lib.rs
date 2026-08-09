@@ -23,7 +23,7 @@ pub use types::{
     MIN_TASK_CONCURRENCY, PRIVACY_PREFERENCE_VERSION, PrivacyPreference, ReduceMotionPreference,
     Response, ServerDirectoryEntry, ServerDocumentEntry, ServerInfo, ServerListingItem,
     ServiceEvent, ServiceStatusInfo, TaskConcurrencyPreference, TransferPreference, UploadProgress,
-    UserPreference,
+    UploadTaskDto, UploadTaskKind, UploadTaskStatus, UserPreference,
 };
 
 // ---------------------------------------------------------------------------

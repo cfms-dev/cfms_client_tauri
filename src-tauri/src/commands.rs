@@ -49,6 +49,7 @@ include!("commands/passkeys.rs");
 include!("commands/mobile.rs");
 include!("commands/updates.rs");
 include!("commands/downloads.rs");
+include!("commands/upload_tasks.rs");
 include!("commands/documents.rs");
 include!("commands/admin.rs");
 include!("commands/browsing.rs");

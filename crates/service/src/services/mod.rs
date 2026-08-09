@@ -11,3 +11,5 @@ pub mod rpc;
 pub mod server_push;
 pub mod task_persistence;
 pub mod token_refresh;
+pub mod upload_queue;
+pub mod upload_task_persistence;

@@ -726,6 +726,26 @@ fn emit_upload_progress<R: Runtime>(
         0.0
     };
 
+    let persistent_status = match status {
+        "pending" => cfms_core::UploadTaskStatus::Pending,
+        "paused" => cfms_core::UploadTaskStatus::Paused,
+        "interrupted" => cfms_core::UploadTaskStatus::Interrupted,
+        "completed" => cfms_core::UploadTaskStatus::Completed,
+        "failed" => cfms_core::UploadTaskStatus::Failed,
+        "cancelled" => cfms_core::UploadTaskStatus::Cancelled,
+        "skipped" => cfms_core::UploadTaskStatus::Skipped,
+        _ => cfms_core::UploadTaskStatus::Uploading,
+    };
+    app_handle.state::<AppHandleState>().upload_tasks.update_progress(
+        upload_id,
+        task_id,
+        file_name,
+        current_bytes,
+        total_bytes,
+        persistent_status,
+        message.clone(),
+    );
+
     let _ = app_handle.emit(
         "cfms:upload-progress",
         UploadProgressEvent {
@@ -1101,6 +1121,7 @@ async fn clear_auth_state(state: &AppHandleState) {
     }
 
     state.tasks.clear();
+    state.upload_tasks.clear();
     state
         .inner
         .pending_2fa

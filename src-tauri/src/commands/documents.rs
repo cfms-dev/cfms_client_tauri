@@ -867,9 +867,11 @@ pub async fn pause_upload(
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    Ok(state
-        .active_uploads
-        .interrupt(&upload_id, UploadInterruption::Paused))
+    let active = state.active_uploads.interrupt(&upload_id, UploadInterruption::Paused);
+    if active { return Ok(true); }
+    state.upload_tasks
+        .set_status(&upload_id, cfms_core::UploadTaskStatus::Paused, "Upload paused")
+        .map_err(|error| format!("Failed to pause upload: {error}"))
 }
 
 #[tauri::command]
@@ -877,7 +879,11 @@ pub async fn resume_upload(
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    Ok(state.active_uploads.resume(&upload_id))
+    let active = state.active_uploads.resume(&upload_id);
+    if active { return Ok(true); }
+    state.upload_tasks
+        .set_status(&upload_id, cfms_core::UploadTaskStatus::Pending, "Waiting to upload")
+        .map_err(|error| format!("Failed to resume upload: {error}"))
 }
 
 #[tauri::command]
@@ -885,9 +891,11 @@ pub async fn cancel_upload(
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    Ok(state
-        .active_uploads
-        .interrupt(&upload_id, UploadInterruption::Cancelled))
+    let active = state.active_uploads.interrupt(&upload_id, UploadInterruption::Cancelled);
+    if active { return Ok(true); }
+    state.upload_tasks
+        .set_status(&upload_id, cfms_core::UploadTaskStatus::Cancelled, "Upload cancelled")
+        .map_err(|error| format!("Failed to cancel upload: {error}"))
 }
 
 /// Search documents and directories on the server.

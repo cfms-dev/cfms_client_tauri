@@ -1,1016 +1,427 @@
 <script lang="ts">
-  // Task manager page: upload/download tabs with a shared status filter.
-
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
+  import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
-  import { downloadStore, uploadStore } from '$lib/stores.svelte';
-  import { getDownloadTasks, clearCompletedTasks, clearFailedTasks, pauseDownload, resumeDownload, retryDownload, cancelDownload, deleteDownload } from '$lib/api';
+  import type { DownloadTaskDto, UploadEnqueueRequest, UploadTaskDto } from '$lib/api';
   import {
-    downloadBatchSnapshots,
-    pauseActiveDownloadBatches,
-    resumeActiveDownloadBatches,
-    stopActiveDownloadBatch,
-  } from '$lib/download-batch-control';
+    cancelDownload, controlTransferTasks, deleteDownloadedFiles, getDownloadTasks, getUploadTasks,
+    openDownloadedFile, pauseDownload, removeTransferRecords,
+    resumeDownload, retryDownload, retryUploadTask, uploadDirectory, uploadDocumentFile,
+  } from '$lib/api';
+  import { downloadStore, uploadStore } from '$lib/stores.svelte';
+  import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopActiveDownloadBatch } from '$lib/download-batch-control';
+  import { buildDownloadTaskRows, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
+  import {
+    TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery, sortSectionTasks,
+    uploadSection, type TransferSectionFilter, type TransferSectionKey,
+  } from '$lib/transfer-task-view';
+  import { registerKeyboardCommands } from '$lib/keyboard';
+  import { pickDirectory } from '$lib/directory-picker';
+  import VirtualList from '$lib/components/VirtualList.svelte';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
-  import ContextMenu from '$lib/components/ContextMenu.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import VirtualList from '$lib/components/VirtualList.svelte';
-  import { buildDownloadTaskRows, canDeleteDownloadTaskGroupFiles, isRunningDownloadTask, type DownloadTaskGroup, type DownloadTaskRow } from '$lib/download-task-groups';
-  import type { ContextMenuItem } from '$lib/components/context-menu';
-  import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
   type TaskTab = 'downloads' | 'uploads';
-  type TaskFilter = 'all' | 'pending' | 'active' | 'paused' | 'completed' | 'failed' | 'cancelled';
-  type DownloadTaskAction = 'pause' | 'resume' | 'retry' | 'cancel';
-  type DownloadGroupAction = DownloadTaskAction | 'delete';
-  type BatchDeleteProgress = { current: number; total: number };
+  type DownloadPageRow =
+    | { kind: 'section'; section: TransferSectionKey; count: number }
+    | { kind: 'download'; section: TransferSectionKey; row: DownloadTaskRow };
+  type UploadPageRow =
+    | { kind: 'section'; section: TransferSectionKey; count: number }
+    | { kind: 'upload'; section: TransferSectionKey; task: UploadTaskDto };
 
   let activeTab = $state<TaskTab>('downloads');
-  let filter = $state<TaskFilter>('all');
-  let busy = $state(false);
-  let menuOpen = $state(false);
-  let taskMenuTrigger = $state<HTMLButtonElement | null>(null);
-  let expandedDownloadGroups = $state<Set<string>>(new Set());
-  let pendingDownloadTaskActions = $state<Map<string, DownloadTaskAction>>(new Map());
-  let pendingDownloadGroupActions = $state<Map<string, DownloadGroupAction>>(new Map());
-  let deletingDownloadGroups = $state<Map<string, BatchDeleteProgress>>(new Map());
-  let contextMenu = $state<{
-    open: boolean;
-    x: number;
-    y: number;
-    target: { kind: 'download-task'; task: DownloadTaskDto } | { kind: 'download-group'; group: DownloadTaskGroup } | null;
-    sourceElement: HTMLElement | null;
-  }>({ open: false, x: 0, y: 0, target: null, sourceElement: null });
-  const deleteProgressWriteTimes = new Map<string, number>();
+  let searchQuery = $state('');
+  let sectionFilter = $state<TransferSectionFilter>('all');
+  let loading = $state(false);
+  let errorMessage = $state('');
+  let batchFeedback = $state<{ message: string; failed: boolean } | null>(null);
+  let expandedGroups = $state(new Set<string>());
+  let collapsedSections = $state(new Set<TransferSectionKey>());
+  let pendingDownloadActions = $state(new Set<string>());
+  let pendingUploadActions = $state(new Set<string>());
+  let pendingGroupActions = $state(new Set<string>());
 
-  const tabs = $derived([
-    {
-      key: 'downloads' as const,
-      label: $t('tasks.downloads'),
-      icon: 'download' as const,
-    },
-    {
-      key: 'uploads' as const,
-      label: $t('tasks.uploads'),
-      icon: 'upload' as const,
-    },
-  ]);
+  const downloadTasks = $derived([...downloadStore.tasks.values()]);
+  const uploadTasks = $derived(uploadStore.allTasks);
+  const visibleDownloads = $derived(downloadTasks.filter((task) => matchesTransferQuery(task, searchQuery)));
+  const visibleUploads = $derived(uploadTasks.filter((task) => matchesTransferQuery(task, searchQuery)));
+  const downloadRows = $derived.by(() => buildDownloadPageRows());
+  const uploadRows = $derived.by(() => buildUploadPageRows());
+  const currentRows = $derived(activeTab === 'downloads' ? downloadRows : uploadRows);
+  const activeCount = $derived(activeTab === 'downloads'
+    ? visibleDownloads.filter((task) => downloadSection(task) === 'active').length
+    : visibleUploads.filter((task) => uploadSection(task) === 'active').length);
+  const attentionCount = $derived(activeTab === 'downloads'
+    ? visibleDownloads.filter((task) => downloadSection(task) === 'attention').length
+    : visibleUploads.filter((task) => uploadSection(task) === 'attention').length);
 
-  const filters = $derived<Array<{ key: TaskFilter; label: string; count: number }>>([
-    { key: 'all', label: $t('tasks.all'), count: currentTaskCount('all') },
-    { key: 'pending', label: $t('tasks.pending'), count: currentTaskCount('pending') },
-    { key: 'active', label: $t('tasks.inProgress'), count: currentTaskCount('active') },
-    { key: 'paused', label: $t('tasks.paused'), count: currentTaskCount('paused') },
-    { key: 'completed', label: $t('tasks.completed'), count: currentTaskCount('completed') },
-    { key: 'failed', label: $t('tasks.failed'), count: currentTaskCount('failed') },
-    { key: 'cancelled', label: $t('tasks.cancelled'), count: currentTaskCount('cancelled') },
-  ]);
-
-  const filteredDownloads = $derived(sortTasksForDisplay(filterDownloadTasks([...downloadStore.tasks.values()], filter), isRunningDownload));
-  const visibleActiveDownloadBatches = $derived(
-    ['all', 'pending', 'active'].includes(filter) ? $downloadBatchSnapshots : [],
-  );
-  const downloadRows = $derived(buildDownloadTaskRows(filteredDownloads, expandedDownloadGroups, visibleActiveDownloadBatches));
-  const filteredUploads = $derived(sortTasksForDisplay(filterUploadTasks(uploadStore.allTasks, filter), isRunningUpload));
-  const contextMenuItems = $derived.by<ContextMenuItem[]>(() => getContextMenuItems());
-  const currentFilterLabel = $derived(filters.find((f) => f.key === filter)?.label ?? filter);
-  const visibleTaskCount = $derived(activeTab === 'downloads' ? downloadRows.length : filteredUploads.length);
-  const emptyTitle = $derived(activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks'));
-  const completedOrCancelledCount = $derived(
-    downloadStore.completedTasks.length
-      + [...downloadStore.tasks.values()].filter((task) => task.status === 'deleted').length
-      + downloadStore.cancelledTasks.length
-      + uploadStore.completedTasks.length
-      + uploadStore.cancelledTasks.length,
-  );
-  const failedOrCancelledCount = $derived(
-    downloadStore.failedTasks.length
-      + downloadStore.cancelledTasks.length
-      + uploadStore.failedTasks.length
-      + uploadStore.cancelledTasks.length,
-  );
-
-  onMount(async () => {
-    try {
-      const tasks = await getDownloadTasks();
-      downloadStore.setAll(tasks);
-    } catch { /* ignore */ }
+  onMount(() => {
+    void refresh();
+    return registerKeyboardCommands({
+      id: 'tasks.refresh', label: () => $t('common.refresh'), group: () => $t('tasks.title'),
+      shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }], scope: 'page',
+      enabled: () => !loading, handler: refresh,
+    });
   });
 
-  onMount(() => registerKeyboardCommands({
-    id: 'tasks.refresh',
-    label: () => $t('common.refresh'),
-    group: () => $t('tasks.title'),
-    shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
-    scope: 'page',
-    enabled: () => !busy,
-    handler: refresh,
-  }));
-
   async function refresh() {
+    loading = true;
+    errorMessage = '';
     try {
-      const tasks = await getDownloadTasks();
-      downloadStore.setAll(tasks);
-    } catch { /* ignore */ }
-  }
-
-  function switchTab(tab: TaskTab) {
-    activeTab = tab;
-  }
-
-  function handleTabKeydown(event: KeyboardEvent) {
-    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
-      selector: '[data-tab-item]',
-      orientation: 'horizontal',
-    });
-    next?.click();
-  }
-
-  function handleFilterKeydown(event: KeyboardEvent) {
-    const next = focusRovingItem(event, event.currentTarget as HTMLElement, {
-      selector: '[data-filter-item]',
-      orientation: 'both',
-    });
-    next?.click();
-  }
-
-  function toggleTaskMenu(focusFirst = false) {
-    menuOpen = !menuOpen;
-    if (menuOpen && focusFirst) {
-      void tick().then(() => document.querySelector<HTMLElement>('[data-task-menu] [data-menu-item]:not(:disabled)')?.focus());
+      const [downloads, uploads] = await Promise.all([getDownloadTasks(), getUploadTasks()]);
+      downloadStore.setAll(downloads);
+      uploadStore.setAll(uploads);
+    } catch (error) {
+      errorMessage = formatError(error);
+    } finally {
+      loading = false;
     }
   }
 
-  function handleTaskMenuKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' || event.key === 'Tab') {
-      menuOpen = false;
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        taskMenuTrigger?.focus({ preventScroll: true });
+  function buildDownloadPageRows(): DownloadPageRow[] {
+    const rows: DownloadPageRow[] = [];
+    for (const section of TRANSFER_SECTION_ORDER) {
+      if (sectionFilter !== 'all' && sectionFilter !== section) continue;
+      const tasks = sortSectionTasks(visibleDownloads.filter((task) => downloadSection(task) === section), section);
+      const batchSnapshots = section === 'active' ? $downloadBatchSnapshots : [];
+      if (tasks.length === 0 && batchSnapshots.length === 0) continue;
+      rows.push({ kind: 'section', section, count: tasks.length });
+      if (collapsedSections.has(section)) continue;
+      for (const row of buildDownloadTaskRows(tasks, expandedGroups, batchSnapshots)) {
+        rows.push({ kind: 'download', section, row });
       }
-      return;
     }
-    focusRovingItem(event, event.currentTarget as HTMLElement, {
-      selector: '[data-menu-item]',
-      orientation: 'vertical',
+    return rows;
+  }
+
+  function buildUploadPageRows(): UploadPageRow[] {
+    const rows: UploadPageRow[] = [];
+    for (const section of TRANSFER_SECTION_ORDER) {
+      if (sectionFilter !== 'all' && sectionFilter !== section) continue;
+      const tasks = sortSectionTasks(visibleUploads.filter((task) => uploadSection(task) === section), section);
+      if (tasks.length === 0) continue;
+      rows.push({ kind: 'section', section, count: tasks.length });
+      if (collapsedSections.has(section)) continue;
+      for (const task of tasks) rows.push({ kind: 'upload', section, task });
+    }
+    return rows;
+  }
+
+  function sectionLabel(section: TransferSectionKey) {
+    return $t(`tasks.sections.${section}`);
+  }
+
+  function toggleSection(section: TransferSectionKey) {
+    const next = new Set(collapsedSections);
+    next.has(section) ? next.delete(section) : next.add(section);
+    collapsedSections = next;
+  }
+
+  function toggleGroup(groupId: string) {
+    const next = new Set(expandedGroups);
+    next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+    expandedGroups = next;
+  }
+
+  async function runDownload(id: string, action: () => Promise<unknown>, refreshAfter = true) {
+    pendingDownloadActions = new Set(pendingDownloadActions).add(id);
+    errorMessage = '';
+    try { await action(); if (refreshAfter) await refreshDownloads(); }
+    catch (error) { errorMessage = formatError(error); }
+    finally { const next = new Set(pendingDownloadActions); next.delete(id); pendingDownloadActions = next; }
+  }
+
+  async function refreshDownloads() {
+    downloadStore.setAll(await getDownloadTasks());
+  }
+
+  async function refreshUploads() {
+    uploadStore.setAll(await getUploadTasks());
+  }
+
+  async function handleOpen(id: string) { await runDownload(id, () => openDownloadedFile(id)); }
+  async function handlePause(id: string) { await runDownload(id, () => pauseDownload(id)); }
+  async function handleResume(id: string) { await runDownload(id, () => resumeDownload(id)); }
+  async function handleRetry(id: string) { await runDownload(id, () => retryDownload(id)); }
+  async function handleCancel(id: string) { await runDownload(id, () => cancelDownload(id)); }
+  async function handleRemoveDownload(id: string) {
+    await runDownload(id, async () => {
+      const result = await removeTransferRecords('download', [id]);
+      if (result.failed.length) throw new Error(result.failed[0].error);
+      downloadStore.remove(id);
+    }, false);
+  }
+  async function handleDeleteFile(id: string) {
+    if (!window.confirm($t('tasks.deleteLocalFileConfirm'))) return;
+    await runDownload(id, async () => {
+      const result = await deleteDownloadedFiles([id]);
+      if (result.failed.length) throw new Error(result.failed[0].error);
     });
   }
 
-  function currentTaskCount(nextFilter: TaskFilter) {
-    return activeTab === 'downloads'
-      ? filterDownloadTasks([...downloadStore.tasks.values()], nextFilter).length
-      : filterUploadTasks(uploadStore.allTasks, nextFilter).length;
+  async function runUpload(id: string, action: () => Promise<unknown>, refreshAfter = true) {
+    pendingUploadActions = new Set(pendingUploadActions).add(id);
+    errorMessage = '';
+    try { await action(); if (refreshAfter) await refreshUploads(); }
+    catch (error) { errorMessage = formatError(error); }
+    finally { const next = new Set(pendingUploadActions); next.delete(id); pendingUploadActions = next; }
   }
-
-  function filterDownloadTasks(tasks: DownloadTaskDto[], nextFilter: TaskFilter) {
-    if (nextFilter === 'all') return tasks;
-    return tasks.filter((task) => downloadMatchesFilter(task, nextFilter));
+  async function handlePauseUpload(id: string) { await runUpload(id, () => uploadStore.pause(id)); }
+  async function handleResumeUpload(id: string) { await runUpload(id, () => uploadStore.resume(id)); }
+  async function handleCancelUpload(id: string) { await runUpload(id, () => uploadStore.cancel(id)); }
+  async function handleRestartUpload(id: string) {
+    await runUpload(id, async () => {
+      const request = await retryUploadTask(id);
+      uploadStore.registerRunner(id, uploadRunner(request));
+    }, false);
   }
-
-  function filterUploadTasks(tasks: UploadTaskDto[], nextFilter: TaskFilter) {
-    if (nextFilter === 'all') return tasks;
-    return tasks.filter((task) => uploadMatchesFilter(task, nextFilter));
-  }
-
-  function downloadMatchesFilter(task: DownloadTaskDto, nextFilter: TaskFilter) {
-    if (nextFilter === 'pending') return task.status === 'pending' || task.status === 'scheduled';
-    if (nextFilter === 'active') return ['downloading', 'decrypting', 'verifying'].includes(task.status);
-    if (nextFilter === 'completed') return task.status === 'completed' || task.status === 'deleted';
-    return task.status === nextFilter;
-  }
-
-  function uploadMatchesFilter(task: UploadTaskDto, nextFilter: TaskFilter) {
-    if (nextFilter === 'active') return task.status === 'uploading';
-    if (nextFilter === 'completed') return task.status === 'completed' || task.status === 'skipped';
-    return task.status === nextFilter;
-  }
-
-  function sortTasksForDisplay<T>(tasks: T[], isRunning: (task: T) => boolean): T[] {
-    const running: T[] = [];
-    const rest: T[] = [];
-
-    for (const task of tasks) {
-      if (isRunning(task)) {
-        running.push(task);
+  async function handleReselectUpload(id: string) {
+    const task = uploadStore.tasks.get(id);
+    if (!task) return;
+    await runUpload(id, async () => {
+      let sourcePath: string | null = null;
+      if (task.kind === 'directory') {
+        const selected = await pickDirectory({ title: $t('files.selectFolderToUpload') });
+        sourcePath = selected?.path ?? null;
       } else {
-        rest.push(task);
+        const selected = await open({
+          multiple: false,
+          directory: false,
+          pickerMode: 'document',
+          fileAccessMode: 'scoped',
+          title: $t('files.selectFilesToUpload'),
+        });
+        sourcePath = typeof selected === 'string' ? selected : null;
       }
-    }
-
-    return [...running, ...rest];
+      if (!sourcePath) return;
+      const request = await retryUploadTask(id, sourcePath);
+      uploadStore.registerRunner(id, uploadRunner(request));
+    }, false);
+  }
+  async function handleRemoveUpload(id: string) {
+    await runUpload(id, async () => {
+      const result = await removeTransferRecords('upload', [id]);
+      if (result.failed.length) throw new Error(result.failed[0].error);
+      uploadStore.remove(id);
+    }, false);
   }
 
-  function isRunningDownload(task: DownloadTaskDto) {
-    return isRunningDownloadTask(task);
+  function uploadRunner(request: UploadEnqueueRequest) {
+    return (uploadId: string) => request.kind === 'directory'
+      ? uploadDirectory(request.targetParentId, request.sourcePath, uploadId, request.conflictStrategy, request.uploadName ?? request.fileName, request.conflictResolutions)
+      : uploadDocumentFile(request.targetParentId, request.sourcePath, uploadId, request.conflictStrategy, request.uploadName ?? request.fileName);
   }
 
-  function isRunningUpload(task: UploadTaskDto) {
-    return task.status === 'uploading';
+  function groupTasks(groupId: string) { return downloadTasks.filter((task) => task.batch_id === groupId); }
+  async function runGroup(groupId: string, action: () => Promise<void>) {
+    pendingGroupActions = new Set(pendingGroupActions).add(groupId);
+    try { await action(); await refreshDownloads(); }
+    catch (error) { errorMessage = formatError(error); }
+    finally { const next = new Set(pendingGroupActions); next.delete(groupId); pendingGroupActions = next; }
+  }
+  async function handlePauseGroup(id: string) { await runGroup(id, async () => { pauseActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'pending' || t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => pauseDownload(t.task_id))); }); }
+  async function handleResumeGroup(id: string) { await runGroup(id, async () => { resumeActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'paused').map((t) => resumeDownload(t.task_id))); }); }
+  async function handleRetryGroup(id: string) { await runGroup(id, async () => { await Promise.all(groupTasks(id).filter((t) => t.status === 'failed').map((t) => retryDownload(t.task_id))); }); }
+  async function handleCancelGroup(id: string) { await runGroup(id, async () => { stopActiveDownloadBatch(id); await Promise.all(groupTasks(id).filter((t) => !t.completed_at).map((t) => cancelDownload(t.task_id))); }); }
+  async function handleDeleteGroupFiles(id: string) {
+    if (!window.confirm($t('tasks.deleteBatchFilesConfirm'))) return;
+    await runGroup(id, async () => {
+      const result = await deleteDownloadedFiles(groupTasks(id).filter((t) => t.status === 'completed').map((t) => t.task_id));
+      showBatchResult(result);
+    });
   }
 
-  async function handleClearCompleted() {
-    busy = true;
+  async function handleSectionAction(section: TransferSectionKey) {
+    errorMessage = '';
     try {
-      await clearCompletedTasks();
-      uploadStore.clearCompletedAndCancelled();
-      await refresh();
-    } finally {
-      busy = false;
-      menuOpen = false;
-    }
-  }
-
-  async function handleClearFailed() {
-    busy = true;
-    try {
-      await clearFailedTasks();
-      uploadStore.clearFailedAndCancelled();
-      await refresh();
-    } finally {
-      busy = false;
-      menuOpen = false;
-    }
-  }
-
-  async function handlePauseAll() {
-    busy = true;
-    try {
-      pauseActiveDownloadBatches();
-      for (const task of downloadStore.activeTasks) {
-        const isPending = task.status === 'pending' || task.status === 'scheduled';
-        const isRunning = task.status === 'downloading';
-        if (isPending || (isRunning && task.supports_resume)) {
-          await pauseDownload(task.task_id);
+      const downloads = visibleDownloads.filter((task) => downloadSection(task) === section);
+      const uploads = visibleUploads.filter((task) => uploadSection(task) === section);
+      if (activeTab === 'downloads') {
+        if (section === 'attention') await Promise.all(downloads.filter((t) => t.status === 'failed').map((t) => handleRetry(t.task_id)));
+        if (section === 'active') showBatchResult(await controlTransferTasks('download', downloads.filter((t) => t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => t.task_id), 'pause'));
+        if (section === 'waiting') showBatchResult(await controlTransferTasks('download', downloads.filter((t) => t.status === 'paused').map((t) => t.task_id), 'resume'));
+        if (section === 'history') {
+          const result = await removeTransferRecords('download', downloads.map((t) => t.task_id));
+          showBatchResult(result);
+          await refreshDownloads();
         }
-      }
-      for (const task of uploadStore.activeTasks) {
-        await uploadStore.pause(task.upload_id);
-      }
-      await refresh();
-    } finally {
-      busy = false;
-      menuOpen = false;
-    }
-  }
-
-  async function handleResumeAll() {
-    busy = true;
-    try {
-      resumeActiveDownloadBatches();
-      for (const task of [...downloadStore.tasks.values()]) {
-        if (task.status === 'paused') {
-          await resumeDownload(task.task_id);
+        if (section === 'active' || section === 'waiting') await refreshDownloads();
+      } else {
+        if (section === 'attention') await Promise.all(uploads.filter((t) => t.source_available).map((t) => handleRestartUpload(t.upload_id)));
+        if (section === 'active') showBatchResult(await controlTransferTasks('upload', uploads.map((t) => t.upload_id), 'pause'));
+        if (section === 'waiting') showBatchResult(await controlTransferTasks('upload', uploads.filter((t) => t.status === 'paused').map((t) => t.upload_id), 'resume'));
+        if (section === 'history') {
+          const result = await removeTransferRecords('upload', uploads.map((t) => t.upload_id));
+          showBatchResult(result);
+          await refreshUploads();
         }
+        if (section === 'active' || section === 'waiting') await refreshUploads();
       }
-      for (const task of uploadStore.pausedTasks) {
-        await uploadStore.resume(task.upload_id);
-      }
-      await refresh();
-    } finally {
-      busy = false;
-      menuOpen = false;
+    } catch (error) {
+      errorMessage = formatError(error);
     }
   }
 
-  async function handleCancelPending() {
-    busy = true;
-    try {
-      for (const task of downloadStore.activeTasks) {
-        if (task.status === 'pending') {
-          await cancelDownload(task.task_id);
-        }
-      }
-      for (const task of uploadStore.activeTasks) {
-        await uploadStore.cancel(task.upload_id);
-      }
-      await refresh();
-    } finally {
-      busy = false;
-      menuOpen = false;
+  function showBatchResult(result: { succeeded: string[]; failed: Array<{ id: string; error: string }> }) {
+    const summary = $t('tasks.batchResult', {
+      values: { succeeded: result.succeeded.length, failed: result.failed.length },
+    });
+    const failures = result.failed.map((item) => `${item.id}: ${item.error}`).join('; ');
+    batchFeedback = {
+      message: failures ? `${summary} — ${failures}` : summary,
+      failed: result.failed.length > 0,
+    };
+  }
+
+  function sectionActionLabel(section: TransferSectionKey) {
+    if (section === 'attention') return $t('tasks.retryAvailable');
+    if (section === 'active') return $t('tasks.pauseAvailable');
+    if (section === 'waiting') return $t('tasks.resumePaused');
+    return $t('tasks.clearHistory');
+  }
+  function sectionActionAvailable(section: TransferSectionKey) {
+    if (activeTab === 'downloads') {
+      const tasks = visibleDownloads.filter((task) => downloadSection(task) === section);
+      if (section === 'attention') return tasks.some((task) => task.status === 'failed');
+      if (section === 'active') return tasks.some((task) => task.status === 'scheduled' || (task.status === 'downloading' && task.supports_resume));
+      if (section === 'waiting') return tasks.some((task) => task.status === 'paused');
+      return tasks.length > 0;
     }
+    const tasks = visibleUploads.filter((task) => uploadSection(task) === section);
+    if (section === 'attention') return tasks.some((task) => task.source_available);
+    if (section === 'active') return tasks.length > 0;
+    if (section === 'waiting') return tasks.some((task) => task.status === 'paused');
+    return tasks.length > 0;
   }
-
-  function hideContextMenu() {
-    contextMenu = { open: false, x: 0, y: 0, target: null, sourceElement: null };
-  }
-
-  function showDownloadTaskContextMenu(event: MouseEvent | KeyboardEvent, task: DownloadTaskDto) {
+  function handleTabKeydown(event: KeyboardEvent) {
+    const tabs: Array<'downloads' | 'uploads'> = ['downloads', 'uploads'];
+    const current = tabs.indexOf(activeTab);
+    let next = current;
+    if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    else return;
     event.preventDefault();
-    contextMenu = { open: true, ...keyboardMenuAnchor(event), target: { kind: 'download-task', task } };
+    activeTab = tabs[next];
+    const buttons = event.currentTarget instanceof HTMLElement
+      ? event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      : undefined;
+    buttons?.[next]?.focus();
   }
-
-  function showDownloadGroupContextMenu(event: MouseEvent | KeyboardEvent, group: DownloadTaskGroup) {
-    event.preventDefault();
-    contextMenu = { open: true, ...keyboardMenuAnchor(event), target: { kind: 'download-group', group } };
+  function rowKey(row: DownloadPageRow | UploadPageRow) {
+    if (row.kind === 'section') return `section:${row.section}`;
+    if (row.kind === 'upload') return `upload:${row.task.upload_id}`;
+    const item = row.row;
+    if (item.kind === 'group') return `group:${row.section}:${item.group.id}`;
+    return `download:${item.task.task_id}`;
   }
-
-  function getContextMenuItems(): ContextMenuItem[] {
-    if (!contextMenu.target) return [];
-
-    if (contextMenu.target.kind === 'download-group') {
-      const group = contextMenu.target.group;
-      return [
-        {
-          id: 'pause-download-group',
-          label: $t('tasks.pause'),
-          icon: 'pause',
-          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canPauseDownloadGroup(group),
-          onSelect: () => handlePauseDownloadGroup(group.id),
-        },
-        {
-          id: 'resume-download-group',
-          label: $t('tasks.resume'),
-          icon: 'resume',
-          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canResumeDownloadGroup(group),
-          onSelect: () => handleResumeDownloadGroup(group.id),
-        },
-        {
-          id: 'retry-download-group',
-          label: $t('tasks.retryAction'),
-          icon: 'restartAlt',
-          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canRetryDownloadGroup(group),
-          onSelect: () => handleRetryDownloadGroup(group.id),
-        },
-        {
-          id: 'cancel-download-group',
-          label: $t('tasks.cancel'),
-          icon: 'cancel',
-          disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id) || !canCancelDownloadGroup(group),
-          danger: true,
-          onSelect: () => handleCancelDownloadGroup(group.id),
-        },
-        ...(canDeleteDownloadTaskGroupFiles(group)
-          ? [
-            { type: 'divider' as const },
-            {
-              id: 'delete-download-group-files',
-              label: $t('tasks.deleteBatchFiles'),
-              icon: 'delete' as const,
-              disabled: isDownloadGroupActionPending(group.id) || isDeletingDownloadGroup(group.id),
-              danger: true,
-              onSelect: () => handleDeleteDownloadGroupFiles(group.id),
-            },
-          ]
-          : []),
-      ];
-    }
-
-    const task = contextMenu.target.task;
-    return [
-      {
-        id: 'pause-download-task',
-        label: $t('tasks.pause'),
-        icon: 'pause',
-        disabled: isDownloadTaskActionPending(task.task_id) || !canPauseDownloadTask(task),
-        onSelect: () => handlePauseDownloadTask(task.task_id),
-      },
-      {
-        id: 'resume-download-task',
-        label: $t('tasks.resume'),
-        icon: 'resume',
-        disabled: isDownloadTaskActionPending(task.task_id) || !canResumeDownloadTask(task),
-        onSelect: () => handleResumeDownloadTask(task.task_id),
-      },
-      {
-        id: 'retry-download-task',
-        label: $t('tasks.retryAction'),
-        icon: 'restartAlt',
-        disabled: isDownloadTaskActionPending(task.task_id) || !canRetryDownloadTask(task),
-        onSelect: () => handleRetryDownloadTask(task.task_id),
-      },
-      {
-        id: 'cancel-download-task',
-        label: $t('tasks.cancel'),
-        icon: 'cancel',
-        disabled: isDownloadTaskActionPending(task.task_id) || !canCancelDownloadTask(task),
-        danger: true,
-        onSelect: () => handleCancelDownloadTask(task.task_id),
-      },
-    ];
-  }
-
-  function handleRemove(taskId: string) {
-    downloadStore.remove(taskId);
-    refresh();
-  }
-
-  function toggleDownloadGroup(groupId: string) {
-    const next = new Set(expandedDownloadGroups);
-    if (next.has(groupId)) {
-      next.delete(groupId);
-    } else {
-      next.add(groupId);
-    }
-    expandedDownloadGroups = next;
-  }
-
-  function getDownloadGroupTasks(groupId: string) {
-    return [...downloadStore.tasks.values()].filter((task) => task.batch_id === groupId);
-  }
-
-  function isDeletingDownloadGroup(groupId: string) {
-    return deletingDownloadGroups.has(groupId);
-  }
-
-  function isDownloadTaskActionPending(taskId: string) {
-    return pendingDownloadTaskActions.has(taskId);
-  }
-
-  function getPendingDownloadTaskAction(taskId: string) {
-    return pendingDownloadTaskActions.get(taskId) ?? null;
-  }
-
-  function isDownloadGroupActionPending(groupId: string) {
-    return pendingDownloadGroupActions.has(groupId);
-  }
-
-  function getPendingDownloadGroupAction(groupId: string) {
-    return pendingDownloadGroupActions.get(groupId) ?? null;
-  }
-
-  function setPendingDownloadTaskAction(taskId: string, action: DownloadTaskAction | null) {
-    const next = new Map(pendingDownloadTaskActions);
-    if (action) {
-      next.set(taskId, action);
-    } else {
-      next.delete(taskId);
-    }
-    pendingDownloadTaskActions = next;
-  }
-
-  function setPendingDownloadGroupAction(groupId: string, action: DownloadGroupAction | null) {
-    const next = new Map(pendingDownloadGroupActions);
-    if (action) {
-      next.set(groupId, action);
-    } else {
-      next.delete(groupId);
-    }
-    pendingDownloadGroupActions = next;
-  }
-
-  async function runDownloadTaskAction(
-    taskId: string,
-    action: DownloadTaskAction,
-    runner: () => Promise<void>,
-  ) {
-    if (isDownloadTaskActionPending(taskId)) return;
-
-    setPendingDownloadTaskAction(taskId, action);
-    try {
-      await runner();
-    } finally {
-      setPendingDownloadTaskAction(taskId, null);
-    }
-  }
-
-  async function runDownloadGroupAction(
-    groupId: string,
-    action: DownloadGroupAction,
-    runner: () => Promise<void>,
-  ) {
-    if (isDownloadGroupActionPending(groupId) || isDeletingDownloadGroup(groupId)) return;
-
-    setPendingDownloadGroupAction(groupId, action);
-    try {
-      await runner();
-    } finally {
-      setPendingDownloadGroupAction(groupId, null);
-    }
-  }
-
-  function getDeletingDownloadGroupProgress(groupId: string) {
-    return deletingDownloadGroups.get(groupId) ?? null;
-  }
-
-  function setDeletingDownloadGroupProgress(
-    groupId: string,
-    current: number,
-    total: number,
-    force = false,
-  ) {
-    const now = performance.now();
-    const lastWrite = deleteProgressWriteTimes.get(groupId) ?? 0;
-    if (!force && current < total && now - lastWrite < 80) return;
-
-    deleteProgressWriteTimes.set(groupId, now);
-    const next = new Map(deletingDownloadGroups);
-    next.set(groupId, { current, total });
-    deletingDownloadGroups = next;
-  }
-
-  function clearDeletingDownloadGroupProgress(groupId: string) {
-    deleteProgressWriteTimes.delete(groupId);
-    const next = new Map(deletingDownloadGroups);
-    next.delete(groupId);
-    deletingDownloadGroups = next;
-  }
-
-  function canPauseDownloadTask(task: DownloadTaskDto) {
-    return task.status === 'pending'
-      || task.status === 'scheduled'
-      || (task.status === 'downloading' && task.supports_resume);
-  }
-
-  function canResumeDownloadTask(task: DownloadTaskDto) {
-    return task.status === 'paused';
-  }
-
-  function canRetryDownloadTask(task: DownloadTaskDto) {
-    return task.status === 'failed';
-  }
-
-  function canCancelDownloadTask(task: DownloadTaskDto) {
-    return ['pending', 'scheduled', 'downloading', 'decrypting', 'verifying', 'paused'].includes(task.status);
-  }
-
-  function canPauseDownloadGroup(group: DownloadTaskGroup) {
-    return (group.preparing && !group.batchPaused) || group.tasks.some(canPauseDownloadTask);
-  }
-
-  function canResumeDownloadGroup(group: DownloadTaskGroup) {
-    return group.batchPaused || group.paused > 0;
-  }
-
-  function canRetryDownloadGroup(group: DownloadTaskGroup) {
-    return group.failed > 0;
-  }
-
-  function canCancelDownloadGroup(group: DownloadTaskGroup) {
-    return group.preparing || group.tasks.some(canCancelDownloadTask);
-  }
-
-  async function handlePauseDownloadTask(taskId: string) {
-    await runDownloadTaskAction(taskId, 'pause', async () => {
-      await pauseDownload(taskId);
-      await refresh();
-    });
-  }
-
-  async function handleResumeDownloadTask(taskId: string) {
-    await runDownloadTaskAction(taskId, 'resume', async () => {
-      await resumeDownload(taskId);
-      await refresh();
-    });
-  }
-
-  async function handleRetryDownloadTask(taskId: string) {
-    await runDownloadTaskAction(taskId, 'retry', async () => {
-      await retryDownload(taskId);
-      await refresh();
-    });
-  }
-
-  async function handleCancelDownloadTask(taskId: string) {
-    await runDownloadTaskAction(taskId, 'cancel', async () => {
-      await cancelDownload(taskId);
-      await refresh();
-    });
-  }
-
-  async function handlePauseDownloadGroup(groupId: string) {
-    await runDownloadGroupAction(groupId, 'pause', async () => {
-      pauseActiveDownloadBatches(groupId);
-      for (const task of getDownloadGroupTasks(groupId)) {
-        if (canPauseDownloadTask(task)) {
-          await pauseDownload(task.task_id);
-        }
-      }
-      await refresh();
-    });
-  }
-
-  async function handleResumeDownloadGroup(groupId: string) {
-    await runDownloadGroupAction(groupId, 'resume', async () => {
-      resumeActiveDownloadBatches(groupId);
-      for (const task of getDownloadGroupTasks(groupId)) {
-        if (task.status === 'paused') {
-          await resumeDownload(task.task_id);
-        }
-      }
-      await refresh();
-    });
-  }
-
-  async function handleRetryDownloadGroup(groupId: string) {
-    await runDownloadGroupAction(groupId, 'retry', async () => {
-      for (const task of getDownloadGroupTasks(groupId)) {
-        if (task.status === 'failed') {
-          await retryDownload(task.task_id);
-        }
-      }
-      await refresh();
-    });
-  }
-
-  async function handleCancelDownloadGroup(groupId: string) {
-    await runDownloadGroupAction(groupId, 'cancel', async () => {
-      stopActiveDownloadBatch(groupId);
-      for (const task of getDownloadGroupTasks(groupId)) {
-        if (canCancelDownloadTask(task)) {
-          await cancelDownload(task.task_id);
-        }
-      }
-      await refresh();
-    });
-  }
-
-  async function handleDeleteDownloadGroupFiles(groupId: string) {
-    if (isDownloadGroupActionPending(groupId) || isDeletingDownloadGroup(groupId)) return;
-
-    const group = downloadRows.find(
-      (row): row is Extract<DownloadTaskRow, { kind: 'group' }> =>
-        row.kind === 'group' && row.group.id === groupId,
-    )?.group;
-    if (!group || !canDeleteDownloadTaskGroupFiles(group)) return;
-
-    setPendingDownloadGroupAction(groupId, 'delete');
-    stopActiveDownloadBatch(groupId);
-    const tasks = getDownloadGroupTasks(groupId);
-    const total = tasks.length;
-    setDeletingDownloadGroupProgress(groupId, 0, total, true);
-
-    try {
-      for (const [index, task] of tasks.entries()) {
-        if (canCancelDownloadTask(task)) {
-          await cancelDownload(task.task_id);
-        }
-        await deleteDownload(task.task_id);
-        setDeletingDownloadGroupProgress(groupId, index + 1, total);
-      }
-
-      expandedDownloadGroups = withoutExpandedGroup(expandedDownloadGroups, groupId);
-      await refresh();
-    } finally {
-      setPendingDownloadGroupAction(groupId, null);
-      clearDeletingDownloadGroupProgress(groupId);
-    }
-  }
-
-  function withoutExpandedGroup(groups: Set<string>, groupId: string) {
-    const next = new Set(groups);
-    next.delete(groupId);
-    return next;
-  }
-
-  function downloadRowKey(row: DownloadTaskRow) {
-    if (row.kind === 'task') return `task:${row.task.task_id}`;
-    if (row.kind === 'group-task') return `group-task:${row.group.id}:${row.task.task_id}`;
-    return `group:${row.group.id}`;
-  }
-
-  function estimateDownloadRowSize(index: number) {
-    const row = downloadRows[index];
-    if (!row) return 190;
-    if (row.kind === 'group') return 150;
-    return 190;
-  }
-
-  async function handlePauseUpload(uploadId: string) {
-    await uploadStore.pause(uploadId);
-  }
-
-  async function handleResumeUpload(uploadId: string) {
-    await uploadStore.resume(uploadId);
-  }
-
-  async function handleCancelUpload(uploadId: string) {
-    await uploadStore.cancel(uploadId);
-  }
+  function estimateSize(index: number) { return currentRows[index]?.kind === 'section' ? 46 : 76; }
+  function formatError(error: unknown) { return error instanceof Error ? error.message : String(error); }
 </script>
 
-<div class="workspace-page min-w-0 space-y-4 p-4 sm:p-6">
-  <div class="flex items-center justify-between gap-3">
-    <div class="flex min-w-0 items-center gap-3">
-      <h1 class="text-xl font-bold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
-        {$t('tasks.title')}
-      </h1>
-      <button
-        bind:this={taskMenuTrigger}
-        class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
-        onclick={refresh}
-        title={$t('common.refresh')}
-      >
-        <Icon name="refresh" size="20px" />
-      </button>
+<div class="workspace-page task-page">
+  <header class="task-header">
+    <div>
+      <h1>{$t('tasks.title')}</h1>
+      <p>{$t('tasks.subtitle')}</p>
     </div>
+    <button class="icon-button" onclick={refresh} disabled={loading} title={$t('common.refresh')} aria-label={$t('common.refresh')}>
+      <Icon name="refresh" size="20px" />
+    </button>
+  </header>
 
-    <div class="relative">
-      <button
-        class="rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        onclick={() => toggleTaskMenu(true)}
-        onkeydown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            if (!menuOpen) toggleTaskMenu(true);
-          }
-        }}
-        title={$t('tasks.moreActions')}
-      >
-        <Icon name="moreVert" size="20px" />
-      </button>
+  <div class="task-tabs" role="tablist" aria-label={$t('tasks.title')}>
+    <button role="tab" aria-selected={activeTab === 'downloads'} tabindex={activeTab === 'downloads' ? 0 : -1} class:active={activeTab === 'downloads'} onclick={() => (activeTab = 'downloads')} onkeydown={handleTabKeydown}><Icon name="download" size="18px" /> {$t('tasks.downloads')} <span>{downloadTasks.length}</span></button>
+    <button role="tab" aria-selected={activeTab === 'uploads'} tabindex={activeTab === 'uploads' ? 0 : -1} class:active={activeTab === 'uploads'} onclick={() => (activeTab = 'uploads')} onkeydown={handleTabKeydown}><Icon name="upload" size="18px" /> {$t('tasks.uploads')} <span>{uploadTasks.length}</span></button>
+  </div>
 
-      {#if menuOpen}
-        <div class="fixed inset-0 z-10" onclick={() => (menuOpen = false)} role="presentation"></div>
-        <div data-task-menu tabindex="-1" class="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-xl border border-md3-outline bg-md3-surface-container py-1 shadow-lg" role="menu" onkeydown={handleTaskMenuKeydown}>
-          <button data-menu-item tabindex="0" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handlePauseAll} disabled={busy}>
-            <Icon name="pause" size="16px" /> {$t('tasks.pauseAll')}
-          </button>
-          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handleResumeAll} disabled={busy}>
-            <Icon name="resume" size="16px" /> {$t('tasks.resumeAllPaused')}
-          </button>
-          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-on-surface" onclick={handleCancelPending} disabled={busy}>
-            <Icon name="cancel" size="16px" /> {$t('tasks.cancelAllPending')}
-          </button>
-          <div class="my-1 border-t border-md3-outline"></div>
-          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-success" onclick={handleClearCompleted} disabled={busy || completedOrCancelledCount === 0}>
-            <Icon name="clearAll" size="16px" /> {$t('tasks.clearCompleted')}
-          </button>
-          <button data-menu-item tabindex="-1" role="menuitem" class="task-menu-item text-md3-error" onclick={handleClearFailed} disabled={busy || failedOrCancelledCount === 0}>
-            <Icon name="deleteSweep" size="16px" /> {$t('tasks.clearFailed')}
-          </button>
-        </div>
-      {/if}
+  <div class="task-toolbar" role="toolbar" aria-label={$t('tasks.filters')}>
+    <label class="search-field">
+      <Icon name="search" size="18px" />
+      <span class="sr-only">{$t('tasks.search')}</span>
+      <input bind:value={searchQuery} placeholder={$t('tasks.searchPlaceholder')} />
+      {#if searchQuery}<button onclick={() => (searchQuery = '')} aria-label={$t('common.clear')}><Icon name="close" size="16px" /></button>{/if}
+    </label>
+    <label class="section-filter">
+      <span>{$t('files.filter')}</span>
+      <select bind:value={sectionFilter}>
+        <option value="all">{$t('tasks.all')}</option>
+        {#each TRANSFER_SECTION_ORDER as section}<option value={section}>{sectionLabel(section)}</option>{/each}
+      </select>
+    </label>
+    <div class="task-summary" aria-live="polite">
+      <span><strong>{activeCount}</strong> {$t('tasks.sections.active')}</span>
+      {#if attentionCount > 0}<span class="attention"><strong>{attentionCount}</strong> {$t('tasks.needAttention')}</span>{/if}
     </div>
   </div>
 
-  <div class="task-tabs" role="tablist" tabindex="-1" aria-label={$t('tasks.title')} onkeydown={handleTabKeydown}>
-    {#each tabs as tab}
-      <button
-        data-tab-item
-        type="button"
-        role="tab"
-        aria-selected={activeTab === tab.key}
-        tabindex={activeTab === tab.key ? 0 : -1}
-        class="task-tab"
-        class:task-tab-active={activeTab === tab.key}
-        onclick={() => switchTab(tab.key)}
-      >
-        <Icon name={tab.icon} size="18px" />
-        <span>{tab.label}</span>
-      </button>
-    {/each}
-  </div>
+  {#if errorMessage}
+    <div class="error-banner" role="alert"><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
+  {/if}
+  {#if batchFeedback}
+    <div class:error={batchFeedback.failed} class="batch-feedback" role="status"><Icon name={batchFeedback.failed ? 'warning' : 'checkCircle'} size="18px" /><span>{batchFeedback.message}</span><button onclick={() => (batchFeedback = null)} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
+  {/if}
 
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="inline-flex items-center gap-1 text-xs font-semibold uppercase text-md3-on-surface-variant">
-      <Icon name="filterList" size="16px" />
-      {$t('files.filter')}
-    </span>
-    <div class="flex flex-wrap gap-1.5" role="toolbar" tabindex="-1" aria-label={$t('files.filter')} onkeydown={handleFilterKeydown}>
-      {#each filters as f}
-        <button
-          data-filter-item
-          tabindex={filter === f.key ? 0 : -1}
-          class="rounded-full px-3.5 py-1.5 text-xs font-medium transition-all"
-          class:bg-md3-primary={filter === f.key}
-          class:text-md3-on-primary={filter === f.key}
-          class:bg-md3-surface-container-high={filter !== f.key}
-          class:text-md3-on-surface-variant={filter !== f.key}
-          class:hover:bg-md3-surface-container-highest={filter !== f.key}
-          style="font-family: var(--font-md3-sans);"
-          onclick={() => (filter = f.key)}
-        >
-          {f.label}
-          <span class="ml-1 opacity-60">({f.count})</span>
-        </button>
-      {/each}
-    </div>
-  </div>
-
-  <div>
-    {#if activeTab === 'downloads'}
-      {#if downloadRows.length > 0}
-        <VirtualList
-          items={downloadRows}
-          keyOf={(row) => downloadRowKey(row)}
-          estimateSize={estimateDownloadRowSize}
-          gap={12}
-          overscan={5}
-          threshold={24}
-          resetKey={`${activeTab}:${filter}`}
-          viewportClass="task-list-viewport"
-          contentClass="task-list-content"
-          itemClass="task-list-item"
-          keyboardNavigation
-          keyboardTargetSelector="button"
-        >
-          {#snippet children(row)}
-            {#if row.kind === 'group'}
-              <DownloadTaskGroupHeader
-                group={row.group}
-                expanded={expandedDownloadGroups.has(row.group.id)}
-                onToggle={toggleDownloadGroup}
-                onPause={handlePauseDownloadGroup}
-                onResume={handleResumeDownloadGroup}
-                onRetry={handleRetryDownloadGroup}
-                onCancel={handleCancelDownloadGroup}
-                onDeleteFiles={handleDeleteDownloadGroupFiles}
-                deleting={getDeletingDownloadGroupProgress(row.group.id)}
-                pendingAction={getPendingDownloadGroupAction(row.group.id)}
-                onContextMenu={showDownloadGroupContextMenu}
-              />
-            {:else if row.kind === 'group-task'}
-              <div class="task-group-child">
-                <DownloadTaskCard
-                  task={row.task}
-                  onRemove={handleRemove}
-                  onPause={handlePauseDownloadTask}
-                  onResume={handleResumeDownloadTask}
-                  onRetry={handleRetryDownloadTask}
-                  onCancel={handleCancelDownloadTask}
-                  pendingAction={getPendingDownloadTaskAction(row.task.task_id)}
-                  onContextMenu={showDownloadTaskContextMenu}
-                />
-              </div>
-            {:else}
-              <DownloadTaskCard
-                task={row.task}
-                onRemove={handleRemove}
-                onPause={handlePauseDownloadTask}
-                onResume={handleResumeDownloadTask}
-                onRetry={handleRetryDownloadTask}
-                onCancel={handleCancelDownloadTask}
-                pendingAction={getPendingDownloadTaskAction(row.task.task_id)}
-                onContextMenu={showDownloadTaskContextMenu}
-              />
-            {/if}
-          {/snippet}
-        </VirtualList>
-      {/if}
-    {:else if filteredUploads.length > 0}
+  <section class="task-list-shell" aria-busy={loading}>
+    {#if currentRows.length > 0}
       <VirtualList
-        items={filteredUploads}
-        keyOf={(task) => task.upload_id}
-        estimateSize={148}
-        gap={12}
-        overscan={6}
-        threshold={28}
-        resetKey={`${activeTab}:${filter}`}
-        viewportClass="task-list-viewport"
-        contentClass="task-list-content"
-        itemClass="task-list-item"
-        keyboardNavigation
-        keyboardTargetSelector="button"
+        items={currentRows} keyOf={rowKey} estimateSize={estimateSize} gap={0} overscan={8}
+        threshold={32} resetKey={`${activeTab}:${sectionFilter}:${searchQuery}`}
+        viewportClass="task-list-viewport" contentClass="task-list-content" itemClass="task-list-item"
+        keyboardNavigation keyboardTargetSelector="button"
       >
-        {#snippet children(task)}
-          <UploadTaskCard
-            {task}
-            onPause={handlePauseUpload}
-            onResume={handleResumeUpload}
-            onCancel={handleCancelUpload}
-          />
+        {#snippet children(row)}
+          {#if row.kind === 'section'}
+            <div class="section-header">
+              <button class="section-toggle" onclick={() => toggleSection(row.section)} aria-expanded={!collapsedSections.has(row.section)}>
+                <Icon name={collapsedSections.has(row.section) ? 'expandMore' : 'expandLess'} size="18px" />
+                <strong>{sectionLabel(row.section)}</strong><span>{row.count}</span>
+              </button>
+              {#if sectionActionAvailable(row.section)}<button class="section-action" onclick={() => handleSectionAction(row.section)}>{sectionActionLabel(row.section)}</button>{/if}
+            </div>
+          {:else if row.kind === 'upload'}
+            <UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={pendingUploadActions.has(row.task.upload_id)} />
+          {:else if row.row.kind === 'group'}
+            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} pendingAction={pendingGroupActions.has(row.row.group.id) ? 'cancel' : null} />
+          {:else}
+            <div class:group-child={row.row.kind === 'group-task'}>
+              <DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} pendingAction={pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} />
+            </div>
+          {/if}
         {/snippet}
       </VirtualList>
+    {:else if !loading}
+      <div class="empty-state"><Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="44px" /><h2>{activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks')}</h2><p>{searchQuery ? $t('tasks.noSearchResults') : $t('tasks.emptyHint')}</p></div>
     {/if}
-
-    {#if visibleTaskCount === 0}
-      <div class="rounded-xl border border-md3-outline bg-md3-surface-container/70 p-10 text-center backdrop-blur-sm">
-        <span class="text-md3-on-surface-variant">
-          <Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="64px" />
-        </span>
-        <p class="mt-3 text-md3-on-surface-variant" style="font-family: var(--font-md3-sans);">
-          {filter === 'all' ? emptyTitle : $t('tasks.noTasksByStatus', { values: { status: currentFilterLabel } })}
-        </p>
-      </div>
-    {/if}
-  </div>
+  </section>
 </div>
 
-<ContextMenu
-  open={contextMenu.open}
-  x={contextMenu.x}
-  y={contextMenu.y}
-  items={contextMenuItems}
-  sourceElement={contextMenu.sourceElement}
-  onClose={hideContextMenu}
-/>
-
 <style>
-  .task-tabs {
-    display: inline-flex;
-    width: fit-content;
-    max-width: 100%;
-    gap: 0.35rem;
-  }
-
-  .task-tab {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    border-radius: 0;
-    padding: 0.35rem 0.45rem 0.5rem;
-    color: var(--color-md3-on-surface-variant);
-    background: transparent;
-    font-family: var(--font-md3-sans);
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition:
-      background-color 180ms var(--motion-easing-standard),
-      color 180ms var(--motion-easing-standard),
-      transform 180ms var(--motion-easing-standard);
-  }
-
-  .task-tab:hover {
-    color: var(--color-md3-on-surface);
-  }
-
-  .task-tab-active {
-    color: var(--color-md3-primary-emphasis);
-  }
-
-  .task-tab::after {
-    content: "";
-    position: absolute;
-    right: 0.45rem;
-    bottom: 0;
-    left: 0.45rem;
-    height: 2px;
-    border-radius: 9999px;
-    background: currentColor;
-    opacity: 0;
-    transform: scaleX(0.35);
-    transition:
-      opacity 160ms var(--motion-easing-standard),
-      transform 200ms var(--motion-easing-emphasized-decelerate);
-  }
-
-  .task-tab-active::after {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-
-  .task-menu-item {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    font-family: var(--font-md3-sans);
-    font-size: 0.875rem;
-    transition: background-color 160ms var(--motion-easing-standard);
-  }
-
-  .task-menu-item:hover:not(:disabled) {
-    background: var(--color-md3-surface-container-high);
-  }
-
-  .task-menu-item:disabled {
-    opacity: 0.5;
-  }
-
-  :global(.task-list-viewport) {
-    max-height: calc(100vh - 17rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  :global(.task-list-content) {
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  .task-group-child {
-    min-width: 0;
-    border-left: 2px solid color-mix(in srgb, var(--color-md3-primary) 35%, transparent);
-    padding-left: 1rem;
-    animation: task-group-child-in 180ms var(--motion-easing-emphasized-decelerate) both;
-  }
-
-  @keyframes task-group-child-in {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (max-width: 520px) {
-    .task-tabs {
-      width: 100%;
-      justify-content: center;
-    }
-
-    .task-tab {
-      flex: 0 1 auto;
-    }
-
-    :global(.task-list-viewport) {
-      max-height: calc(100vh - 19rem);
-    }
-
-    .task-group-child {
-      padding-left: 0.65rem;
-    }
-  }
-
+  .task-page { display: flex; min-width: 0; flex-direction: column; gap: 1rem; padding: 1rem 1.25rem; }
+  .task-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .task-header h1 { font-size: 1.25rem; font-weight: 700; color: var(--color-md3-on-surface); }
+  .task-header p { margin-top: .2rem; font-size: .8125rem; color: var(--color-md3-on-surface-variant); }
+  .icon-button { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 999px; color: var(--color-md3-on-surface-variant); }
+  .icon-button:hover { background: var(--color-md3-surface-container-high); }.icon-button:disabled { opacity: .45; }
+  .task-tabs { display: flex; width: fit-content; gap: .2rem; border-bottom: 1px solid var(--color-md3-outline); }
+  .task-tabs button { display: flex; align-items: center; gap: .4rem; min-height: 38px; padding: .35rem .65rem; border-bottom: 2px solid transparent; font-size: .8125rem; font-weight: 600; color: var(--color-md3-on-surface-variant); }
+  .task-tabs button.active { border-color: var(--color-md3-primary); color: var(--color-md3-on-surface); }.task-tabs span { font-size: .6875rem; opacity: .7; }
+  .task-toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: .65rem; padding: .55rem; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container); }
+  .search-field { display: flex; min-width: min(280px, 100%); flex: 1; align-items: center; gap: .45rem; min-height: 38px; padding: 0 .65rem; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container-high); color: var(--color-md3-on-surface-variant); }
+  .search-field:focus-within { border-color: var(--color-md3-primary); box-shadow: inset 0 0 0 1px var(--color-md3-primary); }.search-field input { min-width: 0; flex: 1; background: transparent; font-size: .8125rem; color: var(--color-md3-on-surface); outline: none; }
+  .section-filter { display: flex; align-items: center; gap: .4rem; font-size: .75rem; color: var(--color-md3-on-surface-variant); }.section-filter select { min-height: 36px; border-radius: 5px; background: var(--color-md3-surface-container-high); padding: 0 .55rem; color: var(--color-md3-on-surface); }
+  .task-summary { display: flex; gap: .75rem; font-size: .75rem; color: var(--color-md3-on-surface-variant); }.task-summary .attention { color: var(--color-md3-error); }
+  .error-banner { display: flex; align-items: center; gap: .5rem; border: 1px solid color-mix(in srgb, var(--color-md3-error) 45%, transparent); border-radius: 8px; background: var(--color-md3-error-container); padding: .55rem .7rem; font-size: .8125rem; color: var(--color-md3-on-error-container); }.error-banner span { flex: 1; }
+  .batch-feedback { display: flex; align-items: center; gap: .5rem; border: 1px solid color-mix(in srgb, var(--color-md3-success) 38%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--color-md3-success) 10%, var(--color-md3-surface-container)); padding: .55rem .7rem; font-size: .8125rem; color: var(--color-md3-on-surface); }.batch-feedback.error { border-color: color-mix(in srgb, var(--color-md3-error) 45%, transparent); background: var(--color-md3-error-container); color: var(--color-md3-on-error-container); }.batch-feedback span { flex: 1; overflow-wrap: anywhere; }
+  .task-list-shell { min-width: 0; overflow: hidden; border: 1px solid var(--color-md3-outline); border-radius: 8px; background: var(--color-md3-surface-container); }
+  .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: .75rem; border-bottom: 1px solid var(--color-md3-outline); background: var(--color-md3-surface-container-high); padding: .35rem .55rem; }
+  .section-toggle { display: flex; align-items: center; gap: .4rem; min-width: 0; color: var(--color-md3-on-surface); }.section-toggle strong { font-size: .8125rem; }.section-toggle span { font-size: .6875rem; color: var(--color-md3-on-surface-variant); }
+  .section-action { min-height: 30px; border-radius: 5px; padding: .2rem .55rem; font-size: .6875rem; font-weight: 600; color: var(--color-md3-primary-emphasis); }.section-action:hover { background: var(--color-md3-primary-container); }
+  .group-child { padding-left: 1.5rem; background: color-mix(in srgb, var(--color-md3-surface-container-high) 45%, transparent); }
+  .empty-state { display: grid; min-height: 260px; place-items: center; align-content: center; gap: .45rem; padding: 2rem; text-align: center; color: var(--color-md3-on-surface-variant); }.empty-state h2 { font-size: .9375rem; font-weight: 650; color: var(--color-md3-on-surface); }.empty-state p { max-width: 52ch; font-size: .8125rem; }
+  @media (max-width: 640px) { .task-page { padding: .85rem; }.task-toolbar { align-items: stretch; }.search-field { flex-basis: 100%; }.task-summary { width: 100%; }.section-filter { flex: 1; }.group-child { padding-left: .65rem; } }
+  @media (pointer: coarse) { .icon-button { width: 44px; height: 44px; }.task-tabs button { min-height: 44px; }.section-action { min-height: 40px; } }
 </style>

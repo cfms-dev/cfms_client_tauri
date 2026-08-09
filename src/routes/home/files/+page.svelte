@@ -2661,25 +2661,45 @@
           uploadName,
         );
 
-    scheduleUpload(candidate.sourcePath, action, candidate.name);
+    scheduleUpload(candidate.sourcePath, action, candidate.name, {
+      kind: candidate.kind,
+      targetParentId: targetFolderId,
+      conflictStrategy,
+      conflictResolutions,
+    });
   }
 
   function scheduleUpload(
     sourcePath: string,
     action: (uploadId: string, uploadName: string) => Promise<unknown>,
     displayName?: string,
+    metadata?: {
+      kind: 'file' | 'directory';
+      targetParentId: string | null;
+      conflictStrategy: UploadConflictStrategy;
+      conflictResolutions: DirectoryFileConflictResolution[];
+    },
   ) {
     const uploadId = createUploadId();
     const uploadName = displayName?.trim() || uploadDisplayName(sourcePath);
-    uploadStore.addQueued(
-      uploadId,
-      uploadName,
-      sourcePath,
+    void uploadStore.addQueued(
+      {
+        uploadId,
+        fileName: uploadName,
+        sourcePath,
+        kind: metadata?.kind ?? 'file',
+        targetParentId: metadata?.targetParentId ?? null,
+        conflictStrategy: metadata?.conflictStrategy ?? 'fail',
+        conflictResolutions: metadata?.conflictResolutions ?? [],
+        uploadName,
+      },
       (id) => action(id, uploadName),
       async () => {
         await loadDirectory(currentFolderId);
       },
-    );
+    ).catch((err) => {
+      error = formatError(err);
+    });
   }
 
   function createUploadId() {

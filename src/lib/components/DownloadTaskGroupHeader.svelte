@@ -236,25 +236,17 @@
   .batch-card {
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--color-md3-surface-container) 82%, transparent);
-    box-shadow: 0 12px 28px color-mix(in srgb, var(--color-md3-primary) 6%, transparent);
-    backdrop-filter: blur(10px);
-    transition:
-      border-color 180ms var(--motion-easing-standard),
-      box-shadow 220ms var(--motion-easing-standard),
-      transform 180ms var(--motion-easing-standard);
+    border-bottom: 1px solid var(--color-md3-outline);
+    background: var(--color-md3-surface-container);
+    transition: background-color 180ms var(--motion-easing-standard);
   }
 
   .batch-card:hover {
-    border-color: color-mix(in srgb, var(--color-md3-primary) 38%, var(--color-md3-outline));
-    box-shadow: 0 16px 34px color-mix(in srgb, var(--color-md3-primary) 10%, transparent);
+    background: var(--color-md3-surface-container-high);
   }
 
   .batch-card-deleting {
-    border-color: color-mix(in srgb, var(--color-md3-error) 42%, var(--color-md3-outline));
-    box-shadow: 0 16px 36px color-mix(in srgb, var(--color-md3-error) 11%, transparent);
+    background: var(--color-md3-error-container);
   }
 
   .batch-main {
@@ -263,8 +255,8 @@
     min-width: 0;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.9rem 1rem 0.65rem;
+    gap: 0.55rem;
+    padding: 0.55rem 0.7rem 0.35rem;
     text-align: left;
     font-family: var(--font-md3-sans);
   }
@@ -278,18 +270,15 @@
   }
 
   .batch-folder {
-    height: 2.25rem;
-    width: 2.25rem;
-    border-radius: 9999px;
-    background: var(--color-md3-primary-container);
-    color: var(--color-md3-on-primary-container);
+    height: 1.75rem;
+    width: 1.75rem;
+    color: var(--color-md3-primary-emphasis);
     transition:
       background-color 180ms var(--motion-easing-standard),
       color 180ms var(--motion-easing-standard);
   }
 
   .batch-folder-cancelled {
-    background: var(--color-md3-surface-container-highest);
     color: var(--color-md3-on-surface-variant);
   }
 
@@ -305,8 +294,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--color-md3-on-surface);
-    font-size: 0.95rem;
-    font-weight: 700;
+    font-size: 0.875rem;
+    font-weight: 650;
   }
 
   .batch-meta {
@@ -327,7 +316,7 @@
 
   .batch-progress {
     height: 0.25rem;
-    margin: 0 1rem;
+    margin: 0 0.7rem;
     overflow: hidden;
     border-radius: 9999px;
     background: var(--color-md3-surface-container-high);
@@ -354,16 +343,17 @@
     display: flex;
     min-width: 0;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem 0.9rem;
+    gap: 0.3rem;
+    padding: 0.35rem 0.7rem 0.55rem 3.6rem;
   }
 
   .batch-action {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    border-radius: 9999px;
-    padding: 0.35rem 0.75rem;
+    min-height: 30px;
+    border-radius: 5px;
+    padding: 0.25rem 0.55rem;
     font-size: 0.75rem;
     font-weight: 600;
     transition:
@@ -384,18 +374,15 @@
   }
 
   .batch-action-warning {
-    background: var(--color-md3-warning-container);
-    color: var(--color-md3-on-warning-container);
+    color: var(--color-md3-warning);
   }
 
   .batch-action-primary {
-    background: var(--color-md3-primary-container);
-    color: var(--color-md3-on-primary-container);
+    color: var(--color-md3-primary-emphasis);
   }
 
   .batch-action-danger {
-    background: var(--color-md3-error-container);
-    color: var(--color-md3-on-error-container);
+    color: var(--color-md3-error);
   }
 
   @keyframes batch-progress-sweep {
@@ -417,6 +404,14 @@
       grid-column: 3;
       justify-self: start;
     }
+  }
+
+  @media (pointer: coarse) {
+    .batch-action { min-height: 44px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .batch-progress-indeterminate span { animation: none; }
   }
 
 </style>

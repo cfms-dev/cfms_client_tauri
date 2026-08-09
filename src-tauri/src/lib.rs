@@ -30,6 +30,7 @@ use cfms_service::db::settings::SettingsStore;
 use cfms_service::extensions::ExtensionStore;
 use cfms_service::service::manager::ServiceManager;
 use cfms_service::services::download_queue::{ActiveRegistry, QueueState};
+use cfms_service::services::upload_queue::UploadQueueState;
 use cfms_service::state::AppState;
 use localization::LocalizationManager;
 
@@ -219,6 +220,9 @@ pub struct AppHandleState {
     /// files per-user (see `cfms_service::services::task_persistence`).
     pub tasks: QueueState,
 
+    /// Encrypted per-user upload task metadata and recovery records.
+    pub upload_tasks: UploadQueueState,
+
     /// User settings (key-value, SQLite-backed).
     pub settings: SettingsStore,
 
@@ -369,6 +373,7 @@ pub fn run() {
                 .unwrap_or_else(|| "zh_CN".to_string());
             let localizer = Arc::new(LocalizationManager::new(initial_locale));
             let tasks = QueueState::new();
+            let upload_tasks = UploadQueueState::new();
             let active_downloads = ActiveRegistry::new();
             let active_uploads = ActiveUploadRegistry::new();
             let pending_update = Arc::new(Mutex::new(None));
@@ -468,6 +473,7 @@ pub fn run() {
             app.manage(AppHandleState {
                 inner: state,
                 tasks,
+                upload_tasks,
                 settings,
                 extensions,
                 active_downloads,
@@ -519,6 +525,14 @@ pub fn run() {
             commands::cancel_download,
             commands::clear_completed_tasks,
             commands::clear_failed_tasks,
+            commands::remove_download_records,
+            commands::delete_downloaded_files,
+            commands::enqueue_upload,
+            commands::get_upload_tasks,
+            commands::retry_upload,
+            commands::remove_upload_records,
+            commands::remove_transfer_records,
+            commands::control_transfer_tasks,
             commands::scan_directory,
             commands::list_directory,
             commands::list_directory_page,

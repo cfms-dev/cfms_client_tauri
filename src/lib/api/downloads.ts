@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { DownloadTaskDto, DownloadTaskStatus } from './types';
+import type { BatchActionResult, DownloadTaskDto, DownloadTaskStatus, TransferControlAction, TransferDirection } from './types';
 
 /** Add a download task to the queue. */
 export async function addDownload(task: DownloadTaskDto): Promise<void> {
@@ -42,6 +42,32 @@ export async function clearCompletedTasks(): Promise<number> {
 /** Clear all failed tasks. */
 export async function clearFailedTasks(): Promise<number> {
   return invoke("clear_failed_tasks");
+}
+
+/** Remove terminal history records without deleting downloaded files. */
+export async function removeDownloadRecords(ids: string[]): Promise<BatchActionResult> {
+  return invoke("remove_download_records", { ids });
+}
+
+/** Delete completed output files while keeping their history records. */
+export async function deleteDownloadedFiles(ids: string[]): Promise<BatchActionResult> {
+  return invoke("delete_downloaded_files", { ids });
+}
+
+export async function controlTransferTasks(
+  direction: TransferDirection,
+  ids: string[],
+  action: TransferControlAction,
+): Promise<BatchActionResult> {
+  return invoke("control_transfer_tasks", { direction, ids, action });
+}
+
+export async function removeTransferRecords(
+  direction: TransferDirection,
+  ids: string[] = [],
+  statuses?: string[],
+): Promise<BatchActionResult> {
+  return invoke("remove_transfer_records", { direction, ids, statuses: statuses ?? null });
 }
 
 // ---------------------------------------------------------------------------

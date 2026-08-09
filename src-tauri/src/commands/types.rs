@@ -55,7 +55,7 @@ pub struct UploadRevisionProgressEvent {
     pub progress: f64,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum UploadConflictStrategy {
@@ -66,12 +66,48 @@ pub enum UploadConflictStrategy {
     KeepBoth,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DirectoryFileConflictResolution {
     relative_path: String,
     conflict_strategy: UploadConflictStrategy,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadEnqueueRequest {
+    pub upload_id: String,
+    pub file_name: String,
+    pub source_path: String,
+    pub kind: cfms_core::UploadTaskKind,
+    pub target_parent_id: Option<String>,
+    pub conflict_strategy: UploadConflictStrategy,
+    #[serde(default)]
+    pub conflict_resolutions: Vec<DirectoryFileConflictResolution>,
+    pub upload_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchActionFailure {
+    pub id: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchActionResult {
+    pub succeeded: Vec<String>,
+    pub failed: Vec<BatchActionFailure>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferDirection { Download, Upload }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferControlAction { Pause, Resume, Cancel }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

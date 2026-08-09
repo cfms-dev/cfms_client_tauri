@@ -160,6 +160,53 @@ pub async fn delete_download(
     Ok(true)
 }
 
+/// Remove terminal task records while preserving downloaded files.
+#[tauri::command]
+pub async fn remove_download_records(
+    state: tauri::State<'_, AppHandleState>,
+    ids: Vec<String>,
+) -> Result<BatchActionResult, String> {
+    let (succeeded, failed) = state.tasks.remove_terminal(&ids);
+    Ok(BatchActionResult {
+        succeeded,
+        failed: failed.into_iter()
+            .map(|(id, error)| BatchActionFailure { id, error }).collect(),
+    })
+}
+
+/// Delete completed output files while retaining their task records.
+#[tauri::command]
+pub async fn delete_downloaded_files(
+    state: tauri::State<'_, AppHandleState>,
+    ids: Vec<String>,
+) -> Result<BatchActionResult, String> {
+    let mut succeeded = Vec::new();
+    let mut failed = Vec::new();
+    for id in ids {
+        let Some(task) = state.tasks.get(&id) else {
+            failed.push(BatchActionFailure { id, error: "Task not found".into() });
+            continue;
+        };
+        if task.status != DownloadTaskStatus::Completed {
+            failed.push(BatchActionFailure { id, error: "Only completed downloads have an output file".into() });
+            continue;
+        }
+        let path = std::path::Path::new(&task.file_path);
+        if let Err(error) = std::fs::remove_file(path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            failed.push(BatchActionFailure { id, error: error.to_string() });
+            continue;
+        }
+        if let Err(error) = state.tasks.mark_file_deleted(&id) {
+            failed.push(BatchActionFailure { id, error: error.to_string() });
+            continue;
+        }
+        succeeded.push(id);
+    }
+    Ok(BatchActionResult { succeeded, failed })
+}
+
 // ---------------------------------------------------------------------------
 
 fn cleanup_resume_state(file_path: &str, task_id: &str) {

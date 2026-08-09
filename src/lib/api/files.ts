@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy } from './types';
+import type { AccessEntry, AccessEntityType, AccessType, BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy, UploadEnqueueRequest, UploadTaskDto } from './types';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -362,6 +362,22 @@ export async function resumeUpload(uploadId: string): Promise<boolean> {
 
 export async function cancelUpload(uploadId: string): Promise<boolean> {
   return invoke("cancel_upload", { uploadId });
+}
+
+export async function enqueueUploadTask(request: UploadEnqueueRequest): Promise<UploadTaskDto> {
+  return invoke("enqueue_upload", { request });
+}
+
+export async function getUploadTasks(): Promise<UploadTaskDto[]> {
+  return invoke("get_upload_tasks");
+}
+
+export async function retryUploadTask(uploadId: string, replacementSource?: string): Promise<UploadEnqueueRequest> {
+  return invoke("retry_upload", { uploadId, replacementSource: replacementSource ?? null });
+}
+
+export async function removeUploadRecords(ids: string[]): Promise<BatchActionResult> {
+  return invoke("remove_upload_records", { ids });
 }
 
 export async function searchFiles(

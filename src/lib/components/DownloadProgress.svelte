@@ -5,8 +5,6 @@
   //   progress: 0.0–1.0 fraction
   //   currentBytes: bytes processed (may be 0 during transfer)
   //   totalBytes: total bytes (0 when unknown)
-  //   message: human-readable description of the current step
-  //   phase: current download phase label
   //   status: task status (controls colour and animation)
 
   import type { DownloadTaskStatus } from "../api";
@@ -16,13 +14,12 @@
     progress: number;
     currentBytes: number;
     totalBytes: number;
-    message?: string | null;
-    phase?: string;
     status: DownloadTaskStatus;
     completedText?: string;
+    ariaLabel?: string;
   }
 
-  let { progress, currentBytes, totalBytes, message, phase, status, completedText }: Props = $props();
+  let { progress, currentBytes, totalBytes, status, completedText, ariaLabel }: Props = $props();
 
   function barColor(): string {
     switch (status) {
@@ -78,9 +75,6 @@
   <!-- Info row (mirrors reference _get_progress_info) -->
   <div class="flex justify-between text-xs mb-1 {labelClass}">
     <span>
-      {#if phase}
-        <span class="capitalize">{phase}</span>
-      {/if}
       {#if status === "completed"}
         <span class="text-md3-success font-medium">{$t('tasks.complete')}</span>
       {:else if status === "failed"}
@@ -109,7 +103,15 @@
   </div>
 
   <!-- Bar — MD3 track with rounded caps -->
-  <div class="relative w-full h-2 bg-md3-surface-container-high rounded-full overflow-hidden">
+  <div
+    class="transfer-progress relative w-full h-1.5 bg-md3-surface-container-high rounded-full overflow-hidden"
+    role="progressbar"
+    aria-label={ariaLabel ?? $t('tasks.progress')}
+    aria-valuemin="0"
+    aria-valuemax="100"
+    aria-valuenow={totalBytes > 0 ? pct : undefined}
+    aria-valuetext={totalBytes > 0 ? `${pct}%` : $t('tasks.progressUnknown')}
+  >
     {#if totalBytes === 0 && animate}
       <div
         class="absolute inset-0 bg-gradient-to-r from-transparent via-md3-on-surface/10 to-transparent animate-shimmer"
@@ -125,3 +127,12 @@
     </div>
   </div>
 </div>
+
+<style>
+  @media (prefers-reduced-motion: reduce) {
+    .transfer-progress :global(.animate-shimmer),
+    .transfer-progress :global(.animate-progress-stripe) {
+      animation: none !important;
+    }
+  }
+</style>

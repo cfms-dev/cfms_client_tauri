@@ -3,12 +3,13 @@
 // All application state lives here as `$state` runes.  Components import
 // these and use them directly — no legacy Svelte stores needed.
 
-import { cancelUpload, getSetting, loadUserPreference, pauseUpload, resumeUpload, setSetting } from "./api";
+import { cancelUpload, enqueueUploadTask, getSetting, loadUserPreference, pauseUpload, resumeUpload, setSetting } from "./api";
 import type {
   DownloadTaskDto,
   DownloadTaskStatus,
   UploadProgressEvent,
   UploadTaskDto,
+  UploadEnqueueRequest,
   ServiceStatusInfo,
   AuthStatus,
   ServerState,
@@ -332,37 +333,50 @@ class UploadStoreImpl {
     void this.processQueue();
   }
 
-  addQueued(
-    uploadId: string,
-    fileName: string,
-    sourcePath: string,
+  async addQueued(
+    request: UploadEnqueueRequest,
     runner?: (uploadId: string) => Promise<unknown>,
     onCompleted?: () => Promise<void> | void,
   ) {
-    const now = Math.floor(Date.now() / 1000);
+    const task = await enqueueUploadTask(request);
+    this.tasks.set(task.upload_id, task);
+    if (runner) this.runners.set(task.upload_id, runner);
+    if (onCompleted) this.completionCallbacks.set(task.upload_id, onCompleted);
+    this.tasks = new Map(this.tasks);
+    void this.processQueue();
+  }
+
+  setAll(tasks: UploadTaskDto[]) {
+    const taskIds = new Set(tasks.map((task) => task.upload_id));
+    for (const uploadId of this.runners.keys()) {
+      if (!taskIds.has(uploadId)) this.runners.delete(uploadId);
+    }
+    for (const uploadId of this.completionCallbacks.keys()) {
+      if (!taskIds.has(uploadId)) this.completionCallbacks.delete(uploadId);
+    }
+    this.tasks = new Map(tasks.map((task) => [task.upload_id, task]));
+  }
+
+  registerRunner(uploadId: string, runner: (uploadId: string) => Promise<unknown>) {
+    const task = this.tasks.get(uploadId);
+    if (!task) return;
+    this.runners.set(uploadId, runner);
     this.tasks.set(uploadId, {
-      upload_id: uploadId,
-      task_id: null,
-      file_name: fileName,
-      source_path: sourcePath,
+      ...task,
       status: "pending",
       progress: 0,
       current_bytes: 0,
-      total_bytes: 0,
       message: null,
       error: null,
-      created_at: now,
       completed_at: null,
     });
-    if (runner) this.runners.set(uploadId, runner);
-    if (onCompleted) this.completionCallbacks.set(uploadId, onCompleted);
     this.tasks = new Map(this.tasks);
     void this.processQueue();
   }
 
   async pause(uploadId: string) {
     const task = this.tasks.get(uploadId);
-    if (!task || ["completed", "failed", "cancelled", "skipped"].includes(task.status)) return;
+    if (!task || ["completed", "failed", "cancelled", "skipped", "interrupted"].includes(task.status)) return;
 
     if (task.status === "uploading") {
       const interrupted = await pauseUpload(uploadId);
@@ -390,7 +404,7 @@ class UploadStoreImpl {
 
   async cancel(uploadId: string) {
     const task = this.tasks.get(uploadId);
-    if (!task || ["completed", "failed", "cancelled", "skipped"].includes(task.status)) return;
+    if (!task || ["completed", "failed", "cancelled", "skipped", "interrupted"].includes(task.status)) return;
 
     if (task.status === "uploading") {
       const interrupted = await cancelUpload(uploadId);
@@ -484,10 +498,15 @@ class UploadStoreImpl {
       || event.status === "skipped"
       || event.status === "cancelled";
     const next: UploadTaskDto = {
+      ...(oldTask ?? {
+        upload_id: event.upload_id, task_id: null, file_name: event.file_name,
+        source_path: "", kind: "file" as const, target_parent_id: null,
+        created_at: Math.floor(Date.now() / 1000), updated_at: Math.floor(Date.now() / 1000),
+        retry_count: 0, max_retries: 3, source_available: false,
+      }),
       upload_id: event.upload_id,
-      task_id: event.task_id,
+      task_id: event.task_id ?? oldTask?.task_id ?? null,
       file_name: event.file_name,
-      source_path: oldTask?.source_path ?? "",
       status: event.status,
       progress:
         event.total_bytes === 0 && (event.status === "paused" || event.status === "cancelled")
@@ -497,7 +516,7 @@ class UploadStoreImpl {
       total_bytes: event.total_bytes || oldTask?.total_bytes || 0,
       message: event.message,
       error: event.status === "failed" ? event.message : null,
-      created_at: oldTask?.created_at ?? Math.floor(Date.now() / 1000),
+      updated_at: Math.floor(Date.now() / 1000),
       completed_at: terminal ? Math.floor(Date.now() / 1000) : null,
     };
     this.tasks.set(event.upload_id, next);

@@ -200,6 +200,61 @@ pub struct DownloadTaskDto {
 }
 
 // ---------------------------------------------------------------------------
+// Upload task status & DTO (persistent metadata; transfer remains session-bound)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UploadTaskStatus {
+    Pending,
+    Uploading,
+    Paused,
+    Interrupted,
+    Completed,
+    Failed,
+    Cancelled,
+    Skipped,
+}
+
+impl UploadTaskStatus {
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Completed | Self::Failed | Self::Cancelled | Self::Skipped
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UploadTaskKind {
+    File,
+    Directory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadTaskDto {
+    pub upload_id: String,
+    pub task_id: Option<String>,
+    pub file_name: String,
+    pub source_path: String,
+    pub kind: UploadTaskKind,
+    pub target_parent_id: Option<String>,
+    pub status: UploadTaskStatus,
+    pub progress: f64,
+    pub current_bytes: u64,
+    pub total_bytes: u64,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub completed_at: Option<i64>,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub source_available: bool,
+}
+
+// ---------------------------------------------------------------------------
 // Service events (pushed from backend → frontend via Tauri emit)
 // ---------------------------------------------------------------------------
 

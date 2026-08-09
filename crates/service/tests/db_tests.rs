@@ -424,6 +424,32 @@ fn retry_ignores_non_failed_task() {
 }
 
 #[test]
+fn removing_download_history_keeps_files_and_reports_nonterminal_items() {
+    let dir = temp_dir();
+    let output = dir.path().join("finished.bin");
+    std::fs::write(&output, b"downloaded data").unwrap();
+    let queue = download_queue::QueueState::new();
+    let mut completed = make_task("finished", DownloadTaskStatus::Completed);
+    completed.file_path = output.to_string_lossy().into_owned();
+    queue.insert(&completed).unwrap();
+    queue
+        .insert(&make_task("active", DownloadTaskStatus::Pending))
+        .unwrap();
+
+    let (succeeded, failed) = queue.remove_terminal(&["finished".into(), "active".into()]);
+
+    assert_eq!(succeeded, vec!["finished"]);
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0].0, "active");
+    assert!(
+        output.exists(),
+        "removing history must not delete the output file"
+    );
+    assert!(queue.get("finished").is_none());
+    assert!(queue.get("active").is_some());
+}
+
+#[test]
 fn transient_failure_schedules_backoff_and_preserves_checkpoint() {
     let queue = download_queue::QueueState::new();
     let mut task = make_task("weak-network", DownloadTaskStatus::Downloading);
