@@ -555,6 +555,7 @@
     position: relative;
     z-index: 1;
     display: flex;
+    min-width: 0;
     min-height: 100%;
     flex: 0 0 100%;
     align-items: center;
@@ -571,10 +572,14 @@
 
   .connect-form-stage {
     width: 100%;
+    min-width: 0;
     max-width: 420px;
   }
 
   .connect-form-card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     background: var(--explorer-surface);
   }
 
