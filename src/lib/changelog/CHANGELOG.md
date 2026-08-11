@@ -4,6 +4,36 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.42.0
+**Released on:** 2026-08-11
+
+**Title:** User Interface Optimization
+
+This version refactors the interface for the entire transfer task list to improve visual presentation and interaction efficiency. It also addresses several issues present in previous versions.
+
+### Fixed
+- Deselect all items before opening current directory context menu
+- Avoid blocking operational state changes
+- Constrain virtualized list viewport
+- Adjust layout properties for connect form components to improve responsiveness
+- Improve keyboard navigation and scrolling behavior in FileTable
+
+### Improved
+- Flatten transfer list surfaces
+- Batch downloaded file deletion and report failures
+
+### Added
+- Show download transfer speeds
+- Refine task interactions and presentation
+- Improve batch grouping and progress semantics
+- Implement persistent upload task management
+- Add linkOff icon and enhance clock synchronization on lockdown page
+- Enhance DialogHost component with improved styling and choice handling logic
+- Add draggable functionality to ModalFrame component with viewport constraints
+- Enhance lockdown page with accessible clock and detailed documentation
+
+--- 
+
 ## v0.41.2
 **Released on:** 2026-08-02
 
