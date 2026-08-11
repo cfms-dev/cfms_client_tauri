@@ -212,7 +212,7 @@
     min-width: 0;
     overflow: hidden;
     border-bottom: 1px solid var(--explorer-border);
-    background: var(--explorer-surface);
+    background: transparent;
     transition: background-color 180ms var(--motion-easing-standard);
   }
 
