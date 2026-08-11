@@ -58,6 +58,7 @@ Object.defineProperty(Element.prototype, 'animate', {
       cancel: vi.fn(),
       currentTime: 0,
       effect: {},
+      finished: Promise.resolve(),
       onfinish: null as (() => void) | null,
       playState: 'finished',
     };
@@ -144,6 +145,7 @@ function installDialogGeometry(
   const setPointerCapture = vi.fn();
   const releasePointerCapture = vi.fn();
   let { viewportWidth, viewportHeight, panelWidth, panelHeight } = initial;
+  let visualRect: DOMRect | null = null;
 
   backdrop.style.padding = '16px';
   Object.defineProperty(backdrop, 'getBoundingClientRect', {
@@ -153,6 +155,7 @@ function installDialogGeometry(
   Object.defineProperty(positioner, 'getBoundingClientRect', {
     configurable: true,
     value: () => {
+      if (visualRect) return visualRect;
       if (positioner.classList.contains('modal-positioner--maximized')) {
         return makeRect(0, 0, viewportWidth, viewportHeight);
       }
@@ -193,6 +196,9 @@ function installDialogGeometry(
     setPanelSize(width: number, height: number) {
       panelWidth = width;
       panelHeight = height;
+    },
+    setVisualRect(rect: DOMRect | null) {
+      visualRect = rect;
     },
     notifyPositionerResize() {
       for (const observer of TestResizeObserver.instances) observer.notify(positioner);
@@ -415,6 +421,41 @@ describe('ModalFrame', () => {
 
     await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
     expect(geometry.positioner.getBoundingClientRect()).toMatchObject({ width: 450, height: 320 });
+  });
+
+  it('does not let resize observation overwrite button restore geometry during animation', async () => {
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+    const animationResolvers: Array<() => void> = [];
+    Object.defineProperty(geometry.positioner, 'animate', {
+      configurable: true,
+      value: vi.fn(() => {
+        let resolveFinished = () => {};
+        const finished = new Promise<void>((resolve) => { resolveFinished = resolve; });
+        animationResolvers.push(resolveFinished);
+        return { cancel: vi.fn(), finished } as unknown as Animation;
+      }),
+    });
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+    await waitFor(() => expect(animationResolvers).toHaveLength(1));
+    animationResolvers.shift()?.();
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(true));
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore dialog' }));
+    await waitFor(() => expect(animationResolvers).toHaveLength(1));
+    geometry.setVisualRect(makeRect(0, 0, 800, 600));
+    geometry.notifyPositionerResize();
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    geometry.setVisualRect(null);
+    animationResolvers.shift()?.();
+
+    await waitFor(() => expect(geometry.positioner.getBoundingClientRect()).toMatchObject({
+      left: 250,
+      top: 200,
+      width: 300,
+      height: 200,
+    }));
   });
 
   it('restores a maximized dialog under the pointer and continues dragging', async () => {

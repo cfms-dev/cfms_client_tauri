@@ -90,6 +90,8 @@
   let pendingClientX = 0;
   let pendingClientY = 0;
   let windowStateAnimation: Animation | null = null;
+  let windowStateTransitioning = false;
+  let windowStateTransitionId = 0;
 
   onMount(() => {
     try {
@@ -101,6 +103,8 @@
   });
 
   onDestroy(() => {
+    windowStateTransitionId += 1;
+    windowStateTransitioning = false;
     finishDrag();
     finishResize();
     cancelFrame(dragFrame);
@@ -359,6 +363,8 @@
   }
 
   function resetDialogPosition() {
+    windowStateTransitionId += 1;
+    windowStateTransitioning = false;
     finishDrag();
     finishResize();
     cancelFrame(clampFrame);
@@ -504,24 +510,34 @@
 
   async function toggleMaximized() {
     if (!dragAvailable || !maximizable || !positionerElement) return;
+    const transitionId = ++windowStateTransitionId;
+    windowStateTransitioning = true;
     finishDrag();
     finishResize();
+    cancelFrame(clampFrame);
+    clampFrame = null;
     cancelWindowStateAnimation();
     const fromRect = positionerElement.getBoundingClientRect();
 
-    if (maximized) {
-      const safeRect = calculateSafeRect(true);
-      if (!safeRect) return;
-      const targetRect = restoreRect ?? domRectToDialogRect(fromRect);
-      maximized = false;
-      restoreRect = null;
-      applyDialogRect(clampRectToSafeArea(targetRect, safeRect), safeRect);
-    } else {
-      restoreRect = domRectToDialogRect(fromRect);
-      maximized = true;
-    }
+    try {
+      if (maximized) {
+        const safeRect = calculateSafeRect(true);
+        if (!safeRect) return;
+        const targetRect = restoreRect ?? domRectToDialogRect(fromRect);
+        maximized = false;
+        restoreRect = null;
+        applyDialogRect(clampRectToSafeArea(targetRect, safeRect), safeRect);
+      } else {
+        restoreRect = domRectToDialogRect(fromRect);
+        maximized = true;
+      }
 
-    await animateWindowState(fromRect);
+      await animateWindowState(fromRect);
+    } finally {
+      if (transitionId !== windowStateTransitionId) return;
+      windowStateTransitioning = false;
+      scheduleClamp();
+    }
   }
 
   async function animateWindowState(fromRect: DOMRect) {
@@ -530,9 +546,10 @@
     if (!positionerElement) return;
     const toRect = positionerElement.getBoundingClientRect();
     if (toRect.width <= 0 || toRect.height <= 0) return;
+    if (typeof positionerElement.animate !== 'function') return;
 
     windowStateAnimation?.cancel();
-    windowStateAnimation = positionerElement.animate([
+    const animation = positionerElement.animate([
       {
         transformOrigin: 'top left',
         transform: `translate(${fromRect.left - toRect.left}px, ${fromRect.top - toRect.top}px) scale(${fromRect.width / toRect.width}, ${fromRect.height / toRect.height})`,
@@ -545,10 +562,18 @@
       duration: 180,
       easing: 'cubic-bezier(0.2, 0, 0, 1)',
     });
+    windowStateAnimation = animation;
+    try {
+      await animation.finished;
+    } catch {
+      // Cancellation is expected when the user toggles again mid-transition.
+    } finally {
+      if (windowStateAnimation === animation) windowStateAnimation = null;
+    }
   }
 
   function scheduleClamp() {
-    if (dragSession || resizeSession || clampFrame !== null) return;
+    if (dragSession || resizeSession || windowStateTransitioning || clampFrame !== null) return;
     clampFrame = requestFrame(() => {
       clampFrame = null;
       clampDialogToViewport();
