@@ -232,6 +232,7 @@
       || (event.target instanceof Element && event.target.closest('.modal-window-controls'))
     ) return;
 
+    cancelWindowStateAnimation();
     const startRect = readPositionerRect();
     const safeRect = calculateSafeRect(true);
     if (!startRect || !safeRect) return;
@@ -318,6 +319,7 @@
 
       maximized = false;
       applyDialogRect(anchored);
+      restoreRect = null;
       session = {
         ...session,
         startClientX: clientX,
@@ -361,8 +363,7 @@
     finishResize();
     cancelFrame(clampFrame);
     clampFrame = null;
-    windowStateAnimation?.cancel();
-    windowStateAnimation = null;
+    cancelWindowStateAnimation();
     offsetX = 0;
     offsetY = 0;
     explicitWidth = null;
@@ -382,6 +383,7 @@
       || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')
     ) return;
 
+    cancelWindowStateAnimation();
     const startRect = readPositionerRect();
     const safeRect = calculateSafeRect(true);
     if (!startRect || !safeRect) return;
@@ -504,13 +506,16 @@
     if (!dragAvailable || !maximizable || !positionerElement) return;
     finishDrag();
     finishResize();
+    cancelWindowStateAnimation();
     const fromRect = positionerElement.getBoundingClientRect();
 
     if (maximized) {
       const safeRect = calculateSafeRect(true);
       if (!safeRect) return;
+      const targetRect = restoreRect ?? domRectToDialogRect(fromRect);
       maximized = false;
-      applyDialogRect(clampRectToSafeArea(restoreRect ?? domRectToDialogRect(fromRect), safeRect), safeRect);
+      restoreRect = null;
+      applyDialogRect(clampRectToSafeArea(targetRect, safeRect), safeRect);
     } else {
       restoreRect = domRectToDialogRect(fromRect);
       maximized = true;
@@ -555,7 +560,6 @@
     if (!safeRect) return;
 
     if (maximized) {
-      if (restoreRect) restoreRect = clampRectToSafeArea(restoreRect, safeRect);
       return;
     }
 
@@ -626,6 +630,11 @@
 
   function clamp(value: number, min: number, max: number) {
     return Math.min(max, Math.max(min, value));
+  }
+
+  function cancelWindowStateAnimation() {
+    windowStateAnimation?.cancel();
+    windowStateAnimation = null;
   }
 
   function requestFrame(callback: FrameRequestCallback) {

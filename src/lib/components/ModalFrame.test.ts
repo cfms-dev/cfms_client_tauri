@@ -399,6 +399,24 @@ describe('ModalFrame', () => {
     expect({ width: rect.width, height: rect.height }).toEqual({ width: 300, height: 200 });
   });
 
+  it('restores the pre-maximize size after the viewport changes while maximized', async () => {
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+    await resizeFrom(container, 'se', 40, { x: 550, y: 400 }, { x: 700, y: 520 });
+    expect(geometry.positioner.getBoundingClientRect()).toMatchObject({ width: 450, height: 320 });
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+    geometry.setViewport(420, 320);
+    window.dispatchEvent(new Event('resize'));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
+    geometry.setViewport(800, 600);
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore dialog' }));
+
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
+    expect(geometry.positioner.getBoundingClientRect()).toMatchObject({ width: 450, height: 320 });
+  });
+
   it('restores a maximized dialog under the pointer and continues dragging', async () => {
     const { container } = renderModal({ resizable: true, maximizable: true });
     const geometry = installDialogGeometry(container);
