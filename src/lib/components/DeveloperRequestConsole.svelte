@@ -424,8 +424,9 @@
 <style>
   .developer-console {
     display: grid;
-    height: min(72dvh, 46rem);
-    min-height: 30rem;
+    /* Account for ModalFrame's inset, header, border, and subpixel rounding. */
+    height: min(calc(100dvh - 5.5rem), 46rem);
+    min-height: min(30rem, calc(100dvh - 5.5rem));
     grid-template-rows: auto minmax(0, 1fr);
     color: var(--color-md3-on-surface);
     background: var(--color-md3-surface-container);
@@ -655,14 +656,18 @@
     display: grid;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(19rem, 3fr) minmax(10.5rem, 2fr);
   }
 
   .request-editor {
-    display: grid;
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
     gap: 0.55rem;
+    overflow: auto;
     border-bottom: 1px solid var(--color-md3-outline);
     padding: 1rem 1.1rem;
+    scrollbar-gutter: stable;
   }
 
   .section-heading {
@@ -720,8 +725,9 @@
   }
 
   .payload-editor {
-    min-height: 8.5rem;
+    min-height: 5.25rem;
     max-height: 14rem;
+    flex: 1 1 8.5rem;
     resize: vertical;
     padding: 0.65rem 0.75rem;
     font-size: 0.75rem;
@@ -846,13 +852,14 @@
 
   @media (max-width: 760px) {
     .developer-console {
-      height: min(78dvh, 46rem);
-      min-height: 32rem;
+      height: min(calc(100dvh - 5.5rem), 46rem);
+      min-height: min(32rem, calc(100dvh - 5.5rem));
     }
 
     .console-body {
+      overflow: auto;
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: 9.5rem minmax(0, 1fr);
+      grid-template-rows: 9.5rem auto;
     }
 
     .history-pane {
@@ -886,6 +893,11 @@
 
     .history-empty {
       border-left: 0;
+    }
+
+    .workbench {
+      min-height: 29.5rem;
+      grid-template-rows: 19rem 10.5rem;
     }
   }
 
