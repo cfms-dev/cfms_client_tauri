@@ -74,6 +74,23 @@ describe('download task groups', () => {
       .toEqual(['group', 'group-task', 'group-task']);
   });
 
+  it('keeps a 634-task expanded batch complete and ordered for virtualization', () => {
+    const tasks = Array.from({ length: 634 }, (_, index) =>
+      ({ ...task(`task-${index}`, 'completed'), created_at: index }),
+    );
+
+    const sections = buildDownloadTaskSections(tasks, new Set(['batch-1']));
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({ section: 'history', count: 634 });
+    expect(sections[0].rows).toHaveLength(635);
+    expect(sections[0].rows[0]).toMatchObject({ kind: 'group', group: { total: 634 } });
+    expect(sections[0].rows.slice(1).map((row) => row.kind))
+      .toEqual(Array.from({ length: 634 }, () => 'group-task'));
+    expect(sections[0].rows.slice(1).map((row) => row.kind === 'group-task' ? row.task.task_id : null))
+      .toEqual(Array.from({ length: 634 }, (_, index) => `task-${633 - index}`));
+  });
+
   it('places an active snapshot-only batch in progress exactly once', () => {
     const sections = buildDownloadTaskSections([], new Set(), [snapshot]);
 

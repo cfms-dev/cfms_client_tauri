@@ -431,9 +431,12 @@
 <style>
   .task-page {
     display: flex;
+    height: 100%;
     min-width: 0;
+    min-height: 0;
     flex-direction: column;
     gap: 0.9rem;
+    overflow: hidden;
     padding: 1rem clamp(1rem, 2vw, 1.5rem) 1.5rem;
   }
 
@@ -470,7 +473,8 @@
   .error-banner { display: flex; align-items: center; gap: 0.5rem; border: 1px solid color-mix(in srgb, var(--explorer-danger) 45%, transparent); border-radius: var(--explorer-radius-medium); padding: 0.55rem 0.7rem; color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); font-size: 0.8125rem; }
   .error-banner span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 
-  .task-list-shell { min-width: 0; overflow: hidden; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); background: var(--explorer-surface); }
+  .task-list-shell { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); background: var(--explorer-surface); }
+  :global(.task-list-viewport) { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 0.75rem; border-bottom: 1px solid var(--explorer-border); padding: 0.35rem 0.55rem; background: var(--explorer-surface-raised); }
   .section-toggle { display: flex; min-width: 0; align-items: center; gap: 0.4rem; color: var(--explorer-text); }
   .section-chevron { display: inline-flex; transition: transform 180ms var(--motion-easing-emphasized-decelerate); }
@@ -480,7 +484,7 @@
 
   .group-child { position: relative; padding-left: 1.5rem; background: color-mix(in srgb, var(--explorer-surface-raised) 48%, var(--explorer-surface)); }
   .group-child::before { position: absolute; top: 0; bottom: 0; left: 0.72rem; width: 1px; background: color-mix(in srgb, var(--explorer-accent) 45%, var(--explorer-border)); content: ''; }
-  .empty-state { display: grid; min-height: 260px; place-items: center; align-content: center; gap: 0.45rem; padding: 2rem; color: var(--explorer-text-muted); text-align: center; }
+  .empty-state { display: grid; min-height: 0; flex: 1; place-items: center; align-content: center; gap: 0.45rem; padding: 2rem; color: var(--explorer-text-muted); text-align: center; }
   .empty-state h2 { color: var(--explorer-text); font-size: 0.9375rem; font-weight: 650; }
   .empty-state p { max-width: 52ch; font-size: 0.8125rem; }
 
