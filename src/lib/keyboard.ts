@@ -22,6 +22,8 @@ export interface KeyboardCommand {
   shortcuts: readonly ShortcutSpec[];
   scope: KeyboardScope;
   group?: string | (() => string);
+  /** Whether the command appears in the user-facing shortcut reference. */
+  showInHelp?: boolean;
   priority?: number;
   enabled?: boolean | (() => boolean);
   allowInEditable?: boolean;
@@ -149,6 +151,10 @@ export function commandGroup(command: KeyboardCommand): string {
 
 export function isCommandEnabled(command: KeyboardCommand): boolean {
   return typeof command.enabled === 'function' ? command.enabled() : command.enabled !== false;
+}
+
+export function isCommandShownInHelp(command: KeyboardCommand): boolean {
+  return command.showInHelp !== false;
 }
 
 export function isEditableTarget(target: EventTarget | null): boolean {

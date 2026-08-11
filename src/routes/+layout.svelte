@@ -30,7 +30,10 @@
     dispatchKeyboardCommand,
     KEYBOARD_HELP_SHORTCUTS,
     registerKeyboardCommands,
+    type KeyboardCommand,
   } from "$lib/keyboard";
+  import { supportsKeyboardShortcuts } from "$lib/platform";
+  import { canOpenDeveloperConsole, developerConsoleIdentityKey } from "$lib/developer-console";
   import {
     authStore,
     serverStateStore,
@@ -49,10 +52,13 @@
   import NewUpdatePrompt from "$lib/components/NewUpdatePrompt.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
   import KeyboardShortcutHelp from "$lib/components/KeyboardShortcutHelp.svelte";
+  import DeveloperRequestConsole from "$lib/components/DeveloperRequestConsole.svelte";
 
   let { children }: { children: Snippet } = $props();
   let lastRecordedActivityAt = 0;
   let keyboardHelpOpen = $state(false);
+  let developerConsoleOpen = $state(false);
+  let lastDeveloperConsoleScopeKey = $state('');
   let hasShownLockdownBanner = $state(false);
   let resetRecoveryMode = $state(false);
   initNavigationHistory();
@@ -96,9 +102,30 @@
   const desiredScreenProtection = $derived(
     forcedScreenProtection || (authStore.isLoggedIn && screenProtectionStore.userEnabled),
   );
+  const developerConsoleAccessState = $derived({
+    connected: serverStateStore.connected,
+    isLoggedIn: authStore.isLoggedIn,
+    username: authStore.username,
+    postLoginPending: authStore.postLoginPending,
+    locked: appLockStore.locked,
+    serverAddress: serverStateStore.remoteAddress,
+  });
+  const developerConsoleAvailable = $derived(canOpenDeveloperConsole(developerConsoleAccessState));
+  const developerConsoleScopeKey = $derived(developerConsoleIdentityKey(developerConsoleAccessState));
 
   $effect(() => {
     if (showRootLockdownBanner) hasShownLockdownBanner = true;
+  });
+
+  $effect(() => {
+    const nextScopeKey = developerConsoleScopeKey;
+    if (nextScopeKey === lastDeveloperConsoleScopeKey) return;
+    if (lastDeveloperConsoleScopeKey) developerConsoleOpen = false;
+    lastDeveloperConsoleScopeKey = nextScopeKey;
+  });
+
+  $effect(() => {
+    if (!developerConsoleAvailable) developerConsoleOpen = false;
   });
 
   // ---------------------------------------------------------------------------
@@ -295,7 +322,7 @@
   });
 
   onMount(() => {
-    const unregisterCommands = registerKeyboardCommands([
+    const commands: KeyboardCommand[] = [
       {
         id: 'global.home',
         label: () => $t('keyboard.goHome'),
@@ -369,7 +396,20 @@
         allowInEditable: true,
         handler: (event) => { cycleKeyboardRegion(event); },
       },
-    ]);
+    ];
+    if (supportsKeyboardShortcuts()) {
+      commands.push({
+        id: 'global.developer-console',
+        label: () => $t('developerConsole.title'),
+        shortcuts: [{ key: 'q', ctrl: true }],
+        scope: 'global',
+        showInHelp: false,
+        enabled: () => developerConsoleAvailable,
+        allowInEditable: true,
+        handler: () => { developerConsoleOpen = true; },
+      });
+    }
+    const unregisterCommands = registerKeyboardCommands(commands);
     const openHelp = () => { keyboardHelpOpen = true; };
     window.addEventListener('cfms:keyboard-shortcuts', openHelp);
     return () => {
@@ -531,6 +571,13 @@
   <DialogHost />
   <SnackBarHost />
   <NewUpdatePrompt />
+  <DeveloperRequestConsole
+    open={developerConsoleOpen}
+    onClose={() => (developerConsoleOpen = false)}
+    serverAddress={serverStateStore.remoteAddress ?? ''}
+    username={authStore.username ?? ''}
+    scopeKey={developerConsoleScopeKey}
+  />
   <AppLockOverlay />
   <KeyboardShortcutHelp open={keyboardHelpOpen} onClose={() => (keyboardHelpOpen = false)} />
 </div>

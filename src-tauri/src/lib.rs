@@ -550,6 +550,7 @@ pub fn run() {
             commands::read_extension_page,
             commands::read_extension_workflow,
             commands::execute_extension_host_call,
+            commands::send_developer_request,
             commands::get_locale,
             commands::set_locale,
             commands::translate_backend,

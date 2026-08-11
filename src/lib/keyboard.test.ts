@@ -3,6 +3,7 @@ import {
   dispatchKeyboardCommand,
   fileManagerShortcutFor,
   formatShortcut,
+  isCommandShownInHelp,
   registerKeyboardCommands,
   shortcutMatches,
 } from './keyboard';
@@ -47,6 +48,21 @@ describe('keyboard command registry', () => {
     expect(shortcutMatches(windowsEvent, { key: '1', primary: true }, true)).toBe(false);
     expect(formatShortcut({ key: '/', primary: true }, false)).toBe('Ctrl+/');
     expect(formatShortcut({ key: '/', primary: true }, true)).toBe('⌘/');
+  });
+
+  it('keeps the developer shortcut on literal Ctrl+Q and out of shortcut help', () => {
+    const command = {
+      id: 'global.developer-console',
+      label: 'Developer request console',
+      shortcuts: [{ key: 'q', ctrl: true }],
+      scope: 'global' as const,
+      showInHelp: false,
+      handler: () => {},
+    };
+
+    expect(shortcutMatches(key('q', { ctrlKey: true }), command.shortcuts[0], false)).toBe(true);
+    expect(shortcutMatches(key('q', { metaKey: true }), command.shortcuts[0], true)).toBe(false);
+    expect(isCommandShownInHelp(command)).toBe(false);
   });
 
   it('dispatches the highest-priority active scope', () => {

@@ -800,17 +800,29 @@ async fn server_action_json(
     action: &str,
     data: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    let resp = server_action_response(state, action, data).await?;
+    if resp.code != 200 {
+        return Err(format_server_response_error(&resp));
+    }
+
+    Ok(resp.data)
+}
+
+/// Send an authenticated server action while preserving the complete response
+/// envelope. Unlike `server_action_json`, non-200 responses are returned to the
+/// caller so developer tooling can inspect the server's structured result.
+async fn server_action_response(
+    state: &AppHandleState,
+    action: &str,
+    data: serde_json::Value,
+) -> Result<cfms_core::Response, String> {
+    let expected_identity = capture_server_action_identity(&state.inner).await?;
     let mut last_error = None;
     for attempt in 1..=cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS {
         let (conn, username, token) = get_connection_auth(state).await?;
+        ensure_server_action_identity(&state.inner, &expected_identity, &username).await?;
         match send_action_request(&conn, action, data.clone(), &username, &token).await {
-            Ok(resp) => {
-                if resp.code != 200 {
-                    return Err(format_server_response_error(&resp));
-                }
-
-                return Ok(resp.data);
-            }
+            Ok(resp) => return Ok(resp),
             Err(error) if is_transient_connection_error(&error) => {
                 tracing::warn!(
                     "Request {action} failed on attempt {attempt}; reconnecting: {error}",
@@ -828,6 +840,50 @@ async fn server_action_json(
     }
 
     Err(last_error.unwrap_or_else(|| format!("{action} failed after reconnect attempts")))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ServerActionIdentity {
+    server_address: Option<String>,
+    username: String,
+}
+
+async fn capture_server_action_identity(
+    state: &cfms_service::state::AppState,
+) -> Result<ServerActionIdentity, String> {
+    let server_address = state.server_address.read().await.clone();
+    let username = state
+        .username
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "Not logged in".to_string())?;
+    Ok(ServerActionIdentity {
+        server_address,
+        username,
+    })
+}
+
+async fn ensure_server_action_identity(
+    state: &cfms_service::state::AppState,
+    expected: &ServerActionIdentity,
+    username: &str,
+) -> Result<(), String> {
+    let current = ServerActionIdentity {
+        server_address: state.server_address.read().await.clone(),
+        username: username.to_string(),
+    };
+    validate_server_action_identity(expected, &current)
+}
+
+fn validate_server_action_identity(
+    expected: &ServerActionIdentity,
+    current: &ServerActionIdentity,
+) -> Result<(), String> {
+    if current == expected {
+        return Ok(());
+    }
+    Err("Request cancelled because the active server or account changed".to_string())
 }
 
 async fn server_action_bool(

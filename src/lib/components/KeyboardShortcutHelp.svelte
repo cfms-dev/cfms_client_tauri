@@ -5,6 +5,7 @@
   import {
     commandGroup,
     commandLabel,
+    isCommandShownInHelp,
     keyboardCommands,
     type KeyboardCommand,
   } from '$lib/keyboard';
@@ -18,7 +19,10 @@
   } = $props();
 
   const visibleCommands = $derived(
-    $keyboardCommands.filter((command) => command.scope === 'global' || command.scope === 'page'),
+    $keyboardCommands.filter((command) => (
+      (command.scope === 'global' || command.scope === 'page')
+      && isCommandShownInHelp(command)
+    )),
   );
   const globalCommands = $derived(visibleCommands.filter((command) => command.scope === 'global'));
   const pageCommands = $derived(visibleCommands.filter((command) => command.scope === 'page'));
