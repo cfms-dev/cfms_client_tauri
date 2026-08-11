@@ -10,7 +10,6 @@
   import Icon from './Icon.svelte';
   import { _ as t } from 'svelte-i18n';
   import { ROOT_DIRECTORY_ID } from '$lib/file-browser';
-  import { flyScale, staggeredList } from '$lib/motion/transitions';
   import { focusRovingItem } from '$lib/keyboard';
 
   interface Props {
@@ -37,7 +36,6 @@
     tabindex="0"
     class="inline-flex h-5 shrink-0 items-center justify-center leading-none text-md3-primary-emphasis hover:underline font-medium transition-colors"
     onclick={() => onNavigate(ROOT_DIRECTORY_ID)}
-    transition:flyScale={staggeredList(0, { y: 4, duration: 220, step: 28 })}
   >
     <Icon name="home" size="16px" class="shrink-0" />
   </button>
@@ -45,14 +43,12 @@
   {#each segments as seg, i}
     <span
       class="flex h-5 shrink-0 items-center justify-center leading-none text-md3-on-surface-variant select-none"
-      transition:flyScale={staggeredList(i * 2 + 1, { y: 4, duration: 220, step: 28 })}
     >
       <Icon name="breadcrumbSep" size="14px" class="shrink-0" />
     </span>
     {#if i === segments.length - 1}
       <span
         class="inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-5 text-md3-on-surface font-semibold"
-        transition:flyScale={staggeredList(i * 2 + 2, { y: 4, duration: 220, step: 28 })}
       >
         {seg.label}
       </span>
@@ -62,7 +58,6 @@
         tabindex="-1"
         class="inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-5 text-md3-primary-emphasis hover:underline transition-colors"
         onclick={() => onNavigate(seg.path)}
-        transition:flyScale={staggeredList(i * 2 + 2, { y: 4, duration: 220, step: 28 })}
       >
         {seg.label}
       </button>

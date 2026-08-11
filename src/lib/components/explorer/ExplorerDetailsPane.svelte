@@ -44,7 +44,7 @@
     aria-label={model?.title ?? emptyTitle}
     data-keyboard-region="details"
     tabindex="-1"
-    transition:detailsPaneTransition
+    in:detailsPaneTransition
   >
     <header class="explorer-details-header">
       <div class="explorer-details-heading">

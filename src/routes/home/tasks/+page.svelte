@@ -390,7 +390,7 @@
   </div>
 
   {#if errorMessage}
-    <div class="error-banner" role="alert" transition:flyScale={{ y: -4, duration: 180 }}><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
+    <div class="error-banner" role="alert" in:flyScale={{ y: -4, duration: 180 }}><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
   {/if}
   <section class="task-list-shell" aria-busy={loading}>
     {#if currentRows.length > 0}
@@ -423,7 +423,7 @@
         {/snippet}
       </VirtualList>
     {:else if !loading}
-      <div class="empty-state" transition:flyScale={{ y: 8, duration: 220 }}><Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="44px" /><h2>{activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks')}</h2><p>{searchQuery ? $t('tasks.noSearchResults') : $t('tasks.emptyHint')}</p></div>
+      <div class="empty-state" in:flyScale={{ y: 8, duration: 220 }}><Icon name={activeTab === 'downloads' ? 'downloadDone' : 'upload'} size="44px" /><h2>{activeTab === 'downloads' ? $t('tasks.noDownloadTasks') : $t('tasks.noUploadTasks')}</h2><p>{searchQuery ? $t('tasks.noSearchResults') : $t('tasks.emptyHint')}</p></div>
     {/if}
   </section>
 </div>

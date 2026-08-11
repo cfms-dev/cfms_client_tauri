@@ -69,7 +69,7 @@
     </div>
   </div>
   {#if expanded}
-    <div class="task-details" transition:flyScale={{ y: -4, duration: 180 }}>
+    <div class="task-details" in:flyScale={{ y: -4, duration: 180 }}>
       <dl class="details-grid">
         <div><dt>{$t('tasks.taskId')}</dt><dd class="font-mono">{shortIdentifier(task.upload_id, 20)}</dd></div>
         <div><dt>{$t('tasks.createdAt')}</dt><dd>{formatLocalDateTimeWithUtcOffset(task.created_at * 1000)}</dd></div>

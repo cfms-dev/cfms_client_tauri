@@ -184,7 +184,7 @@
   </div>
 
   {#if expanded && hasSecondaryActions}
-    <div class="batch-secondary-actions" transition:flyScale={{ y: -4, duration: 160 }}>
+    <div class="batch-secondary-actions" in:flyScale={{ y: -4, duration: 160 }}>
       {#if canPause && primaryAction !== 'pause'}
         <button type="button" class="batch-action batch-action-warning" disabled={Boolean(pendingAction) || isDeleting} onclick={() => runAction(onPause)}><Icon name="pause" size="14px" />{$t('tasks.pause')}</button>
       {/if}
