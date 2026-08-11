@@ -1322,6 +1322,7 @@
 
   function showCurrentDirectoryContextMenu(e: MouseEvent) {
     e.preventDefault();
+    deselectAll();
     contextMenu = { open: true, ...keyboardMenuAnchor(e), kind: 'current-directory', item: null };
   }
 
