@@ -1,18 +1,20 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { onDestroy, onMount, tick } from 'svelte';
+  import { _ as t } from 'svelte-i18n';
   import { fade } from 'svelte/transition';
+  import { isReducedMotionEnabled } from '$lib/appearance';
   import { flyScale } from '$lib/motion/transitions';
   import { isMobilePlatform } from '$lib/platform';
   import Icon from '$lib/components/Icon.svelte';
 
   const DRAG_THRESHOLD = 4;
 
-  type DragBounds = {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
+  type DialogRect = {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
   };
 
   type DragSession = {
@@ -20,11 +22,27 @@
     captureElement: HTMLDivElement;
     startClientX: number;
     startClientY: number;
-    startOffsetX: number;
-    startOffsetY: number;
-    bounds: DragBounds;
+    startRect: DialogRect;
+    safeRect: DialogRect;
+    grabRatioX: number;
+    grabOffsetY: number;
+    startedMaximized: boolean;
     active: boolean;
   };
+
+  type ResizeEdge = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+  type ResizeSession = {
+    pointerId: number;
+    captureElement: HTMLDivElement;
+    edge: ResizeEdge;
+    startClientX: number;
+    startClientY: number;
+    startRect: DialogRect;
+    safeRect: DialogRect;
+  };
+
+  const RESIZE_EDGES: ResizeEdge[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
 
   let {
     title,
@@ -33,6 +51,10 @@
     closeLabel = 'Close',
     dismissible = true,
     closeOnBackdrop = true,
+    resizable = false,
+    maximizable = false,
+    minWidth = 360,
+    minHeight = 240,
     onClose,
     children,
   }: {
@@ -42,6 +64,10 @@
     closeLabel?: string;
     dismissible?: boolean;
     closeOnBackdrop?: boolean;
+    resizable?: boolean;
+    maximizable?: boolean;
+    minWidth?: number;
+    minHeight?: number;
     onClose: () => void;
     children: Snippet;
   } = $props();
@@ -51,12 +77,19 @@
   let panelElement = $state<HTMLDivElement | null>(null);
   let dragAvailable = $state(false);
   let dragSession = $state<DragSession | null>(null);
+  let resizeSession = $state<ResizeSession | null>(null);
   let offsetX = $state(0);
   let offsetY = $state(0);
+  let explicitWidth = $state<number | null>(null);
+  let explicitHeight = $state<number | null>(null);
+  let maximized = $state(false);
+  let restoreRect = $state<DialogRect | null>(null);
   let dragFrame: number | null = null;
+  let resizeFrame: number | null = null;
   let clampFrame: number | null = null;
   let pendingClientX = 0;
   let pendingClientY = 0;
+  let windowStateAnimation: Animation | null = null;
 
   onMount(() => {
     try {
@@ -69,8 +102,11 @@
 
   onDestroy(() => {
     finishDrag();
+    finishResize();
     cancelFrame(dragFrame);
+    cancelFrame(resizeFrame);
     cancelFrame(clampFrame);
+    windowStateAnimation?.cancel();
   });
 
   $effect(() => {
@@ -88,6 +124,7 @@
 
     const handleViewportResize = () => {
       finishDrag();
+      finishResize();
       scheduleClamp();
     };
     const observer = typeof ResizeObserver === 'undefined'
@@ -192,20 +229,23 @@
       || event.button !== 0
       || !event.isPrimary
       || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')
-      || (event.target instanceof Element && event.target.closest('.modal-close'))
+      || (event.target instanceof Element && event.target.closest('.modal-window-controls'))
     ) return;
 
-    const bounds = calculateDragBounds();
-    if (!bounds) return;
+    const startRect = readPositionerRect();
+    const safeRect = calculateSafeRect(true);
+    if (!startRect || !safeRect) return;
 
     dragSession = {
       pointerId: event.pointerId,
       captureElement: event.currentTarget as HTMLDivElement,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startOffsetX: offsetX,
-      startOffsetY: offsetY,
-      bounds,
+      startRect,
+      safeRect,
+      grabRatioX: clamp((event.clientX - startRect.left) / Math.max(1, startRect.width), 0, 1),
+      grabOffsetY: clamp(event.clientY - startRect.top, 0, 52),
+      startedMaximized: maximized,
       active: false,
     };
   }
@@ -262,18 +302,45 @@
   }
 
   function applyDragPosition(clientX: number, clientY: number) {
-    const session = dragSession;
+    let session = dragSession;
     if (!session?.active) return;
-    offsetX = clamp(
-      session.startOffsetX + clientX - session.startClientX,
-      session.bounds.minX,
-      session.bounds.maxX,
+
+    if (session.startedMaximized) {
+      const restored = clampRectToSafeArea(
+        restoreRect ?? session.startRect,
+        calculateSafeRect(true) ?? session.safeRect,
+      );
+      const anchored = clampRectToSafeArea({
+        ...restored,
+        left: clientX - restored.width * session.grabRatioX,
+        top: clientY - session.grabOffsetY,
+      }, calculateSafeRect(true) ?? session.safeRect);
+
+      maximized = false;
+      applyDialogRect(anchored);
+      session = {
+        ...session,
+        startClientX: clientX,
+        startClientY: clientY,
+        startRect: anchored,
+        safeRect: calculateSafeRect(true) ?? session.safeRect,
+        startedMaximized: false,
+      };
+      dragSession = session;
+      return;
+    }
+
+    const left = clamp(
+      session.startRect.left + clientX - session.startClientX,
+      session.safeRect.left,
+      session.safeRect.left + session.safeRect.width - session.startRect.width,
     );
-    offsetY = clamp(
-      session.startOffsetY + clientY - session.startClientY,
-      session.bounds.minY,
-      session.bounds.maxY,
+    const top = clamp(
+      session.startRect.top + clientY - session.startClientY,
+      session.safeRect.top,
+      session.safeRect.top + session.safeRect.height - session.startRect.height,
     );
+    applyDialogPosition({ ...session.startRect, left, top }, session.safeRect);
   }
 
   function finishDrag() {
@@ -291,14 +358,192 @@
 
   function resetDialogPosition() {
     finishDrag();
+    finishResize();
     cancelFrame(clampFrame);
     clampFrame = null;
+    windowStateAnimation?.cancel();
+    windowStateAnimation = null;
     offsetX = 0;
     offsetY = 0;
+    explicitWidth = null;
+    explicitHeight = null;
+    maximized = false;
+    restoreRect = null;
+  }
+
+  function handleResizePointerDown(event: PointerEvent, edge: ResizeEdge) {
+    if (
+      !dragAvailable
+      || !resizable
+      || maximized
+      || !isTopmostDialog()
+      || event.button !== 0
+      || !event.isPrimary
+      || (event.pointerType !== 'mouse' && event.pointerType !== 'pen')
+    ) return;
+
+    const startRect = readPositionerRect();
+    const safeRect = calculateSafeRect(true);
+    if (!startRect || !safeRect) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const captureElement = event.currentTarget as HTMLDivElement;
+    try {
+      captureElement.setPointerCapture(event.pointerId);
+    } catch {
+      return;
+    }
+    resizeSession = {
+      pointerId: event.pointerId,
+      captureElement,
+      edge,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startRect,
+      safeRect,
+    };
+  }
+
+  function handleResizePointerMove(event: PointerEvent) {
+    if (!resizeSession || resizeSession.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    pendingClientX = event.clientX;
+    pendingClientY = event.clientY;
+    if (resizeFrame !== null) return;
+    resizeFrame = requestFrame(() => {
+      resizeFrame = null;
+      applyResize(pendingClientX, pendingClientY);
+    });
+  }
+
+  function handleResizePointerUp(event: PointerEvent) {
+    if (!resizeSession || resizeSession.pointerId !== event.pointerId) return;
+    applyResize(event.clientX, event.clientY);
+    finishResize();
+    scheduleClamp();
+  }
+
+  function handleResizePointerCancel(event: PointerEvent) {
+    if (!resizeSession || resizeSession.pointerId !== event.pointerId) return;
+    finishResize();
+    scheduleClamp();
+  }
+
+  function handleResizeLostPointerCapture(event: PointerEvent) {
+    if (!resizeSession || resizeSession.pointerId !== event.pointerId) return;
+    cancelFrame(resizeFrame);
+    resizeFrame = null;
+    resizeSession = null;
+    scheduleClamp();
+  }
+
+  function applyResize(clientX: number, clientY: number) {
+    const session = resizeSession;
+    if (!session) return;
+
+    const deltaX = clientX - session.startClientX;
+    const deltaY = clientY - session.startClientY;
+    const startRight = session.startRect.left + session.startRect.width;
+    const startBottom = session.startRect.top + session.startRect.height;
+    const safeRight = session.safeRect.left + session.safeRect.width;
+    const safeBottom = session.safeRect.top + session.safeRect.height;
+    const effectiveMinWidth = Math.min(Math.max(1, minWidth), session.safeRect.width);
+    const effectiveMinHeight = Math.min(Math.max(1, minHeight), session.safeRect.height);
+    let left = session.startRect.left;
+    let top = session.startRect.top;
+    let right = startRight;
+    let bottom = startBottom;
+
+    if (session.edge.includes('e')) {
+      right = clamp(startRight + deltaX, left + effectiveMinWidth, safeRight);
+    }
+    if (session.edge.includes('w')) {
+      left = clamp(session.startRect.left + deltaX, session.safeRect.left, right - effectiveMinWidth);
+    }
+    if (session.edge.includes('s')) {
+      bottom = clamp(startBottom + deltaY, top + effectiveMinHeight, safeBottom);
+    }
+    if (session.edge.includes('n')) {
+      top = clamp(session.startRect.top + deltaY, session.safeRect.top, bottom - effectiveMinHeight);
+    }
+
+    applyDialogRect({
+      left,
+      top,
+      width: right - left,
+      height: bottom - top,
+    }, session.safeRect);
+  }
+
+  function finishResize() {
+    const session = resizeSession;
+    cancelFrame(resizeFrame);
+    resizeFrame = null;
+    resizeSession = null;
+    if (!session) return;
+    try {
+      session.captureElement.releasePointerCapture(session.pointerId);
+    } catch {
+      // Pointer capture may already have been released by the user agent.
+    }
+  }
+
+  function handleHeaderDoubleClick(event: MouseEvent) {
+    if (
+      !dragAvailable
+      || !maximizable
+      || !isTopmostDialog()
+      || (event.target instanceof Element && event.target.closest('.modal-window-controls'))
+    ) return;
+    event.preventDefault();
+    void toggleMaximized();
+  }
+
+  async function toggleMaximized() {
+    if (!dragAvailable || !maximizable || !positionerElement) return;
+    finishDrag();
+    finishResize();
+    const fromRect = positionerElement.getBoundingClientRect();
+
+    if (maximized) {
+      const safeRect = calculateSafeRect(true);
+      if (!safeRect) return;
+      maximized = false;
+      applyDialogRect(clampRectToSafeArea(restoreRect ?? domRectToDialogRect(fromRect), safeRect), safeRect);
+    } else {
+      restoreRect = domRectToDialogRect(fromRect);
+      maximized = true;
+    }
+
+    await animateWindowState(fromRect);
+  }
+
+  async function animateWindowState(fromRect: DOMRect) {
+    if (isReducedMotionEnabled()) return;
+    await tick();
+    if (!positionerElement) return;
+    const toRect = positionerElement.getBoundingClientRect();
+    if (toRect.width <= 0 || toRect.height <= 0) return;
+
+    windowStateAnimation?.cancel();
+    windowStateAnimation = positionerElement.animate([
+      {
+        transformOrigin: 'top left',
+        transform: `translate(${fromRect.left - toRect.left}px, ${fromRect.top - toRect.top}px) scale(${fromRect.width / toRect.width}, ${fromRect.height / toRect.height})`,
+      },
+      {
+        transformOrigin: 'top left',
+        transform: 'translate(0, 0) scale(1)',
+      },
+    ], {
+      duration: 180,
+      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+    });
   }
 
   function scheduleClamp() {
-    if (dragSession || clampFrame !== null) return;
+    if (dragSession || resizeSession || clampFrame !== null) return;
     clampFrame = requestFrame(() => {
       clampFrame = null;
       clampDialogToViewport();
@@ -306,43 +551,71 @@
   }
 
   function clampDialogToViewport() {
-    const bounds = calculateDragBounds();
-    if (!bounds) return;
-    offsetX = clamp(offsetX, bounds.minX, bounds.maxX);
-    offsetY = clamp(offsetY, bounds.minY, bounds.maxY);
+    const safeRect = calculateSafeRect(true);
+    if (!safeRect) return;
+
+    if (maximized) {
+      if (restoreRect) restoreRect = clampRectToSafeArea(restoreRect, safeRect);
+      return;
+    }
+
+    const currentRect = readPositionerRect();
+    if (!currentRect) return;
+    const clampedRect = clampRectToSafeArea(currentRect, safeRect);
+    if (explicitWidth !== null || explicitHeight !== null) {
+      applyDialogRect(clampedRect, safeRect);
+    } else {
+      applyDialogPosition(clampedRect, safeRect);
+    }
   }
 
-  function calculateDragBounds(): DragBounds | null {
-    if (!backdropElement || !positionerElement) return null;
-
+  function calculateSafeRect(includeWindowedPadding: boolean): DialogRect | null {
+    if (!backdropElement) return null;
     const backdropRect = backdropElement.getBoundingClientRect();
-    const panelRect = positionerElement.getBoundingClientRect();
     const backdropStyle = window.getComputedStyle(backdropElement);
-    const safeLeft = backdropRect.left + cssPixels(backdropStyle.paddingLeft);
-    const safeTop = backdropRect.top + cssPixels(backdropStyle.paddingTop);
-    const safeRight = backdropRect.right - cssPixels(backdropStyle.paddingRight);
-    const safeBottom = backdropRect.bottom - cssPixels(backdropStyle.paddingBottom);
-    const availableWidth = Math.max(0, safeRight - safeLeft);
-    const availableHeight = Math.max(0, safeBottom - safeTop);
-
-    const horizontalBounds = panelRect.width > availableWidth
-      ? { min: 0, max: 0 }
-      : {
-          min: offsetX + safeLeft - panelRect.left,
-          max: offsetX + safeRight - panelRect.right,
-        };
-    const verticalBounds = panelRect.height > availableHeight
-      ? { min: 0, max: 0 }
-      : {
-          min: offsetY + safeTop - panelRect.top,
-          max: offsetY + safeBottom - panelRect.bottom,
-        };
-
+    const paddingLeft = includeWindowedPadding ? cssPixels(backdropStyle.paddingLeft) : 0;
+    const paddingTop = includeWindowedPadding ? cssPixels(backdropStyle.paddingTop) : 0;
+    const paddingRight = includeWindowedPadding ? cssPixels(backdropStyle.paddingRight) : 0;
+    const paddingBottom = includeWindowedPadding ? cssPixels(backdropStyle.paddingBottom) : 0;
     return {
-      minX: horizontalBounds.min,
-      maxX: horizontalBounds.max,
-      minY: verticalBounds.min,
-      maxY: verticalBounds.max,
+      left: backdropRect.left + paddingLeft,
+      top: backdropRect.top + paddingTop,
+      width: Math.max(0, backdropRect.width - paddingLeft - paddingRight),
+      height: Math.max(0, backdropRect.height - paddingTop - paddingBottom),
+    };
+  }
+
+  function readPositionerRect(): DialogRect | null {
+    return positionerElement
+      ? domRectToDialogRect(positionerElement.getBoundingClientRect())
+      : null;
+  }
+
+  function domRectToDialogRect(rect: DOMRect): DialogRect {
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+
+  function applyDialogRect(rect: DialogRect, safeRect = calculateSafeRect(true)) {
+    if (!safeRect) return;
+    const clampedRect = clampRectToSafeArea(rect, safeRect);
+    explicitWidth = clampedRect.width;
+    explicitHeight = clampedRect.height;
+    applyDialogPosition(clampedRect, safeRect);
+  }
+
+  function applyDialogPosition(rect: DialogRect, safeRect: DialogRect) {
+    offsetX = rect.left + rect.width / 2 - (safeRect.left + safeRect.width / 2);
+    offsetY = rect.top + rect.height / 2 - (safeRect.top + safeRect.height / 2);
+  }
+
+  function clampRectToSafeArea(rect: DialogRect, safeRect: DialogRect): DialogRect {
+    const width = Math.min(rect.width, safeRect.width);
+    const height = Math.min(rect.height, safeRect.height);
+    return {
+      left: clamp(rect.left, safeRect.left, safeRect.left + safeRect.width - width),
+      top: clamp(rect.top, safeRect.top, safeRect.top + safeRect.height - height),
+      width,
+      height,
     };
   }
 
@@ -378,6 +651,8 @@
     class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
     class:modal-drag-enabled={dragAvailable}
     class:modal-dragging={dragSession?.active}
+    class:modal-resizing={resizeSession !== null}
+    class:modal-maximized={maximized}
     role="presentation"
     transition:fade|global={{ duration: 140 }}
     onclick={handleBackdropClick}
@@ -385,11 +660,18 @@
     <div
       bind:this={positionerElement}
       class={`modal-positioner relative w-full ${maxWidth}`}
-      style:translate={`${offsetX}px ${offsetY}px`}
+      class:modal-positioner--maximized={maximized}
+      class:modal-positioner--sized={!maximized && explicitHeight !== null}
+      style:translate={maximized ? '0px 0px' : `${offsetX}px ${offsetY}px`}
+      style:width={!maximized && explicitWidth !== null ? `${explicitWidth}px` : undefined}
+      style:height={!maximized && explicitHeight !== null ? `${explicitHeight}px` : undefined}
+      style:max-width={!maximized && explicitWidth !== null ? 'none' : undefined}
     >
       <div
         bind:this={panelElement}
         class="modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden"
+        class:modal-panel--maximized={maximized}
+        class:modal-panel--sized={!maximized && explicitHeight !== null}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -406,22 +688,53 @@
           onpointerup={handleHeaderPointerUp}
           onpointercancel={handleHeaderPointerCancel}
           onlostpointercapture={handleLostPointerCapture}
+          ondblclick={handleHeaderDoubleClick}
         >
           <h2 class="modal-title min-w-0 truncate text-md3-on-surface">{title}</h2>
-          <button
-            type="button"
-            class="modal-close grid shrink-0 place-items-center text-md3-on-surface-variant"
-            aria-label={closeLabel}
-            disabled={!dismissible}
-            onclick={onClose}
-          >
-            <Icon name="close" size="20px" />
-          </button>
+          <div class="modal-window-controls flex shrink-0 items-center gap-1">
+            {#if maximizable && dragAvailable}
+              <button
+                type="button"
+                class="modal-window-action modal-maximize grid shrink-0 place-items-center text-md3-on-surface-variant"
+                aria-label={maximized ? $t('common.restoreDialog') : $t('common.maximizeDialog')}
+                aria-pressed={maximized}
+                title={maximized ? $t('common.restoreDialog') : $t('common.maximizeDialog')}
+                onclick={() => { void toggleMaximized(); }}
+              >
+                <Icon name={maximized ? 'restoreDialog' : 'maximizeDialog'} size="18px" />
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="modal-window-action modal-close grid shrink-0 place-items-center text-md3-on-surface-variant"
+              aria-label={closeLabel}
+              disabled={!dismissible}
+              onclick={onClose}
+            >
+              <Icon name="close" size="20px" />
+            </button>
+          </div>
         </div>
         <div class="modal-content relative min-h-0 overflow-auto">
           {@render children()}
         </div>
       </div>
+      {#if resizable && dragAvailable && !maximized}
+        {#each RESIZE_EDGES as edge}
+          <div
+            class={`modal-resize-handle modal-resize-handle--${edge}`}
+            data-resize-edge={edge}
+            role="presentation"
+            aria-hidden="true"
+            onpointerdown={(event) => handleResizePointerDown(event, edge)}
+            onpointermove={handleResizePointerMove}
+            onpointerup={handleResizePointerUp}
+            onpointercancel={handleResizePointerCancel}
+            onlostpointercapture={handleResizeLostPointerCapture}
+            onclick={(event) => event.stopPropagation()}
+          ></div>
+        {/each}
+      {/if}
     </div>
   </div>
 {/if}
@@ -438,6 +751,30 @@
     -webkit-backdrop-filter: blur(24px) saturate(1.08);
     backdrop-filter: blur(24px) saturate(1.08);
     outline: none;
+  }
+
+  .modal-panel--sized,
+  .modal-panel--maximized {
+    height: 100%;
+    max-height: none;
+  }
+
+  .modal-panel--maximized {
+    border-color: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .modal-positioner.modal-positioner--maximized {
+    position: fixed;
+    z-index: 1;
+    top: var(--safe-area-top, 0px);
+    right: var(--safe-area-right, 0px);
+    bottom: var(--safe-area-bottom, 0px);
+    left: var(--safe-area-left, 0px);
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
   }
 
   /* The panel is a programmatic focus boundary, not an interactive control.
@@ -469,6 +806,14 @@
     will-change: translate;
   }
 
+  .modal-resizing .modal-positioner {
+    will-change: width, height, translate;
+  }
+
+  .modal-resizing {
+    user-select: none;
+  }
+
   .modal-title {
     margin: 0;
     font-size: 0.9375rem;
@@ -476,7 +821,7 @@
     letter-spacing: -0.005em;
   }
 
-  .modal-close {
+  .modal-window-action {
     width: 32px;
     height: 32px;
     border: 1px solid transparent;
@@ -489,28 +834,105 @@
       transform var(--motion-duration-short3) var(--motion-easing-standard);
   }
 
-  .modal-drag-enabled .modal-close {
+  .modal-drag-enabled .modal-window-action {
     cursor: pointer;
     touch-action: manipulation;
   }
 
-  .modal-close:hover {
+  .modal-window-action:hover {
     border-color: var(--color-md3-outline);
     color: var(--color-md3-on-surface);
     background: var(--color-md3-surface-container-highest);
   }
 
-  .modal-close:active {
+  .modal-window-action:focus-visible {
+    outline: 2px solid var(--color-md3-primary-emphasis, var(--color-md3-primary));
+    outline-offset: 1px;
+  }
+
+  .modal-window-action:active {
     transform: scale(0.94);
   }
 
-  .modal-close:disabled {
+  .modal-window-action:disabled {
     cursor: not-allowed;
     opacity: 0.4;
   }
 
   .modal-content {
+    flex: 1 1 auto;
     scrollbar-gutter: stable;
+  }
+
+  :global(.modal-positioner--sized .modal-content > *),
+  :global(.modal-positioner--maximized .modal-content > *) {
+    height: 100% !important;
+    max-height: none !important;
+  }
+
+  :global(.modal-positioner--sized .modal-flex-region),
+  :global(.modal-positioner--maximized .modal-flex-region) {
+    min-height: 0 !important;
+  }
+
+  .modal-resize-handle {
+    position: absolute;
+    z-index: 4;
+    touch-action: none;
+  }
+
+  .modal-resize-handle--n,
+  .modal-resize-handle--s {
+    right: 10px;
+    left: 10px;
+    height: 8px;
+    cursor: ns-resize;
+  }
+
+  .modal-resize-handle--n { top: -4px; }
+  .modal-resize-handle--s { bottom: -4px; }
+
+  .modal-resize-handle--e,
+  .modal-resize-handle--w {
+    top: 10px;
+    bottom: 10px;
+    width: 8px;
+    cursor: ew-resize;
+  }
+
+  .modal-resize-handle--e { right: -4px; }
+  .modal-resize-handle--w { left: -4px; }
+
+  .modal-resize-handle--ne,
+  .modal-resize-handle--se,
+  .modal-resize-handle--sw,
+  .modal-resize-handle--nw {
+    width: 14px;
+    height: 14px;
+  }
+
+  .modal-resize-handle--ne {
+    top: -5px;
+    right: -5px;
+    cursor: nesw-resize;
+  }
+
+  .modal-resize-handle--se {
+    right: -5px;
+    bottom: -5px;
+    cursor: nwse-resize;
+  }
+
+  .modal-resize-handle--sw {
+    bottom: -5px;
+    left: -5px;
+    cursor: nesw-resize;
+  }
+
+  .modal-resize-handle--nw {
+    top: -5px;
+    left: -5px;
+    cursor: nwse-resize;
   }
 
   .modal-backdrop {

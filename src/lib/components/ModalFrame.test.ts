@@ -2,8 +2,10 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { locale } from 'svelte-i18n';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ModalFrame from './ModalFrame.svelte';
+import '$lib/i18n';
 
 const platformMocks = vi.hoisted(() => ({
   isMobilePlatform: vi.fn(() => false),
@@ -64,8 +66,13 @@ Object.defineProperty(Element.prototype, 'animate', {
   },
 });
 
+beforeEach(() => {
+  locale.set('en');
+});
+
 afterEach(() => {
   cleanup();
+  delete document.documentElement.dataset.reduceMotion;
   TestResizeObserver.instances = [];
   platformMocks.isMobilePlatform.mockReset();
   platformMocks.isMobilePlatform.mockReturnValue(false);
@@ -83,6 +90,10 @@ type ModalOverrides = {
   open?: boolean;
   dismissible?: boolean;
   closeOnBackdrop?: boolean;
+  resizable?: boolean;
+  maximizable?: boolean;
+  minWidth?: number;
+  minHeight?: number;
 };
 
 function renderModal(overrides: ModalOverrides = {}) {
@@ -142,12 +153,19 @@ function installDialogGeometry(
   Object.defineProperty(positioner, 'getBoundingClientRect', {
     configurable: true,
     value: () => {
+      if (positioner.classList.contains('modal-positioner--maximized')) {
+        return makeRect(0, 0, viewportWidth, viewportHeight);
+      }
       const offset = readOffset(positioner);
+      const styledWidth = Number.parseFloat(positioner.style.width);
+      const styledHeight = Number.parseFloat(positioner.style.height);
+      const width = Number.isFinite(styledWidth) ? styledWidth : panelWidth;
+      const height = Number.isFinite(styledHeight) ? styledHeight : panelHeight;
       return makeRect(
-        (viewportWidth - panelWidth) / 2 + offset.x,
-        (viewportHeight - panelHeight) / 2 + offset.y,
-        panelWidth,
-        panelHeight,
+        (viewportWidth - width) / 2 + offset.x,
+        (viewportHeight - height) / 2 + offset.y,
+        width,
+        height,
       );
     },
   });
@@ -155,6 +173,12 @@ function installDialogGeometry(
     setPointerCapture: { configurable: true, value: setPointerCapture },
     releasePointerCapture: { configurable: true, value: releasePointerCapture },
   });
+  for (const handle of container.querySelectorAll<HTMLElement>('.modal-resize-handle')) {
+    Object.defineProperties(handle, {
+      setPointerCapture: { configurable: true, value: setPointerCapture },
+      releasePointerCapture: { configurable: true, value: releasePointerCapture },
+    });
+  }
 
   return {
     backdrop,
@@ -192,6 +216,39 @@ async function dragHeader(
     clientY: from.y,
   });
   await fireEvent.pointerMove(header, {
+    pointerId,
+    pointerType,
+    isPrimary: true,
+    clientX: to.x,
+    clientY: to.y,
+  });
+}
+
+async function resizeFrom(
+  container: HTMLElement,
+  edge: string,
+  pointerId: number,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  pointerType = 'mouse',
+) {
+  const handle = container.querySelector<HTMLElement>(`[data-resize-edge="${edge}"]`)!;
+  await fireEvent.pointerDown(handle, {
+    pointerId,
+    pointerType,
+    button: 0,
+    isPrimary: true,
+    clientX: from.x,
+    clientY: from.y,
+  });
+  await fireEvent.pointerMove(handle, {
+    pointerId,
+    pointerType,
+    isPrimary: true,
+    clientX: to.x,
+    clientY: to.y,
+  });
+  await fireEvent.pointerUp(handle, {
     pointerId,
     pointerType,
     isPrimary: true,
@@ -247,6 +304,182 @@ describe('ModalFrame', () => {
     await fireEvent.keyDown(dialog, { key: 'Escape' });
     await fireEvent.click(container.querySelector<HTMLElement>('.modal-backdrop')!);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps fixed dialogs free of resize and maximize controls', () => {
+    const { container } = renderModal();
+
+    expect(container.querySelectorAll('.modal-resize-handle')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Maximize dialog' })).toBeNull();
+  });
+
+  it('renders eight resize directions and an accessible maximize action on desktop', async () => {
+    const { container } = renderModal({ resizable: true, maximizable: true });
+
+    await waitFor(() => expect(container.querySelectorAll('.modal-resize-handle')).toHaveLength(8));
+    expect(Array.from(container.querySelectorAll<HTMLElement>('.modal-resize-handle')).map((handle) => handle.dataset.resizeEdge))
+      .toEqual(['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']);
+    expect(screen.getByRole('button', { name: 'Maximize dialog' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it.each([
+    ['e', { x: 550, y: 300 }, { x: 650, y: 300 }, makeRect(250, 200, 400, 200)],
+    ['w', { x: 250, y: 300 }, { x: 150, y: 300 }, makeRect(150, 200, 400, 200)],
+    ['n', { x: 400, y: 200 }, { x: 400, y: 120 }, makeRect(250, 120, 300, 280)],
+    ['s', { x: 400, y: 400 }, { x: 400, y: 480 }, makeRect(250, 200, 300, 280)],
+    ['ne', { x: 550, y: 200 }, { x: 650, y: 120 }, makeRect(250, 120, 400, 280)],
+    ['se', { x: 550, y: 400 }, { x: 650, y: 480 }, makeRect(250, 200, 400, 280)],
+    ['sw', { x: 250, y: 400 }, { x: 150, y: 480 }, makeRect(150, 200, 400, 280)],
+    ['nw', { x: 250, y: 200 }, { x: 150, y: 120 }, makeRect(150, 120, 400, 280)],
+  ])('resizes from the %s handle while keeping the opposite edges anchored', async (edge, from, to, expected) => {
+    const { container } = renderModal({ resizable: true, minWidth: 240, minHeight: 160 });
+    const geometry = installDialogGeometry(container);
+
+    await resizeFrom(container, edge as string, 30, from as { x: number; y: number }, to as { x: number; y: number });
+
+    const rect = geometry.positioner.getBoundingClientRect();
+    expect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height }).toEqual({
+      left: expected.left,
+      top: expected.top,
+      width: expected.width,
+      height: expected.height,
+    });
+  });
+
+  it('enforces configured minimum size and safe viewport edges while resizing', async () => {
+    const { container } = renderModal({ resizable: true, minWidth: 260, minHeight: 170 });
+    const geometry = installDialogGeometry(container);
+
+    await resizeFrom(container, 'se', 31, { x: 550, y: 400 }, { x: -1000, y: -1000 });
+    let rect = geometry.positioner.getBoundingClientRect();
+    expect({ width: rect.width, height: rect.height }).toEqual({ width: 260, height: 170 });
+
+    await resizeFrom(container, 'se', 32, { x: rect.right, y: rect.bottom }, { x: 2000, y: 2000 });
+    rect = geometry.positioner.getBoundingClientRect();
+    expect(rect.right).toBe(784);
+    expect(rect.bottom).toBe(584);
+  });
+
+  it('allows pen resizing, ignores touch resizing, and only resizes the topmost dialog', async () => {
+    const first = renderModal({ resizable: true, minWidth: 240, minHeight: 160 });
+    const firstGeometry = installDialogGeometry(first.container);
+    const second = renderModal({ resizable: true, minWidth: 240, minHeight: 160 });
+    const secondGeometry = installDialogGeometry(second.container);
+
+    await resizeFrom(first.container, 'se', 37, { x: 550, y: 400 }, { x: 650, y: 480 });
+    expect(firstGeometry.positioner.getBoundingClientRect().width).toBe(300);
+
+    await resizeFrom(second.container, 'se', 38, { x: 550, y: 400 }, { x: 650, y: 480 }, 'touch');
+    expect(secondGeometry.positioner.getBoundingClientRect().width).toBe(300);
+
+    await resizeFrom(second.container, 'se', 39, { x: 550, y: 400 }, { x: 650, y: 480 }, 'pen');
+    expect(secondGeometry.positioner.getBoundingClientRect().width).toBe(400);
+  });
+
+  it('maximizes, restores, and toggles from a title-bar double click', async () => {
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(true));
+    expect(screen.getByRole('button', { name: 'Restore dialog' }).getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelectorAll('.modal-resize-handle')).toHaveLength(0);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore dialog' }));
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
+    let rect = geometry.positioner.getBoundingClientRect();
+    expect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+      .toEqual({ left: 250, top: 200, width: 300, height: 200 });
+
+    await fireEvent.dblClick(geometry.header);
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(true));
+    await fireEvent.dblClick(geometry.header);
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
+    rect = geometry.positioner.getBoundingClientRect();
+    expect({ width: rect.width, height: rect.height }).toEqual({ width: 300, height: 200 });
+  });
+
+  it('restores a maximized dialog under the pointer and continues dragging', async () => {
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+
+    await dragHeader(geometry.header, 33, { x: 600, y: 20 }, { x: 500, y: 120 });
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
+    const rect = geometry.positioner.getBoundingClientRect();
+    expect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
+      .toEqual({ left: 275, top: 100, width: 300, height: 200 });
+  });
+
+  it('disables resizing and maximize controls on mobile platforms', async () => {
+    platformMocks.isMobilePlatform.mockReturnValue(true);
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    await Promise.resolve();
+
+    expect(container.querySelectorAll('.modal-resize-handle')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Maximize dialog' })).toBeNull();
+  });
+
+  it('cleans up resize cancellation and lost pointer capture', async () => {
+    const { container } = renderModal({ resizable: true, minWidth: 240, minHeight: 160 });
+    const geometry = installDialogGeometry(container);
+    const handle = container.querySelector<HTMLElement>('[data-resize-edge="se"]')!;
+
+    await fireEvent.pointerDown(handle, {
+      pointerId: 34,
+      pointerType: 'mouse',
+      button: 0,
+      isPrimary: true,
+      clientX: 550,
+      clientY: 400,
+    });
+    await fireEvent.pointerMove(handle, {
+      pointerId: 34,
+      pointerType: 'mouse',
+      isPrimary: true,
+      clientX: 650,
+      clientY: 480,
+    });
+    await waitFor(() => expect(geometry.positioner.getBoundingClientRect().width).toBe(400));
+    await fireEvent.pointerCancel(handle, { pointerId: 34, pointerType: 'mouse' });
+    expect(geometry.backdrop.classList.contains('modal-resizing')).toBe(false);
+
+    await fireEvent.pointerDown(handle, {
+      pointerId: 35,
+      pointerType: 'mouse',
+      button: 0,
+      isPrimary: true,
+      clientX: 650,
+      clientY: 480,
+    });
+    await fireEvent.lostPointerCapture(handle, { pointerId: 35, pointerType: 'mouse' });
+    expect(geometry.backdrop.classList.contains('modal-resizing')).toBe(false);
+  });
+
+  it('skips maximize geometry animation when reduced motion is enabled', async () => {
+    document.documentElement.dataset.reduceMotion = 'true';
+    const { container } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+    const animate = vi.fn();
+    Object.defineProperty(geometry.positioner, 'animate', { configurable: true, value: animate });
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+    expect(animate).not.toHaveBeenCalled();
+  });
+
+  it('clears resized and maximized state whenever the dialog reopens', async () => {
+    const { container, props, rerender } = renderModal({ resizable: true, maximizable: true });
+    const geometry = installDialogGeometry(container);
+    await resizeFrom(container, 'se', 36, { x: 550, y: 400 }, { x: 650, y: 480 });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Maximize dialog' }));
+
+    await rerender({ ...props, resizable: true, maximizable: true, open: false });
+    await rerender({ ...props, resizable: true, maximizable: true, open: true });
+    const reopenedPositioner = container.querySelector<HTMLElement>('.modal-positioner')!;
+    expect(reopenedPositioner.classList.contains('modal-positioner--maximized')).toBe(false);
+    expect(reopenedPositioner.style.width).toBe('');
+    expect(reopenedPositioner.style.height).toBe('');
+    expect(readOffset(reopenedPositioner)).toEqual({ x: 0, y: 0 });
   });
 
   it('starts dragging after the movement threshold and captures the pointer', async () => {

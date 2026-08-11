@@ -14,6 +14,8 @@ export const zh_CN = {
     save: '保存',
     cancel: '取消',
     close: '关闭',
+    maximizeDialog: '最大化对话框',
+    restoreDialog: '还原对话框',
     refresh: '刷新',
     delete: '删除',
     edit: '编辑',

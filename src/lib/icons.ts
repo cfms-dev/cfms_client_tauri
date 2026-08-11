@@ -44,6 +44,8 @@ export const ICONS = {
   bugReport:     'bug_report',
   update:        'update',
   close:         'close',
+  maximizeDialog:'crop_square',
+  restoreDialog: 'filter_none',
   done:          'done',
   add:           'add',
   remove:        'remove',

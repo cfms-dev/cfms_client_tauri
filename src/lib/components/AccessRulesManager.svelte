@@ -228,7 +228,7 @@
   }
 </script>
 
-<div class="flex max-h-[78vh] flex-col overflow-hidden">
+<div class="flex h-full min-h-0 max-h-[78vh] flex-col overflow-hidden">
   <div class="border-b border-md3-outline px-5 py-3">
     <div class="flex flex-wrap items-center gap-2">
       <button

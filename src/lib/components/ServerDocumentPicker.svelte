@@ -117,8 +117,17 @@
   }
 </script>
 
-<ModalFrame {title} maxWidth="max-w-3xl" closeLabel={$t('common.close')} onClose={onCancel}>
-  <div class="flex max-h-[78vh] flex-col">
+<ModalFrame
+  {title}
+  maxWidth="max-w-3xl"
+  resizable
+  maximizable
+  minWidth={520}
+  minHeight={420}
+  closeLabel={$t('common.close')}
+  onClose={onCancel}
+>
+  <div class="flex h-full min-h-0 max-h-[78vh] flex-col">
     <div class="space-y-3 border-b border-md3-outline/60 p-5">
       {#if description}
         <p class="max-w-[70ch] text-xs leading-5 text-md3-on-surface-variant">
@@ -155,7 +164,7 @@
       </div>
     </div>
 
-    <div class="min-h-[20rem] overflow-auto p-5">
+    <div class="modal-flex-region min-h-[20rem] flex-1 overflow-hidden p-5">
       {#if loading}
         <div class="flex items-center gap-2 py-10 text-sm text-md3-on-surface-variant">
           <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
@@ -176,7 +185,7 @@
           </button>
         </div>
       {:else}
-        <div class="overflow-hidden rounded-lg border border-md3-outline">
+        <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-md3-outline">
           <VirtualList
             items={pickerRows}
             keyOf={(row) => row.kind === 'parent'
@@ -239,8 +248,15 @@
 
 <style>
   :global(.server-picker-list-viewport) {
+    min-height: 0;
+    flex: 1 1 auto;
     max-height: calc(78vh - 11rem);
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  :global(.modal-positioner--sized .server-picker-list-viewport),
+  :global(.modal-positioner--maximized .server-picker-list-viewport) {
+    max-height: none;
   }
 </style>

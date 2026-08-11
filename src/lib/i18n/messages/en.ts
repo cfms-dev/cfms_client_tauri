@@ -14,6 +14,8 @@ export const en = {
     save: 'Save',
     cancel: 'Cancel',
     close: 'Close',
+    maximizeDialog: 'Maximize dialog',
+    restoreDialog: 'Restore dialog',
     refresh: 'Refresh',
     delete: 'Delete',
     edit: 'Edit',

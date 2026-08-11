@@ -199,7 +199,7 @@
   }
 </script>
 
-<div class="flex max-h-[78vh] flex-col overflow-hidden">
+<div class="flex h-full min-h-0 max-h-[78vh] flex-col overflow-hidden">
   <div class="min-h-0 flex-1 overflow-auto p-5">
     <div class="mb-5 rounded-lg border border-md3-outline/70 bg-md3-surface-container-high/45 px-4 py-3">
       <div class="flex items-center gap-2 text-xs font-medium uppercase text-md3-on-surface-variant">

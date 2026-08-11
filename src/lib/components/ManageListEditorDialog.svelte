@@ -138,8 +138,17 @@
   }
 </script>
 
-<ModalFrame {title} maxWidth="max-w-2xl" closeLabel={$t('common.close')} onClose={onClose}>
-  <div class="flex max-h-[78vh] flex-col">
+<ModalFrame
+  {title}
+  maxWidth="max-w-2xl"
+  resizable
+  maximizable
+  minWidth={480}
+  minHeight={420}
+  closeLabel={$t('common.close')}
+  onClose={onClose}
+>
+  <div class="flex h-full min-h-0 max-h-[78vh] flex-col">
     <div class="space-y-4 border-b border-md3-outline/60 p-5">
       <div class="flex items-start gap-3">
         <span class="rounded-lg bg-md3-primary-container/70 p-2 text-md3-primary-emphasis">
@@ -204,7 +213,7 @@
       </div>
     </div>
 
-    <div class="min-h-[18rem] overflow-auto p-5">
+    <div class="modal-flex-region min-h-[18rem] flex-1 overflow-auto p-5">
       {#if loading}
         <div class="flex items-center justify-center gap-2 py-12 text-sm text-md3-on-surface-variant">
           <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />

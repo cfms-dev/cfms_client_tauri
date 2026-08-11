@@ -169,8 +169,17 @@
   }
 </script>
 
-<ModalFrame title={title} maxWidth="max-w-3xl" closeLabel={$t('common.close')} onClose={onCancel}>
-  <div class="flex max-h-[78vh] flex-col">
+<ModalFrame
+  title={title}
+  maxWidth="max-w-3xl"
+  resizable
+  maximizable
+  minWidth={520}
+  minHeight={420}
+  closeLabel={$t('common.close')}
+  onClose={onCancel}
+>
+  <div class="flex h-full min-h-0 max-h-[78vh] flex-col">
     <div class="space-y-3 border-b border-md3-outline/60 p-5">
       <div class="flex min-w-0 items-center gap-2 text-sm text-md3-on-surface-variant">
         <span class="text-md3-primary-emphasis">
@@ -205,7 +214,7 @@
       </div>
     </div>
 
-    <div class="min-h-[18rem] overflow-auto p-5">
+    <div class="modal-flex-region min-h-[18rem] flex-1 overflow-hidden p-5">
       {#if loading}
         <div class="flex items-center gap-2 py-10 text-sm text-md3-on-surface-variant">
           <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
@@ -235,7 +244,7 @@
           </div>
         </div>
       {:else}
-        <div class="overflow-hidden rounded-lg border border-md3-outline">
+        <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-md3-outline">
           <VirtualList
             items={targetRows}
             keyOf={(row) => row.kind === 'parent' ? 'parent' : `folder:${row.folder.id}`}
@@ -315,8 +324,15 @@
 
 <style>
   :global(.move-target-list-viewport) {
+    min-height: 0;
+    flex: 1 1 auto;
     max-height: calc(78vh - 14rem);
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  :global(.modal-positioner--sized .move-target-list-viewport),
+  :global(.modal-positioner--maximized .move-target-list-viewport) {
+    max-height: none;
   }
 </style>

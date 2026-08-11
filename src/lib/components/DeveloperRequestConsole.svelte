@@ -241,6 +241,10 @@
   <ModalFrame
     title={$t('developerConsole.title')}
     maxWidth="max-w-6xl"
+    resizable
+    maximizable
+    minWidth={720}
+    minHeight={480}
     closeLabel={$t('common.close')}
     onClose={onClose}
   >

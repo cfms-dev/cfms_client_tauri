@@ -1556,10 +1556,14 @@
   <ModalFrame
     title={$t('manage.blocksFor', { values: { username: blocksDialog.username } })}
     maxWidth="max-w-2xl"
+    resizable
+    maximizable
+    minWidth={480}
+    minHeight={360}
     closeLabel={$t('common.close')}
     onClose={() => (blocksDialog = null)}
   >
-    <div class="p-5 space-y-3 max-h-[70vh] overflow-auto">
+    <div class="h-full max-h-[70vh] space-y-3 overflow-auto p-5">
       {#if blocksDialog.blocks.length === 0}
         <p class="text-sm text-md3-on-surface-variant">{$t('manage.noActiveBlocks')}</p>
       {:else}
