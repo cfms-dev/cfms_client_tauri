@@ -6,7 +6,6 @@
   import Icon from './Icon.svelte';
   import ProgressRing from './ProgressRing.svelte';
 
-  type BatchDeleteProgress = { current: number; total: number };
   type PendingAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete' | null;
 
   interface Props {
@@ -18,7 +17,6 @@
     onRetry: (groupId: string) => Promise<void>;
     onCancel: (groupId: string) => Promise<void>;
     onDeleteFiles: (groupId: string) => Promise<void>;
-    deleting?: BatchDeleteProgress | null;
     pendingAction?: PendingAction;
     bytesPerSecond?: number;
     onContextMenu?: (event: MouseEvent | KeyboardEvent, group: DownloadTaskGroup) => void;
@@ -33,19 +31,13 @@
     onRetry,
     onCancel,
     onDeleteFiles,
-    deleting = null,
     pendingAction = null,
     bytesPerSecond = 0,
     onContextMenu,
   }: Props = $props();
 
-  const isDeleting = $derived(Boolean(deleting) || pendingAction === 'delete');
+  const isDeleting = $derived(pendingAction === 'delete');
   const percent = $derived(group.progressKnown ? Math.round(group.progress * 100) : null);
-  const deletePercent = $derived(
-    deleting && deleting.total > 0
-      ? Math.round(Math.min(1, deleting.current / deleting.total) * 100)
-      : null,
-  );
   const progressWidth = $derived(`${percent ?? 0}%`);
   const canPause = $derived(
     (group.preparing && !group.batchPaused) || group.tasks.some((task) =>
@@ -80,14 +72,8 @@
     && group.paused === 0,
   );
   const statusText = $derived(
-    deleting
-      ? $t('tasks.batchDeletingProgress', {
-        values: {
-          current: deleting.current,
-          total: deleting.total,
-          percent: deletePercent ?? 0,
-        },
-      })
+    isDeleting
+      ? $t('tasks.batchDeleting')
       : group.preparing
       ? [
         group.batchPaused
@@ -153,7 +139,7 @@
         {/if}
       </span>
     </span>
-    <span class="batch-state" title={statusText}>
+    <span class="batch-state" title={statusText} aria-live="polite">
       {statusText || (group.total > 0 && group.completed === group.total
         ? $t('tasks.completed')
         : $t('tasks.batchProgressPending'))}

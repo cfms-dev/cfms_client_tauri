@@ -180,10 +180,11 @@ pub async fn delete_downloaded_files(
     state: tauri::State<'_, AppHandleState>,
     ids: Vec<String>,
 ) -> Result<BatchActionResult, String> {
-    let mut succeeded = Vec::new();
     let mut failed = Vec::new();
-    for id in ids {
-        let Some(task) = state.tasks.get(&id) else {
+    let tasks = state.tasks.get_many(&ids);
+    let mut candidates = Vec::with_capacity(ids.len());
+    for (id, task) in ids.into_iter().zip(tasks) {
+        let Some(task) = task else {
             failed.push(BatchActionFailure { id, error: "Task not found".into() });
             continue;
         };
@@ -191,18 +192,35 @@ pub async fn delete_downloaded_files(
             failed.push(BatchActionFailure { id, error: "Only completed downloads have an output file".into() });
             continue;
         }
-        let path = std::path::Path::new(&task.file_path);
-        if let Err(error) = std::fs::remove_file(path)
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            failed.push(BatchActionFailure { id, error: error.to_string() });
-            continue;
+        candidates.push((id, std::path::PathBuf::from(task.file_path)));
+    }
+
+    // Filesystem metadata operations are blocking. Keep them off the async
+    // command executor, then persist all successful state changes in one pass.
+    let delete_results = tokio::task::spawn_blocking(move || {
+        candidates
+            .into_iter()
+            .map(|(id, path)| match std::fs::remove_file(path) {
+                Ok(()) => Ok(id),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(id),
+                Err(error) => Err(BatchActionFailure { id, error: error.to_string() }),
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|error| format!("Downloaded file deletion worker failed: {error}"))?;
+
+    let mut succeeded = Vec::new();
+    for result in delete_results {
+        match result {
+            Ok(id) => succeeded.push(id),
+            Err(error) => failed.push(error),
         }
-        if let Err(error) = state.tasks.mark_file_deleted(&id) {
+    }
+    if let Err(error) = state.tasks.mark_files_deleted(&succeeded) {
+        for id in succeeded.drain(..) {
             failed.push(BatchActionFailure { id, error: error.to_string() });
-            continue;
         }
-        succeeded.push(id);
     }
     Ok(BatchActionResult { succeeded, failed })
 }

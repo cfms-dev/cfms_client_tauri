@@ -591,7 +591,9 @@ export const zh_CN = {
     noSearchResults: '没有与搜索条件匹配的任务。',
     emptyHint: '开始上传或下载后，任务会显示在这里。',
     deleteBatchFilesConfirm: '确定删除此批次中所有已完成下载的本地文件吗？任务记录将会保留。',
-    batchResult: '已成功 {succeeded} 项，失败 {failed} 项',
+    batchFailedSummary: '{count} 项操作失败',
+    batchFailureDetails: '查看 {count} 项错误详情',
+    batchFailureItem: '{name}：{error}',
     sections: {
       attention: '需要处理',
       active: '进行中',
@@ -618,7 +620,6 @@ export const zh_CN = {
     batchDeletedCount: '{count} 个文件已删除',
     deleteBatchFiles: '删除文件',
     batchDeleting: '删除中',
-    batchDeletingProgress: '正在删除文件 · {current}/{total}（{percent}%）',
   },
   downloads: {
     failedTitle: '下载失败',

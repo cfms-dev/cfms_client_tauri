@@ -597,7 +597,9 @@ export const en = {
     noSearchResults: 'No tasks match your search.',
     emptyHint: 'Uploads and downloads will appear here after they start.',
     deleteBatchFilesConfirm: 'Delete all completed local files in this batch? Task records will be kept.',
-    batchResult: '{succeeded} succeeded, {failed} failed',
+    batchFailedSummary: '{count} operation(s) failed',
+    batchFailureDetails: 'View {count} error(s)',
+    batchFailureItem: '{name}: {error}',
     sections: {
       attention: 'Needs attention',
       active: 'In progress',
@@ -624,7 +626,6 @@ export const en = {
     batchDeletedCount: '{count} file(s) deleted',
     deleteBatchFiles: 'Delete files',
     batchDeleting: 'Deleting',
-    batchDeletingProgress: 'Deleting files · {current}/{total} ({percent}%)',
   },
   downloads: {
     failedTitle: 'Downloads failed',

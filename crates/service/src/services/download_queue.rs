@@ -147,6 +147,12 @@ impl QueueState {
         map.get(task_id).cloned()
     }
 
+    /// Clone multiple tasks while acquiring the queue lock only once.
+    pub fn get_many(&self, task_ids: &[String]) -> Vec<Option<DownloadTaskDto>> {
+        let map = self.tasks.lock().unwrap();
+        task_ids.iter().map(|id| map.get(id).cloned()).collect()
+    }
+
     pub fn list(&self, status_filter: Option<DownloadTaskStatus>) -> Vec<DownloadTaskDto> {
         let map = self.tasks.lock().unwrap();
         let mut tasks: Vec<DownloadTaskDto> = match status_filter {
@@ -329,15 +335,32 @@ impl QueueState {
     }
 
     pub fn mark_file_deleted(&self, task_id: &str) -> Result<()> {
+        self.mark_files_deleted(&[task_id.to_owned()])
+    }
+
+    /// Mark multiple completed outputs as deleted and persist the queue once.
+    pub fn mark_files_deleted(&self, task_ids: &[String]) -> Result<()> {
+        if task_ids.is_empty() {
+            return Ok(());
+        }
+
+        let mut changed = false;
         {
             let mut map = self.tasks.lock().unwrap();
-            if let Some(t) = map.get_mut(task_id) {
-                t.status = DownloadTaskStatus::Deleted;
-                t.message = None;
-                t.error = None;
+            for task_id in task_ids {
+                if let Some(t) = map.get_mut(task_id)
+                    && t.status != DownloadTaskStatus::Deleted
+                {
+                    t.status = DownloadTaskStatus::Deleted;
+                    t.message = None;
+                    t.error = None;
+                    changed = true;
+                }
             }
         }
-        self.save();
+        if changed {
+            self.save();
+        }
         Ok(())
     }
 
@@ -1364,4 +1387,68 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn task(id: &str, status: DownloadTaskStatus) -> DownloadTaskDto {
+        DownloadTaskDto {
+            task_id: id.into(),
+            file_id: format!("file-{id}"),
+            filename: format!("{id}.pdf"),
+            file_path: format!("downloads/{id}.pdf"),
+            status,
+            progress: 1.0,
+            current_bytes: 10,
+            total_bytes: 10,
+            message: Some("complete".into()),
+            error: None,
+            created_at: 1,
+            started_at: Some(1),
+            completed_at: Some(2),
+            priority: 0,
+            retry_count: 0,
+            max_retries: 3,
+            scheduled_time: None,
+            stage: 4,
+            bandwidth_limit: None,
+            pause_position: None,
+            supports_resume: true,
+            batch_id: Some("batch-1".into()),
+            batch_name: Some("Evidence bundle".into()),
+            batch_root_id: None,
+            batch_created_at: Some(1),
+            batch_estimated_total: Some(2),
+        }
+    }
+
+    #[test]
+    fn batch_file_deletion_reads_and_updates_tasks_together() {
+        let queue = QueueState::new();
+        queue
+            .insert(&task("a", DownloadTaskStatus::Completed))
+            .unwrap();
+        queue
+            .insert(&task("b", DownloadTaskStatus::Completed))
+            .unwrap();
+
+        let ids = vec!["b".to_string(), "missing".to_string(), "a".to_string()];
+        let found = queue.get_many(&ids);
+        assert_eq!(
+            found[0].as_ref().map(|task| task.task_id.as_str()),
+            Some("b")
+        );
+        assert!(found[1].is_none());
+        assert_eq!(
+            found[2].as_ref().map(|task| task.task_id.as_str()),
+            Some("a")
+        );
+
+        queue.mark_files_deleted(&["a".into(), "b".into()]).unwrap();
+        assert_eq!(queue.get("a").unwrap().status, DownloadTaskStatus::Deleted);
+        assert_eq!(queue.get("b").unwrap().status, DownloadTaskStatus::Deleted);
+        assert_eq!(queue.get("a").unwrap().message, None);
+    }
 }

@@ -8,7 +8,7 @@
     openDownloadedFile, pauseDownload, removeTransferRecords,
     resumeDownload, retryDownload, retryUploadTask, uploadDirectory, uploadDocumentFile,
   } from '$lib/api';
-  import { downloadStore, uploadStore } from '$lib/stores.svelte';
+  import { downloadStore, notificationStore, uploadStore } from '$lib/stores.svelte';
   import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopActiveDownloadBatch } from '$lib/download-batch-control';
   import {
     buildDownloadTaskSections,
@@ -30,6 +30,7 @@
   import TaskActionButton from '$lib/components/TaskActionButton.svelte';
 
   type TaskTab = 'downloads' | 'uploads';
+  type GroupAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete';
   type DownloadPageRow =
     | { kind: 'section'; section: TransferSectionKey; count: number }
     | { kind: 'download'; section: TransferSectionKey; row: DownloadTaskRow };
@@ -42,12 +43,12 @@
   let sectionFilter = $state<TransferSectionFilter>('all');
   let loading = $state(false);
   let errorMessage = $state('');
-  let batchFeedback = $state<{ message: string; failed: boolean } | null>(null);
   let expandedGroups = $state(new Set<string>());
   let collapsedSections = $state(new Set<TransferSectionKey>());
   let pendingDownloadActions = $state(new Set<string>());
   let pendingUploadActions = $state(new Set<string>());
-  let pendingGroupActions = $state(new Set<string>());
+  let pendingGroupActions = $state(new Map<string, GroupAction>());
+  let batchFailureSequence = 0;
 
   const downloadTasks = $derived([...downloadStore.tasks.values()]);
   const uploadTasks = $derived(uploadStore.allTasks);
@@ -220,21 +221,21 @@
   }
 
   function groupTasks(groupId: string) { return downloadTasks.filter((task) => task.batch_id === groupId); }
-  async function runGroup(groupId: string, action: () => Promise<void>) {
-    pendingGroupActions = new Set(pendingGroupActions).add(groupId);
+  async function runGroup(groupId: string, actionName: GroupAction, action: () => Promise<void>) {
+    pendingGroupActions = new Map(pendingGroupActions).set(groupId, actionName);
     try { await action(); await refreshDownloads(); }
     catch (error) { errorMessage = formatError(error); }
-    finally { const next = new Set(pendingGroupActions); next.delete(groupId); pendingGroupActions = next; }
+    finally { const next = new Map(pendingGroupActions); next.delete(groupId); pendingGroupActions = next; }
   }
-  async function handlePauseGroup(id: string) { await runGroup(id, async () => { pauseActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'pending' || t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => pauseDownload(t.task_id))); }); }
-  async function handleResumeGroup(id: string) { await runGroup(id, async () => { resumeActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'paused').map((t) => resumeDownload(t.task_id))); }); }
-  async function handleRetryGroup(id: string) { await runGroup(id, async () => { await Promise.all(groupTasks(id).filter((t) => t.status === 'failed').map((t) => retryDownload(t.task_id))); }); }
-  async function handleCancelGroup(id: string) { await runGroup(id, async () => { stopActiveDownloadBatch(id); await Promise.all(groupTasks(id).filter((t) => !t.completed_at).map((t) => cancelDownload(t.task_id))); }); }
+  async function handlePauseGroup(id: string) { await runGroup(id, 'pause', async () => { pauseActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'pending' || t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => pauseDownload(t.task_id))); }); }
+  async function handleResumeGroup(id: string) { await runGroup(id, 'resume', async () => { resumeActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'paused').map((t) => resumeDownload(t.task_id))); }); }
+  async function handleRetryGroup(id: string) { await runGroup(id, 'retry', async () => { await Promise.all(groupTasks(id).filter((t) => t.status === 'failed').map((t) => retryDownload(t.task_id))); }); }
+  async function handleCancelGroup(id: string) { await runGroup(id, 'cancel', async () => { stopActiveDownloadBatch(id); await Promise.all(groupTasks(id).filter((t) => !t.completed_at).map((t) => cancelDownload(t.task_id))); }); }
   async function handleDeleteGroupFiles(id: string) {
     if (!window.confirm($t('tasks.deleteBatchFilesConfirm'))) return;
-    await runGroup(id, async () => {
+    await runGroup(id, 'delete', async () => {
       const result = await deleteDownloadedFiles(groupTasks(id).filter((t) => t.status === 'completed').map((t) => t.task_id));
-      showBatchResult(result);
+      showBatchFailures(result);
     });
   }
 
@@ -245,21 +246,21 @@
       const uploads = visibleUploads.filter((task) => uploadSection(task) === section);
       if (activeTab === 'downloads') {
         if (section === 'attention') await Promise.all(downloads.filter((t) => t.status === 'failed').map((t) => handleRetry(t.task_id)));
-        if (section === 'active') showBatchResult(await controlTransferTasks('download', downloads.filter((t) => t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => t.task_id), 'pause'));
-        if (section === 'waiting') showBatchResult(await controlTransferTasks('download', downloads.filter((t) => t.status === 'paused').map((t) => t.task_id), 'resume'));
+        if (section === 'active') showBatchFailures(await controlTransferTasks('download', downloads.filter((t) => t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => t.task_id), 'pause'));
+        if (section === 'waiting') showBatchFailures(await controlTransferTasks('download', downloads.filter((t) => t.status === 'paused').map((t) => t.task_id), 'resume'));
         if (section === 'history') {
           const result = await removeTransferRecords('download', downloads.map((t) => t.task_id));
-          showBatchResult(result);
+          showBatchFailures(result);
           await refreshDownloads();
         }
         if (section === 'active' || section === 'waiting') await refreshDownloads();
       } else {
         if (section === 'attention') await Promise.all(uploads.filter((t) => t.source_available).map((t) => handleRestartUpload(t.upload_id)));
-        if (section === 'active') showBatchResult(await controlTransferTasks('upload', uploads.map((t) => t.upload_id), 'pause'));
-        if (section === 'waiting') showBatchResult(await controlTransferTasks('upload', uploads.filter((t) => t.status === 'paused').map((t) => t.upload_id), 'resume'));
+        if (section === 'active') showBatchFailures(await controlTransferTasks('upload', uploads.map((t) => t.upload_id), 'pause'));
+        if (section === 'waiting') showBatchFailures(await controlTransferTasks('upload', uploads.filter((t) => t.status === 'paused').map((t) => t.upload_id), 'resume'));
         if (section === 'history') {
           const result = await removeTransferRecords('upload', uploads.map((t) => t.upload_id));
-          showBatchResult(result);
+          showBatchFailures(result);
           await refreshUploads();
         }
         if (section === 'active' || section === 'waiting') await refreshUploads();
@@ -269,15 +270,29 @@
     }
   }
 
-  function showBatchResult(result: { succeeded: string[]; failed: Array<{ id: string; error: string }> }) {
-    const summary = $t('tasks.batchResult', {
-      values: { succeeded: result.succeeded.length, failed: result.failed.length },
+  function showBatchFailures(result: { failed: Array<{ id: string; error: string }> }) {
+    if (result.failed.length === 0) return;
+
+    const groupKey = `task-batch-failure-${Date.now()}-${batchFailureSequence++}`;
+    const groupTitle = $t('tasks.batchFailedSummary', {
+      values: { count: result.failed.length },
     });
-    const failures = result.failed.map((item) => `${item.id}: ${item.error}`).join('; ');
-    batchFeedback = {
-      message: failures ? `${summary} — ${failures}` : summary,
-      failed: result.failed.length > 0,
-    };
+    for (const item of result.failed) {
+      const task = downloadTasks.find((candidate) => candidate.task_id === item.id)
+        ?? uploadTasks.find((candidate) => candidate.upload_id === item.id);
+      const name = task
+        ? ('filename' in task ? task.filename : task.file_name)
+        : item.id;
+      const detail = $t('tasks.batchFailureItem', {
+        values: { name, error: item.error },
+      });
+      notificationStore.error(detail, 8000, {
+        groupKey,
+        groupTitle,
+        itemText: detail,
+        summaryText: (count) => $t('tasks.batchFailureDetails', { values: { count } }),
+      });
+    }
   }
 
   function sectionActionLabel(section: TransferSectionKey) {
@@ -377,10 +392,6 @@
   {#if errorMessage}
     <div class="error-banner" role="alert" transition:flyScale={{ y: -4, duration: 180 }}><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><button onclick={() => (errorMessage = '')} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
   {/if}
-  {#if batchFeedback}
-    <div class:error={batchFeedback.failed} class="batch-feedback" role="status" transition:flyScale={{ y: -4, duration: 180 }}><Icon name={batchFeedback.failed ? 'warning' : 'checkCircle'} size="18px" /><span>{batchFeedback.message}</span><button onclick={() => (batchFeedback = null)} aria-label={$t('common.close')}><Icon name="close" size="16px" /></button></div>
-  {/if}
-
   <section class="task-list-shell" aria-busy={loading}>
     {#if currentRows.length > 0}
       <VirtualList
@@ -403,7 +414,7 @@
           {:else if row.kind === 'upload'}
             <UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={pendingUploadActions.has(row.task.upload_id)} />
           {:else if row.row.kind === 'group'}
-            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} bytesPerSecond={row.row.group.tasks.reduce((sum, task) => sum + (downloadStore.speeds.get(task.task_id) ?? 0), 0)} pendingAction={pendingGroupActions.has(row.row.group.id) ? 'cancel' : null} />
+            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} bytesPerSecond={row.row.group.tasks.reduce((sum, task) => sum + (downloadStore.speeds.get(task.task_id) ?? 0), 0)} pendingAction={pendingGroupActions.get(row.row.group.id) ?? null} />
           {:else}
             <div class:group-child={row.row.kind === 'group-task'}>
               <DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} bytesPerSecond={downloadStore.speeds.get(row.row.task.task_id) ?? 0} pendingAction={pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} />
@@ -456,13 +467,8 @@
   .task-summary { display: flex; justify-self: end; gap: 0.75rem; color: var(--explorer-text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .task-summary .attention { color: var(--explorer-danger); }
 
-  .error-banner,
-  .batch-feedback { display: flex; align-items: center; gap: 0.5rem; border-radius: var(--explorer-radius-medium); padding: 0.55rem 0.7rem; color: var(--explorer-text); font-size: 0.8125rem; }
-  .error-banner { border: 1px solid color-mix(in srgb, var(--explorer-danger) 45%, transparent); color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); }
-  .batch-feedback { border: 1px solid color-mix(in srgb, var(--explorer-success) 38%, transparent); background: color-mix(in srgb, var(--explorer-success) 10%, var(--explorer-surface)); }
-  .batch-feedback.error { border-color: color-mix(in srgb, var(--explorer-danger) 45%, transparent); color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); }
-  .error-banner span,
-  .batch-feedback span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+  .error-banner { display: flex; align-items: center; gap: 0.5rem; border: 1px solid color-mix(in srgb, var(--explorer-danger) 45%, transparent); border-radius: var(--explorer-radius-medium); padding: 0.55rem 0.7rem; color: var(--explorer-danger); background: color-mix(in srgb, var(--explorer-danger) 12%, var(--explorer-surface)); font-size: 0.8125rem; }
+  .error-banner span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 
   .task-list-shell { min-width: 0; overflow: hidden; border: 1px solid var(--explorer-border); border-radius: var(--explorer-radius-medium); background: var(--explorer-surface); }
   .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 0.75rem; border-bottom: 1px solid var(--explorer-border); padding: 0.35rem 0.55rem; background: var(--explorer-surface-raised); }
