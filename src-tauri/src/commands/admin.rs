@@ -211,6 +211,20 @@ pub async fn change_user_permissions(
     .await
 }
 
+fn admin_password_reset_data(
+    username: &str,
+    new_password: &str,
+    bypass_passwd_requirements: bool,
+    force_update_after_login: bool,
+) -> serde_json::Value {
+    serde_json::json!({
+        "username": username,
+        "new_passwd": new_password,
+        "bypass_passwd_requirements": bypass_passwd_requirements,
+        "force_update_after_login": force_update_after_login,
+    })
+}
+
 #[tauri::command]
 pub async fn reset_user_password(
     state: tauri::State<'_, AppHandleState>,
@@ -222,15 +236,35 @@ pub async fn reset_user_password(
     server_action_bool(
         &state,
         "set_passwd",
-        serde_json::json!({
-            "username": username,
-            "old_passwd": "",
-            "new_passwd": new_password,
-            "bypass_passwd_requirements": bypass_passwd_requirements,
-            "force_update_after_login": force_update_after_login,
-        }),
+        admin_password_reset_data(
+            &username,
+            &new_password,
+            bypass_passwd_requirements,
+            force_update_after_login,
+        ),
     )
     .await
+}
+
+#[cfg(test)]
+mod password_reset_tests {
+    use super::admin_password_reset_data;
+
+    #[test]
+    fn admin_password_reset_omits_old_password() {
+        let data = admin_password_reset_data("alice", "NewPassword123!", true, true);
+
+        assert_eq!(
+            data,
+            serde_json::json!({
+                "username": "alice",
+                "new_passwd": "NewPassword123!",
+                "bypass_passwd_requirements": true,
+                "force_update_after_login": true,
+            })
+        );
+        assert!(data.get("old_passwd").is_none());
+    }
 }
 
 #[tauri::command]
