@@ -7,21 +7,18 @@
 // ---------------------------------------------------------------------------
 // Protocol version
 // ---------------------------------------------------------------------------
+/// Exact wire-protocol version required by this client.
+pub const PROTOCOL_VERSION: u32 = 22;
+
 /// Oldest wire-protocol version supported by this client.
-pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = 20;
+pub const MIN_SUPPORTED_PROTOCOL_VERSION: u32 = PROTOCOL_VERSION;
 
 /// Newest wire-protocol version supported by this client.
-pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = 21;
-
-/// Current wire-protocol version advertised by this client.
-///
-/// Kept as the latest supported version for callers that need a single
-/// protocol version rather than the full compatibility range.
-pub const PROTOCOL_VERSION: u32 = MAX_SUPPORTED_PROTOCOL_VERSION;
+pub const MAX_SUPPORTED_PROTOCOL_VERSION: u32 = PROTOCOL_VERSION;
 
 /// Return whether a server wire-protocol version is compatible with this client.
 pub const fn is_supported_protocol_version(version: u32) -> bool {
-    version >= MIN_SUPPORTED_PROTOCOL_VERSION && version <= MAX_SUPPORTED_PROTOCOL_VERSION
+    version == PROTOCOL_VERSION
 }
 
 // ---------------------------------------------------------------------------
@@ -112,10 +109,9 @@ mod tests {
     }
 
     #[test]
-    fn supports_protocol_twenty_and_twenty_one() {
-        assert!(is_supported_protocol_version(20));
-        assert!(is_supported_protocol_version(21));
-        assert!(!is_supported_protocol_version(19));
-        assert!(!is_supported_protocol_version(22));
+    fn supports_only_protocol_twenty_two() {
+        assert!(is_supported_protocol_version(22));
+        assert!(!is_supported_protocol_version(21));
+        assert!(!is_supported_protocol_version(23));
     }
 }

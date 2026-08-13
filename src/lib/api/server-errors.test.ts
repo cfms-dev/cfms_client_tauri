@@ -57,7 +57,7 @@ describe('server errors', () => {
     expect(serverRetryAfterSeconds('failure\nCFMS_ERROR_DATA:{"retry_after_seconds":"45"}')).toBeNull();
   });
 
-  it('classifies protocol 21 rate and capacity responses', () => {
+  it('classifies protocol 22 rate and capacity responses', () => {
     expect(serverAvailability(
       'Server returned 429: slow down\nCFMS_ERROR_DATA:{"retry_after_seconds":8}',
     )).toEqual({ kind: 'rate_limited', retryAfterSeconds: 8 });

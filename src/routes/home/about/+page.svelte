@@ -3,12 +3,18 @@
   import { _ as t } from 'svelte-i18n';
   import { protocolVersion } from '$lib/api';
   import { loadAppVersion } from '$lib/app-info';
+  import { authStore, serverStateStore } from '$lib/stores.svelte';
   import AppUpdateChecker from '$lib/components/AppUpdateChecker.svelte';
   import ChangelogPanel from '$lib/components/ChangelogPanel.svelte';
-  import Icon from '$lib/components/Icon.svelte';
+  import ServerDiagnosticsPanel from '$lib/components/ServerDiagnosticsPanel.svelte';
 
   let protoVer = $state(0);
   let appVersion = $state('');
+  const canViewServerDiagnostics = $derived(
+    serverStateStore.connected
+      && authStore.isLoggedIn
+      && authStore.permissions.includes('diagnostics'),
+  );
 
   onMount(async () => {
     appVersion = await loadAppVersion();
@@ -49,6 +55,10 @@
   </section>
 
   <AppUpdateChecker />
+
+  {#if canViewServerDiagnostics}
+    <ServerDiagnosticsPanel />
+  {/if}
 
   <ChangelogPanel />
 </div>

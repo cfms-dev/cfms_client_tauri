@@ -421,6 +421,65 @@ pub struct ServerInfo {
     pub lockdown_reason: Option<String>,
 }
 
+/// Permission-protected static server diagnostics introduced in protocol 22.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnostics {
+    pub schema_version: u32,
+    pub server: ServerDiagnosticIdentity,
+    pub runtime: ServerDiagnosticRuntime,
+    pub component_versions: std::collections::BTreeMap<String, String>,
+    pub database: ServerDiagnosticDatabase,
+    pub providers: ServerDiagnosticProviders,
+    pub extensions: Vec<ServerDiagnosticExtension>,
+    pub extension_flags: Vec<String>,
+    pub lockdown: ServerDiagnosticLockdown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticIdentity {
+    pub server_name: String,
+    pub core_version: String,
+    pub protocol_version: u32,
+    pub debug_configured: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticRuntime {
+    pub python_implementation: String,
+    pub python_version: String,
+    pub openssl_version: String,
+    pub operating_system: String,
+    pub operating_system_release: String,
+    pub architecture: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticDatabase {
+    pub dialect: String,
+    pub driver: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticProviders {
+    pub storage: String,
+    pub caching: String,
+    pub event_bus: String,
+    pub rate_limit: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticExtension {
+    pub identifier: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerDiagnosticLockdown {
+    pub enabled: bool,
+    pub reason: Option<String>,
+}
+
 /// Response data for the server's `list_directory` action.
 ///
 /// Returned to the frontend as the result of the `list_directory` Tauri command.
@@ -755,6 +814,46 @@ mod tests {
         assert_eq!(parsed.documents[1].size, None);
         assert_eq!(parsed.documents[2].size, Some(4096));
         assert_eq!(parsed.documents[3].size, Some(0));
+    }
+
+    #[test]
+    fn parses_protocol_twenty_two_server_diagnostics() {
+        let parsed: ServerDiagnostics = serde_json::from_value(serde_json::json!({
+            "schema_version": 1,
+            "server": {
+                "server_name": "CFMS",
+                "core_version": "0.5.0.260812_alpha",
+                "protocol_version": 22,
+                "debug_configured": false
+            },
+            "runtime": {
+                "python_implementation": "CPython",
+                "python_version": "3.14.6",
+                "openssl_version": "OpenSSL 3.5.7",
+                "operating_system": "Windows",
+                "operating_system_release": "11",
+                "architecture": "AMD64"
+            },
+            "component_versions": { "pydantic": "2.13.4" },
+            "database": { "dialect": "sqlite", "driver": "pysqlite" },
+            "providers": {
+                "storage": "local",
+                "caching": "memory",
+                "event_bus": "local",
+                "rate_limit": "memory"
+            },
+            "extensions": [
+                { "identifier": "builtin", "name": "Built-in", "version": "0.5.0" }
+            ],
+            "extension_flags": ["documents"],
+            "lockdown": { "enabled": false, "reason": null }
+        }))
+        .unwrap();
+
+        assert_eq!(parsed.schema_version, 1);
+        assert_eq!(parsed.server.protocol_version, 22);
+        assert_eq!(parsed.component_versions["pydantic"], "2.13.4");
+        assert_eq!(parsed.extensions[0].identifier, "builtin");
     }
 
     #[test]

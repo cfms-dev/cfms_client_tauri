@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserInfoResponse = Omit<ManagedUserInfo, 'status'> & {
@@ -223,6 +223,11 @@ export async function viewAuditLogs(
     next_cursor: data.next_cursor ?? null,
     has_more: data.has_more ?? false,
   };
+}
+
+/** Load the permission-protected protocol 22 server diagnostic snapshot. */
+export async function getServerDiagnostics(): Promise<ServerDiagnostics> {
+  return invoke('server_diagnostics');
 }
 
 export async function listUserKeys(targetUsername?: string | null): Promise<UserKeyMetadata[]> {

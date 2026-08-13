@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createBannedSubnet,
   disableManagedTwoFactor,
+  getServerDiagnostics,
   getUserInfo,
   listAuthLockouts,
   listBannedSubnets,
@@ -70,6 +71,22 @@ describe('admin API', () => {
       locks,
       reason: 'Reviewed by administrator',
     });
+  });
+
+  it('maps protocol v22 server diagnostics to its dedicated Tauri command', async () => {
+    const diagnostics = {
+      schema_version: 1,
+      server: {
+        server_name: 'CFMS',
+        core_version: '0.5.0',
+        protocol_version: 22,
+        debug_configured: false,
+      },
+    };
+    invokeMock.mockResolvedValue(diagnostics);
+
+    await expect(getServerDiagnostics()).resolves.toBe(diagnostics);
+    expect(invokeMock).toHaveBeenCalledWith('server_diagnostics');
   });
 
   it.each([

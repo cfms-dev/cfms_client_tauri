@@ -84,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn classifies_only_protocol_twenty_one_transient_responses() {
+    fn classifies_protocol_twenty_two_transient_responses() {
         let response = |code| cfms_core::Response {
             code,
             message: String::new(),

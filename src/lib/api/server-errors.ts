@@ -49,7 +49,7 @@ export function serverRetryAfterSeconds(error: unknown): number | null {
   return Math.ceil(value);
 }
 
-/** Classify protocol 21 temporary request and capacity responses. */
+/** Classify protocol 22 temporary request and capacity responses. */
 export function serverAvailability(error: unknown): ServerAvailability | null {
   const status = serverErrorStatus(error);
   if (status === 429) {

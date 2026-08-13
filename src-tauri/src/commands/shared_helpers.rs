@@ -411,7 +411,7 @@ mod response_error_tests {
     }
 
     #[test]
-    fn preserves_all_protocol_twenty_one_error_metadata() {
+    fn preserves_all_protocol_twenty_two_error_metadata() {
         let response = cfms_core::Response {
             code: 429,
             message: "slow down".to_string(),

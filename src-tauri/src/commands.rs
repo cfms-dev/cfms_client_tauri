@@ -12,7 +12,8 @@
 use cfms_core::constants;
 use cfms_core::{
     AppearancePreference, CursorPage, DownloadTaskDto, DownloadTaskStatus, FileEntry,
-    ListDirectoryResponse, ServerInfo, ServiceEvent, ServiceStatusInfo, UserPreference,
+    ListDirectoryResponse, ServerDiagnostics, ServerInfo, ServiceEvent, ServiceStatusInfo,
+    UserPreference,
 };
 use cfms_crypto::dek;
 use cfms_service::services::download_queue;

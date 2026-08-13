@@ -638,6 +638,7 @@ pub fn run() {
             commands::get_group_info,
             commands::change_group_permissions,
             commands::view_audit_logs,
+            commands::server_diagnostics,
             commands::list_user_keys,
             commands::get_user_key,
             commands::delete_user_key,

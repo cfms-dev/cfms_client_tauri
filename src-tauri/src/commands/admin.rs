@@ -635,6 +635,23 @@ pub async fn view_audit_logs(
     }))
 }
 
+/// Return the protocol 22 permission-protected static server diagnostic snapshot.
+#[tauri::command]
+pub async fn server_diagnostics(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<ServerDiagnostics, String> {
+    let raw = server_action_json(&state, "diagnostics", serde_json::json!({})).await?;
+    let diagnostics: ServerDiagnostics = serde_json::from_value(raw)
+        .map_err(|e| format!("Invalid server diagnostics response: {e}"))?;
+    if diagnostics.schema_version != 1 {
+        return Err(format!(
+            "Unsupported server diagnostics schema version: {}",
+            diagnostics.schema_version
+        ));
+    }
+    Ok(diagnostics)
+}
+
 #[tauri::command]
 pub async fn list_user_keys(
     state: tauri::State<'_, AppHandleState>,
