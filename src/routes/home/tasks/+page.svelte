@@ -5,9 +5,10 @@
   import type { DownloadTaskDto, UploadEnqueueRequest, UploadTaskDto } from '$lib/api';
   import {
     cancelDownload, controlTransferTasks, deleteDownloadedFiles, getDownloadTasks, getUploadTasks,
-    openDownloadedFile, pauseDownload, removeTransferRecords,
+    getDocument, getDocumentInfo, openDownloadedFile, pauseDownload, removeTransferRecords,
     resumeDownload, retryDownload, retryUploadTask, uploadDirectory, uploadDocumentFile,
   } from '$lib/api';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
   import { downloadStore, notificationStore, uploadStore } from '$lib/stores.svelte';
   import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopActiveDownloadBatch } from '$lib/download-batch-control';
   import {
@@ -25,6 +26,7 @@
   import VirtualList from '$lib/components/VirtualList.svelte';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
+  import DocumentIdDownloadDialog from '$lib/components/DocumentIdDownloadDialog.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import TaskActionButton from '$lib/components/TaskActionButton.svelte';
@@ -48,6 +50,9 @@
   let pendingDownloadActions = $state(new Set<string>());
   let pendingUploadActions = $state(new Set<string>());
   let pendingGroupActions = $state(new Map<string, GroupAction>());
+  let directDownloadOpen = $state(false);
+  let directDownloadBusy = $state(false);
+  let directDownloadError = $state('');
   let batchFailureSequence = 0;
 
   const downloadTasks = $derived([...downloadStore.tasks.values()]);
@@ -145,6 +150,47 @@
 
   async function refreshUploads() {
     uploadStore.setAll(await getUploadTasks());
+  }
+
+  function openDirectDownloadDialog() {
+    directDownloadError = '';
+    directDownloadOpen = true;
+  }
+
+  function closeDirectDownloadDialog() {
+    if (directDownloadBusy) return;
+    directDownloadOpen = false;
+    directDownloadError = '';
+  }
+
+  async function handleDirectDownload(documentId: string) {
+    if (directDownloadBusy) return;
+    directDownloadBusy = true;
+    directDownloadError = '';
+
+    try {
+      const info = await getDocumentInfo(documentId);
+      const filename = info.title?.trim();
+      if (!filename) {
+        directDownloadError = $t('tasks.downloadByIdMissingTitle');
+        return;
+      }
+
+      await getDocument(documentId, filename);
+      directDownloadOpen = false;
+      activeTab = 'downloads';
+      searchQuery = '';
+      sectionFilter = 'all';
+      notificationStore.success($t('tasks.downloadByIdQueued', { values: { name: filename } }));
+
+      void refreshDownloads().catch((error) => {
+        errorMessage = formatUserFacingError(error);
+      });
+    } catch (error) {
+      directDownloadError = formatUserFacingError(error);
+    } finally {
+      directDownloadBusy = false;
+    }
   }
 
   async function handleOpen(id: string) { await runDownload(id, () => openDownloadedFile(id)); }
@@ -359,9 +405,18 @@
       <h1>{$t('tasks.title')}</h1>
       <p>{$t('tasks.subtitle')}</p>
     </div>
-    <button class="icon-button" onclick={refresh} disabled={loading} title={$t('common.refresh')} aria-label={$t('common.refresh')}>
-      <Icon name="refresh" size="20px" />
-    </button>
+    <div class="task-header-actions">
+      <TaskActionButton
+        presentation="labelled"
+        icon="download"
+        label={$t('tasks.downloadByIdAction')}
+        tone="primary"
+        onclick={openDirectDownloadDialog}
+      />
+      <button class="icon-button" onclick={refresh} disabled={loading} title={$t('common.refresh')} aria-label={$t('common.refresh')}>
+        <Icon name="refresh" size="20px" />
+      </button>
+    </div>
   </header>
 
   <div class="task-tabs" role="tablist" aria-label={$t('tasks.title')}>
@@ -428,6 +483,14 @@
   </section>
 </div>
 
+<DocumentIdDownloadDialog
+  open={directDownloadOpen}
+  busy={directDownloadBusy}
+  error={directDownloadError}
+  onClose={closeDirectDownloadDialog}
+  onSubmit={handleDirectDownload}
+/>
+
 <style>
   .task-page {
     display: flex;
@@ -443,6 +506,7 @@
   .task-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
   .task-header h1 { color: var(--explorer-text); font-size: 1.25rem; font-weight: 700; }
   .task-header p { max-width: 68ch; margin-top: 0.2rem; color: var(--explorer-text-muted); font-size: 0.8125rem; }
+  .task-header-actions { display: flex; flex: none; align-items: center; gap: 0.25rem; }
 
   .icon-button { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 999px; color: var(--explorer-text-muted); transition: color 120ms var(--motion-easing-standard), background-color 120ms var(--motion-easing-standard), transform 120ms var(--motion-easing-standard); }
   .icon-button:hover:not(:disabled) { background: var(--explorer-surface-hover); color: var(--explorer-text); }
@@ -496,6 +560,8 @@
 
   @media (max-width: 520px) {
     .task-page { padding: 0.85rem; }
+    .task-header { align-items: center; }
+    .task-header p { display: none; }
     .task-toolbar { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
     .section-filter,
     .task-summary { grid-column: 1; justify-self: stretch; }
