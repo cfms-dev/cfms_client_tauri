@@ -121,6 +121,7 @@ export const en = {
     noFavorites: 'Favorite folders appear here',
     details: 'Details',
     closeDetails: 'Close details',
+    resizeDetails: 'Resize details pane',
     selectForDetails: 'Select an item to see its details',
     selectedItems: '{count} items selected',
     itemCount: '{count} items',

@@ -3790,6 +3790,7 @@
       emptyTitle={$t('files.properties')}
       emptyLabel={$t('workspace.selectForDetails')}
       closeLabel={$t('workspace.closeDetails')}
+      resizeLabel={$t('workspace.resizeDetails')}
       onClose={() => (detailsOpen = false)}
     />
   </div>

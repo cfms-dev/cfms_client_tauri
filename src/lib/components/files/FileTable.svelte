@@ -758,13 +758,13 @@
   }
 </script>
 
-{#if loading}
-  <div class="file-table-loading">
-    <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-    {$t('common.loadingEllipsis')}
-  </div>
-{:else}
-  <div class="file-table-shell">
+<div class="file-table-shell">
+  {#if loading}
+    <div class="file-table-loading">
+      <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+      {$t('common.loadingEllipsis')}
+    </div>
+  {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
@@ -926,11 +926,11 @@
     {#if marquee?.active}
       <div class="file-table-marquee" style={marqueeStyle} aria-hidden="true"></div>
     {/if}
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
-  .file-table-loading { display: flex; align-items: center; gap: 0.5rem; padding: 1rem; color: var(--explorer-text-muted); font-size: 0.8rem; }
+  .file-table-loading { display: flex; min-width: 0; align-items: center; gap: 0.5rem; padding: 1rem; color: var(--explorer-text-muted); font-size: 0.8rem; }
   .file-table-shell { position: relative; min-width: 0; flex: 1; overflow: hidden; background: var(--explorer-background); }
   .file-table-scroll-viewport { position: relative; width: 100%; height: 100%; min-width: 0; overflow: auto; overscroll-behavior: contain; }
   .file-table-scroll-viewport.is-marquee-selecting { cursor: crosshair; user-select: none; }

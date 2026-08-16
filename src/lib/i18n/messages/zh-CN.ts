@@ -120,6 +120,7 @@ export const zh_CN = {
     noFavorites: '收藏的文件夹会显示在这里',
     details: '详细信息',
     closeDetails: '关闭详细信息',
+    resizeDetails: '调整详细信息窗格宽度',
     selectForDetails: '选择项目以查看详细信息',
     selectedItems: '已选择 {count} 个项目',
     itemCount: '{count} 个项目',
