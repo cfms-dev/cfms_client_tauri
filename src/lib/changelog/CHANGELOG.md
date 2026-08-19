@@ -4,6 +4,28 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.43.0
+**Released on:** 2026-08-19
+
+**Title:** Protocol Version 23
+
+### Added
+- Add diagnostics page with server diagnostics functionality and localization support
+- Update protocol version to 23 and enhance user management features with reason handling
+- Implement resizable details pane with keyboard support and add tests
+- Add Document ID download functionality with UI and tests
+- Implement server diagnostics feature with protocol 22 support and related UI components
+- Add admin_password_reset_data function and related tests for password reset functionality
+- Enhance ModalFrame with resizable and maximizable features
+- Add hidden developer request console with API integration
+
+### Fixed
+- Enhance ModalFrame with improved window state transition handling and related tests
+- Add functionality to restore pre-maximize size after viewport changes in ModalFrame
+- Adjust layout and sizing for DeveloperRequestConsole
+
+--- 
+
 ## v0.42.0
 **Released on:** 2026-08-11
 
