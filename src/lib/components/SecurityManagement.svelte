@@ -143,7 +143,7 @@
       if (editorRule) {
         await updateBannedSubnet(
           editorRule.subnet,
-          reason.trim() || null,
+          reason || null,
           startTimestamp,
           expiryTimestamp,
           confirmSelfBlock,
@@ -152,7 +152,7 @@
       } else {
         await createBannedSubnet(
           normalizedSubnet,
-          reason.trim() || null,
+          reason || null,
           startTimestamp,
           expiryTimestamp,
           confirmSelfBlock,
@@ -399,7 +399,7 @@
       </label>
       <label>
         <span>{$t('manage.security.reasonLabel')}</span>
-        <textarea bind:value={reason} disabled={busyKey !== null} maxlength="255" rows="3" placeholder={$t('manage.security.reasonPlaceholder')}></textarea>
+        <textarea bind:value={reason} disabled={busyKey !== null} maxlength="1024" rows="3" placeholder={$t('manage.security.reasonPlaceholder')}></textarea>
       </label>
       <label>
         <span>{$t('manage.security.startsAt')}</span>

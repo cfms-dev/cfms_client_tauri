@@ -5,69 +5,82 @@
 
   interface Props {
     active: boolean;
+    currentReason: string | null;
     busy: boolean;
     enableLabel: string;
     disableLabel: string;
     confirmLabel: string;
     cancelLabel: string;
+    editLabel: string;
     reasonLabel: string;
     reasonPlaceholder: string;
     remainingLabel: (count: number) => string;
-    onToggle: (status: boolean, reason?: string) => Promise<void> | void;
+    onToggle: (status: boolean, reason?: string | null) => Promise<boolean | void> | boolean | void;
   }
 
   let {
     active,
+    currentReason,
     busy,
     enableLabel,
     disableLabel,
     confirmLabel,
     cancelLabel,
+    editLabel,
     reasonLabel,
     reasonPlaceholder,
     remainingLabel,
     onToggle,
   }: Props = $props();
 
-  let awaitingConfirmation = $state(false);
+  let editorMode = $state<'enable' | 'edit' | null>(null);
   let reason = $state('');
   let reasonInput = $state<HTMLInputElement | null>(null);
   let primaryButton = $state<HTMLButtonElement | null>(null);
 
   const primaryLabel = $derived(
-    awaitingConfirmation ? confirmLabel : active ? disableLabel : enableLabel,
+    editorMode ? confirmLabel : active ? disableLabel : enableLabel,
   );
   const remainingCharacters = $derived(1024 - reason.length);
 
   $effect(() => {
-    if (active && awaitingConfirmation) resetConfirmation();
+    if ((active && editorMode === 'enable') || (!active && editorMode === 'edit')) {
+      resetReasonEditor();
+    }
   });
 
   async function handlePrimaryAction() {
     if (busy) return;
+
+    if (editorMode) {
+      const applied = await onToggle(true, reason || null);
+      if (applied === false) return;
+      resetReasonEditor();
+      return;
+    }
 
     if (active) {
       await onToggle(false);
       return;
     }
 
-    if (!awaitingConfirmation) {
-      awaitingConfirmation = true;
-      await tick();
-      reasonInput?.focus({ preventScroll: true });
-      return;
-    }
-
-    await onToggle(true, reason.trim() || undefined);
+    await openReasonEditor('enable');
   }
 
-  function resetConfirmation() {
-    awaitingConfirmation = false;
+  async function openReasonEditor(mode: 'enable' | 'edit') {
+    editorMode = mode;
+    reason = mode === 'edit' ? currentReason ?? '' : '';
+    await tick();
+    reasonInput?.focus({ preventScroll: true });
+  }
+
+  function resetReasonEditor() {
+    editorMode = null;
     reason = '';
   }
 
-  async function cancelConfirmation() {
-    resetConfirmation();
+  async function cancelReasonEditor() {
+    resetReasonEditor();
     await tick();
     primaryButton?.focus({ preventScroll: true });
   }
@@ -76,12 +89,12 @@
     if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
-    void cancelConfirmation();
+    void cancelReasonEditor();
   }
 </script>
 
 <div class="lockdown-control">
-  {#if awaitingConfirmation}
+  {#if editorMode}
     <form
       id="lockdown-reason-entry"
       class="lockdown-reason-entry"
@@ -111,11 +124,24 @@
         title={cancelLabel}
         aria-label={cancelLabel}
         disabled={busy}
-        onclick={cancelConfirmation}
+        onclick={cancelReasonEditor}
       >
         <Icon name="close" size="18px" />
       </button>
     </form>
+  {/if}
+
+  {#if active && !editorMode}
+    <button
+      type="button"
+      class="explorer-command-button lockdown-edit-button"
+      title={editLabel}
+      aria-label={editLabel}
+      disabled={busy}
+      onclick={() => openReasonEditor('edit')}
+    >
+      <Icon name="edit" size="17px" />
+    </button>
   {/if}
 
   <button
@@ -123,18 +149,18 @@
     type="button"
     class="explorer-command-button lockdown-primary-button"
     data-active={active ? 'true' : undefined}
-    data-confirming={awaitingConfirmation ? 'true' : undefined}
+    data-confirming={editorMode ? 'true' : undefined}
     disabled={busy}
     aria-pressed={active}
-    aria-expanded={awaitingConfirmation}
-    aria-controls={awaitingConfirmation ? 'lockdown-reason-entry' : undefined}
+    aria-expanded={Boolean(editorMode)}
+    aria-controls={editorMode ? 'lockdown-reason-entry' : undefined}
     title={primaryLabel}
     aria-label={primaryLabel}
     onclick={handlePrimaryAction}
   >
     {#if busy}
       <ProgressRing size={17} strokeWidth={2.5} label={primaryLabel} />
-    {:else if awaitingConfirmation}
+    {:else if editorMode}
       <Icon name="check" size="19px" />
     {:else}
       <Icon name="supervisedUserCircleOff" size="18px" />
@@ -195,6 +221,7 @@
   }
 
   .lockdown-cancel-button,
+  .lockdown-edit-button,
   .lockdown-primary-button {
     width: 34px;
     flex: none;

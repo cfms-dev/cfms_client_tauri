@@ -225,6 +225,12 @@ export interface ManagedUser {
 
 export type ManagedUserStatus = "active" | "disabled";
 
+export interface ManagedUserStatusUpdate {
+  username: string;
+  status: ManagedUserStatus;
+  reason: string | null;
+}
+
 /** Detailed account data returned by get_user_info. */
 export interface ManagedUserInfo extends ManagedUser {
   status: ManagedUserStatus;
@@ -250,6 +256,12 @@ export interface UserBlock {
   timestamp?: number | null;
   not_before?: number | null;
   not_after?: number | null;
+  reason: string | null;
+}
+
+export interface LockdownState {
+  status: boolean;
+  reason: string | null;
 }
 
 export type BannedSubnetStatus = "scheduled" | "active" | "expired";

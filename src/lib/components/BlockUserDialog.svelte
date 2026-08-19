@@ -28,6 +28,7 @@
       blockTypes: string[],
       target: UserBlockTarget,
       notAfter: number | null,
+      reason: string | null,
     ) => Promise<void>;
     onClose: () => void;
   } = $props();
@@ -38,6 +39,7 @@
   let expiryEnabled = $state(false);
   let expiryDate = $state(toDateInput(Date.now() + 24 * 60 * 60 * 1000));
   let expiryTime = $state(toTimeInput(Date.now() + 24 * 60 * 60 * 1000));
+  let reason = $state('');
   let busy = $state(false);
   let error = $state<string | null>(null);
 
@@ -101,7 +103,7 @@
     busy = true;
     error = null;
     try {
-      await onSave(blockTypes, target, getExpiryTimestamp());
+      await onSave(blockTypes, target, getExpiryTimestamp(), reason || null);
     } catch (err) {
       error = formatUserFacingError(err);
     } finally {
@@ -181,6 +183,21 @@
         </label>
       {/if}
     </section>
+
+    <label class="grid gap-2 text-sm text-md3-on-surface">
+      <span class="font-medium">{$t('manage.blockReasonLabel')}</span>
+      <textarea
+        bind:value={reason}
+        maxlength="1024"
+        rows="3"
+        placeholder={$t('manage.blockReasonPlaceholder')}
+        disabled={busy}
+        class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25 disabled:opacity-50"
+      ></textarea>
+      <span class="text-xs text-md3-on-surface-variant">
+        {$t('manage.blockReasonHelp', { values: { count: 1024 - reason.length } })}
+      </span>
+    </label>
 
     <section class="space-y-3 rounded-lg border border-md3-outline/60 p-3">
       <div class="flex items-start gap-3">

@@ -3,6 +3,13 @@
 
 const NICKNAME_MAX_LENGTH: usize = 255;
 
+fn operation_reason_value(reason: Option<String>) -> serde_json::Value {
+    match reason {
+        Some(reason) if !reason.is_empty() => serde_json::Value::String(reason),
+        _ => serde_json::Value::Null,
+    }
+}
+
 fn normalize_nickname(nickname: Option<String>) -> Result<Option<String>, String> {
     let Some(nickname) = nickname else {
         return Ok(None);
@@ -273,14 +280,12 @@ pub async fn manage_user_status(
     username: String,
     status: String,
     reason: Option<String>,
-) -> Result<bool, String> {
+) -> Result<serde_json::Value, String> {
     let mut data = serde_json::json!({ "username": username, "status": status });
-    if status == "disabled"
-        && let Some(reason) = non_empty_optional(reason)
-    {
-        data["reason"] = serde_json::Value::String(reason);
+    if status == "disabled" {
+        data["reason"] = operation_reason_value(reason);
     }
-    server_action_bool(&state, "manage_user_status", data).await
+    server_action_json(&state, "manage_user_status", data).await
 }
 
 #[tauri::command]
@@ -288,12 +293,10 @@ pub async fn set_lockdown(
     state: tauri::State<'_, AppHandleState>,
     status: bool,
     reason: Option<String>,
-) -> Result<bool, String> {
+) -> Result<serde_json::Value, String> {
     let mut data = serde_json::json!({ "status": status });
-    if status
-        && let Some(reason) = non_empty_optional(reason)
-    {
-        data["reason"] = serde_json::Value::String(reason);
+    if status {
+        data["reason"] = operation_reason_value(reason);
     }
     let response = server_action_json(&state, "lockdown", data).await?;
     let applied_status = response
@@ -318,7 +321,7 @@ pub async fn set_lockdown(
             reason: applied_reason,
         });
 
-    Ok(true)
+    Ok(response)
 }
 
 #[tauri::command]
@@ -328,17 +331,19 @@ pub async fn block_user(
     block_types: Vec<String>,
     target: serde_json::Value,
     not_after: Option<f64>,
-) -> Result<bool, String> {
+    reason: Option<String>,
+) -> Result<serde_json::Value, String> {
     let mut data = serde_json::json!({
         "username": username,
         "block_types": block_types,
         "target": target,
+        "reason": operation_reason_value(reason),
     });
     if let Some(value) = not_after {
         data["not_after"] = serde_json::json!(value);
     }
 
-    server_action_bool(&state, "block_user", data).await
+    server_action_json(&state, "block_user", data).await
 }
 
 #[tauri::command]
@@ -406,7 +411,7 @@ pub async fn create_banned_subnet(
 ) -> Result<serde_json::Value, String> {
     let mut data = serde_json::json!({
         "subnet": subnet,
-        "reason": non_empty_optional(reason),
+        "reason": operation_reason_value(reason),
         "expires_at": expires_at,
         "confirm_self_block": confirm_self_block,
     });
@@ -430,7 +435,7 @@ pub async fn update_banned_subnet(
         "update_banned_subnet",
         serde_json::json!({
             "subnet": subnet,
-            "reason": non_empty_optional(reason),
+            "reason": operation_reason_value(reason),
             "starts_at": starts_at,
             "expires_at": expires_at,
             "confirm_self_block": confirm_self_block,
@@ -490,6 +495,42 @@ pub async fn unblock_user(
         serde_json::json!({ "block_id": block_id }),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn update_user_block(
+    state: tauri::State<'_, AppHandleState>,
+    block_id: String,
+    reason: Option<String>,
+) -> Result<serde_json::Value, String> {
+    server_action_json(
+        &state,
+        "update_user_block",
+        serde_json::json!({
+            "block_id": block_id,
+            "reason": operation_reason_value(reason),
+        }),
+    )
+    .await
+}
+
+#[cfg(test)]
+mod operation_reason_tests {
+    use super::operation_reason_value;
+
+    #[test]
+    fn preserves_protocol_twenty_three_reason_text_exactly() {
+        assert_eq!(
+            operation_reason_value(Some("  incident review  ".to_string())),
+            serde_json::json!("  incident review  ")
+        );
+    }
+
+    #[test]
+    fn maps_an_empty_or_missing_reason_to_explicit_null() {
+        assert_eq!(operation_reason_value(Some(String::new())), serde_json::Value::Null);
+        assert_eq!(operation_reason_value(None), serde_json::Value::Null);
+    }
 }
 
 #[tauri::command]

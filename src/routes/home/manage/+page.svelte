@@ -22,6 +22,7 @@
     renameUser,
     resetUserPassword,
     unblockUser,
+    updateUserBlock,
     viewAuditLogs,
     type AuditLogEntry,
     type ManagedGroup,
@@ -677,6 +678,32 @@
     });
   }
 
+  async function handleEditBlockReason(block: UserBlock) {
+    if (!blocksDialog) return;
+    const reasonValue = await dialogStore.prompt({
+      title: $t('manage.editBlockReasonTitle'),
+      message: $t('manage.editBlockReasonHelp'),
+      defaultValue: block.reason ?? '',
+      placeholder: $t('manage.blockReasonPlaceholder'),
+      confirmLabel: $t('common.save'),
+      cancelLabel: $t('common.cancel'),
+      multiline: true,
+      maxLength: 1024,
+    });
+    if (reasonValue === null) return;
+
+    await runBusy(`block-reason:${block.block_id}`, async () => {
+      const updated = await updateUserBlock(block.block_id, reasonValue || null);
+      blocksDialog = {
+        username: blocksDialog!.username,
+        blocks: blocksDialog!.blocks.map((entry) =>
+          entry.block_id === block.block_id ? updated : entry,
+        ),
+      };
+      status = $t('manage.blockReasonUpdated');
+    });
+  }
+
   async function handleCreateGroup() {
     activeDialog = { kind: 'create-group' };
   }
@@ -808,8 +835,9 @@
     blockTypes: string[],
     target: UserBlockTarget,
     notAfter: number | null,
+    reason: string | null,
   ) {
-    await blockUser(user.username, blockTypes, target, notAfter);
+    await blockUser(user.username, blockTypes, target, notAfter, reason);
     status = $t('manage.userBlocked', { values: { username: user.username } });
     activeDialog = null;
   }
@@ -872,10 +900,8 @@
     if (activeDialog?.kind !== 'account-management' || !activeDialog.info) return;
     const user = activeDialog.user;
     await runBusy(`status-user:${user.username}`, async () => {
-      const reason = statusValue === 'disabled'
-        ? accountDisableReason.trim() || undefined
-        : undefined;
-      await manageUserStatus(user.username, statusValue, reason);
+      const reason = statusValue === 'disabled' ? accountDisableReason || null : undefined;
+      const result = await manageUserStatus(user.username, statusValue, reason);
       status = $t('manage.userStatusUpdated', {
         values: { username: user.username },
       });
@@ -884,10 +910,15 @@
           ...activeDialog,
           info: activeDialog.info ? { ...activeDialog.info, status: statusValue } : null,
         };
-        accountDisableReason = '';
+        accountDisableReason = result.reason ?? '';
       }
       await loadUserList();
     });
+  }
+
+  async function updateActiveAccountReason() {
+    if (activeDialog?.kind !== 'account-management' || activeDialog.info?.status !== 'disabled') return;
+    await saveActiveUserStatus('disabled');
   }
 
   function toggleActiveUserStatus() {
@@ -899,9 +930,10 @@
     blockTypes: string[],
     target: UserBlockTarget,
     notAfter: number | null,
+    reason: string | null,
   ) {
     if (activeDialog?.kind !== 'block-user') return;
-    await saveBlockUser(activeDialog.user, blockTypes, target, notAfter);
+    await saveBlockUser(activeDialog.user, blockTypes, target, notAfter, reason);
   }
 
   async function refreshActiveGroupPermissions() {
@@ -1470,17 +1502,27 @@
               {activeDialog.info.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled')}
             </span>
           </div>
-          {#if activeDialog.info.status === 'active'}
-            <label class="grid gap-2 text-sm text-md3-on-surface">
-              <span class="font-medium">{$t('manage.disableReasonLabel')}</span>
-              <textarea bind:value={accountDisableReason} maxlength="1024" rows="3" placeholder={$t('manage.disableReasonPlaceholder')} class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25"></textarea>
-              <span class="text-xs text-md3-on-surface-variant">{$t('manage.reasonOptional')}</span>
-            </label>
-          {/if}
-          <button type="button" class="flex items-center gap-2 rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface transition-colors hover:bg-md3-surface-container-highest disabled:opacity-50" disabled={busyKey !== null} onclick={toggleActiveUserStatus}>
-            <Icon name={activeDialog.info.status === 'disabled' ? 'verifiedUser' : 'block'} size="18px" />
-            {activeDialog.info.status === 'disabled' ? $t('manage.enableAccountAction') : $t('manage.disableAccountAction')}
-          </button>
+          <label class="grid gap-2 text-sm text-md3-on-surface">
+            <span class="font-medium">
+              {activeDialog.info.status === 'disabled' ? $t('manage.replaceDisableReasonLabel') : $t('manage.disableReasonLabel')}
+            </span>
+            <textarea bind:value={accountDisableReason} maxlength="1024" rows="3" placeholder={$t('manage.disableReasonPlaceholder')} class="w-full resize-y rounded-lg border border-md3-outline bg-md3-field px-3 py-2.5 text-sm text-md3-on-surface outline-none transition focus:border-md3-primary focus:ring-2 focus:ring-md3-primary/25 disabled:opacity-50" disabled={busyKey !== null}></textarea>
+            <span class="text-xs text-md3-on-surface-variant">
+              {activeDialog.info.status === 'disabled' ? $t('manage.replaceDisableReasonHelp') : $t('manage.reasonOptional')}
+            </span>
+          </label>
+          <div class="flex flex-wrap gap-2">
+            {#if activeDialog.info.status === 'disabled'}
+              <button type="button" class="flex items-center gap-2 rounded-full bg-md3-primary-container px-4 py-2 text-sm font-medium text-md3-on-primary-container transition-colors hover:brightness-105 disabled:opacity-50" disabled={busyKey !== null} onclick={updateActiveAccountReason}>
+                <Icon name="edit" size="18px" />
+                {$t('manage.updateDisableReasonAction')}
+              </button>
+            {/if}
+            <button type="button" class="flex items-center gap-2 rounded-full bg-md3-surface-container-high px-4 py-2 text-sm font-medium text-md3-on-surface transition-colors hover:bg-md3-surface-container-highest disabled:opacity-50" disabled={busyKey !== null} onclick={toggleActiveUserStatus}>
+              <Icon name={activeDialog.info.status === 'disabled' ? 'verifiedUser' : 'block'} size="18px" />
+              {activeDialog.info.status === 'disabled' ? $t('manage.enableAccountAction') : $t('manage.disableAccountAction')}
+            </button>
+          </div>
         </section>
       {/if}
 
@@ -1583,14 +1625,23 @@
                   {$t('manage.idWithValue', { values: { id: block.block_id } })}
                 </p>
               </div>
-              <button
-                class="px-3 py-1 text-xs rounded-full bg-md3-error-container
-                       text-md3-on-error-container hover:brightness-110 disabled:opacity-50"
-                onclick={() => handleUnblock(block.block_id)}
-                disabled={busyKey !== null}
-              >
-                {$t('files.revoke')}
-              </button>
+              <div class="flex flex-none gap-1.5">
+                <button
+                  class="px-3 py-1 text-xs rounded-full bg-md3-primary-container text-md3-on-primary-container hover:brightness-105 disabled:opacity-50"
+                  onclick={() => handleEditBlockReason(block)}
+                  disabled={busyKey !== null}
+                >
+                  {$t('common.edit')}
+                </button>
+                <button
+                  class="px-3 py-1 text-xs rounded-full bg-md3-error-container
+                         text-md3-on-error-container hover:brightness-110 disabled:opacity-50"
+                  onclick={() => handleUnblock(block.block_id)}
+                  disabled={busyKey !== null}
+                >
+                  {$t('files.revoke')}
+                </button>
+              </div>
             </div>
             <p class="text-xs text-md3-on-surface-variant">
               {$t('manage.blockRecordPeriod', {
@@ -1600,6 +1651,9 @@
                   end: block.not_after === -1 ? $t('manage.permanent') : formatDate(block.not_after),
                 },
               })}
+            </p>
+            <p class="whitespace-pre-wrap break-words text-xs text-md3-on-surface-variant">
+              {$t('manage.blockRecordReason', { values: { reason: block.reason ?? $t('manage.noReason') } })}
             </p>
           </div>
         {/each}

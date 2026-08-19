@@ -631,6 +631,7 @@ pub fn run() {
             commands::block_user,
             commands::list_user_blocks,
             commands::unblock_user,
+            commands::update_user_block,
             commands::list_groups,
             commands::create_group,
             commands::rename_group,

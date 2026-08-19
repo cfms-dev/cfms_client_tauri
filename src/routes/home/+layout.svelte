@@ -230,15 +230,17 @@
     }
   }
 
-  async function applyLockdown(nextStatus: boolean, reason?: string) {
+  async function applyLockdown(nextStatus: boolean, reason?: string | null) {
     if (lockdownBusy) return;
     lockdownBusy = true;
     try {
-      await setLockdown(nextStatus, reason);
-      serverStateStore.lockdown = nextStatus;
-      serverStateStore.lockdownReason = nextStatus ? reason ?? null : null;
+      const state = await setLockdown(nextStatus, reason);
+      serverStateStore.lockdown = state.status;
+      serverStateStore.lockdownReason = state.reason;
+      return true;
     } catch (error) {
       notificationStore.error(formatUserFacingError(error));
+      return false;
     } finally {
       lockdownBusy = false;
     }
@@ -401,11 +403,13 @@
       {#if canApplyLockdown}
         <LockdownControl
           active={serverStateStore.lockdown}
+          currentReason={serverStateStore.lockdownReason}
           busy={lockdownBusy}
           enableLabel={$t('lockdown.enableAction')}
           disableLabel={$t('lockdown.disableAction')}
           confirmLabel={$t('lockdown.confirmEnableAction')}
           cancelLabel={$t('common.cancel')}
+          editLabel={$t('lockdown.editReasonAction')}
           reasonLabel={$t('lockdown.reasonLabel')}
           reasonPlaceholder={$t('lockdown.enableReasonPlaceholder')}
           remainingLabel={(count) => $t('lockdown.reasonCharactersRemaining', { values: { count } })}

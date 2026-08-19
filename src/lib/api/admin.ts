@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserInfoResponse = Omit<ManagedUserInfo, 'status'> & {
@@ -76,12 +76,12 @@ export async function resetUserPassword(
 export async function manageUserStatus(
   username: string,
   status: ManagedUserStatus,
-  reason?: string,
-): Promise<boolean> {
+  reason?: string | null,
+): Promise<ManagedUserStatusUpdate> {
   return invoke("manage_user_status", { username, status, reason: reason ?? null });
 }
 
-export async function setLockdown(status: boolean, reason?: string): Promise<boolean> {
+export async function setLockdown(status: boolean, reason?: string | null): Promise<LockdownState> {
   return invoke("set_lockdown", { status, reason: reason ?? null });
 }
 
@@ -90,12 +90,14 @@ export async function blockUser(
   blockTypes: string[],
   target: UserBlockTarget,
   notAfter?: number | null,
-): Promise<boolean> {
+  reason?: string | null,
+): Promise<UserBlock> {
   return invoke("block_user", {
     username,
     blockTypes,
     target,
     notAfter: notAfter ?? null,
+    reason: reason ?? null,
   });
 }
 
@@ -108,6 +110,10 @@ export async function listUserBlocks(username: string): Promise<UserBlock[]> {
 
 export async function unblockUser(blockId: string): Promise<boolean> {
   return invoke("unblock_user", { blockId });
+}
+
+export async function updateUserBlock(blockId: string, reason: string | null): Promise<UserBlock> {
+  return invoke("update_user_block", { blockId, reason });
 }
 
 export async function getManagedTwoFactorStatus(username: string): Promise<TwoFactorStatus> {
