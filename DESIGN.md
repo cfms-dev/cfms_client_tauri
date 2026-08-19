@@ -64,7 +64,7 @@ typography:
     lineHeight: 1.6
     letterSpacing: "normal"
   mono:
-    fontFamily: "CFMS JetBrains Mono Subset, JetBrains Mono, ui-monospace, monospace"
+    fontFamily: "CFMS JetBrains Mono Subset, JetBrains Mono, CFMS Noto Sans SC Subset, Noto Sans SC, system-ui, ui-monospace, monospace"
     fontSize: "0.8rem"
     fontWeight: 400
     lineHeight: 1.5
@@ -195,7 +195,7 @@ The palette pairs an operational cyan-on-carbon dark workspace with an operation
 **Display Font:** CFMS Inter Subset with CFMS Noto Sans SC Subset and system sans-serif fallbacks  
 **Body Font:** CFMS Inter Subset with CFMS Noto Sans SC Subset and system sans-serif fallbacks  
 **Reading Font:** CFMS Noto Serif SC Subset with Noto Serif SC and Source Han Serif SC fallbacks  
-**Label/Mono Font:** CFMS Inter Subset for labels; CFMS JetBrains Mono Subset for identifiers, code, and time-like technical values
+**Label/Mono Font:** CFMS Inter Subset for labels; CFMS JetBrains Mono Subset for identifiers, code, and time-like technical values, with CFMS Noto Sans SC Subset and system UI fallbacks for Chinese glyphs
 
 **Character:** The operational interface is compact, neutral, and highly scannable. Sans-serif carries almost all controls and workspace content; serif appears only where sustained reading or an established editorial surface calls for it, while mono is reserved for technical data.
 

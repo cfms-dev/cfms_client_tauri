@@ -73,6 +73,11 @@
   const canChangeOwnAvatar = $derived(
     authStore.isLoggedIn && canSetOwnAvatar(authStore.permissions),
   );
+  const canViewDiagnostics = $derived(
+    serverStateStore.connected
+      && authStore.isLoggedIn
+      && authStore.permissions.includes('diagnostics'),
+  );
   const isSettingsRoute = $derived(
     $page.url.pathname === '/home/settings' || $page.url.pathname.startsWith('/home/settings/'),
   );
@@ -112,6 +117,9 @@
       ? [{ id: 'manage', label: $t('workspace.administration'), href: '/home/manage', icon: 'adminPanelSettings' as const }]
       : []),
     { id: 'settings', label: $t('workspace.settings'), href: '/home/settings', icon: 'settings' },
+    ...(canViewDiagnostics
+      ? [{ id: 'diagnostics', label: $t('workspace.diagnostics'), href: '/home/diagnostics', icon: 'bugReport' as const, exact: true }]
+      : []),
     { id: 'about', label: $t('workspace.about'), href: '/home/about', icon: 'info' },
   ]);
   const navigationHasActiveItem = $derived(
@@ -134,6 +142,7 @@
     if (path === '/home/trash') return $t('workspace.recycleBin');
     if (path === '/home/manage') return $t('workspace.administration');
     if (path === '/home/more') return $t('workspace.account');
+    if (path === '/home/diagnostics') return $t('workspace.diagnostics');
     if (path === '/home/about') return $t('workspace.about');
     if (path.startsWith('/home/settings')) return $t('workspace.settings');
     return $t('nav.home');

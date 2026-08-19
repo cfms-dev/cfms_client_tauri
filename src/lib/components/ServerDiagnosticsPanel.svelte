@@ -36,19 +36,15 @@
   }
 </script>
 
-<section class="diagnostics-section" aria-labelledby="server-diagnostics-title" aria-busy={loading}>
-  <div class="section-header">
-    <div>
-      <h2 id="server-diagnostics-title">{$t('about.diagnostics.title')}</h2>
-      <p>{$t('about.diagnostics.description')}</p>
-    </div>
+<section class="diagnostics-section" aria-label={$t('diagnostics.title')} aria-busy={loading}>
+  <div class="section-actions">
     <button type="button" onclick={() => void loadDiagnostics()} disabled={loading}>
       {#if loading}
-        <ProgressRing size={17} strokeWidth={2.4} label={$t('about.diagnostics.loading')} />
+        <ProgressRing size={17} strokeWidth={2.4} label={$t('diagnostics.loading')} />
       {:else}
         <Icon name="refresh" size="18px" />
       {/if}
-      {diagnostics ? $t('about.diagnostics.refresh') : $t('about.diagnostics.load')}
+      {diagnostics ? $t('diagnostics.refresh') : $t('diagnostics.load')}
     </button>
   </div>
 
@@ -56,55 +52,55 @@
     <div class="load-error" role="alert">
       <Icon name="errorFilled" size="20px" />
       <div>
-        <strong>{$t('about.diagnostics.loadFailed')}</strong>
+        <strong>{$t('diagnostics.loadFailed')}</strong>
         <p>{error}</p>
       </div>
     </div>
   {:else if loading && !diagnostics}
     <div class="loading-state" role="status">
-      <ProgressRing size={22} strokeWidth={2.5} label={$t('about.diagnostics.loading')} />
-      <span>{$t('about.diagnostics.loading')}</span>
+      <ProgressRing size={22} strokeWidth={2.5} label={$t('diagnostics.loading')} />
+      <span>{$t('diagnostics.loading')}</span>
     </div>
   {:else if diagnostics}
     <div class="diagnostic-groups">
       <section class="diagnostic-group">
-        <h3><Icon name="info" size="18px" />{$t('about.diagnostics.server')}</h3>
+        <h3><Icon name="info" size="18px" />{$t('diagnostics.server')}</h3>
         <dl>
-          <div><dt>{$t('about.diagnostics.serverName')}</dt><dd>{diagnostics.server.server_name}</dd></div>
-          <div><dt>{$t('about.diagnostics.coreVersion')}</dt><dd>{diagnostics.server.core_version}</dd></div>
+          <div><dt>{$t('diagnostics.serverName')}</dt><dd>{diagnostics.server.server_name}</dd></div>
+          <div><dt>{$t('diagnostics.coreVersion')}</dt><dd>{diagnostics.server.core_version}</dd></div>
           <div><dt>{$t('about.protocol')}</dt><dd>{diagnostics.server.protocol_version}</dd></div>
-          <div><dt>{$t('about.diagnostics.schemaVersion')}</dt><dd>{diagnostics.schema_version}</dd></div>
-          <div><dt>{$t('about.diagnostics.debugConfigured')}</dt><dd>{booleanLabel(diagnostics.server.debug_configured)}</dd></div>
-          <div><dt>{$t('about.diagnostics.lockdown')}</dt><dd>{booleanLabel(diagnostics.lockdown.enabled)}</dd></div>
+          <div><dt>{$t('diagnostics.schemaVersion')}</dt><dd>{diagnostics.schema_version}</dd></div>
+          <div><dt>{$t('diagnostics.debugConfigured')}</dt><dd class="human-readable">{booleanLabel(diagnostics.server.debug_configured)}</dd></div>
+          <div><dt>{$t('diagnostics.lockdown')}</dt><dd class="human-readable">{booleanLabel(diagnostics.lockdown.enabled)}</dd></div>
           {#if diagnostics.lockdown.reason}
-            <div class="wide-row"><dt>{$t('about.diagnostics.lockdownReason')}</dt><dd>{diagnostics.lockdown.reason}</dd></div>
+            <div class="wide-row"><dt>{$t('diagnostics.lockdownReason')}</dt><dd class="human-readable">{diagnostics.lockdown.reason}</dd></div>
           {/if}
         </dl>
       </section>
 
       <section class="diagnostic-group">
-        <h3><Icon name="bugReport" size="18px" />{$t('about.diagnostics.runtime')}</h3>
+        <h3><Icon name="bugReport" size="18px" />{$t('diagnostics.runtime')}</h3>
         <dl>
-          <div><dt>{$t('about.diagnostics.python')}</dt><dd>{diagnostics.runtime.python_implementation} {diagnostics.runtime.python_version}</dd></div>
+          <div><dt>{$t('diagnostics.python')}</dt><dd>{diagnostics.runtime.python_implementation} {diagnostics.runtime.python_version}</dd></div>
           <div><dt>OpenSSL</dt><dd>{diagnostics.runtime.openssl_version}</dd></div>
-          <div><dt>{$t('about.diagnostics.operatingSystem')}</dt><dd>{diagnostics.runtime.operating_system} {diagnostics.runtime.operating_system_release}</dd></div>
-          <div><dt>{$t('about.diagnostics.architecture')}</dt><dd>{diagnostics.runtime.architecture}</dd></div>
+          <div><dt>{$t('diagnostics.operatingSystem')}</dt><dd>{diagnostics.runtime.operating_system} {diagnostics.runtime.operating_system_release}</dd></div>
+          <div><dt>{$t('diagnostics.architecture')}</dt><dd>{diagnostics.runtime.architecture}</dd></div>
         </dl>
       </section>
 
       <section class="diagnostic-group">
-        <h3><Icon name="storage" size="18px" />{$t('about.diagnostics.services')}</h3>
+        <h3><Icon name="storage" size="18px" />{$t('diagnostics.services')}</h3>
         <dl>
-          <div><dt>{$t('about.diagnostics.database')}</dt><dd>{diagnostics.database.dialect} · {diagnostics.database.driver}</dd></div>
-          <div><dt>{$t('about.diagnostics.storage')}</dt><dd>{diagnostics.providers.storage}</dd></div>
-          <div><dt>{$t('about.diagnostics.caching')}</dt><dd>{diagnostics.providers.caching}</dd></div>
-          <div><dt>{$t('about.diagnostics.eventBus')}</dt><dd>{diagnostics.providers.event_bus}</dd></div>
-          <div><dt>{$t('about.diagnostics.rateLimit')}</dt><dd>{diagnostics.providers.rate_limit}</dd></div>
+          <div><dt>{$t('diagnostics.database')}</dt><dd>{diagnostics.database.dialect} · {diagnostics.database.driver}</dd></div>
+          <div><dt>{$t('diagnostics.storage')}</dt><dd>{diagnostics.providers.storage}</dd></div>
+          <div><dt>{$t('diagnostics.caching')}</dt><dd>{diagnostics.providers.caching}</dd></div>
+          <div><dt>{$t('diagnostics.eventBus')}</dt><dd>{diagnostics.providers.event_bus}</dd></div>
+          <div><dt>{$t('diagnostics.rateLimit')}</dt><dd>{diagnostics.providers.rate_limit}</dd></div>
         </dl>
       </section>
 
       <section class="diagnostic-group">
-        <h3><Icon name="extensions" size="18px" />{$t('about.diagnostics.components')}</h3>
+        <h3><Icon name="extensions" size="18px" />{$t('diagnostics.components')}</h3>
         <dl>
           {#each componentVersions as [name, version] (name)}
             <div><dt>{name}</dt><dd>{version}</dd></div>
@@ -113,9 +109,9 @@
       </section>
 
       <section class="diagnostic-group diagnostic-group--wide">
-        <h3><Icon name="extensions" size="18px" />{$t('about.diagnostics.extensions')}</h3>
+        <h3><Icon name="extensions" size="18px" />{$t('diagnostics.extensions')}</h3>
         {#if diagnostics.extensions.length === 0}
-          <p class="empty-copy">{$t('about.diagnostics.noExtensions')}</p>
+          <p class="empty-copy">{$t('diagnostics.noExtensions')}</p>
         {:else}
           <ul>
             {#each diagnostics.extensions as extension (extension.identifier)}
@@ -127,8 +123,8 @@
           </ul>
         {/if}
         <div class="extension-flags">
-          <strong>{$t('about.diagnostics.extensionFlags')}</strong>
-          <code>{diagnostics.extension_flags.length > 0 ? diagnostics.extension_flags.join(', ') : $t('about.diagnostics.noExtensionFlags')}</code>
+          <strong>{$t('diagnostics.extensionFlags')}</strong>
+          <code class:human-readable={diagnostics.extension_flags.length === 0}>{diagnostics.extension_flags.length > 0 ? diagnostics.extension_flags.join(', ') : $t('diagnostics.noExtensionFlags')}</code>
         </div>
       </section>
     </div>
@@ -143,36 +139,19 @@
     padding-top: 1.25rem;
   }
 
-  .section-header {
+  .section-actions {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
+    justify-content: flex-end;
   }
 
-  h2,
   h3,
   p {
     margin: 0;
   }
 
-  h2,
   h3 {
     color: var(--color-md3-on-surface);
     font-family: var(--font-md3-sans);
-  }
-
-  h2 {
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  .section-header p {
-    max-width: 60ch;
-    margin-top: 0.3rem;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 0.875rem;
-    line-height: 1.5;
   }
 
   button {
@@ -284,6 +263,10 @@
     line-height: 1.45;
   }
 
+  .human-readable {
+    font-family: var(--font-md3-sans);
+  }
+
   ul {
     display: grid;
     margin: 0.7rem 0 0;
@@ -357,11 +340,6 @@
   }
 
   @media (max-width: 640px) {
-    .section-header {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
     button {
       width: fit-content;
       min-height: 2.75rem;

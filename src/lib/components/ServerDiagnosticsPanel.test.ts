@@ -84,4 +84,20 @@ describe('ServerDiagnosticsPanel', () => {
     expect(await screen.findByText('CFMS Test Server')).toBeTruthy();
     expect(mocks.getServerDiagnostics).toHaveBeenCalledTimes(2);
   });
+
+  it('uses the interface sans font role for localized states and free-form reasons', async () => {
+    locale.set('zh-CN');
+    mocks.getServerDiagnostics.mockResolvedValue({
+      ...diagnostics,
+      lockdown: { enabled: true, reason: '计划维护' },
+    });
+
+    const { container } = render(ServerDiagnosticsPanel);
+
+    expect(await screen.findByText('计划维护')).toBeTruthy();
+    const humanReadableValues = [...container.querySelectorAll('dd.human-readable')];
+    expect(humanReadableValues).toHaveLength(3);
+    expect(humanReadableValues.every((element) => element.tagName === 'DD')).toBe(true);
+    expect(humanReadableValues.map((element) => element.textContent)).toContain('计划维护');
+  });
 });
