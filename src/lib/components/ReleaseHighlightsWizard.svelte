@@ -3,7 +3,6 @@
   import { _ as t } from 'svelte-i18n';
   import { isReducedMotionEnabled } from '$lib/appearance';
   import type { ReleaseTourPresentation } from '$lib/release-highlights/types';
-  import Icon from '$lib/components/Icon.svelte';
   import LottieScene from '$lib/components/LottieScene.svelte';
 
   interface Props {
@@ -177,12 +176,12 @@
 
       <div class="navigation-actions">
         <button type="button" class="back-action" onclick={previous} disabled={isFirst}>
-          <Icon name="arrowBack" size="18px" />
+          <span class="navigation-glyph" aria-hidden="true">←</span>
           {$t('common.back')}
         </button>
         <button type="button" class="next-action" onclick={next}>
           {isLast ? $t('releaseHighlights.startUsing') : $t('common.next')}
-          <Icon name={isLast ? 'done' : 'navigateNext'} size="19px" />
+          <span class="navigation-glyph" aria-hidden="true">{isLast ? '✓' : '→'}</span>
         </button>
       </div>
     </footer>
@@ -398,6 +397,14 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .navigation-glyph {
+    width: 1.15rem;
+    display: inline-grid;
+    flex: 0 0 1.15rem;
+    place-items: center;
+    font: 700 1.15rem/1 var(--font-md3-sans);
   }
 
   @keyframes visual-arrive {

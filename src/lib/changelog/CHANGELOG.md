@@ -10,6 +10,7 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 **Title:** Protocol Version 23
 
 ### Added
+- Add a permission-aware release highlights guide with local Lottie animations and replay from the About page
 - Add diagnostics page with server diagnostics functionality and localization support
 - Update protocol version to 23 and enhance user management features with reason handling
 - Implement resizable details pane with keyboard support and add tests
