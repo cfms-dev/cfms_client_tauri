@@ -23,6 +23,7 @@
   import { initI18n } from "$lib/i18n";
   import { initNavigationHistory, navigateUp, parentRouteFor } from "$lib/navigation";
   import { appUpdateState } from "$lib/app-update-state.svelte";
+  import { releaseHighlightsState } from "$lib/release-highlights/state.svelte";
   import { appearanceStore } from "$lib/appearance.svelte";
   import { screenProtectionStore } from "$lib/screen-protection.svelte";
   import {
@@ -50,6 +51,7 @@
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
   import NewUpdatePrompt from "$lib/components/NewUpdatePrompt.svelte";
+  import ReleaseHighlightsWizard from "$lib/components/ReleaseHighlightsWizard.svelte";
   import SnackBarHost from "$lib/components/SnackBarHost.svelte";
   import KeyboardShortcutHelp from "$lib/components/KeyboardShortcutHelp.svelte";
   import DeveloperRequestConsole from "$lib/components/DeveloperRequestConsole.svelte";
@@ -126,6 +128,23 @@
 
   $effect(() => {
     if (!developerConsoleAvailable) developerConsoleOpen = false;
+  });
+
+  $effect(() => {
+    const updateDecisionReady = appUpdateState.checked || appUpdateState.error !== null;
+    if (
+      !releaseHighlightsState.initialized
+      || !releaseHighlightsState.autoEligible
+      || releaseHighlightsState.presentation
+      || !updateDecisionReady
+      || appUpdateState.update
+      || !page.url.pathname.startsWith('/home/')
+      || !authStore.isLoggedIn
+      || authStore.postLoginPending
+      || appLockStore.locked
+      || serverStateStore.lockdown
+    ) return;
+    releaseHighlightsState.openAutomatically(authStore.permissions);
   });
 
   // ---------------------------------------------------------------------------
@@ -277,6 +296,7 @@
 
     // Kick off one non-blocking update check for this client session.
     void appUpdateState.check();
+    void releaseHighlightsState.initialize();
 
     // Fetch initial service status.
     try {
@@ -571,6 +591,12 @@
   <DialogHost />
   <SnackBarHost />
   <NewUpdatePrompt />
+  {#if releaseHighlightsState.presentation}
+    <ReleaseHighlightsWizard
+      presentation={releaseHighlightsState.presentation}
+      onDismiss={() => releaseHighlightsState.dismiss()}
+    />
+  {/if}
   <DeveloperRequestConsole
     open={developerConsoleOpen}
     onClose={() => (developerConsoleOpen = false)}

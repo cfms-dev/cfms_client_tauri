@@ -736,6 +736,34 @@ export const zh_CN = {
     subtitle: '{version} 已发布于 {date}',
     releaseNotes: '发布说明',
   },
+  releaseHighlights: {
+    skip: '跳过介绍',
+    startUsing: '开始使用',
+    replay: '查看本版新功能',
+    replayDescription: '重温此版本中最值得关注的功能和交互变化。',
+    progress: '第 {current} 项，共 {total} 项',
+    chooseFeature: '选择要查看的功能',
+    goToFeature: '查看第 {number} 项功能',
+    v043: {
+      label: 'CFMS 0.43 新功能',
+      documentDownload: {
+        title: '通过文档 ID 精准获取',
+        body: '在传输任务中输入文档 ID，即可直接验证信息并开始下载，不必先在目录中逐层定位。',
+      },
+      flexibleWorkspace: {
+        title: '工作区随内容伸缩',
+        body: '详情面板支持拖动调整宽度，重要窗口也可以移动、缩放或最大化，让复杂信息拥有合适的阅读空间。',
+      },
+      diagnostics: {
+        title: '服务诊断集中掌握',
+        body: '具备诊断权限的账户可以在一个页面查看服务器、运行环境、组件和扩展状态，更快定位异常。',
+      },
+      administration: {
+        title: '账户管理更有上下文',
+        body: '用户状态、停用理由和密码重置流程现在表达得更清楚，管理操作的影响更容易确认和追溯。',
+      },
+    },
+  },
   trash: {
     title: '回收站',
     empty: '回收站为空',

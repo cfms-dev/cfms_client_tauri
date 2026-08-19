@@ -742,6 +742,34 @@ export const en = {
     subtitle: '{version} was released on {date}',
     releaseNotes: 'Release notes',
   },
+  releaseHighlights: {
+    skip: 'Skip introduction',
+    startUsing: 'Start using CFMS',
+    replay: "See what's new",
+    replayDescription: 'Revisit the most important features and interaction changes in this version.',
+    progress: 'Feature {current} of {total}',
+    chooseFeature: 'Choose a feature to view',
+    goToFeature: 'View feature {number}',
+    v043: {
+      label: "What's new in CFMS 0.43",
+      documentDownload: {
+        title: 'Retrieve a document by its ID',
+        body: 'Enter a document ID from Transfers to verify its details and start downloading without navigating through its directory first.',
+      },
+      flexibleWorkspace: {
+        title: 'A workspace that fits the content',
+        body: 'Resize the details pane, then move, resize, or maximize important windows so complex information has the room it needs.',
+      },
+      diagnostics: {
+        title: 'Server diagnostics in one place',
+        body: 'Accounts with diagnostics access can review server, runtime, component, and extension status together to investigate problems faster.',
+      },
+      administration: {
+        title: 'Account actions with clearer context',
+        body: 'User status, disable reasons, and password reset flows now make the impact of administrative actions easier to confirm and trace.',
+      },
+    },
+  },
   trash: {
     title: 'Recycle Bin',
     empty: 'Recycle bin is empty',
