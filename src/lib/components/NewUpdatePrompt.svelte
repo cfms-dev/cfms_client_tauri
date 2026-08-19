@@ -11,6 +11,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
+  import { compareAppVersions } from '$lib/app-version';
 
   const promptedVersionKey = 'cfms_update_prompted_version';
 
@@ -77,36 +78,7 @@
 
   function isVersionNewerThanPrompted(candidate: string, prompted: string | null): boolean {
     if (!prompted) return true;
-    const candidateVersion = parseSemver(candidate);
-    const promptedParsed = parseSemver(prompted);
-    if (!candidateVersion || !promptedParsed) return candidate !== prompted;
-
-    for (let i = 0; i < 3; i += 1) {
-      if (candidateVersion[i] > promptedParsed[i]) return true;
-      if (candidateVersion[i] < promptedParsed[i]) return false;
-    }
-
-    return candidateVersion[3] > promptedParsed[3];
-  }
-
-  function parseSemver(value: string): [number, number, number, number] | null {
-    const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+.]([0-9A-Za-z.-]+))?/u);
-    if (!match) return null;
-    return [
-      Number(match[1]),
-      Number(match[2]),
-      Number(match[3]),
-      prereleaseRank(match[4] ?? null),
-    ];
-  }
-
-  function prereleaseRank(value: string | null): number {
-    if (!value) return 3;
-    const lower = value.toLowerCase();
-    if (lower.includes('alpha')) return 0;
-    if (lower.includes('beta')) return 1;
-    if (lower.includes('rc')) return 2;
-    return 0;
+    return compareAppVersions(candidate, prompted) > 0;
   }
 
   function createUpdateNotificationCopy(): UpdateNotificationCopy {

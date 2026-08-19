@@ -1,0 +1,19 @@
+import { describe, expect, it } from 'vitest';
+import { filterReleaseHighlights, findReleaseTour } from './catalog';
+
+describe('release highlight catalog', () => {
+  it('matches an installed version with or without a tag prefix', () => {
+    expect(findReleaseTour('v0.43.0')?.version).toBe('0.43.0');
+    expect(findReleaseTour('0.44.0')).toBeNull();
+  });
+
+  it('keeps common slides and filters privileged slides', () => {
+    const tour = findReleaseTour('0.43.0')!;
+    expect(filterReleaseHighlights(tour.highlights, []).map((item) => item.id)).toEqual([
+      'document-id-download',
+      'flexible-workspace',
+    ]);
+    expect(filterReleaseHighlights(tour.highlights, ['diagnostics']).map((item) => item.id)).toContain('server-diagnostics');
+    expect(filterReleaseHighlights(tour.highlights, ['list_users']).map((item) => item.id)).toContain('account-administration');
+  });
+});
