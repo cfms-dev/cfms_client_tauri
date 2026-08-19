@@ -753,20 +753,20 @@ export const en = {
     v043: {
       label: "What's new in CFMS 0.43",
       documentDownload: {
-        title: 'Retrieve a document by its ID',
-        body: 'Enter a document ID from Transfers to verify its details and start downloading without navigating through its directory first.',
+        title: 'Download by document ID',
+        body: 'Enter a document ID in Transfers, review its details, and start the download without locating its folder first.',
       },
       flexibleWorkspace: {
-        title: 'A workspace that fits the content',
-        body: 'Resize the details pane, then move, resize, or maximize important windows so complex information has the room it needs.',
+        title: 'Adjust the workspace to fit',
+        body: 'Resize the details pane, or move, resize, and maximize windows when you need more room.',
       },
       diagnostics: {
-        title: 'Server diagnostics in one place',
-        body: 'Accounts with diagnostics access can review server, runtime, component, and extension status together to investigate problems faster.',
+        title: 'Review server diagnostics',
+        body: 'Accounts with diagnostics access can review server, runtime, component, and extension status in one place.',
       },
       administration: {
-        title: 'Account actions with clearer context',
-        body: 'User status, disable reasons, and password reset flows now make the impact of administrative actions easier to confirm and trace.',
+        title: 'Clearer account management',
+        body: 'Account status, disable reasons, and password-reset steps now provide clearer context before and after an action.',
       },
     },
   },

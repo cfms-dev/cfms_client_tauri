@@ -3,33 +3,32 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outputDirectory = path.join(root, 'static', 'release-highlights', 'v0.43');
-const FRAME_RATE = 60;
-const END_FRAME = 180;
+const outputDirectory = path.join(root, 'src', 'lib', 'release-highlights', 'animations', 'v0.43');
+const FRAME_RATE = 30;
+const END_FRAME = 120;
+const WIDTH = 960;
+const HEIGHT = 600;
 
-const palette = {
-  cyan: '#60cdff',
-  blue: '#4d8dff',
-  periwinkle: '#a9c7ff',
-  mint: '#6ccb8e',
-  gold: '#ffca4b',
-  rose: '#ff99a4',
-  ink: '#253343',
-  inkRaised: '#34465a',
-  slate: '#8b9aac',
-  cloud: '#dce8f5',
+const palettes = {
+  dark: {
+    workspace: '#0f1115', surface: '#17191d', raised: '#20232a', hover: '#292d35', selected: '#343840',
+    border: '#4c515a', text: '#f5f5f5', muted: '#b4b8c1', accent: '#60cdff', accentSoft: '#214453',
+    success: '#6ccb8e', warning: '#f5d47a', danger: '#ff99a4',
+  },
+  light: {
+    workspace: '#f3f3f3', surface: '#fafafa', raised: '#ffffff', hover: '#ececec', selected: '#e3e3e3',
+    border: '#c8c8c8', text: '#1a1a1a', muted: '#6a6a6a', accent: '#0067c0', accentSoft: '#d8eaff',
+    success: '#0f7b3e', warning: '#8a5d00', danger: '#c42b1c',
+  },
 };
 
-const easeIn = { x: [0.2], y: [1] };
-const easeOut = { x: [0.4], y: [0] };
+const easeIn = { x: [0.16], y: [1] };
+const easeOut = { x: [0.3], y: [0] };
+const constant = (value) => ({ a: 0, k: value });
 
 function color(value) {
   const hex = value.replace('#', '');
   return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
-}
-
-function constant(value) {
-  return { a: 0, k: value };
 }
 
 function animated(points) {
@@ -44,13 +43,7 @@ function animated(points) {
   };
 }
 
-function transform({
-  position = [0, 0, 0],
-  scale = [100, 100, 100],
-  opacity = 100,
-  rotation = 0,
-  anchor = [0, 0, 0],
-} = {}) {
+function transform({ position = [0, 0, 0], scale = [100, 100, 100], opacity = 100, rotation = 0, anchor = [0, 0, 0] } = {}) {
   return {
     o: typeof opacity === 'object' ? opacity : constant(opacity),
     r: typeof rotation === 'object' ? rotation : constant(rotation),
@@ -62,56 +55,24 @@ function transform({
 
 function group(name, items, position = [0, 0]) {
   return {
-    ty: 'gr',
-    nm: name,
-    it: [
-      ...items,
-      {
-        ty: 'tr',
-        p: constant(position),
-        a: constant([0, 0]),
-        s: constant([100, 100]),
-        r: constant(0),
-        o: constant(100),
-        sk: constant(0),
-        sa: constant(0),
-      },
-    ],
+    ty: 'gr', nm: name,
+    it: [...items, { ty: 'tr', p: constant(position), a: constant([0, 0]), s: constant([100, 100]), r: constant(0), o: constant(100), sk: constant(0), sa: constant(0) }],
   };
 }
 
-function fill(value, opacity = 100) {
-  return { ty: 'fl', c: constant(color(value)), o: constant(opacity), r: 1 };
-}
-
-function stroke(value, width = 4, opacity = 100) {
-  return {
-    ty: 'st',
-    c: constant(color(value)),
-    o: constant(opacity),
-    w: constant(width),
-    lc: 2,
-    lj: 2,
-    ml: 4,
-  };
-}
+const fill = (value, opacity = 100) => ({ ty: 'fl', c: constant(color(value)), o: constant(opacity), r: 1 });
+const stroke = (value, width = 4, opacity = 100) => ({ ty: 'st', c: constant(color(value)), o: constant(opacity), w: constant(width), lc: 2, lj: 2, ml: 4 });
 
 function rectangle(name, size, position, radius, fillColor, strokeColor, strokeWidth = 0, opacity = 100) {
   const styles = [fill(fillColor, opacity)];
   if (strokeColor && strokeWidth) styles.push(stroke(strokeColor, strokeWidth));
-  return group(name, [
-    { ty: 'rc', d: 1, s: constant(size), p: constant([0, 0]), r: constant(radius) },
-    ...styles,
-  ], position);
+  return group(name, [{ ty: 'rc', d: 1, s: constant(size), p: constant([0, 0]), r: constant(radius) }, ...styles], position);
 }
 
 function ellipse(name, size, position, fillColor, strokeColor, strokeWidth = 0, opacity = 100) {
   const styles = fillColor ? [fill(fillColor, opacity)] : [];
   if (strokeColor && strokeWidth) styles.push(stroke(strokeColor, strokeWidth, opacity));
-  return group(name, [
-    { ty: 'el', d: 1, s: constant(size), p: constant([0, 0]) },
-    ...styles,
-  ], position);
+  return group(name, [{ ty: 'el', d: 1, s: constant(size), p: constant([0, 0]) }, ...styles], position);
 }
 
 function vectorPath(name, vertices, closed, position, strokeColor, strokeWidth, fillColor = null, opacity = 100) {
@@ -119,264 +80,202 @@ function vectorPath(name, vertices, closed, position, strokeColor, strokeWidth, 
   const styles = [];
   if (fillColor) styles.push(fill(fillColor, opacity));
   if (strokeColor) styles.push(stroke(strokeColor, strokeWidth, opacity));
-  return group(name, [
-    {
-      ty: 'sh',
-      d: 1,
-      ks: constant({ i: zeroTangents, o: zeroTangents, v: vertices, c: closed }),
-    },
-    ...styles,
-  ], position);
+  return group(name, [{ ty: 'sh', d: 1, ks: constant({ i: zeroTangents, o: zeroTangents, v: vertices, c: closed }) }, ...styles], position);
 }
 
 function shapeLayer(name, shapes, layerTransform = transform()) {
-  return {
-    ddd: 0,
-    ind: 0,
-    ty: 4,
-    nm: name,
-    sr: 1,
-    ks: layerTransform,
-    ao: 0,
-    shapes,
-    ip: 0,
-    op: END_FRAME,
-    st: 0,
-    bm: 0,
-  };
+  return { ddd: 0, ind: 0, ty: 4, nm: name, sr: 1, ks: layerTransform, ao: 0, shapes, ip: 0, op: END_FRAME, st: 0, bm: 0 };
 }
 
 function composition(name, layers) {
-  return {
-    v: '5.13.0',
-    fr: FRAME_RATE,
-    ip: 0,
-    op: END_FRAME,
-    w: 512,
-    h: 512,
-    nm: name,
-    ddd: 0,
-    assets: [],
-    markers: [],
-    layers: layers.map((layer, index) => ({ ...layer, ind: index + 1 })),
-  };
+  return { v: '5.13.0', fr: FRAME_RATE, ip: 0, op: END_FRAME, w: WIDTH, h: HEIGHT, nm: name, ddd: 0, assets: [], markers: [], layers: layers.map((layer, index) => ({ ...layer, ind: index + 1 })) };
 }
 
-function documentDownload() {
-  const documentPosition = animated([
-    [0, [256, 176, 0]],
-    [48, [256, 176, 0]],
-    [105, [256, 278, 0]],
-    [132, [256, 278, 0]],
-    [180, [256, 176, 0]],
-  ]);
-  const documentScale = animated([
-    [0, [100, 100, 100]],
-    [48, [100, 100, 100]],
-    [105, [92, 92, 100]],
-    [132, [92, 92, 100]],
-    [180, [100, 100, 100]],
-  ]);
-  const arrowPosition = animated([
-    [0, [256, 222, 0]],
-    [55, [256, 222, 0]],
-    [112, [256, 312, 0]],
-    [180, [256, 222, 0]],
-  ]);
-  const arrowOpacity = animated([
-    [0, [0]],
-    [28, [100]],
-    [122, [100]],
-    [150, [0]],
-    [180, [0]],
-  ]);
+function appFrame(palette, selectedRow = 1) {
+  const navRows = [0, 1, 2, 3].map((row) => rectangle(
+    `Navigation row ${row + 1}`, [116, 12], [158, 222 + row * 42], 6,
+    row === selectedRow ? palette.accent : palette.muted, null, 0, row === selectedRow ? 100 : 48,
+  ));
+  return [
+    rectangle('Application window', [836, 500], [480, 300], 22, palette.surface, palette.border, 3),
+    rectangle('Title bar', [800, 52], [480, 94], 12, palette.raised),
+    ellipse('Window control one', [13, 13], [116, 94], palette.danger),
+    ellipse('Window control two', [13, 13], [141, 94], palette.warning),
+    ellipse('Window control three', [13, 13], [166, 94], palette.success),
+    rectangle('Application title', [132, 10], [286, 94], 5, palette.text, null, 0, 82),
+    rectangle('Navigation surface', [174, 400], [161, 326], 14, palette.raised),
+    ...navRows,
+  ];
+}
 
-  return composition('CFMS — Document ID download', [
-    shapeLayer('Download arrow', [
-      vectorPath('Arrow shaft', [[0, -24], [0, 22]], false, [0, 0], palette.cyan, 8),
-      vectorPath('Arrow head', [[-18, 7], [0, 25], [18, 7]], false, [0, 0], palette.cyan, 8),
-    ], transform({ position: arrowPosition, opacity: arrowOpacity })),
-    shapeLayer('Document', [
-      rectangle('Document body', [176, 216], [0, 0], 18, palette.ink, palette.periwinkle, 5),
-      rectangle('Document line 1', [92, 9], [-17, -51], 5, palette.cloud),
-      rectangle('Document line 2', [116, 9], [-5, -25], 5, palette.slate),
-      rectangle('Document line 3', [78, 9], [-24, 1], 5, palette.slate),
-      ellipse('ID seal', [54, 54], [45, 62], palette.blue),
-      rectangle('ID notch', [22, 8], [45, 62], 4, palette.cloud),
-    ], transform({ position: documentPosition, scale: documentScale })),
-    shapeLayer('Download tray', [
-      vectorPath('Tray outline', [[-98, -10], [-80, 45], [80, 45], [98, -10]], false, [256, 350], palette.mint, 9),
-      rectangle('Tray base', [170, 18], [256, 398], 9, palette.mint),
-      ellipse('Tray signal', [20, 20], [256, 382], palette.gold),
+function documentDownload(palette) {
+  const dialogOpacity = animated([[0, [0]], [15, [0]], [30, [100]], [120, [100]]]);
+  const dialogScale = animated([[0, [94, 94, 100]], [15, [94, 94, 100]], [34, [100, 100, 100]], [120, [100, 100, 100]]]);
+  const typedOne = animated([[0, [0]], [34, [0]], [44, [100]], [120, [100]]]);
+  const typedTwo = animated([[0, [0]], [43, [0]], [53, [100]], [120, [100]]]);
+  const typedThree = animated([[0, [0]], [52, [0]], [62, [100]], [120, [100]]]);
+  const verificationOpacity = animated([[0, [0]], [66, [0]], [80, [100]], [120, [100]]]);
+  const taskPosition = animated([[0, [540, 480, 0]], [82, [540, 480, 0]], [100, [540, 440, 0]], [120, [540, 440, 0]]]);
+  const taskOpacity = animated([[0, [0]], [82, [0]], [98, [100]], [120, [100]]]);
+
+  return composition('CFMS — Download by document ID', [
+    shapeLayer('Completed transfer', [
+      rectangle('Transfer row', [430, 70], [0, 0], 12, palette.selected, palette.border, 2),
+      rectangle('File symbol', [38, 46], [-170, 0], 7, palette.accentSoft, palette.accent, 3),
+      rectangle('File name', [158, 10], [-48, -13], 5, palette.text, null, 0, 86),
+      rectangle('Transfer metadata', [116, 8], [-69, 13], 4, palette.muted, null, 0, 62),
+      ellipse('Completed status', [30, 30], [176, 0], palette.success),
+      vectorPath('Completed check', [[-7, 0], [-1, 7], [10, -8]], false, [176, 0], palette.surface, 4),
+    ], transform({ position: taskPosition, opacity: taskOpacity })),
+    shapeLayer('Verification', [
+      ellipse('Verification badge', [42, 42], [660, 346], palette.success),
+      vectorPath('Verification check', [[-9, 0], [-2, 8], [12, -10]], false, [660, 346], palette.surface, 5),
+      rectangle('Verified document', [150, 9], [559, 337], 5, palette.text, null, 0, 82),
+      rectangle('Verified metadata', [112, 8], [540, 359], 4, palette.muted, null, 0, 58),
+    ], transform({ opacity: verificationOpacity })),
+    shapeLayer('Typed segment three', [rectangle('ID segment three', [54, 12], [573, 275], 6, palette.accent)], transform({ opacity: typedThree })),
+    shapeLayer('Typed segment two', [rectangle('ID segment two', [42, 12], [516, 275], 6, palette.accent)], transform({ opacity: typedTwo })),
+    shapeLayer('Typed segment one', [rectangle('ID segment one', [64, 12], [449, 275], 6, palette.accent)], transform({ opacity: typedOne })),
+    shapeLayer('Download dialog', [
+      rectangle('Dialog surface', [430, 270], [540, 300], 18, palette.raised, palette.border, 3),
+      rectangle('Dialog title', [184, 13], [440, 210], 7, palette.text, null, 0, 90),
+      rectangle('Dialog close', [18, 18], [718, 210], 6, palette.muted),
+      rectangle('Field label', [88, 8], [390, 251], 4, palette.muted),
+      rectangle('ID field', [330, 52], [540, 276], 11, palette.surface, palette.border, 2),
+      rectangle('Download button', [118, 38], [660, 390], 8, palette.accent),
+      vectorPath('Download arrow', [[0, -9], [0, 7], [-7, 0], [0, 7], [7, 0]], false, [630, 390], palette.workspace, 4),
+    ], transform({ scale: dialogScale, opacity: dialogOpacity, anchor: [540, 300, 0] })),
+    shapeLayer('Download entry highlight', [
+      rectangle('Download entry', [126, 36], [761, 139], 8, palette.accentSoft, palette.accent, 2),
+      vectorPath('Entry arrow', [[0, -7], [0, 7], [-7, 0], [0, 7], [7, 0]], false, [720, 139], palette.accent, 4),
     ]),
-    shapeLayer('Ground shadow', [ellipse('Shadow', [246, 38], [256, 418], palette.ink, null, 0, 28)]),
+    shapeLayer('Application shell', [
+      ...appFrame(palette, 2),
+      rectangle('Content heading', [206, 14], [393, 154], 7, palette.text, null, 0, 86),
+      rectangle('Content row one', [492, 48], [534, 218], 10, palette.hover),
+      rectangle('Content row two', [492, 48], [534, 282], 10, palette.hover),
+      rectangle('Content row three', [492, 48], [534, 346], 10, palette.hover),
+    ]),
   ]);
 }
 
-function flexibleWorkspace() {
-  const dividerPosition = animated([
-    [0, [226, 256, 0]],
-    [70, [296, 256, 0]],
-    [110, [296, 256, 0]],
-    [180, [226, 256, 0]],
-  ]);
-  const modalScale = animated([
-    [0, [72, 72, 100]],
-    [48, [72, 72, 100]],
-    [96, [104, 104, 100]],
-    [126, [100, 100, 100]],
-    [180, [72, 72, 100]],
-  ]);
-  const modalPosition = animated([
-    [0, [330, 292, 0]],
-    [48, [330, 292, 0]],
-    [96, [310, 270, 0]],
-    [126, [310, 270, 0]],
-    [180, [330, 292, 0]],
-  ]);
+function flexibleWorkspace(palette) {
+  const dividerPosition = animated([[0, [690, 314, 0]], [14, [690, 314, 0]], [52, [602, 314, 0]], [120, [602, 314, 0]]]);
+  const pointerPosition = animated([[0, [690, 316, 0]], [14, [690, 316, 0]], [52, [602, 316, 0]], [67, [602, 316, 0]], [78, [770, 178, 0]], [120, [770, 178, 0]]]);
+  const detailScale = animated([[0, [78, 100, 100]], [14, [78, 100, 100]], [52, [126, 100, 100]], [120, [126, 100, 100]]]);
+  const modalOpacity = animated([[0, [0]], [62, [0]], [76, [100]], [120, [100]]]);
+  const modalScale = animated([[0, [72, 72, 100]], [62, [72, 72, 100]], [84, [100, 100, 100]], [96, [100, 100, 100]], [120, [132, 132, 100]]]);
+  const modalPosition = animated([[0, [680, 336, 0]], [62, [680, 336, 0]], [96, [680, 336, 0]], [120, [620, 310, 0]]]);
 
   return composition('CFMS — Flexible workspace', [
-    shapeLayer('Floating window', [
-      rectangle('Window body', [190, 142], [0, 0], 14, palette.inkRaised, palette.cyan, 5),
-      rectangle('Window title', [94, 8], [-32, -48], 4, palette.cloud),
-      rectangle('Window row', [132, 8], [-10, -13], 4, palette.slate),
-      rectangle('Window row short', [92, 8], [-30, 12], 4, palette.slate),
-      ellipse('Window control', [13, 13], [68, -49], palette.mint),
-    ], transform({ position: modalPosition, scale: modalScale })),
-    shapeLayer('Divider', [
-      rectangle('Divider line', [6, 244], [0, 0], 3, palette.cyan),
-      ellipse('Handle top', [12, 12], [0, -13], palette.cloud),
-      ellipse('Handle bottom', [12, 12], [0, 13], palette.cloud),
+    shapeLayer('Interaction pointer', [vectorPath('Pointer', [[0, 0], [0, 26], [8, 19], [15, 32], [22, 28], [15, 15], [25, 14]], true, [0, 0], palette.workspace, 2, palette.text)], transform({ position: pointerPosition })),
+    shapeLayer('Resizable window', [
+      rectangle('Window surface', [286, 196], [0, 0], 16, palette.raised, palette.accent, 3),
+      rectangle('Window title bar', [254, 36], [0, -64], 9, palette.surface),
+      rectangle('Window title', [104, 9], [-52, -64], 5, palette.text, null, 0, 78),
+      rectangle('Maximize control', [22, 22], [103, -64], 5, palette.accentSoft, palette.accent, 2),
+      rectangle('Window line one', [174, 10], [-22, -18], 5, palette.muted, null, 0, 62),
+      rectangle('Window line two', [202, 10], [-8, 15], 5, palette.muted, null, 0, 48),
+      rectangle('Window action', [84, 30], [76, 58], 7, palette.accent),
+    ], transform({ position: modalPosition, scale: modalScale, opacity: modalOpacity })),
+    shapeLayer('Resize handle', [
+      rectangle('Divider', [5, 354], [0, 0], 3, palette.accent),
+      ellipse('Handle', [18, 42], [0, 0], palette.accentSoft, palette.accent, 3),
     ], transform({ position: dividerPosition })),
-    shapeLayer('Workspace shell', [
-      rectangle('Window frame', [372, 278], [256, 256], 20, palette.ink, palette.periwinkle, 5),
-      rectangle('Toolbar', [338, 42], [256, 157], 10, palette.inkRaised),
-      ellipse('Control one', [13, 13], [126, 157], palette.rose),
-      ellipse('Control two', [13, 13], [150, 157], palette.gold),
-      ellipse('Control three', [13, 13], [174, 157], palette.mint),
-      rectangle('Left navigation', [84, 194], [165, 275], 11, palette.inkRaised),
-      rectangle('Nav item', [54, 9], [165, 229], 4, palette.periwinkle),
-      rectangle('Nav item 2', [48, 9], [162, 258], 4, palette.slate),
-      rectangle('Content line', [98, 9], [328, 210], 4, palette.cloud),
-      rectangle('Content line 2', [124, 9], [341, 238], 4, palette.slate),
-      rectangle('Content block', [118, 56], [338, 318], 10, palette.blue, null, 0, 62),
+    shapeLayer('Details pane', [
+      rectangle('Details surface', [216, 354], [0, 0], 14, palette.raised, palette.border, 2),
+      rectangle('Details heading', [116, 11], [-28, -137], 6, palette.text, null, 0, 82),
+      rectangle('Preview', [148, 96], [0, -61], 12, palette.selected),
+      rectangle('Detail line one', [142, 9], [-3, 18], 5, palette.muted, null, 0, 56),
+      rectangle('Detail line two', [118, 9], [-15, 47], 5, palette.muted, null, 0, 46),
+      rectangle('Detail line three', [152, 9], [2, 76], 5, palette.muted, null, 0, 52),
+    ], transform({ position: [720, 314, 0], scale: detailScale, anchor: [108, 0, 0] })),
+    shapeLayer('Workspace content', [
+      rectangle('File row one', [340, 44], [420, 214], 8, palette.hover), rectangle('File row two', [340, 44], [420, 274], 8, palette.hover),
+      rectangle('Selected file row', [340, 44], [420, 334], 8, palette.selected), rectangle('File row four', [340, 44], [420, 394], 8, palette.hover),
+      rectangle('Selected marker', [4, 30], [252, 334], 2, palette.accent),
     ]),
+    shapeLayer('Application shell', appFrame(palette, 1)),
   ]);
 }
 
-function serverDiagnostics() {
-  const scanPosition = animated([
-    [0, [256, 174, 0]],
-    [20, [256, 174, 0]],
-    [135, [256, 352, 0]],
-    [155, [256, 352, 0]],
-    [180, [256, 174, 0]],
-  ]);
-  const pulseScale = animated([
-    [0, [72, 72, 100]],
-    [45, [118, 118, 100]],
-    [90, [72, 72, 100]],
-    [135, [118, 118, 100]],
-    [180, [72, 72, 100]],
-  ]);
-  const pulseOpacity = animated([
-    [0, [78]],
-    [45, [18]],
-    [90, [78]],
-    [135, [18]],
-    [180, [78]],
-  ]);
+function serverDiagnostics(palette) {
+  const scanPosition = animated([[0, [570, 195, 0]], [12, [570, 195, 0]], [55, [570, 415, 0]], [66, [570, 415, 0]], [120, [570, 415, 0]]]);
+  const scanOpacity = animated([[0, [0]], [8, [100]], [55, [100]], [68, [0]], [120, [0]]]);
+  const loadingScale = animated([[0, [0, 100, 100]], [8, [0, 100, 100]], [62, [100, 100, 100]], [120, [100, 100, 100]]]);
+  const statusOne = animated([[0, [0]], [42, [0]], [57, [100]], [120, [100]]]);
+  const statusTwo = animated([[0, [0]], [53, [0]], [68, [100]], [120, [100]]]);
+  const statusThree = animated([[0, [0]], [64, [0]], [79, [100]], [120, [100]]]);
+  const statusFour = animated([[0, [0]], [75, [0]], [90, [100]], [120, [100]]]);
+  const statusCard = (name, position, opacity, tone) => shapeLayer(name, [
+    rectangle(`${name} surface`, [220, 104], [0, 0], 13, palette.raised, palette.border, 2),
+    ellipse(`${name} status`, [24, 24], [-78, -27], tone),
+    rectangle(`${name} heading`, [84, 9], [9, -27], 5, palette.text, null, 0, 78),
+    rectangle(`${name} metric one`, [146, 8], [-11, 8], 4, palette.muted, null, 0, 52),
+    rectangle(`${name} metric two`, [112, 8], [-28, 31], 4, palette.muted, null, 0, 42),
+  ], transform({ position, opacity }));
 
   return composition('CFMS — Server diagnostics', [
-    shapeLayer('Signal pulse', [ellipse('Pulse ring', [128, 128], [0, 0], null, palette.cyan, 7)], transform({
-      position: [362, 192, 0],
-      scale: pulseScale,
-      opacity: pulseOpacity,
-    })),
-    shapeLayer('Scan line', [
-      rectangle('Scanner', [304, 7], [0, 0], 4, palette.cyan),
-      ellipse('Scanner head', [18, 18], [150, 0], palette.cloud),
-    ], transform({ position: scanPosition })),
-    shapeLayer('Diagnostics panel', [
-      rectangle('Panel', [356, 278], [256, 264], 20, palette.ink, palette.periwinkle, 5),
-      rectangle('Rack 1', [226, 52], [222, 210], 10, palette.inkRaised),
-      rectangle('Rack 2', [226, 52], [222, 275], 10, palette.inkRaised),
-      rectangle('Rack 3', [226, 52], [222, 340], 10, palette.inkRaised),
-      ellipse('Rack light 1', [18, 18], [295, 210], palette.mint),
-      ellipse('Rack light 2', [18, 18], [295, 275], palette.gold),
-      ellipse('Rack light 3', [18, 18], [295, 340], palette.mint),
-      rectangle('Rack slot 1', [88, 8], [190, 210], 4, palette.slate),
-      rectangle('Rack slot 2', [88, 8], [190, 275], 4, palette.slate),
-      rectangle('Rack slot 3', [88, 8], [190, 340], 4, palette.slate),
-      ellipse('Status core', [60, 60], [362, 192], palette.blue),
-      vectorPath('Status check', [[-12, 0], [-3, 10], [16, -12]], false, [362, 192], palette.cloud, 7),
-      vectorPath('Metric line', [[-45, 17], [-18, -4], [6, 8], [30, -19], [54, -8]], false, [362, 315], palette.gold, 6),
-      ellipse('Metric point 1', [12, 12], [317, 332], palette.gold),
-      ellipse('Metric point 2', [12, 12], [392, 296], palette.gold),
-    ]),
+    statusCard('Extensions status', [694, 386, 0], statusFour, palette.success),
+    statusCard('Components status', [448, 386, 0], statusThree, palette.success),
+    statusCard('Runtime status', [694, 258, 0], statusTwo, palette.warning),
+    statusCard('Server status', [448, 258, 0], statusOne, palette.success),
+    shapeLayer('Diagnostics scan', [rectangle('Scan line', [452, 5], [0, 0], 3, palette.accent), ellipse('Scan head', [18, 18], [218, 0], palette.accent)], transform({ position: scanPosition, opacity: scanOpacity })),
+    shapeLayer('Loading progress', [rectangle('Progress fill', [448, 5], [0, 0], 3, palette.accent)], transform({ position: [570, 174, 0], scale: loadingScale, anchor: [-224, 0, 0] })),
+    shapeLayer('Diagnostics content', [rectangle('Page heading', [194, 14], [410, 142], 7, palette.text, null, 0, 88), rectangle('Refresh action', [92, 34], [758, 142], 8, palette.accentSoft, palette.accent, 2)]),
+    shapeLayer('Application shell', appFrame(palette, 3)),
   ]);
 }
 
-function accountAdministration() {
-  const shieldScale = animated([
-    [0, [92, 92, 100]],
-    [55, [106, 106, 100]],
-    [90, [100, 100, 100]],
-    [145, [106, 106, 100]],
-    [180, [92, 92, 100]],
-  ]);
-  const keyPosition = animated([
-    [0, [405, 300, 0]],
-    [45, [405, 300, 0]],
-    [102, [352, 300, 0]],
-    [134, [352, 300, 0]],
-    [180, [405, 300, 0]],
-  ]);
-  const keyRotation = animated([
-    [0, [-16]],
-    [45, [-16]],
-    [102, [0]],
-    [134, [0]],
-    [180, [-16]],
-  ]);
+function accountAdministration(palette) {
+  const selectionPosition = animated([[0, [0, 0, 0]], [14, [0, 0, 0]], [34, [0, 50, 0]], [120, [0, 50, 0]]]);
+  const contextOpacity = animated([[0, [0]], [34, [0]], [52, [100]], [120, [100]]]);
+  const modalOpacity = animated([[0, [0]], [70, [0]], [85, [100]], [120, [100]]]);
+  const modalScale = animated([[0, [94, 94, 100]], [70, [94, 94, 100]], [88, [100, 100, 100]], [120, [100, 100, 100]]]);
+  const confirmOpacity = animated([[0, [0]], [96, [0]], [110, [100]], [120, [100]]]);
 
-  return composition('CFMS — Account administration', [
-    shapeLayer('Access key', [
-      ellipse('Key ring', [54, 54], [0, 0], null, palette.gold, 9),
-      rectangle('Key shaft', [82, 10], [-54, 0], 5, palette.gold),
-      rectangle('Key tooth one', [10, 28], [-82, 10], 4, palette.gold),
-      rectangle('Key tooth two', [10, 22], [-64, 8], 4, palette.gold),
-    ], transform({ position: keyPosition, rotation: keyRotation })),
-    shapeLayer('Security shield', [
-      vectorPath('Shield', [[0, -72], [65, -44], [56, 34], [0, 82], [-56, 34], [-65, -44]], true, [0, 0], palette.periwinkle, 5, palette.blue),
-      vectorPath('Shield check', [[-24, 2], [-7, 21], [29, -25]], false, [0, 0], palette.cloud, 10),
-    ], transform({ position: [340, 272, 0], scale: shieldScale })),
-    shapeLayer('Account card', [
-      rectangle('Card', [258, 286], [198, 256], 20, palette.ink, palette.periwinkle, 5),
-      ellipse('Avatar head', [76, 76], [198, 202], palette.cyan),
-      vectorPath('Avatar shoulders', [[-58, 45], [-42, 4], [0, -8], [42, 4], [58, 45]], true, [198, 280], null, 0, palette.inkRaised),
-      rectangle('Identity line', [112, 10], [198, 344], 5, palette.cloud),
-      rectangle('Context line', [154, 9], [198, 373], 5, palette.slate),
-      ellipse('Audit marker', [18, 18], [104, 373], palette.mint),
+  return composition('CFMS — Clearer account management', [
+    shapeLayer('Confirmation state', [ellipse('Confirmation badge', [46, 46], [675, 370], palette.success), vectorPath('Confirmation check', [[-10, 0], [-2, 9], [13, -11]], false, [675, 370], palette.surface, 5)], transform({ opacity: confirmOpacity })),
+    shapeLayer('Password reset dialog', [
+      rectangle('Reset dialog surface', [382, 228], [628, 314], 17, palette.raised, palette.border, 3),
+      ellipse('Reset key ring', [44, 44], [500, 271], null, palette.warning, 7), rectangle('Reset key shaft', [50, 8], [464, 271], 4, palette.warning),
+      rectangle('Reset heading', [156, 12], [632, 248], 6, palette.text, null, 0, 86), rectangle('Reset explanation one', [250, 9], [628, 299], 5, palette.muted, null, 0, 52),
+      rectangle('Reset explanation two', [206, 9], [606, 323], 5, palette.muted, null, 0, 42), rectangle('Confirm action', [112, 36], [728, 387], 8, palette.accent),
+      rectangle('Cancel action', [82, 36], [616, 387], 8, palette.hover),
+    ], transform({ scale: modalScale, opacity: modalOpacity, anchor: [628, 314, 0] })),
+    shapeLayer('Account context', [
+      rectangle('Account heading', [166, 13], [565, 190], 7, palette.text, null, 0, 88), rectangle('Status label', [74, 8], [470, 236], 4, palette.muted),
+      rectangle('Disabled status', [82, 28], [650, 236], 14, palette.danger, null, 0, 22), ellipse('Disabled marker', [12, 12], [626, 236], palette.danger),
+      rectangle('Reason panel', [334, 86], [565, 306], 12, palette.hover, palette.border, 2), rectangle('Reason heading', [104, 9], [445, 286], 5, palette.text, null, 0, 74),
+      rectangle('Reason line one', [252, 8], [565, 313], 4, palette.muted, null, 0, 52), rectangle('Reason line two', [194, 8], [536, 337], 4, palette.muted, null, 0, 42),
+      rectangle('Reset password action', [152, 36], [650, 396], 8, palette.accentSoft, palette.accent, 2),
+    ], transform({ opacity: contextOpacity })),
+    shapeLayer('Selected account', [
+      rectangle('Selected account row', [204, 54], [320, 235], 10, palette.selected), rectangle('Selected account marker', [4, 38], [220, 235], 2, palette.accent),
+      ellipse('Selected avatar', [32, 32], [252, 235], palette.accentSoft, palette.accent, 2), rectangle('Selected name', [82, 9], [321, 224], 5, palette.text, null, 0, 78),
+      rectangle('Selected metadata', [66, 7], [313, 246], 4, palette.muted, null, 0, 48),
+    ], transform({ position: selectionPosition })),
+    shapeLayer('Account list', [
+      rectangle('Account list surface', [232, 336], [320, 326], 14, palette.raised, palette.border, 2), rectangle('Account search', [190, 36], [320, 185], 9, palette.surface, palette.border, 2),
+      ...[0, 1, 2, 3].flatMap((row) => [
+        ellipse(`Avatar ${row + 1}`, [30, 30], [252, 235 + row * 50], palette.hover), rectangle(`Account ${row + 1}`, [88, 9], [323, 227 + row * 50], 5, palette.muted, null, 0, 54),
+        rectangle(`Account metadata ${row + 1}`, [60, 7], [309, 245 + row * 50], 4, palette.muted, null, 0, 34),
+      ]),
     ]),
-    shapeLayer('Context trail', [
-      rectangle('Trail 1', [56, 8], [407, 199], 4, palette.slate),
-      rectangle('Trail 2', [78, 8], [418, 223], 4, palette.cloud),
-      ellipse('Trail status', [16, 16], [374, 223], palette.mint),
-    ]),
+    shapeLayer('Application shell', appFrame(palette, 2)),
   ]);
 }
 
-const animations = new Map([
-  ['document-download.json', documentDownload()],
-  ['flexible-workspace.json', flexibleWorkspace()],
-  ['server-diagnostics.json', serverDiagnostics()],
-  ['account-administration.json', accountAdministration()],
+const scenes = new Map([
+  ['document-download', documentDownload], ['flexible-workspace', flexibleWorkspace],
+  ['server-diagnostics', serverDiagnostics], ['account-administration', accountAdministration],
 ]);
 
 await mkdir(outputDirectory, { recursive: true });
-for (const [filename, animation] of animations) {
-  await writeFile(path.join(outputDirectory, filename), `${JSON.stringify(animation)}\n`, 'utf8');
+for (const [sceneName, createScene] of scenes) {
+  for (const [theme, palette] of Object.entries(palettes)) {
+    await writeFile(path.join(outputDirectory, `${sceneName}.${theme}.json`), `${JSON.stringify(createScene(palette))}\n`, 'utf8');
+  }
 }
 
-console.log(`Generated ${animations.size} release-highlight animations in ${outputDirectory}`);
+console.log(`Generated ${scenes.size * Object.keys(palettes).length} release-highlight animations in ${outputDirectory}`);

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { isReducedMotionEnabled } from '$lib/appearance';
+  import { isReducedMotionEnabled, type ResolvedColorScheme } from '$lib/appearance';
   import type { ReleaseTourPresentation } from '$lib/release-highlights/types';
+  import Icon from '$lib/components/Icon.svelte';
   import LottieScene from '$lib/components/LottieScene.svelte';
 
   interface Props {
@@ -14,24 +15,30 @@
   let currentIndex = $state(0);
   let dialog = $state<HTMLElement | null>(null);
   let reducedMotion = $state(false);
+  let colorScheme = $state<ResolvedColorScheme>('dark');
   let pointerStart: { id: number; x: number; y: number } | null = null;
   let previouslyFocused: HTMLElement | null = null;
   let appearanceObserver: MutationObserver | null = null;
 
   const highlights = $derived(presentation.highlights);
   const currentHighlight = $derived(highlights[currentIndex] ?? highlights[0]);
+  const currentAnimationLoader = $derived(currentHighlight.animation[colorScheme]);
   const isFirst = $derived(currentIndex === 0);
   const isLast = $derived(currentIndex === highlights.length - 1);
+  const progressCount = $derived(`${String(currentIndex + 1).padStart(2, '0')} / ${String(highlights.length).padStart(2, '0')}`);
+
+  function syncAppearance() {
+    reducedMotion = isReducedMotionEnabled();
+    colorScheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  }
 
   onMount(async () => {
     previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    reducedMotion = isReducedMotionEnabled();
-    appearanceObserver = new MutationObserver(() => {
-      reducedMotion = isReducedMotionEnabled();
-    });
+    syncAppearance();
+    appearanceObserver = new MutationObserver(syncAppearance);
     appearanceObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-reduce-motion'],
+      attributeFilter: ['data-reduce-motion', 'data-theme'],
     });
     await tick();
     dialog?.focus({ preventScroll: true });
@@ -108,7 +115,7 @@
   }
 </script>
 
-<div class="release-highlights-overlay fixed inset-0 z-[85]" role="presentation">
+<div class="release-highlights-overlay workspace-palette fixed inset-0 z-[85]" role="presentation">
   <div
     bind:this={dialog}
     class="release-highlights-dialog"
@@ -120,7 +127,7 @@
   >
     <header class="tour-toolbar">
       <div class="release-identity">
-        <span class="signal-mark" aria-hidden="true"></span>
+        <span class="signal-rule" aria-hidden="true"></span>
         <span>{$t(presentation.tour.labelKey)}</span>
       </div>
       <button type="button" class="skip-action" onclick={onDismiss}>
@@ -137,10 +144,10 @@
       onpointercancel={() => (pointerStart = null)}
     >
       <div class="visual-stage">
-        {#key currentHighlight.id}
+        {#key `${currentHighlight.id}-${colorScheme}`}
           <div class="visual-stage__inner">
             <LottieScene
-              src={currentHighlight.animationSrc}
+              loadAnimationData={currentAnimationLoader}
               fallbackIcon={currentHighlight.fallbackIcon}
               {reducedMotion}
             />
@@ -150,11 +157,12 @@
 
       {#key currentHighlight.id}
         <article class="highlight-copy" aria-live="polite">
-          <p class="progress-label">
+          <p class="progress-label" aria-hidden="true">{progressCount}</p>
+          <span class="sr-only">
             {$t('releaseHighlights.progress', {
               values: { current: currentIndex + 1, total: highlights.length },
             })}
-          </p>
+          </span>
           <h2 id="release-highlight-title">{$t(currentHighlight.titleKey)}</h2>
           <p class="highlight-body">{$t(currentHighlight.bodyKey)}</p>
         </article>
@@ -162,7 +170,7 @@
     </div>
 
     <footer class="tour-footer">
-      <div class="progress-dots" aria-label={$t('releaseHighlights.chooseFeature')}>
+      <div class="progress-rail" aria-label={$t('releaseHighlights.chooseFeature')}>
         {#each highlights as highlight, index (highlight.id)}
           <button
             type="button"
@@ -176,12 +184,12 @@
 
       <div class="navigation-actions">
         <button type="button" class="back-action" onclick={previous} disabled={isFirst}>
-          <span class="navigation-glyph" aria-hidden="true">←</span>
-          {$t('common.back')}
+          <Icon name="arrowBack" size="18px" />
+          <span class="back-label">{$t('common.back')}</span>
         </button>
         <button type="button" class="next-action" onclick={next}>
-          {isLast ? $t('releaseHighlights.startUsing') : $t('common.next')}
-          <span class="navigation-glyph" aria-hidden="true">{isLast ? '✓' : '→'}</span>
+          <span>{isLast ? $t('releaseHighlights.startUsing') : $t('common.next')}</span>
+          <Icon name={isLast ? 'done' : 'navigateNext'} size="19px" />
         </button>
       </div>
     </footer>
@@ -195,34 +203,36 @@
     place-items: center;
     overflow: auto;
     padding:
-      calc(var(--safe-area-top, 0px) + 1.25rem)
-      max(1.25rem, var(--safe-area-right, 0px))
-      calc(var(--safe-area-bottom, 0px) + 1.25rem)
-      max(1.25rem, var(--safe-area-left, 0px));
-    background: color-mix(in srgb, var(--color-md3-surface) 91%, transparent);
-    backdrop-filter: blur(22px);
-    -webkit-backdrop-filter: blur(22px);
+      calc(var(--safe-area-top, 0px) + 1.5rem)
+      max(1.5rem, var(--safe-area-right, 0px))
+      calc(var(--safe-area-bottom, 0px) + 1.5rem)
+      max(1.5rem, var(--safe-area-left, 0px));
+    background: color-mix(in srgb, var(--explorer-background) 82%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .release-highlights-dialog {
-    width: min(68rem, 100%);
-    min-height: min(44rem, calc(100dvh - 2.5rem));
-    max-height: calc(100dvh - 2.5rem);
+    width: min(74rem, 100%);
+    height: min(46rem, calc(100dvh - 3rem));
+    min-height: min(36rem, calc(100dvh - 3rem));
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: 3.75rem minmax(0, 1fr) 4.25rem;
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
-    border-radius: 16px;
-    color: var(--color-md3-on-surface);
-    background: color-mix(in srgb, var(--color-md3-surface-container) 96%, transparent);
-    box-shadow: 0 28px 72px rgba(0, 0, 0, 0.28);
+    border-radius: var(--explorer-radius-large);
+    color: var(--explorer-text);
+    background: var(--explorer-surface);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38);
     outline: none;
   }
 
+  :global(html[data-theme='light']) .release-highlights-dialog {
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+  }
+
   .release-highlights-dialog:focus-visible {
-    box-shadow:
-      0 0 0 2px var(--color-md3-primary-emphasis),
-      0 28px 72px rgba(0, 0, 0, 0.28);
+    outline: 2px solid var(--explorer-accent);
+    outline-offset: -2px;
   }
 
   .tour-toolbar,
@@ -231,44 +241,50 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 1.25rem;
+    padding-inline: 1.25rem;
   }
 
   .tour-toolbar {
-    border-bottom: 1px solid color-mix(in srgb, var(--color-md3-outline) 56%, transparent);
+    border-bottom: 1px solid var(--explorer-border);
   }
 
   .tour-footer {
-    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 56%, transparent);
+    border-top: 1px solid var(--explorer-border);
   }
 
   .release-identity {
+    min-width: 0;
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    color: var(--color-md3-on-surface-variant);
-    font: 700 0.78rem/1.2 var(--font-md3-sans);
+    gap: 0.75rem;
+    color: var(--explorer-text-muted);
+    font: 650 0.8rem/1.25 var(--font-md3-sans);
   }
 
-  .signal-mark {
-    width: 0.7rem;
-    height: 0.7rem;
-    border-radius: 50%;
-    background: var(--color-md3-primary-emphasis);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-md3-primary-emphasis) 32%, transparent);
+  .release-identity > :last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .signal-rule {
+    width: 1px;
+    height: 1.15rem;
+    flex: 0 0 1px;
+    background: var(--explorer-accent);
   }
 
   .skip-action,
   .back-action,
   .next-action {
     display: inline-flex;
-    min-height: 2.5rem;
+    min-height: 2.25rem;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
-    border-radius: 7px;
-    padding: 0 0.9rem;
-    font: 700 0.82rem/1 var(--font-md3-sans);
+    border-radius: var(--explorer-radius-small);
+    padding: 0 0.8rem;
+    font: 650 0.8rem/1 var(--font-md3-sans);
     transition:
       transform var(--motion-duration-short4) var(--motion-easing-standard),
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
@@ -278,64 +294,71 @@
 
   .skip-action,
   .back-action {
-    color: var(--color-md3-on-surface-variant);
+    color: var(--explorer-text-muted);
     background: transparent;
   }
 
   .skip-action:hover,
   .back-action:hover:not(:disabled) {
-    color: var(--color-md3-on-surface);
-    background: color-mix(in srgb, var(--color-md3-on-surface) 8%, transparent);
+    color: var(--explorer-text);
+    background: var(--explorer-surface-hover);
+  }
+
+  .skip-action:active,
+  .back-action:active:not(:disabled),
+  .next-action:active {
+    transform: scale(0.97);
   }
 
   .next-action {
-    min-width: 8.5rem;
-    color: var(--color-md3-on-primary);
-    background: var(--color-md3-primary);
+    min-width: 8.25rem;
+    color: var(--explorer-background);
+    background: var(--explorer-accent);
   }
 
   .next-action:hover {
-    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--explorer-accent) 88%, var(--explorer-text));
   }
 
   .back-action:disabled {
-    opacity: 0.35;
+    opacity: 0.34;
   }
 
   .tour-body {
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(22rem, 1.08fr) minmax(20rem, 0.92fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
     align-items: center;
-    gap: clamp(2rem, 5vw, 4.5rem);
+    gap: clamp(2.25rem, 4vw, 4rem);
     overflow: auto;
-    padding: clamp(1.5rem, 4vw, 3.25rem);
+    padding: clamp(1.75rem, 3.2vw, 2.5rem);
     touch-action: pan-y;
   }
 
   .visual-stage {
     width: 100%;
     min-width: 0;
-    aspect-ratio: 1;
+    aspect-ratio: 16 / 10;
     display: grid;
     place-items: center;
     overflow: hidden;
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--color-md3-primary-container) 28%, var(--color-md3-surface));
+    border: 1px solid var(--explorer-border);
+    border-radius: var(--explorer-radius-large);
+    background: var(--explorer-background);
   }
 
   .visual-stage__inner {
-    width: min(92%, 31rem);
-    height: min(92%, 31rem);
-    animation: visual-arrive var(--motion-duration-long2) var(--motion-easing-emphasized-decelerate) both;
+    width: 100%;
+    height: 100%;
+    animation: scene-enter 220ms var(--motion-easing-emphasized-decelerate) both;
   }
 
   .highlight-copy {
-    max-width: 34rem;
+    max-width: 28rem;
     display: grid;
     align-content: center;
-    gap: 0.9rem;
-    animation: copy-arrive var(--motion-duration-medium4) var(--motion-easing-emphasized-decelerate) both;
+    gap: 0.85rem;
+    animation: copy-enter 200ms var(--motion-easing-emphasized-decelerate) both;
   }
 
   .progress-label,
@@ -345,52 +368,56 @@
   }
 
   .progress-label {
-    color: var(--color-md3-primary-emphasis);
-    font: 750 0.78rem/1.3 var(--font-md3-sans);
+    color: var(--explorer-accent);
+    font: 650 0.75rem/1.25 var(--font-md3-mono);
+    letter-spacing: 0.02em;
   }
 
   h2 {
-    max-width: 14ch;
-    color: var(--color-md3-on-surface);
-    font: 760 clamp(2rem, 4vw, 3.35rem)/1.08 var(--font-md3-sans);
+    max-width: 15ch;
+    color: var(--explorer-text);
+    font: 650 clamp(1.8rem, 2.8vw, 2.5rem)/1.14 var(--font-md3-sans);
     letter-spacing: -0.025em;
     text-wrap: balance;
   }
 
   .highlight-body {
-    max-width: 58ch;
-    color: var(--color-md3-on-surface-variant);
-    font: 450 clamp(0.95rem, 1.5vw, 1.08rem)/1.7 var(--font-md3-sans);
+    max-width: 62ch;
+    color: var(--explorer-text-muted);
+    font: 400 clamp(0.92rem, 1.2vw, 1rem)/1.65 var(--font-md3-sans);
   }
 
-  .progress-dots {
+  .progress-rail {
+    min-width: 10rem;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
 
-  .progress-dots button {
-    width: 2rem;
-    height: 2rem;
+  .progress-rail button {
+    width: 2.75rem;
+    height: 2.5rem;
     display: grid;
     place-items: center;
-    border-radius: 50%;
+    border-radius: var(--explorer-radius-small);
   }
 
-  .progress-dots span {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--color-md3-on-surface-variant) 42%, transparent);
+  .progress-rail span {
+    width: 100%;
+    height: 2px;
+    background: var(--explorer-border-strong);
     transition:
-      width var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate),
+      height var(--motion-duration-short4) var(--motion-easing-standard),
       background-color var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
-  .progress-dots button.active span {
-    width: 1.2rem;
-    border-radius: 999px;
-    background: var(--color-md3-primary-emphasis);
+  .progress-rail button:hover span {
+    background: var(--explorer-text-muted);
+  }
+
+  .progress-rail button.active span {
+    height: 3px;
+    background: var(--explorer-accent);
   }
 
   .navigation-actions {
@@ -399,61 +426,51 @@
     gap: 0.5rem;
   }
 
-  .navigation-glyph {
-    width: 1.15rem;
-    display: inline-grid;
-    flex: 0 0 1.15rem;
-    place-items: center;
-    font: 700 1.15rem/1 var(--font-md3-sans);
-  }
-
-  @keyframes visual-arrive {
-    from { opacity: 0.62; transform: scale(0.94); filter: blur(4px); }
-    to { opacity: 1; transform: scale(1); filter: blur(0); }
-  }
-
-  @keyframes copy-arrive {
-    from { opacity: 0; transform: translateX(1.25rem); }
+  @keyframes scene-enter {
+    from { opacity: 0.68; transform: translateX(0.75rem); }
     to { opacity: 1; transform: translateX(0); }
   }
 
-  @media (max-width: 820px) {
+  @keyframes copy-enter {
+    from { opacity: 0.68; transform: translateX(0.65rem); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @media (max-width: 900px) {
     .release-highlights-overlay {
       padding: 0;
     }
 
     .release-highlights-dialog {
       width: 100%;
+      height: 100dvh;
       min-height: 100dvh;
-      max-height: 100dvh;
-      border: 0;
       border-radius: 0;
       box-shadow: none;
     }
 
     .tour-body {
       grid-template-columns: 1fr;
-      grid-template-rows: minmax(15rem, 1fr) auto;
-      align-content: center;
-      gap: 1.25rem;
-      padding: 1.1rem max(1.25rem, var(--safe-area-right, 0px)) 1.5rem max(1.25rem, var(--safe-area-left, 0px));
+      grid-template-rows: minmax(15rem, 44dvh) auto;
+      align-content: start;
+      gap: 1.5rem;
+      padding: 1.25rem max(1.25rem, var(--safe-area-right, 0px)) 1.5rem max(1.25rem, var(--safe-area-left, 0px));
     }
 
     .visual-stage {
-      width: min(25rem, 100%);
-      max-height: 42dvh;
+      width: min(52rem, 100%);
+      max-height: 44dvh;
       justify-self: center;
     }
 
     .highlight-copy {
-      max-width: 36rem;
+      width: min(42rem, 100%);
+      max-width: none;
       justify-self: center;
-      text-align: center;
     }
 
     h2 {
-      max-width: none;
-      font-size: clamp(1.75rem, 8vw, 2.65rem);
+      max-width: 20ch;
     }
 
     .tour-toolbar,
@@ -463,28 +480,54 @@
     }
   }
 
-  @media (max-width: 520px) {
-    .tour-footer {
-      align-items: flex-end;
+  @media (max-width: 560px) {
+    .release-highlights-dialog {
+      grid-template-rows: 3.5rem minmax(0, 1fr) 4rem;
+    }
+
+    .tour-body {
+      grid-template-rows: minmax(12rem, 38dvh) auto;
+      gap: 1.15rem;
+      padding-top: 1rem;
+    }
+
+    .visual-stage {
+      max-height: 38dvh;
+    }
+
+    .progress-rail {
+      min-width: 0;
+    }
+
+    .progress-rail button {
+      width: clamp(1.6rem, 8vw, 2.25rem);
     }
 
     .back-action {
-      min-width: 2.5rem;
-      padding-inline: 0.65rem;
-      font-size: 0;
+      width: 2.5rem;
+      padding-inline: 0;
+    }
+
+    .back-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
     }
 
     .next-action {
-      min-width: 7.6rem;
-    }
-
-    .progress-dots button {
-      width: 1.5rem;
+      min-width: 7.5rem;
     }
   }
 
   :global(html[data-reduce-motion='true']) .visual-stage__inner,
   :global(html[data-reduce-motion='true']) .highlight-copy {
     animation: none;
+  }
+
+  :global(html[data-reduce-motion='true']) :where(.skip-action, .back-action, .next-action, .progress-rail span) {
+    transition: none;
   }
 </style>
