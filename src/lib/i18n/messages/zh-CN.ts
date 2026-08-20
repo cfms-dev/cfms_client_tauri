@@ -739,13 +739,12 @@ export const zh_CN = {
   releaseHighlights: {
     skip: '跳过介绍',
     startUsing: '开始使用',
-    replay: '查看本版新功能',
-    replayDescription: '重温此版本中最值得关注的功能和交互变化。',
+    featureTour: '新特性导览',
     progress: '第 {current} 项，共 {total} 项',
     chooseFeature: '选择要查看的功能',
     goToFeature: '查看第 {number} 项功能',
     v043: {
-      label: 'CFMS 0.43 新功能',
+      label: 'CFMS Client 0.43 有什么新功能',
       documentDownload: {
         title: '按文档 ID 下载',
         body: '在传输任务中输入文档 ID，核对文档信息后即可开始下载，无需先定位到所在目录。',

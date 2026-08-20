@@ -51,6 +51,12 @@ function presentation(permissions: readonly string[] = []): ReleaseTourPresentat
   };
 }
 
+function completeWizardExit() {
+  const event = new Event('animationend', { bubbles: true }) as AnimationEvent;
+  Object.defineProperty(event, 'animationName', { value: 'overlay-exit' });
+  return fireEvent(document.querySelector('.release-highlights-overlay')!, event);
+}
+
 beforeEach(() => {
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'false';
@@ -80,6 +86,8 @@ describe('ReleaseHighlightsWizard', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Adjust the workspace to fit' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Start using CFMS' }));
+    expect(onDismiss).not.toHaveBeenCalled();
+    await completeWizardExit();
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -111,6 +119,40 @@ describe('ReleaseHighlightsWizard', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Skip introduction' }));
 
     await fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(onDismiss).not.toHaveBeenCalled();
+    await completeWizardExit();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('commits an animated dismissal once and restores the previous focus after unmount', async () => {
+    const opener = document.createElement('button');
+    opener.textContent = 'Open feature tour';
+    document.body.append(opener);
+    opener.focus();
+    const onDismiss = vi.fn();
+    const result = render(ReleaseHighlightsWizard, { props: { presentation: presentation(), onDismiss } });
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBe(document.activeElement));
+    const skip = screen.getByRole('button', { name: 'Skip introduction' });
+    await fireEvent.click(skip);
+    await fireEvent.click(skip);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    await completeWizardExit();
+    await completeWizardExit();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+
+    result.unmount();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
+  it('dismisses immediately when reduced motion is enabled', async () => {
+    document.documentElement.dataset.reduceMotion = 'true';
+    const onDismiss = vi.fn();
+    render(ReleaseHighlightsWizard, { props: { presentation: presentation(), onDismiss } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Skip introduction' }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 

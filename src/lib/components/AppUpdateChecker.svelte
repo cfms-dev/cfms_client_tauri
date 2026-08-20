@@ -14,6 +14,12 @@
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
 
+  interface Props {
+    onOpenFeatureTour?: () => void | Promise<void>;
+  }
+
+  let { onOpenFeatureTour }: Props = $props();
+
   let appVersion = $state('');
   let loading = $state(true);
   let status = $state<string | null>(null);
@@ -236,6 +242,17 @@
       <Icon name="settings" size="18px" />
       {$t('settings.updates.configureChannel')}
     </button>
+
+    {#if onOpenFeatureTour}
+      <button
+        class="text-action feature-tour-action"
+        onclick={onOpenFeatureTour}
+        disabled={appUpdateState.checking || appUpdateState.installing}
+      >
+        <Icon name="wandStars" size="18px" />
+        {$t('releaseHighlights.featureTour')}
+      </button>
+    {/if}
   </div>
 </section>
 
@@ -397,6 +414,10 @@
 
   .text-action:hover:not(:disabled) {
     background: color-mix(in srgb, var(--color-md3-primary-emphasis) 10%, transparent);
+  }
+
+  .feature-tour-action {
+    margin-inline-start: auto;
   }
 
   @media (max-width: 640px) {

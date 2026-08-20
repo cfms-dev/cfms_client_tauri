@@ -745,13 +745,12 @@ export const en = {
   releaseHighlights: {
     skip: 'Skip introduction',
     startUsing: 'Start using CFMS',
-    replay: "See what's new",
-    replayDescription: 'Revisit the most important features and interaction changes in this version.',
+    featureTour: 'Feature tour',
     progress: 'Feature {current} of {total}',
     chooseFeature: 'Choose a feature to view',
     goToFeature: 'View feature {number}',
     v043: {
-      label: "What's new in CFMS 0.43",
+      label: "What's new in CFMS Client 0.43",
       documentDownload: {
         title: 'Download by document ID',
         body: 'Enter a document ID in Transfers, review its details, and start the download without locating its folder first.',

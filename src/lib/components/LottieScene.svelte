@@ -143,6 +143,8 @@
     display: block;
     width: 100% !important;
     height: 100% !important;
+    transform: scale(1.035);
+    transform-origin: center;
   }
 
   .hidden {

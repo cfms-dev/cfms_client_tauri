@@ -55,6 +55,7 @@ export const ICONS = {
   moreVert:      'more_vert',
   check:         'check',
   newReleases:   'new_releases',
+  wandStars:     'wand_stars',
   checkBox:      'check_box',
   checkBoxBlank: 'check_box_outline_blank',
   radioChecked:  'radio_button_checked',

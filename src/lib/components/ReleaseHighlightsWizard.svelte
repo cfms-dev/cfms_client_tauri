@@ -6,6 +6,8 @@
   import Icon from '$lib/components/Icon.svelte';
   import LottieScene from '$lib/components/LottieScene.svelte';
 
+  const EXIT_DURATION_MS = 180;
+
   interface Props {
     presentation: ReleaseTourPresentation;
     onDismiss: () => void;
@@ -16,9 +18,12 @@
   let dialog = $state<HTMLElement | null>(null);
   let reducedMotion = $state(false);
   let colorScheme = $state<ResolvedColorScheme>('dark');
+  let closing = $state(false);
   let pointerStart: { id: number; x: number; y: number } | null = null;
   let previouslyFocused: HTMLElement | null = null;
   let appearanceObserver: MutationObserver | null = null;
+  let dismissTimer: number | null = null;
+  let dismissCommitted = false;
 
   const highlights = $derived(presentation.highlights);
   const currentHighlight = $derived(highlights[currentIndex] ?? highlights[0]);
@@ -46,15 +51,42 @@
 
   onDestroy(() => {
     appearanceObserver?.disconnect();
+    if (dismissTimer !== null) window.clearTimeout(dismissTimer);
     previouslyFocused?.focus({ preventScroll: true });
   });
+
+  function finishDismiss() {
+    if (dismissCommitted) return;
+    dismissCommitted = true;
+    if (dismissTimer !== null) {
+      window.clearTimeout(dismissTimer);
+      dismissTimer = null;
+    }
+    onDismiss();
+  }
+
+  function requestDismiss() {
+    if (closing || dismissCommitted) return;
+    closing = true;
+    if (reducedMotion) {
+      finishDismiss();
+      return;
+    }
+    dismissTimer = window.setTimeout(finishDismiss, EXIT_DURATION_MS + 60);
+  }
+
+  function handleOverlayAnimationEnd(event: AnimationEvent) {
+    if (closing && event.target === event.currentTarget && event.animationName === 'overlay-exit') {
+      finishDismiss();
+    }
+  }
 
   function previous() {
     if (!isFirst) currentIndex -= 1;
   }
 
   function next() {
-    if (isLast) onDismiss();
+    if (isLast) requestDismiss();
     else currentIndex += 1;
   }
 
@@ -65,7 +97,7 @@
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
-      onDismiss();
+      requestDismiss();
       return;
     }
     if (event.key === 'ArrowLeft') {
@@ -115,7 +147,12 @@
   }
 </script>
 
-<div class="release-highlights-overlay workspace-palette fixed inset-0 z-[85]" role="presentation">
+<div
+  class="release-highlights-overlay workspace-palette fixed inset-0 z-[85]"
+  class:closing
+  role="presentation"
+  onanimationend={handleOverlayAnimationEnd}
+>
   <div
     bind:this={dialog}
     class="release-highlights-dialog"
@@ -130,7 +167,7 @@
         <span class="signal-rule" aria-hidden="true"></span>
         <span>{$t(presentation.tour.labelKey)}</span>
       </div>
-      <button type="button" class="skip-action" onclick={onDismiss}>
+      <button type="button" class="skip-action" onclick={requestDismiss}>
         {$t('releaseHighlights.skip')}
       </button>
     </header>
@@ -210,6 +247,12 @@
     background: color-mix(in srgb, var(--explorer-background) 82%, transparent);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
+    animation: overlay-enter 240ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .release-highlights-overlay.closing {
+    pointer-events: none;
+    animation: overlay-exit 180ms var(--motion-easing-standard) both;
   }
 
   .release-highlights-dialog {
@@ -224,6 +267,11 @@
     background: var(--explorer-surface);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38);
     outline: none;
+    animation: dialog-enter 240ms var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .release-highlights-overlay.closing .release-highlights-dialog {
+    animation: dialog-exit 180ms var(--motion-easing-standard) both;
   }
 
   :global(html[data-theme='light']) .release-highlights-dialog {
@@ -258,7 +306,8 @@
     align-items: center;
     gap: 0.75rem;
     color: var(--explorer-text-muted);
-    font: 650 0.8rem/1.25 var(--font-md3-sans);
+    font: 700 0.875rem/1.25 var(--font-md3-serif);
+    letter-spacing: 0.015em;
   }
 
   .release-identity > :last-child {
@@ -431,6 +480,42 @@
     to { opacity: 1; transform: translateX(0); }
   }
 
+  @keyframes overlay-enter {
+    from {
+      opacity: 0;
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+    to {
+      opacity: 1;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+  }
+
+  @keyframes overlay-exit {
+    from {
+      opacity: 1;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    to {
+      opacity: 0;
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+  }
+
+  @keyframes dialog-enter {
+    from { opacity: 0.72; transform: translateY(0.75rem) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes dialog-exit {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(0.45rem) scale(0.988); }
+  }
+
   @keyframes copy-enter {
     from { opacity: 0.68; transform: translateX(0.65rem); }
     to { opacity: 1; transform: translateX(0); }
@@ -523,7 +608,9 @@
   }
 
   :global(html[data-reduce-motion='true']) .visual-stage__inner,
-  :global(html[data-reduce-motion='true']) .highlight-copy {
+  :global(html[data-reduce-motion='true']) .highlight-copy,
+  :global(html[data-reduce-motion='true']) .release-highlights-overlay,
+  :global(html[data-reduce-motion='true']) .release-highlights-dialog {
     animation: none;
   }
 
