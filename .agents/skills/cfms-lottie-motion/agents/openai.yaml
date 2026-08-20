@@ -1,0 +1,4 @@
+interface:
+  display_name: "CFMS Lottie Motion"
+  short_description: "Build renderer-safe CFMS release-highlight motion"
+  default_prompt: "Use $cfms-lottie-motion to review and fix a CFMS release-highlight animation."
