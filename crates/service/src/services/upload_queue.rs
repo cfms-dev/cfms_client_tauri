@@ -134,6 +134,43 @@ impl UploadQueueState {
         Ok(changed)
     }
 
+    /// Mark a successfully returned directory upload as complete.
+    ///
+    /// File uploads reach a terminal state through their transfer progress
+    /// events. An empty directory has no file transfer to produce that event,
+    /// so the directory command must explicitly close its queue record.
+    /// Returning `true` also for an already-completed directory lets the
+    /// caller publish one final directory-level event after a multi-file run.
+    pub fn finish_directory(&self, upload_id: &str, message: &str) -> Result<bool> {
+        let now = unix_now();
+        let (succeeded, changed) = {
+            let mut records = self.records.lock().unwrap();
+            let Some(record) = records.get_mut(upload_id) else {
+                return Ok(false);
+            };
+            if record.task.kind != cfms_core::UploadTaskKind::Directory {
+                return Ok(false);
+            }
+            if record.task.status == UploadTaskStatus::Completed {
+                (true, false)
+            } else if record.task.status.is_terminal() {
+                (false, false)
+            } else {
+                record.task.status = UploadTaskStatus::Completed;
+                record.task.progress = 1.0;
+                record.task.message = Some(message.to_string());
+                record.task.error = None;
+                record.task.updated_at = now;
+                record.task.completed_at = Some(now);
+                (true, true)
+            }
+        };
+        if changed {
+            self.save();
+        }
+        Ok(succeeded)
+    }
+
     pub fn mark_pending(&self, upload_id: &str) -> Result<bool> {
         let changed = {
             let mut records = self.records.lock().unwrap();
@@ -336,5 +373,60 @@ mod tests {
         );
         assert_eq!(queue.list().len(), 1);
         assert_eq!(queue.list()[0].upload_id, "active");
+    }
+
+    #[test]
+    fn finishing_an_empty_directory_closes_its_queue_record() {
+        let app_data = tempfile::tempdir().unwrap();
+        let source = app_data.path().join("empty");
+        std::fs::create_dir(&source).unwrap();
+        let key = [11u8; KEY_LEN];
+        let queue = UploadQueueState::new();
+        queue
+            .load_for_user(app_data.path(), "server", "alice", Some(&key))
+            .unwrap();
+        let mut directory = task(
+            "empty-directory",
+            source.to_str().unwrap(),
+            UploadTaskStatus::Pending,
+        );
+        directory.kind = UploadTaskKind::Directory;
+        directory.file_name = "empty".into();
+        queue.insert(directory, serde_json::Value::Null).unwrap();
+
+        assert!(
+            queue
+                .finish_directory("empty-directory", "Upload completed")
+                .unwrap()
+        );
+
+        let finished = queue.list().pop().unwrap();
+        assert_eq!(finished.status, UploadTaskStatus::Completed);
+        assert_eq!(finished.progress, 1.0);
+        assert_eq!(finished.current_bytes, 0);
+        assert_eq!(finished.total_bytes, 0);
+        assert_eq!(finished.message.as_deref(), Some("Upload completed"));
+        assert!(finished.completed_at.is_some());
+
+        let reloaded = UploadQueueState::new();
+        reloaded
+            .load_for_user(app_data.path(), "server", "alice", Some(&key))
+            .unwrap();
+        assert_eq!(reloaded.list()[0].status, UploadTaskStatus::Completed);
+    }
+
+    #[test]
+    fn finishing_a_directory_does_not_overwrite_a_terminal_failure() {
+        let queue = UploadQueueState::new();
+        let mut directory = task("cancelled-directory", "empty", UploadTaskStatus::Cancelled);
+        directory.kind = UploadTaskKind::Directory;
+        queue.insert(directory, serde_json::Value::Null).unwrap();
+
+        assert!(
+            !queue
+                .finish_directory("cancelled-directory", "Upload completed")
+                .unwrap()
+        );
+        assert_eq!(queue.list()[0].status, UploadTaskStatus::Cancelled);
     }
 }

@@ -730,7 +730,7 @@ pub async fn upload_directory<R: Runtime>(
         .into_iter()
         .map(|resolution| (resolution.relative_path, resolution.conflict_strategy))
         .collect::<std::collections::HashMap<_, _>>();
-    let root_result = create_server_directory(&state, parent_id, root_name, true).await?;
+    let root_result = create_server_directory(&state, parent_id, root_name.clone(), true).await?;
     let root_id = root_result.id;
     let entries = collect_directory_entries(&root)?;
     let total_files = entries.iter().filter(|entry| entry.is_file()).count();
@@ -814,6 +814,26 @@ pub async fn upload_directory<R: Runtime>(
     }
 
     transfer_session.close().await;
+
+    let directory_completed = state
+        .upload_tasks
+        .finish_directory(&upload_id, "Upload completed")
+        .map_err(|error| format!("Failed to finish directory upload task: {error}"))?;
+    if directory_completed {
+        let _ = app_handle.emit(
+            "cfms:upload-progress",
+            UploadProgressEvent {
+                upload_id: upload_id.clone(),
+                task_id: None,
+                file_name: root_name,
+                current_bytes: 0,
+                total_bytes: 0,
+                progress: 1.0,
+                status: "completed".to_string(),
+                message: Some("Upload completed".to_string()),
+            },
+        );
+    }
 
     Ok(serde_json::json!({
         "upload_id": upload_id,
