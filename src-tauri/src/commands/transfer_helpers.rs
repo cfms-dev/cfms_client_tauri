@@ -1208,6 +1208,7 @@ async fn clear_connection_state(state: &AppHandleState) {
         let mut pv = state.inner.server_protocol_version.write().await;
         *pv = None;
     }
+    state.inner.server_extension_flags.write().await.clear();
     state
         .inner
         .app_lockdown
@@ -1295,6 +1296,7 @@ async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json
     let server_address = inner.server_address.read().await.clone();
     let server_name = inner.server_name.read().await.clone();
     let protocol_version = inner.server_protocol_version.read().await;
+    let extension_flags = inner.server_extension_flags.read().await.clone();
     let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
     let lockdown_reason = inner.lockdown_reason.read().await.clone();
 
@@ -1305,6 +1307,7 @@ async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json
         "protocol_version": *protocol_version,
         "lockdown": lockdown,
         "lockdown_reason": lockdown_reason,
+        "extension_flags": extension_flags,
     })
 }
 

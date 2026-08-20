@@ -615,3 +615,30 @@ describe('FileTable large directory virtualization', () => {
     expect(container.querySelectorAll('[data-file-table-row]').length).toBeLessThanOrEqual(40);
   });
 });
+
+describe('FileTable programmatic row reveal', () => {
+  it('reveals and focuses a non-virtualized row', async () => {
+    const { component, container } = renderTable([], [
+      { id: 'document-1', title: 'Document', size: 1, last_modified: null },
+    ]);
+
+    await expect(component.revealRow('document:document-1', true)).resolves.toBe(true);
+    expect(document.activeElement).toBe(
+      container.querySelector('[data-selection-key="document:document-1"]'),
+    );
+    await expect(component.revealRow('document:missing', true)).resolves.toBe(false);
+  });
+
+  it('reveals a row through the virtualizer', async () => {
+    const documents = Array.from({ length: 500 }, (_, index) => ({
+      id: `document-${index}`,
+      title: `Document ${index}`,
+      size: index,
+      last_modified: index,
+    }));
+    const { component, viewport } = renderTable([], documents);
+
+    await expect(component.revealRow('document:document-320', true)).resolves.toBe(true);
+    expect(viewport.scrollTop).toBeGreaterThan(0);
+  });
+});

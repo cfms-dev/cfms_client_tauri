@@ -523,7 +523,7 @@ pub fn quit_application(app_handle: tauri::AppHandle) {
 ///
 /// # Returns
 ///
-/// [`ServerInfo`] on success: `{ server_name, protocol_version, lockdown }`.
+/// [`ServerInfo`] on success, including the server's advertised extension flags.
 ///
 /// # Reference
 ///
@@ -743,6 +743,10 @@ pub async fn connect(
         let mut pv = state.inner.server_protocol_version.write().await;
         *pv = Some(server_info.protocol_version);
     }
+    {
+        let mut flags = state.inner.server_extension_flags.write().await;
+        *flags = server_info.extension_flags.clone();
+    }
     // Apply initial lockdown status from server_info.
     // The server_push background service will also fire Lockdown events
     // for dynamic changes, but this covers the static case during connect.
@@ -793,6 +797,7 @@ pub async fn connect(
         "protocol_version": server_info.protocol_version,
         "lockdown": server_info.lockdown,
         "lockdown_reason": server_info.lockdown_reason,
+        "extension_flags": server_info.extension_flags,
     }))
 }
 

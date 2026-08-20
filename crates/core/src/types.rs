@@ -419,6 +419,15 @@ pub struct ServerInfo {
     pub lockdown: bool,
     /// Administrator-provided reason for the active lockdown, when present.
     pub lockdown_reason: Option<String>,
+    /// Optional server extension capabilities advertised for this connection.
+    #[serde(default)]
+    pub extension_flags: Vec<String>,
+}
+
+/// Response returned by the optional `node_lookup` server extension.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeLookupResponse {
+    pub node_ids: Vec<String>,
 }
 
 /// Permission-protected static server diagnostics introduced in protocol 22.
@@ -814,6 +823,28 @@ mod tests {
         assert_eq!(parsed.documents[1].size, None);
         assert_eq!(parsed.documents[2].size, Some(4096));
         assert_eq!(parsed.documents[3].size, Some(0));
+    }
+
+    #[test]
+    fn server_info_preserves_extension_flags_and_defaults_when_missing() {
+        let with_flags: ServerInfo = serde_json::from_value(serde_json::json!({
+            "server_name": "CFMS",
+            "protocol_version": 23,
+            "lockdown": false,
+            "lockdown_reason": null,
+            "extension_flags": ["node_lookup", "documents"]
+        }))
+        .unwrap();
+        assert_eq!(with_flags.extension_flags, ["node_lookup", "documents"]);
+
+        let without_flags: ServerInfo = serde_json::from_value(serde_json::json!({
+            "server_name": "CFMS",
+            "protocol_version": 23,
+            "lockdown": false,
+            "lockdown_reason": null
+        }))
+        .unwrap();
+        assert!(without_flags.extension_flags.is_empty());
     }
 
     #[test]

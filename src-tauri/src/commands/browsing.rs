@@ -61,6 +61,84 @@ pub async fn list_directory_page(
     parse_listing_page_dto(raw)
 }
 
+/// Resolve one absolute, human-readable path through the optional
+/// `node_lookup` server extension.
+#[tauri::command]
+pub async fn resolve_node_path(
+    state: tauri::State<'_, AppHandleState>,
+    path: String,
+) -> Result<NodeLookupResponse, String> {
+    let has_node_lookup = {
+        let extension_flags = state.inner.server_extension_flags.read().await;
+        supports_node_lookup(&extension_flags)
+    };
+    if !has_node_lookup {
+        return Err("The connected server does not advertise node_lookup support".to_string());
+    }
+
+    let raw = server_action_json(
+        &state,
+        "node_lookup",
+        serde_json::json!({ "path": path }),
+    )
+    .await?;
+    let response: NodeLookupResponse = serde_json::from_value(raw)
+        .map_err(|error| format!("Invalid node_lookup response: {error}"))?;
+    validate_node_lookup_response(response)
+}
+
+fn supports_node_lookup(extension_flags: &[String]) -> bool {
+    extension_flags.iter().any(|flag| flag == "node_lookup")
+}
+
+fn validate_node_lookup_response(
+    response: NodeLookupResponse,
+) -> Result<NodeLookupResponse, String> {
+    if response.node_ids.first().map(String::as_str) != Some("/") {
+        return Err("Invalid node_lookup response: node_ids must start with the root ID".to_string());
+    }
+    if response.node_ids.iter().any(|node_id| node_id.is_empty()) {
+        return Err("Invalid node_lookup response: node_ids must not contain empty IDs".to_string());
+    }
+    Ok(response)
+}
+
+#[cfg(test)]
+mod node_lookup_response_tests {
+    use super::{supports_node_lookup, validate_node_lookup_response};
+    use cfms_core::NodeLookupResponse;
+
+    #[test]
+    fn accepts_rooted_non_empty_node_id_chains() {
+        let response = NodeLookupResponse {
+            node_ids: vec!["/".into(), "projects".into()],
+        };
+        assert_eq!(
+            validate_node_lookup_response(response).unwrap().node_ids,
+            ["/", "projects"]
+        );
+    }
+
+    #[test]
+    fn requires_the_exact_node_lookup_extension_flag() {
+        assert!(supports_node_lookup(&["node_lookup".into()]));
+        assert!(!supports_node_lookup(&["node-lookup".into(), "documents".into()]));
+    }
+
+    #[test]
+    fn rejects_missing_root_and_empty_ids() {
+        let missing_root = NodeLookupResponse {
+            node_ids: vec!["projects".into()],
+        };
+        assert!(validate_node_lookup_response(missing_root).is_err());
+
+        let empty_id = NodeLookupResponse {
+            node_ids: vec!["/".into(), "".into()],
+        };
+        assert!(validate_node_lookup_response(empty_id).is_err());
+    }
+}
+
 fn directory_page_size(page_size: Option<u32>) -> u32 {
     page_size
         .unwrap_or(SERVER_CURSOR_PAGE_SIZE)

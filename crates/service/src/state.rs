@@ -58,6 +58,8 @@ pub struct AppState {
     pub server_name: RwLock<Option<String>>,
     /// Wire-protocol version the connected server speaks.
     pub server_protocol_version: RwLock<Option<u32>>,
+    /// Extension capability flags advertised by the latest `server_info` handshake.
+    pub server_extension_flags: RwLock<Vec<String>>,
     /// If `true`, TLS certificate validation is skipped.
     pub disable_ssl_enforcement: RwLock<bool>,
     /// If `true`, direct outbound connections only use IPv4 addresses.
@@ -124,6 +126,7 @@ impl AppState {
             server_address: RwLock::new(None),
             server_name: RwLock::new(None),
             server_protocol_version: RwLock::new(None),
+            server_extension_flags: RwLock::new(Vec::new()),
             disable_ssl_enforcement: RwLock::new(false),
             force_ipv4: RwLock::new(false),
             ca_dir: RwLock::new(None),

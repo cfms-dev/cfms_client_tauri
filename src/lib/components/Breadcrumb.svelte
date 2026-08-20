@@ -35,6 +35,8 @@
     data-breadcrumb-item
     tabindex="0"
     class="inline-flex h-5 shrink-0 items-center justify-center leading-none text-md3-primary-emphasis hover:underline font-medium transition-colors"
+    title={$t('files.goToRoot')}
+    aria-label={$t('files.goToRoot')}
     onclick={() => onNavigate(ROOT_DIRECTORY_ID)}
   >
     <Icon name="home" size="16px" class="shrink-0" />

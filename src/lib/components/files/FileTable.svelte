@@ -680,6 +680,26 @@
     await tick();
   }
 
+  export async function revealRow(selectionKey: string, focus = false): Promise<boolean> {
+    const index = Array.from({ length: rowCount }, (_, rowIndex) => rowIndex)
+      .find((rowIndex) => rowSelectionKey(getRowAt(rowIndex)) === selectionKey);
+    if (index === undefined) return false;
+
+    activeRowKey = selectionKey;
+    ensureRowVisible(index);
+    if (virtualized && scrollViewport) {
+      scrollViewport.scrollTop = Math.max(0, index * ROW_HEIGHT);
+      scrollViewport.dispatchEvent(new Event('scroll'));
+    }
+    await tick();
+    await tick();
+    if (focus) {
+      scrollViewport?.querySelector<HTMLButtonElement>(`[data-file-row-index="${index}"]`)
+        ?.focus({ preventScroll: true });
+    }
+    return true;
+  }
+
   function readColumnWidths(target: HTMLElement): FileColumnWidths | null {
     const header = target.closest<HTMLElement>('.file-table-header');
     if (!header) return null;

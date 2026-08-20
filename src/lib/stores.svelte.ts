@@ -28,6 +28,7 @@ class ServerStateStoreImpl {
   connected = $state(false);
   lockdown = $state(false);
   lockdownReason = $state<string | null>(null);
+  extensionFlags = $state<string[]>([]);
 
   /** Update connection-related server state.
    *
@@ -46,6 +47,7 @@ class ServerStateStoreImpl {
     this.protocolVersion = s.protocol_version ?? this.protocolVersion;
     this.lockdown = s.lockdown;
     this.lockdownReason = s.lockdown_reason;
+    this.extensionFlags = [...(s.extension_flags ?? [])];
   }
 
   /** Apply server info from the connect command response. */
@@ -54,6 +56,7 @@ class ServerStateStoreImpl {
     this.protocolVersion = info.protocol_version;
     this.lockdown = info.lockdown;
     this.lockdownReason = info.lockdown_reason;
+    this.extensionFlags = [...(info.extension_flags ?? [])];
     this.connected = true;
   }
 
@@ -65,6 +68,7 @@ class ServerStateStoreImpl {
     this.connected = false;
     this.lockdown = false;
     this.lockdownReason = null;
+    this.extensionFlags = [];
   }
 }
 

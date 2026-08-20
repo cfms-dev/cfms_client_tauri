@@ -487,6 +487,7 @@ export interface ServerState {
   protocol_version: number | null;
   lockdown: boolean;
   lockdown_reason: string | null;
+  extension_flags: string[];
 }
 
 export interface TwoFactorStatus {
@@ -508,6 +509,11 @@ export interface ServerInfo {
   protocol_version: number;
   lockdown: boolean;
   lockdown_reason: string | null;
+  extension_flags: string[];
+}
+
+export interface NodeLookupResponse {
+  node_ids: string[];
 }
 
 /** Permission-protected static server diagnostics introduced in protocol 22. */

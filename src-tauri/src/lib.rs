@@ -536,6 +536,7 @@ pub fn run() {
             commands::scan_directory,
             commands::list_directory,
             commands::list_directory_page,
+            commands::resolve_node_path,
             commands::get_document,
             commands::ensure_download_subdirectory,
             commands::get_setting,

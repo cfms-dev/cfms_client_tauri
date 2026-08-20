@@ -35,6 +35,7 @@
     moveDocument,
     renameDirectory,
     renameDocument,
+    resolveNodePath,
     revokeAccess,
     setAccessRules,
     setCurrentRevision,
@@ -61,6 +62,7 @@
     ServerObjectType,
   } from '$lib/api';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+  import FileAddressBar from '$lib/components/FileAddressBar.svelte';
   import AccessDeniedDialog from '$lib/components/AccessDeniedDialog.svelte';
   import AccessDeniedNotice from '$lib/components/AccessDeniedNotice.svelte';
   import AuthorizeAccessDialog from '$lib/components/AuthorizeAccessDialog.svelte';
@@ -149,6 +151,12 @@
     type UploadConflictDecision,
   } from '$lib/files/upload-conflicts';
   import { shortIdentifier } from '$lib/identifiers';
+  import {
+    classifyNodePathTerminal,
+    decodeResolvedNodePath,
+    knownAbsoluteNodePath,
+    type ResolvedNodePathSegment,
+  } from '$lib/files/node-path';
   import type { IconName } from '$lib/icons';
   import type { CommandAction, FileDetailModel } from '$lib/explorer/types';
   import {
@@ -240,6 +248,7 @@
   let fileTable: {
     captureViewportAnchor: () => FileTableViewportAnchor | null;
     restoreViewportAnchor: (index: number, offset: number) => Promise<void>;
+    revealRow: (selectionKey: string, focus?: boolean) => Promise<boolean>;
   } | null = null;
   let fileListIndex = $state<FileListIndex>(createFileListIndex([], []));
   let resolveFirstDirectorySnapshot: ((value: boolean) => void) | null = null;
@@ -252,6 +261,18 @@
   let detailModel = $state<FileDetailModel | null>(null);
   let detailRequestId = 0;
   let documentAccessDenied = $state<{ name: string; id: string; accessedAt: number } | null>(null);
+  let addressBar = $state<{
+    beginEdit: () => Promise<void>;
+    finishEdit: () => void;
+  } | null>(null);
+  let addressLookupBusy = $state(false);
+  let addressLookupError = $state<string | null>(null);
+  let addressLookupRunId = 0;
+  let pendingAddressDocument = $state<{
+    id: string;
+    label: string;
+    parentId: string | null;
+  } | null>(null);
 
   // Context menu state
   let contextMenu = $state<{
@@ -428,6 +449,15 @@
         : []),
       ...navHistory.map((h) => ({ label: h.label, path: h.id })),
     ],
+  );
+  const nodeLookupEnabled = $derived(
+    serverStateStore.extensionFlags.includes('node_lookup'),
+  );
+  const knownAddressPath = $derived(
+    knownAbsoluteNodePath(
+      navigationRootId,
+      breadcrumbSegments.map((segment) => segment.label),
+    ),
   );
   const moveInitialBreadcrumb = $derived<DirectoryBreadcrumbSegment[]>(
     breadcrumbSegments
@@ -615,6 +645,7 @@
         void tick().then(() => fileTable?.restoreViewportAnchor(anchorIndex, viewportAnchor.offset));
       }
     }
+    void revealPendingAddressDocument(snapshot.complete);
   }
 
   function handleDirectorySorterError(sortError: unknown) {
@@ -700,7 +731,9 @@
     folderId: string | null,
     preserveOnError = false,
     returnNavigation?: DirectoryNavigationSnapshot,
+    surfaceAccessDenied = true,
   ): Promise<boolean> {
+    pendingAddressDocument = null;
     const normalizedFolderId = normalizeDirectoryId(folderId);
     const deniedReturnNavigation = returnNavigation
       ?? (isDeniedDirectory(normalizedFolderId)
@@ -743,7 +776,7 @@
       if (generation !== directoryGeneration) return false;
       directoryLoadError = formatDirectoryLoadError(e);
       directoryLoadPhase = 'partial-error';
-      if (isAccessDeniedError(e)) {
+      if (surfaceAccessDenied && isAccessDeniedError(e)) {
         showDirectoryAccessDenied(normalizedFolderId, deniedReturnNavigation);
       } else {
         error = directoryLoadError;
@@ -760,6 +793,133 @@
   }
 
   // --- Navigation ---
+
+  function handleAddressBeginEdit() {
+    addressLookupError = null;
+  }
+
+  function handleAddressCancel() {
+    addressLookupRunId += 1;
+    addressLookupBusy = false;
+    addressLookupError = null;
+  }
+
+  function formatAddressLookupError(lookupError: unknown): string {
+    const statusCode = serverErrorStatus(lookupError);
+    if (statusCode === 400) return $t('files.addressInvalid');
+    if (statusCode === 403 || statusCode === 404) return $t('files.addressUnavailable');
+    return $t('files.addressRequestFailed');
+  }
+
+  function resolvedDirectoryHistory(segments: readonly ResolvedNodePathSegment[]) {
+    return segments.map((segment) => ({ label: segment.label, id: segment.id }));
+  }
+
+  async function revealPendingAddressDocument(directoryComplete: boolean) {
+    const pending = pendingAddressDocument;
+    if (!pending || !sameDirectoryId(currentFolderId, pending.parentId)) return;
+    if (!fileListIndex.documentById.has(pending.id)) {
+      if (directoryComplete) {
+        pendingAddressDocument = null;
+        notificationStore.warning($t('files.addressDocumentChanged', {
+          values: { name: pending.label },
+        }), 5000);
+      }
+      return;
+    }
+
+    pendingAddressDocument = null;
+    const selectionKey = fileSelectionKey('document', pending.id);
+    commitSelection(new Set(), new Set([pending.id]));
+    focusedItemKey = selectionKey;
+    selectionAnchorKey = selectionKey;
+    await tick();
+    await fileTable?.revealRow(selectionKey, true);
+    status = $t('files.addressDocumentLocated', { values: { name: pending.label } });
+  }
+
+  async function handleAddressSubmit(rawPath: string) {
+    const path = rawPath.trim();
+    if (!path) {
+      addressLookupError = $t('files.addressRequired');
+      return;
+    }
+
+    const runId = ++addressLookupRunId;
+    addressLookupBusy = true;
+    addressLookupError = null;
+    try {
+      const response = await resolveNodePath(path);
+      if (runId !== addressLookupRunId) return;
+      const resolvedSegments = decodeResolvedNodePath(path, response.node_ids);
+
+      if (resolvedSegments.length === 0) {
+        const ok = await loadDirectory(null, true, undefined, false);
+        if (runId !== addressLookupRunId) return;
+        if (!ok) {
+          error = null;
+          addressLookupError = $t('files.addressRequestFailed');
+          return;
+        }
+        navigationRootId = null;
+        navigationRootLabel = null;
+        navHistory = [];
+        addressBar?.finishEdit();
+        status = $t('files.addressDirectoryOpened');
+        return;
+      }
+
+      const terminal = resolvedSegments[resolvedSegments.length - 1];
+      const expectedParentId = normalizeDirectoryId(response.node_ids.at(-2) ?? null);
+      const target = await classifyNodePathTerminal({
+        terminal,
+        expectedParentId,
+        getDirectoryInfo,
+        getDocumentInfo,
+        errorStatus: serverErrorStatus,
+      });
+      if (runId !== addressLookupRunId) return;
+
+      if (target.kind === 'directory') {
+        const ok = await loadDirectory(terminal.id, true, undefined, false);
+        if (runId !== addressLookupRunId) return;
+        if (!ok) {
+          error = null;
+          addressLookupError = $t('files.addressRequestFailed');
+          return;
+        }
+        navigationRootId = null;
+        navigationRootLabel = null;
+        navHistory = resolvedDirectoryHistory(resolvedSegments);
+        addressBar?.finishEdit();
+        status = $t('files.addressDirectoryOpened');
+        return;
+      }
+
+      const ok = await loadDirectory(expectedParentId, true, undefined, false);
+      if (runId !== addressLookupRunId) return;
+      if (!ok) {
+        error = null;
+        addressLookupError = $t('files.addressRequestFailed');
+        return;
+      }
+      navigationRootId = null;
+      navigationRootLabel = null;
+      navHistory = resolvedDirectoryHistory(resolvedSegments.slice(0, -1));
+      pendingAddressDocument = {
+        id: target.id,
+        label: target.label,
+        parentId: expectedParentId,
+      };
+      addressBar?.finishEdit();
+      await revealPendingAddressDocument(directoryLoadPhase === 'complete');
+    } catch (lookupError) {
+      if (runId !== addressLookupRunId) return;
+      addressLookupError = formatAddressLookupError(lookupError);
+    } finally {
+      if (runId === addressLookupRunId) addressLookupBusy = false;
+    }
+  }
 
   async function handleNavigate(folderId: string, folderName: string) {
     const previousFolderId = currentFolderId;
@@ -3292,6 +3452,16 @@
         handler: handleFindShortcut,
       },
       {
+        id: 'files.address',
+        label: () => $t('files.editAddress'),
+        group: () => $t('files.title'),
+        shortcuts: [{ key: 'd', alt: true }, { key: 'F4' }],
+        scope: 'page',
+        enabled: () => nodeLookupEnabled && !addressLookupBusy && !hasBlockingFilesDialog(),
+        allowInEditable: true,
+        handler: () => { void addressBar?.beginEdit(); },
+      },
+      {
         id: 'files.parent',
         label: () => $t('files.parentDirectory'),
         group: () => $t('files.title'),
@@ -3486,8 +3656,26 @@
       disabled={!canGoToParent}
       onclick={handleGoToParent}
     />
-    <div class="files-address-bar">
-      <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+    <div
+      class="files-address-bar"
+      class:files-address-bar--editable={nodeLookupEnabled}
+    >
+      {#if nodeLookupEnabled}
+        <FileAddressBar
+          bind:this={addressBar}
+          segments={breadcrumbSegments}
+          lookupEnabled={nodeLookupEnabled}
+          knownPath={knownAddressPath}
+          busy={addressLookupBusy}
+          error={addressLookupError}
+          onNavigate={handleBreadcrumbNavigate}
+          onSubmit={handleAddressSubmit}
+          onCancel={handleAddressCancel}
+          onBeginEdit={handleAddressBeginEdit}
+        />
+      {:else}
+        <Breadcrumb segments={breadcrumbSegments} onNavigate={handleBreadcrumbNavigate} />
+      {/if}
     </div>
     <span class="files-navigation-spacer" aria-hidden="true"></span>
 
@@ -3841,6 +4029,14 @@
     background: var(--explorer-surface);
   }
 
+  .files-address-bar--editable {
+    width: min(620px, 50vw);
+    max-width: none;
+    flex: 1 1 320px;
+    overflow: visible;
+    padding: 0;
+  }
+
   .files-navigation-spacer {
     min-width: 0;
     flex: 1 1 0;
@@ -3855,7 +4051,7 @@
     color: var(--explorer-text-muted);
   }
 
-  .files-navigation-row :global(input) {
+  .files-navigation-row :global(input:not(.file-address__input)) {
     width: min(260px, 22vw);
     border-color: var(--explorer-border) !important;
     border-radius: var(--explorer-radius-small) !important;
@@ -4028,6 +4224,10 @@
       max-width: none;
       flex: 1 1 auto;
       padding-inline: 0.45rem;
+    }
+
+    .files-address-bar--editable {
+      padding-inline: 0;
     }
 
     .files-navigation-spacer {
