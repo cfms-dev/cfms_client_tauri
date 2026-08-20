@@ -4,6 +4,37 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.44.0
+**Released on:** 2026-08-20
+
+**Title:** Add node path resolution feature and related UI components
+
+### Added
+- Add node path resolution feature and related UI components
+- Add a project-specific skill for lottie
+- Ship animated highlight scenes
+- Present permission-aware highlights
+- Add highlight tour foundation
+
+### Improved
+- Enhance UI structure and improve accessibility features
+- Remove release highlights section from About page and update AppUpdateChecker component
+
+### Fixed
+- Add finish_directory method to complete directory uploads
+- Adjust Lottie's animation details to make it more elegant and beautiful
+- Rewrite server diagnostics animation for version 0.43
+
+### Maintenance
+- Set timeout for various jobs to 25 minutes
+- Add thread configuration to rustflags
+- Update deps
+
+### Changed
+- Update dependabot.yml to include cargo and npm
+
+--- 
+
 ## v0.43.0
 **Released on:** 2026-08-19
 
