@@ -263,9 +263,12 @@
     outline: none;
   }
 
+  /* The screen is a programmatic focus boundary, not an interactive control.
+     Override the workspace-wide [tabindex]:focus-visible rule while leaving
+     visible focus indicators on the tour's buttons intact. */
+  .release-highlights-screen:focus,
   .release-highlights-screen:focus-visible {
-    outline: 2px solid var(--explorer-accent);
-    outline-offset: -2px;
+    outline: none !important;
   }
 
   .tour-toolbar,
