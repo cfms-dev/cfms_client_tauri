@@ -762,8 +762,12 @@ export const en = {
     progress: 'Feature {current} of {total}',
     chooseFeature: 'Choose a feature to view',
     goToFeature: 'View feature {number}',
-    v043: {
-      label: "What's new in CFMS Client 0.43",
+    v045: {
+      label: "What's new in CFMS Client 0.45",
+      fullscreenTour: {
+        title: 'A focused, full-screen feature tour',
+        body: 'The feature tour now fills the client window, giving animation, guidance, and navigation a stable layout across desktop and touch devices.',
+      },
       documentDownload: {
         title: 'Download by document ID',
         body: 'Enter a document ID in Transfers, review its details, and start the download without locating its folder first.',

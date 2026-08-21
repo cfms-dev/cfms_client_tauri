@@ -3,13 +3,15 @@ import { filterReleaseHighlights, findReleaseTour } from './catalog';
 
 describe('release highlight catalog', () => {
   it('matches an installed version with or without a tag prefix', () => {
-    expect(findReleaseTour('v0.43.0')?.version).toBe('0.43.0');
+    expect(findReleaseTour('v0.45.0')?.version).toBe('0.45.0');
+    expect(findReleaseTour('0.43.0')).toBeNull();
     expect(findReleaseTour('0.44.0')).toBeNull();
   });
 
   it('keeps common slides and filters privileged slides', () => {
-    const tour = findReleaseTour('0.43.0')!;
+    const tour = findReleaseTour('0.45.0')!;
     expect(filterReleaseHighlights(tour.highlights, []).map((item) => item.id)).toEqual([
+      'fullscreen-feature-tour',
       'document-id-download',
       'flexible-workspace',
     ]);

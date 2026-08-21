@@ -43,7 +43,7 @@ const animationData: LottieAnimationData = {
 const loadAnimationData: ReleaseHighlightAnimationLoader = vi.fn(async () => ({ default: animationData }));
 
 function presentation(permissions: readonly string[] = []): ReleaseTourPresentation {
-  const tour = findReleaseTour('0.43.0')!;
+  const tour = findReleaseTour('0.45.0')!;
   return {
     tour,
     highlights: filterReleaseHighlights(tour.highlights, permissions),
@@ -82,6 +82,8 @@ describe('ReleaseHighlightsWizard', () => {
     const onDismiss = vi.fn();
     render(ReleaseHighlightsWizard, { props: { presentation: presentation(), onDismiss } });
 
+    expect(screen.getByRole('heading', { name: 'A focused, full-screen feature tour' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Download by document ID' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Adjust the workspace to fit' })).toBeTruthy();
@@ -96,9 +98,9 @@ describe('ReleaseHighlightsWizard', () => {
       props: { presentation: presentation(['diagnostics', 'manage_system']), onDismiss: vi.fn() },
     });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'View feature 3' }));
-    expect(screen.getByRole('heading', { name: 'Review server diagnostics' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'View feature 4' }));
+    expect(screen.getByRole('heading', { name: 'Review server diagnostics' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'View feature 5' }));
     expect(screen.getByRole('heading', { name: 'Clearer account management' })).toBeTruthy();
   });
 
@@ -109,9 +111,9 @@ describe('ReleaseHighlightsWizard', () => {
 
     await waitFor(() => expect(document.activeElement).toBe(dialog));
     await fireEvent.keyDown(dialog, { key: 'ArrowRight' });
-    expect(screen.getByRole('heading', { name: 'Adjust the workspace to fit' })).toBeTruthy();
-    await fireEvent.keyDown(dialog, { key: 'ArrowLeft' });
     expect(screen.getByRole('heading', { name: 'Download by document ID' })).toBeTruthy();
+    await fireEvent.keyDown(dialog, { key: 'ArrowLeft' });
+    expect(screen.getByRole('heading', { name: 'A focused, full-screen feature tour' })).toBeTruthy();
 
     const next = screen.getByRole('button', { name: 'Next' });
     next.focus();
@@ -154,6 +156,15 @@ describe('ReleaseHighlightsWizard', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Skip introduction' }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses one edge-to-edge screen instead of a windowed dialog surface', () => {
+    const { container } = render(ReleaseHighlightsWizard, {
+      props: { presentation: presentation(), onDismiss: vi.fn() },
+    });
+
+    expect(container.querySelector('.release-highlights-screen')).toBeTruthy();
+    expect(container.querySelector('.release-highlights-dialog')).toBeNull();
   });
 
   it('recreates the current scene when the color scheme changes', async () => {

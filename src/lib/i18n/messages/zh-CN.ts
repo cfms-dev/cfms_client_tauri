@@ -756,8 +756,12 @@ export const zh_CN = {
     progress: '第 {current} 项，共 {total} 项',
     chooseFeature: '选择要查看的功能',
     goToFeature: '查看第 {number} 项功能',
-    v043: {
-      label: 'CFMS Client 0.43 有什么新功能',
+    v045: {
+      label: 'CFMS Client 0.45 有什么新功能',
+      fullscreenTour: {
+        title: '沉浸式全屏功能导览',
+        body: '功能导览现在会占满客户端窗口，为动画、说明和导航提供稳定空间；桌面和触控设备也能保持一致、专注的浏览体验。',
+      },
       documentDownload: {
         title: '按文档 ID 下载',
         body: '在传输任务中输入文档 ID，核对文档信息后即可开始下载，无需先定位到所在目录。',

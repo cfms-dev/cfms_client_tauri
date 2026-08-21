@@ -4,6 +4,20 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.45.0
+**Released on:** 2026-08-21
+
+**Title:** Introduce a full-screen feature tour
+
+### Added
+- Add a paired light and dark animation that shows the feature tour expanding from a window into a full-screen experience
+
+### Changed
+- Present release highlights edge to edge across desktop and touch layouts, with dedicated narrow-screen and landscape adaptations
+- Reuse the existing 0.43 release-highlight animations in the 0.45 feature tour
+
+---
+
 ## v0.44.0
 **Released on:** 2026-08-20
 

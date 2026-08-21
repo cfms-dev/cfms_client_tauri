@@ -155,7 +155,7 @@
 >
   <div
     bind:this={dialog}
-    class="release-highlights-dialog"
+    class="release-highlights-screen"
     role="dialog"
     aria-modal="true"
     aria-labelledby="release-highlight-title"
@@ -236,17 +236,12 @@
 <style>
   .release-highlights-overlay {
     display: grid;
+    width: 100%;
+    height: 100dvh;
     min-height: 100dvh;
-    place-items: center;
-    overflow: auto;
-    padding:
-      calc(var(--safe-area-top, 0px) + 1.5rem)
-      max(1.5rem, var(--safe-area-right, 0px))
-      calc(var(--safe-area-bottom, 0px) + 1.5rem)
-      max(1.5rem, var(--safe-area-left, 0px));
-    background: color-mix(in srgb, var(--explorer-background) 82%, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    overflow: hidden;
+    padding: 0;
+    background: var(--explorer-surface);
     animation: overlay-enter 240ms var(--motion-easing-emphasized-decelerate) both;
   }
 
@@ -255,62 +250,61 @@
     animation: overlay-exit 180ms var(--motion-easing-standard) both;
   }
 
-  .release-highlights-dialog {
-    width: min(74rem, 100%);
-    height: min(46rem, calc(100dvh - 3rem));
-    min-height: min(36rem, calc(100dvh - 3rem));
+  .release-highlights-screen {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
     display: grid;
-    grid-template-rows: 3.75rem minmax(0, 1fr) 4.25rem;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     overflow: hidden;
-    border-radius: var(--explorer-radius-large);
     color: var(--explorer-text);
     background: var(--explorer-surface);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38);
     outline: none;
-    animation: dialog-enter 240ms var(--motion-easing-emphasized-decelerate) both;
   }
 
-  .release-highlights-overlay.closing .release-highlights-dialog {
-    animation: dialog-exit 180ms var(--motion-easing-standard) both;
-  }
-
-  :global(html[data-theme='light']) .release-highlights-dialog {
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
-  }
-
-  .release-highlights-dialog:focus-visible {
+  .release-highlights-screen:focus-visible {
     outline: 2px solid var(--explorer-accent);
     outline-offset: -2px;
   }
 
   .tour-toolbar,
   .tour-footer {
+    box-sizing: border-box;
+    min-width: 0;
     display: flex;
+    min-height: 3.75rem;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding-inline: 1.25rem;
+    padding-inline-start: max(clamp(1rem, 2.5vw, 2rem), var(--safe-area-left, 0px));
+    padding-inline-end: max(clamp(1rem, 2.5vw, 2rem), var(--safe-area-right, 0px));
   }
 
   .tour-toolbar {
     border-bottom: 1px solid var(--explorer-border);
+    padding-top: var(--safe-area-top, 0px);
   }
 
   .tour-footer {
     border-top: 1px solid var(--explorer-border);
+    padding-bottom: var(--safe-area-bottom, 0px);
   }
 
   .release-identity {
     min-width: 0;
     display: flex;
+    flex: 1 1 0;
     align-items: center;
     gap: 0.75rem;
+    overflow: hidden;
     color: var(--explorer-text-muted);
     font: 700 0.875rem/1.25 var(--font-md3-serif);
     letter-spacing: 0.015em;
   }
 
   .release-identity > :last-child {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -334,11 +328,16 @@
     border-radius: var(--explorer-radius-small);
     padding: 0 0.8rem;
     font: 650 0.8rem/1 var(--font-md3-sans);
+    white-space: nowrap;
     transition:
       transform var(--motion-duration-short4) var(--motion-easing-standard),
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
       color var(--motion-duration-short4) var(--motion-easing-standard),
       opacity var(--motion-duration-short4) var(--motion-easing-standard);
+  }
+
+  .skip-action {
+    flex: 0 0 auto;
   }
 
   .skip-action,
@@ -374,13 +373,16 @@
   }
 
   .tour-body {
+    box-sizing: border-box;
+    width: min(96rem, 100%);
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.65fr);
+    grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.55fr);
     align-items: center;
-    gap: clamp(2.25rem, 4vw, 4rem);
+    gap: clamp(2.5rem, 5vw, 5.5rem);
     overflow: auto;
-    padding: clamp(1.75rem, 3.2vw, 2.5rem);
+    margin-inline: auto;
+    padding: clamp(1.5rem, 3.5vw, 3.5rem) clamp(1.25rem, 4vw, 4rem);
     touch-action: pan-y;
   }
 
@@ -482,38 +484,24 @@
 
   @keyframes overlay-enter {
     from {
-      opacity: 0;
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
+      opacity: 0.82;
+      clip-path: inset(0.75rem round var(--explorer-radius-large));
     }
     to {
       opacity: 1;
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      clip-path: inset(0 round 0);
     }
   }
 
   @keyframes overlay-exit {
     from {
       opacity: 1;
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      clip-path: inset(0 round 0);
     }
     to {
       opacity: 0;
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
+      clip-path: inset(0.5rem round var(--explorer-radius-medium));
     }
-  }
-
-  @keyframes dialog-enter {
-    from { opacity: 0.72; transform: translateY(0.75rem) scale(0.985); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-
-  @keyframes dialog-exit {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(0.45rem) scale(0.988); }
   }
 
   @keyframes copy-enter {
@@ -522,18 +510,6 @@
   }
 
   @media (max-width: 900px) {
-    .release-highlights-overlay {
-      padding: 0;
-    }
-
-    .release-highlights-dialog {
-      width: 100%;
-      height: 100dvh;
-      min-height: 100dvh;
-      border-radius: 0;
-      box-shadow: none;
-    }
-
     .tour-body {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(15rem, 44dvh) auto;
@@ -558,16 +534,12 @@
       max-width: 20ch;
     }
 
-    .tour-toolbar,
-    .tour-footer {
-      padding-inline-start: max(1rem, var(--safe-area-left, 0px));
-      padding-inline-end: max(1rem, var(--safe-area-right, 0px));
-    }
   }
 
   @media (max-width: 560px) {
-    .release-highlights-dialog {
-      grid-template-rows: 3.5rem minmax(0, 1fr) 4rem;
+    .tour-toolbar,
+    .tour-footer {
+      min-height: 3.5rem;
     }
 
     .tour-body {
@@ -607,10 +579,71 @@
     }
   }
 
+  @media (min-width: 700px) and (max-height: 520px) {
+    .tour-body {
+      grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+      grid-template-rows: 1fr;
+      align-content: center;
+      gap: 1.25rem;
+      padding: 0.75rem 1rem;
+    }
+
+    .visual-stage {
+      max-height: calc(100dvh - 9rem);
+    }
+
+    .highlight-copy {
+      gap: 0.55rem;
+    }
+
+    .highlight-body {
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .skip-action,
+    .back-action,
+    .next-action,
+    .progress-rail button {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+
+    .tour-toolbar,
+    .tour-footer {
+      min-height: 4rem;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .tour-toolbar,
+    .tour-footer {
+      gap: 0.25rem;
+      padding-inline: max(0.5rem, var(--safe-area-left, 0px));
+    }
+
+    .tour-toolbar {
+      padding-inline-end: max(0.5rem, var(--safe-area-right, 0px));
+    }
+
+    .tour-footer {
+      padding-inline-end: max(0.5rem, var(--safe-area-right, 0px));
+    }
+
+    .navigation-actions {
+      gap: 0.25rem;
+    }
+
+    .next-action {
+      min-width: 6.5rem;
+    }
+  }
+
   :global(html[data-reduce-motion='true']) .visual-stage__inner,
   :global(html[data-reduce-motion='true']) .highlight-copy,
-  :global(html[data-reduce-motion='true']) .release-highlights-overlay,
-  :global(html[data-reduce-motion='true']) .release-highlights-dialog {
+  :global(html[data-reduce-motion='true']) .release-highlights-overlay {
     animation: none;
   }
 

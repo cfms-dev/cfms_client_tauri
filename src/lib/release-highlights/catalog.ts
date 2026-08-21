@@ -12,13 +12,23 @@ const managementPermissions = [
 
 export const releaseTours: readonly ReleaseTour[] = [
   {
-    version: '0.43.0',
-    labelKey: 'releaseHighlights.v043.label',
+    version: '0.45.0',
+    labelKey: 'releaseHighlights.v045.label',
     highlights: [
       {
+        id: 'fullscreen-feature-tour',
+        titleKey: 'releaseHighlights.v045.fullscreenTour.title',
+        bodyKey: 'releaseHighlights.v045.fullscreenTour.body',
+        animation: {
+          light: () => import('./animations/v0.45/fullscreen-tour.light.json'),
+          dark: () => import('./animations/v0.45/fullscreen-tour.dark.json'),
+        },
+        fallbackIcon: 'maximizeDialog',
+      },
+      {
         id: 'document-id-download',
-        titleKey: 'releaseHighlights.v043.documentDownload.title',
-        bodyKey: 'releaseHighlights.v043.documentDownload.body',
+        titleKey: 'releaseHighlights.v045.documentDownload.title',
+        bodyKey: 'releaseHighlights.v045.documentDownload.body',
         animation: {
           light: () => import('./animations/v0.43/document-download.light.json'),
           dark: () => import('./animations/v0.43/document-download.dark.json'),
@@ -27,8 +37,8 @@ export const releaseTours: readonly ReleaseTour[] = [
       },
       {
         id: 'flexible-workspace',
-        titleKey: 'releaseHighlights.v043.flexibleWorkspace.title',
-        bodyKey: 'releaseHighlights.v043.flexibleWorkspace.body',
+        titleKey: 'releaseHighlights.v045.flexibleWorkspace.title',
+        bodyKey: 'releaseHighlights.v045.flexibleWorkspace.body',
         animation: {
           light: () => import('./animations/v0.43/flexible-workspace.light.json'),
           dark: () => import('./animations/v0.43/flexible-workspace.dark.json'),
@@ -37,8 +47,8 @@ export const releaseTours: readonly ReleaseTour[] = [
       },
       {
         id: 'server-diagnostics',
-        titleKey: 'releaseHighlights.v043.diagnostics.title',
-        bodyKey: 'releaseHighlights.v043.diagnostics.body',
+        titleKey: 'releaseHighlights.v045.diagnostics.title',
+        bodyKey: 'releaseHighlights.v045.diagnostics.body',
         animation: {
           light: () => import('./animations/v0.43/server-diagnostics.light.json'),
           dark: () => import('./animations/v0.43/server-diagnostics.dark.json'),
@@ -48,8 +58,8 @@ export const releaseTours: readonly ReleaseTour[] = [
       },
       {
         id: 'account-administration',
-        titleKey: 'releaseHighlights.v043.administration.title',
-        bodyKey: 'releaseHighlights.v043.administration.body',
+        titleKey: 'releaseHighlights.v045.administration.title',
+        bodyKey: 'releaseHighlights.v045.administration.body',
         animation: {
           light: () => import('./animations/v0.43/account-administration.light.json'),
           dark: () => import('./animations/v0.43/account-administration.dark.json'),

@@ -9,6 +9,8 @@ import diagnosticsDark from './animations/v0.43/server-diagnostics.dark.json';
 import diagnosticsLight from './animations/v0.43/server-diagnostics.light.json';
 import flexibleWorkspaceDark from './animations/v0.43/flexible-workspace.dark.json';
 import flexibleWorkspaceLight from './animations/v0.43/flexible-workspace.light.json';
+import fullscreenTourDark from './animations/v0.45/fullscreen-tour.dark.json';
+import fullscreenTourLight from './animations/v0.45/fullscreen-tour.light.json';
 
 const diagnosticsThemes = [
   ['light', diagnosticsLight],
@@ -25,6 +27,10 @@ const administrationThemes = [
 const flexibleWorkspaceThemes = [
   ['light', flexibleWorkspaceLight],
   ['dark', flexibleWorkspaceDark],
+] as const;
+const fullscreenTourThemes = [
+  ['light', fullscreenTourLight],
+  ['dark', fullscreenTourDark],
 ] as const;
 
 let restoreCanvas: (() => void) | undefined;
@@ -229,6 +235,50 @@ describe('flexible workspace lottie-web compatibility', () => {
       expect(windowFrame).not.toEqual(resizeFrame);
       expect(maximizeFrame).not.toEqual(windowFrame);
       expect(loopFrame).toEqual(completedFrame);
+
+      animation.destroy();
+      host.remove();
+    },
+  );
+});
+
+describe('full-screen feature tour lottie-web compatibility', () => {
+  it.each(fullscreenTourThemes)(
+    'renders the window, expansion, and completed full-screen beats in the %s theme',
+    async (_theme, data) => {
+      const { default: lottie } =
+        await import('lottie-web/build/player/lottie_light');
+      const host = document.createElement('div');
+      document.body.append(host);
+      const animation = lottie.loadAnimation({
+        container: host,
+        renderer: 'svg',
+        loop: false,
+        autoplay: false,
+        animationData: structuredClone(data),
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        animation.addEventListener('DOMLoaded', resolve);
+        animation.addEventListener('data_failed', () =>
+          reject(new Error('Lottie rejected the animation data')),
+        );
+      });
+
+      const renderFrame = (frame: number) => {
+        animation.goToAndStop(frame, true);
+        return host.innerHTML;
+      };
+      const windowFrame = renderFrame(0);
+      const anticipationFrame = renderFrame(20);
+      const expansionFrame = renderFrame(46);
+      const completedFrame = renderFrame(80);
+      const reducedMotionFrame = renderFrame(119);
+
+      expect(anticipationFrame).not.toEqual(windowFrame);
+      expect(expansionFrame).not.toEqual(anticipationFrame);
+      expect(completedFrame).not.toEqual(expansionFrame);
+      expect(reducedMotionFrame).toEqual(completedFrame);
 
       animation.destroy();
       host.remove();

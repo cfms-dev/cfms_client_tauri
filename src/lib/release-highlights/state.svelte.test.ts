@@ -4,7 +4,7 @@ import { RELEASE_HIGHLIGHTS_SEEN_KEY, ReleaseHighlightsState } from './state.sve
 function createState(seenVersion: string | null = null) {
   const writeSetting = vi.fn(async () => {});
   const state = new ReleaseHighlightsState({
-    loadVersion: async () => '0.43.0',
+    loadVersion: async () => '0.45.0',
     readSetting: async () => seenVersion,
     writeSetting,
   });
@@ -18,16 +18,16 @@ describe('release highlights state', () => {
 
     expect(state.autoEligible).toBe(true);
     expect(state.openAutomatically([])).toBe(true);
-    expect(state.presentation?.highlights).toHaveLength(2);
+    expect(state.presentation?.highlights).toHaveLength(3);
     state.dismiss();
 
     expect(state.presentation).toBeNull();
     expect(state.autoEligible).toBe(false);
-    expect(writeSetting).toHaveBeenCalledWith(RELEASE_HIGHLIGHTS_SEEN_KEY, '0.43.0');
+    expect(writeSetting).toHaveBeenCalledWith(RELEASE_HIGHLIGHTS_SEEN_KEY, '0.45.0');
   });
 
   it('does not automatically reopen a version already seen', async () => {
-    const { state } = createState('0.43.0');
+    const { state } = createState('0.45.0');
     await state.initialize();
     expect(state.autoEligible).toBe(false);
     expect(state.openAutomatically([])).toBe(false);
@@ -39,6 +39,7 @@ describe('release highlights state', () => {
     await state.initialize();
     state.openAutomatically(['diagnostics', 'manage_system']);
     expect(state.presentation?.highlights.map((item) => item.id)).toEqual([
+      'fullscreen-feature-tour',
       'document-id-download',
       'flexible-workspace',
       'server-diagnostics',
@@ -48,12 +49,12 @@ describe('release highlights state', () => {
 
   it('fails closed when the seen-version setting is unavailable', async () => {
     const state = new ReleaseHighlightsState({
-      loadVersion: async () => '0.43.0',
+      loadVersion: async () => '0.45.0',
       readSetting: async () => { throw new Error('settings unavailable'); },
       writeSetting: async () => {},
     });
     await state.initialize();
-    expect(state.currentTour?.version).toBe('0.43.0');
+    expect(state.currentTour?.version).toBe('0.45.0');
     expect(state.autoEligible).toBe(false);
   });
 });

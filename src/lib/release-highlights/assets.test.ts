@@ -4,21 +4,22 @@ import { describe, expect, it } from 'vitest';
 import { releaseTours } from './catalog';
 
 const assetNames = [
-  ['document-id-download', 'document-download'],
-  ['flexible-workspace', 'flexible-workspace'],
-  ['server-diagnostics', 'server-diagnostics'],
-  ['account-administration', 'account-administration'],
+  ['document-id-download', 'document-download', 'v0.43'],
+  ['flexible-workspace', 'flexible-workspace', 'v0.43'],
+  ['server-diagnostics', 'server-diagnostics', 'v0.43'],
+  ['account-administration', 'account-administration', 'v0.43'],
+  ['fullscreen-feature-tour', 'fullscreen-tour', 'v0.45'],
 ] as const;
 const themes = ['light', 'dark'] as const;
 
 describe('release highlight animation assets', () => {
-  it.each(assetNames.flatMap(([highlightId, assetName]) =>
-    themes.map((theme) => ({ highlightId, assetName, theme }))))(
+  it.each(assetNames.flatMap(([highlightId, assetName, versionDirectory]) =>
+    themes.map((theme) => ({ highlightId, assetName, versionDirectory, theme }))))(
     'ships a compact, expression-free $theme animation for $highlightId',
-    async ({ assetName, theme }) => {
+    async ({ assetName, theme, versionDirectory }) => {
       const assetPath = path.join(
         process.cwd(),
-        'src', 'lib', 'release-highlights', 'animations', 'v0.43',
+        'src', 'lib', 'release-highlights', 'animations', versionDirectory,
         `${assetName}.${theme}.json`,
       );
       const [content, metadata] = await Promise.all([readFile(assetPath, 'utf8'), stat(assetPath)]);
