@@ -47,7 +47,6 @@
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
   import PermissionEntriesDialog from '$lib/components/PermissionEntriesDialog.svelte';
-  import PermissionManagementButton from '$lib/components/PermissionManagementButton.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
   import SecurityManagement from '$lib/components/SecurityManagement.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
@@ -1183,7 +1182,7 @@
                   {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                   {@render ActionButton('accountCircle', canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => handleChangeUserAvatar(user), !canManageUserAvatars || busyKey !== null)}
-                  <PermissionManagementButton label={$t('manage.editPermissions')} onclick={() => handleEditUserPermissions(user)} disabled={!canSetUserPermissions || busyKey !== null} />
+                  {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                   {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                   {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
                   {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
@@ -1197,7 +1196,7 @@
                       {@render ActionButton('edit', $t('manage.changeNickname'), () => handleRenameUser(user), busyKey !== null)}
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => handleEditUserGroups(user), busyKey !== null)}
                       {@render ActionButton('accountCircle', canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => handleChangeUserAvatar(user), !canManageUserAvatars || busyKey !== null)}
-                      <PermissionManagementButton label={$t('manage.editPermissions')} onclick={() => handleEditUserPermissions(user)} disabled={!canSetUserPermissions || busyKey !== null} />
+                      {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => handleEditUserPermissions(user), !canSetUserPermissions || busyKey !== null)}
                       {@render ActionButton('password', $t('manage.resetPassword'), () => handleResetPassword(user), busyKey !== null)}
                       {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => handleManageAccount(user), (!canManageUserStatus && !canManage2fa) || busyKey !== null)}
                       {@render ActionButton('block', $t('manage.blockUser'), () => handleBlockUser(user), !canBlock || busyKey !== null)}
@@ -1288,14 +1287,14 @@
                 </button>
                 <div class="manage-list-actions">
                   {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
-                  <PermissionManagementButton label={$t('manage.setPermissions')} onclick={() => handleEditGroupPermissions(group)} disabled={busyKey !== null} />
+                  {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
                   {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
                 </div>
                 {#if expandedActionRow === actionKey}
                   <div class="manage-list-expanded rounded-lg border border-md3-outline/50 bg-md3-surface-container-high/40 px-2 py-2 animate-fade-scale-in">
                     <div class="flex flex-wrap justify-end gap-1">
                       {@render ActionButton('edit', $t('manage.rename'), () => handleRenameGroup(group), busyKey !== null)}
-                      <PermissionManagementButton label={$t('manage.setPermissions')} onclick={() => handleEditGroupPermissions(group)} disabled={busyKey !== null} />
+                      {@render ActionButton('settings', $t('manage.setPermissions'), () => handleEditGroupPermissions(group), busyKey !== null)}
                       {@render ActionButton('groupRemove', $t('common.delete'), () => handleDeleteGroup(group), busyKey !== null, true)}
                     </div>
                   </div>
