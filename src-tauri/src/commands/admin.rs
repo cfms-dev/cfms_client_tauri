@@ -208,7 +208,7 @@ pub async fn change_user_groups(
 pub async fn change_user_permissions(
     state: tauri::State<'_, AppHandleState>,
     username: String,
-    permissions: Vec<String>,
+    permissions: Vec<cfms_core::PermissionEntry>,
 ) -> Result<bool, String> {
     server_action_bool(
         &state,
@@ -638,7 +638,7 @@ pub async fn get_group_info(
 pub async fn change_group_permissions(
     state: tauri::State<'_, AppHandleState>,
     group_name: String,
-    permissions: Vec<String>,
+    permissions: Vec<cfms_core::PermissionEntry>,
 ) -> Result<bool, String> {
     server_action_bool(
         &state,

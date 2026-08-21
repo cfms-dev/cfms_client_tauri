@@ -7,6 +7,19 @@
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
+// Identity permissions
+// ---------------------------------------------------------------------------
+
+/// A protocol 24 permission grant or revocation with an inclusive validity window.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PermissionEntry {
+    pub permission: String,
+    pub granted: bool,
+    pub start_time: f64,
+    pub end_time: Option<f64>,
+}
+
+// ---------------------------------------------------------------------------
 // Server response envelope
 // ---------------------------------------------------------------------------
 
@@ -786,6 +799,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn permission_entry_serializes_all_protocol_twenty_four_fields() {
+        let entry = PermissionEntry {
+            permission: "list_users".to_string(),
+            granted: false,
+            start_time: 1_787_200_000.0,
+            end_time: None,
+        };
+
+        assert_eq!(
+            serde_json::to_value(entry).unwrap(),
+            serde_json::json!({
+                "permission": "list_users",
+                "granted": false,
+                "start_time": 1_787_200_000.0,
+                "end_time": null,
+            })
+        );
+    }
+
+    #[test]
     fn list_directory_preserves_unknown_document_size() {
         let raw = r#"{
             "folders": [],
@@ -829,7 +862,7 @@ mod tests {
     fn server_info_preserves_extension_flags_and_defaults_when_missing() {
         let with_flags: ServerInfo = serde_json::from_value(serde_json::json!({
             "server_name": "CFMS",
-            "protocol_version": 23,
+            "protocol_version": 24,
             "lockdown": false,
             "lockdown_reason": null,
             "extension_flags": ["node_lookup", "documents"]
@@ -839,7 +872,7 @@ mod tests {
 
         let without_flags: ServerInfo = serde_json::from_value(serde_json::json!({
             "server_name": "CFMS",
-            "protocol_version": 23,
+            "protocol_version": 24,
             "lockdown": false,
             "lockdown_reason": null
         }))

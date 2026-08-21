@@ -211,12 +211,14 @@ export interface DeletedItemsResponse {
 export interface ManagedUser {
   username: string;
   nickname?: string | null;
-  /** Effective permissions after applying direct user permissions and group inheritance. */
-  permissions?: string[];
-  /** Permissions assigned directly to this user. Returned by get_user_info. */
-  own_permissions?: string[];
-  /** Permissions inherited from the user's groups. Returned by get_user_info. */
-  inherited_permissions?: string[];
+  /** Structured permission entries assigned directly to this user. */
+  permissions: PermissionEntry[];
+  /** Final effective permission names after direct and inherited revocations. */
+  effective_permissions: string[];
+  /** Effective permission names contributed by direct entries alone. */
+  effective_own_permissions: string[];
+  /** Effective permission names contributed by active group entries. */
+  effective_inherited_permissions: string[];
   groups?: string[];
   created_time?: number | null;
   last_login?: number | null;
@@ -239,8 +241,16 @@ export interface ManagedUserInfo extends ManagedUser {
 export interface ManagedGroup {
   name: string;
   display_name?: string | null;
-  permissions?: string[];
+  permissions: PermissionEntry[];
+  effective_permissions: string[];
   members?: string[];
+}
+
+export interface PermissionEntry {
+  permission: string;
+  granted: boolean;
+  start_time: number;
+  end_time: number | null;
 }
 
 export interface UserBlockTarget {

@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, PermissionEntry, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserInfoResponse = Omit<ManagedUserInfo, 'status'> & {
@@ -54,7 +54,7 @@ export async function changeUserGroups(
 
 export async function changeUserPermissions(
   username: string,
-  permissions: string[],
+  permissions: PermissionEntry[],
 ): Promise<boolean> {
   return invoke("change_user_permissions", { username, permissions });
 }
@@ -208,7 +208,7 @@ export async function getGroupInfo(groupName: string): Promise<ManagedGroup> {
 
 export async function changeGroupPermissions(
   groupName: string,
-  permissions: string[],
+  permissions: PermissionEntry[],
 ): Promise<boolean> {
   return invoke("change_group_permissions", { groupName, permissions });
 }

@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createBannedSubnet,
+  changeGroupPermissions,
+  changeUserPermissions,
   disableManagedTwoFactor,
   getServerDiagnostics,
   getUserInfo,
@@ -82,7 +84,7 @@ describe('admin API', () => {
       server: {
         server_name: 'CFMS',
         core_version: '0.5.0',
-        protocol_version: 23,
+        protocol_version: 24,
         debug_configured: false,
       },
     };
@@ -113,6 +115,28 @@ describe('admin API', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('update_user_block', {
       blockId: 'block-1',
       reason: null,
+    });
+  });
+
+  it('passes protocol v24 permission entries through Tauri IPC', async () => {
+    const permissions = [{
+      permission: 'list_users',
+      granted: false,
+      start_time: 1_787_200_000,
+      end_time: null,
+    }];
+    invokeMock.mockResolvedValue(true);
+
+    await changeUserPermissions('alice', permissions);
+    expect(invokeMock).toHaveBeenLastCalledWith('change_user_permissions', {
+      username: 'alice',
+      permissions,
+    });
+
+    await changeGroupPermissions('staff', permissions);
+    expect(invokeMock).toHaveBeenLastCalledWith('change_group_permissions', {
+      groupName: 'staff',
+      permissions,
     });
   });
 

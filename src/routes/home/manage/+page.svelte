@@ -29,6 +29,7 @@
     type ManagedUser,
     type ManagedUserInfo,
     type ManagedUserStatus,
+    type PermissionEntry,
     type TwoFactorStatus,
     type UserBlock,
     type UserBlockTarget,
@@ -45,11 +46,13 @@
   import ProgressRing from '$lib/components/ProgressRing.svelte';
   import BlockUserDialog from '$lib/components/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/components/ManageListEditorDialog.svelte';
+  import PermissionEntriesDialog from '$lib/components/PermissionEntriesDialog.svelte';
   import ResetUserPasswordDialog from '$lib/components/ResetUserPasswordDialog.svelte';
   import SecurityManagement from '$lib/components/SecurityManagement.svelte';
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
+  import type { PermissionEntriesEditorData } from '$lib/permission-entries';
   import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
   type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs';
@@ -629,9 +632,9 @@
           label: $t('manage.accountStatus'),
           value: info.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled'),
         },
-        { label: $t('manage.effectivePermissions'), value: formatList(info.permissions) },
-        { label: $t('manage.ownPermissions'), value: formatList(info.own_permissions) },
-        { label: $t('manage.inheritedPermissions'), value: formatList(info.inherited_permissions) },
+        { label: $t('manage.effectivePermissions'), value: formatList(info.effective_permissions) },
+        { label: $t('manage.ownPermissions'), value: formatList(info.effective_own_permissions) },
+        { label: $t('manage.inheritedPermissions'), value: formatList(info.effective_inherited_permissions) },
         { label: $t('manage.groups'), value: formatList(info.groups) },
         { label: $t('manage.registered'), value: formatDate(info.created_time) },
         { label: $t('manage.lastLogin'), value: formatDate(info.last_login) },
@@ -749,38 +752,12 @@
     };
   }
 
-  async function loadUserPermissionEditorData(user: ManagedUser): Promise<ListEditorData> {
-    const [allUsers, allGroups, userInfo] = await Promise.all([
-      listUsers(),
-      listGroups().catch(() => [] as ManagedGroup[]),
-      getUserInfo(user.username),
-    ]);
-    users = allUsers;
-    if (allGroups.length > 0) groups = allGroups;
-
-    const permissionSet = new Set<string>();
-    const ownPermissions = userInfo.own_permissions ?? [];
-    const inheritedPermissions = userInfo.inherited_permissions ?? [];
-
-    for (const permission of userInfo.permissions ?? []) permissionSet.add(permission);
-    for (const permission of ownPermissions) permissionSet.add(permission);
-    for (const permission of inheritedPermissions) permissionSet.add(permission);
-    for (const account of allUsers) {
-      for (const permission of account.permissions ?? []) permissionSet.add(permission);
-    }
-    for (const group of allGroups) {
-      for (const permission of group.permissions ?? []) permissionSet.add(permission);
-    }
-
+  async function loadUserPermissionEditorData(user: ManagedUser): Promise<PermissionEntriesEditorData> {
+    const userInfo = await getUserInfo(user.username);
     return {
-      items: [...permissionSet].sort().map((permission) => ({
-        id: permission,
-        label: permission,
-        meta: inheritedPermissions.includes(permission) && !ownPermissions.includes(permission)
-          ? $t('manage.inheritedPermission')
-          : undefined,
-      })),
-      selected: ownPermissions,
+      entries: userInfo.permissions,
+      effectivePermissions: userInfo.effective_permissions,
+      inheritedPermissions: userInfo.effective_inherited_permissions,
     };
   }
 
@@ -791,8 +768,8 @@
     await loadUserList();
   }
 
-  async function saveUserPermissions(user: ManagedUser, selected: string[]) {
-    await changeUserPermissions(user.username, selected);
+  async function saveUserPermissions(user: ManagedUser, entries: PermissionEntry[]) {
+    await changeUserPermissions(user.username, entries);
     status = $t('manage.userPermissionsUpdated', { values: { username: user.username } });
     activeDialog = null;
     await loadUserList();
@@ -842,19 +819,16 @@
     activeDialog = null;
   }
 
-  async function loadGroupPermissionEditorData(group: ManagedGroup): Promise<ListEditorData> {
+  async function loadGroupPermissionEditorData(group: ManagedGroup): Promise<PermissionEntriesEditorData> {
     const info = await getGroupInfo(group.name);
     return {
-      items: (info.permissions ?? []).map((permission) => ({
-        id: permission,
-        label: permission,
-      })),
-      selected: info.permissions ?? [],
+      entries: info.permissions,
+      effectivePermissions: info.effective_permissions,
     };
   }
 
-  async function saveGroupPermissions(group: ManagedGroup, selected: string[]) {
-    await changeGroupPermissions(group.name, selected);
+  async function saveGroupPermissions(group: ManagedGroup, entries: PermissionEntry[]) {
+    await changeGroupPermissions(group.name, entries);
     status = $t('manage.groupPermissionsUpdated', { values: { group: group.name } });
     activeDialog = null;
     await loadGroupList();
@@ -871,13 +845,15 @@
   }
 
   async function refreshActiveUserPermissions() {
-    if (activeDialog?.kind !== 'user-permissions') return { items: [], selected: [] };
+    if (activeDialog?.kind !== 'user-permissions') {
+      return { entries: [], effectivePermissions: [], inheritedPermissions: [] };
+    }
     return loadUserPermissionEditorData(activeDialog.user);
   }
 
-  async function saveActiveUserPermissions(selected: string[]) {
+  async function saveActiveUserPermissions(entries: PermissionEntry[]) {
     if (activeDialog?.kind !== 'user-permissions') return;
-    await saveUserPermissions(activeDialog.user, selected);
+    await saveUserPermissions(activeDialog.user, entries);
   }
 
   async function saveActiveResetPassword(
@@ -937,13 +913,13 @@
   }
 
   async function refreshActiveGroupPermissions() {
-    if (activeDialog?.kind !== 'group-permissions') return { items: [], selected: [] };
+    if (activeDialog?.kind !== 'group-permissions') return { entries: [], effectivePermissions: [] };
     return loadGroupPermissionEditorData(activeDialog.group);
   }
 
-  async function saveActiveGroupPermissions(selected: string[]) {
+  async function saveActiveGroupPermissions(entries: PermissionEntry[]) {
     if (activeDialog?.kind !== 'group-permissions') return;
-    await saveGroupPermissions(activeDialog.group, selected);
+    await saveGroupPermissions(activeDialog.group, entries);
   }
 
   async function handleDeleteGroup(group: ManagedGroup) {
@@ -1279,7 +1255,7 @@
                   {@render PrimaryMetadataValue(group.name)}
                 </div>
                 <div class="metadata-stack">
-                  {@render MetadataLine($t('manage.permissions'), formatList(group.permissions))}
+                  {@render MetadataLine($t('manage.permissions'), formatList(group.effective_permissions))}
                   {@render MetadataLine($t('manage.members'), formatList(group.members))}
                 </div>
                 <button
@@ -1462,15 +1438,12 @@
     onClose={() => (activeDialog = null)}
   />
 {:else if activeDialog?.kind === 'user-permissions'}
-  <ManageListEditorDialog
+  <PermissionEntriesDialog
     title={$t('manage.editUserPermissionsTitle', { values: { username: activeDialog.user.username } })}
     description={$t('manage.editUserPermissionsDescription')}
-    icon="adminPanelSettings"
-    items={(activeDialog.user.permissions ?? []).map((permission) => ({ id: permission, label: permission }))}
-    selected={activeDialog.user.own_permissions ?? []}
-    allowAdd={true}
-    addPlaceholder={$t('manage.addPermissionPlaceholder')}
-    emptyMessage={$t('manage.noPermissions')}
+    entries={activeDialog.user.permissions}
+    effectivePermissions={activeDialog.user.effective_permissions}
+    inheritedPermissions={activeDialog.user.effective_inherited_permissions}
     onRefresh={refreshActiveUserPermissions}
     onSave={saveActiveUserPermissions}
     onClose={() => (activeDialog = null)}
@@ -1561,15 +1534,11 @@
     onClose={() => (activeDialog = null)}
   />
 {:else if activeDialog?.kind === 'group-permissions'}
-  <ManageListEditorDialog
+  <PermissionEntriesDialog
     title={$t('manage.editGroupPermissionsTitle', { values: { group: activeDialog.group.name } })}
     description={$t('manage.editGroupPermissionsDescription')}
-    icon="adminPanelSettings"
-    items={(activeDialog.group.permissions ?? []).map((permission) => ({ id: permission, label: permission }))}
-    selected={activeDialog.group.permissions ?? []}
-    allowAdd={true}
-    addPlaceholder={$t('manage.addPermissionPlaceholder')}
-    emptyMessage={$t('manage.noPermissions')}
+    entries={activeDialog.group.permissions}
+    effectivePermissions={activeDialog.group.effective_permissions}
     onRefresh={refreshActiveGroupPermissions}
     onSave={saveActiveGroupPermissions}
     onClose={() => (activeDialog = null)}

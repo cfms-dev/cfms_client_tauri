@@ -24,7 +24,7 @@ const diagnostics = {
   server: {
     server_name: 'CFMS Test Server',
     core_version: '0.5.0.260812_alpha',
-    protocol_version: 23,
+    protocol_version: 24,
     debug_configured: false,
   },
   runtime: {
