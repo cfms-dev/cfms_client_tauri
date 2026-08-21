@@ -16,6 +16,9 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 - Present release highlights edge to edge across desktop and touch layouts, with dedicated narrow-screen and landscape adaptations
 - Reuse the existing 0.43 release-highlight animations in the 0.45 feature tour
 
+### Fixed
+- Adjust focus styles for release highlights screen to improve accessibility
+
 ---
 
 ## v0.44.0
