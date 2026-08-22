@@ -53,6 +53,7 @@
     closeOnBackdrop = true,
     resizable = false,
     maximizable = false,
+    initialMaximized = false,
     minWidth = 360,
     minHeight = 240,
     onClose,
@@ -66,6 +67,7 @@
     closeOnBackdrop?: boolean;
     resizable?: boolean;
     maximizable?: boolean;
+    initialMaximized?: boolean;
     minWidth?: number;
     minHeight?: number;
     onClose: () => void;
@@ -92,6 +94,7 @@
   let windowStateAnimation: Animation | null = null;
   let windowStateTransitioning = false;
   let windowStateTransitionId = 0;
+  let initialWindowStateApplied = $state(false);
 
   onMount(() => {
     try {
@@ -114,9 +117,22 @@
   });
 
   $effect(() => {
-    if (open) return;
-    resetDialogPosition();
+    if (!open) {
+      initialWindowStateApplied = false;
+      resetDialogPosition();
+      return;
+    }
+    if (initialWindowStateApplied || !dragAvailable) return;
+    initialWindowStateApplied = true;
+    if (maximizable && initialMaximized) void applyInitialMaximizedState();
   });
+
+  async function applyInitialMaximizedState() {
+    await tick();
+    if (!open || !dragAvailable || !maximizable || !initialMaximized || !positionerElement) return;
+    restoreRect = readPositionerRect();
+    maximized = true;
+  }
 
   $effect(() => {
     if (

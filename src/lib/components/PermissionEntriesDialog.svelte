@@ -250,8 +250,18 @@
     editorComponent?.focusUndo();
   }
 
-  async function undoDelete(key: string) {
-    localEntries = localEntries.map((row) => row.key === key ? { ...row, deleted: false } : row);
+  async function undoEntryChange(key: string) {
+    localEntries = localEntries.map((row) => {
+      if (row.key !== key) return row;
+      if (row.deleted) return { ...row, deleted: false };
+      if (row.initial === null) return row;
+      return {
+        ...row,
+        entry: { ...row.initial },
+        startMode: 'specified',
+        endMode: row.initial.end_time === null ? 'never' : 'specified',
+      };
+    });
     selectedKey = key;
     await tick();
     editorComponent?.focusPermissionName();
@@ -316,6 +326,7 @@
   maxWidth="max-w-5xl"
   resizable
   maximizable
+  initialMaximized
   minWidth={620}
   minHeight={560}
   closeLabel={$t('common.close')}
@@ -348,57 +359,6 @@
       {/if}
     </header>
 
-    <details class="permission-snapshot">
-      <summary>
-        <span class="snapshot-summary-copy">
-          <Icon name="visibility" size="17px" />
-          <span>
-            <strong>{$t('manage.currentPermissionSnapshot')}</strong>
-            <small>{$t('manage.currentPermissionSnapshotDescription')}</small>
-          </span>
-        </span>
-        <span class="snapshot-counts">
-          <span>{$t('manage.permissionSnapshotEffectiveCount', {
-            values: { count: localEffectivePermissions.length },
-          })}</span>
-          {#if localInheritedPermissions !== undefined}
-            <span>{$t('manage.permissionSnapshotInheritedCount', {
-              values: { count: localInheritedPermissions.length },
-            })}</span>
-          {/if}
-          <Icon name="expandMore" size="18px" />
-        </span>
-      </summary>
-      <div class="snapshot-content">
-        <section aria-labelledby="effective-permissions-title">
-          <h3 id="effective-permissions-title">{$t('manage.effectivePermissions')}</h3>
-          <div class="snapshot-values">
-            {#if localEffectivePermissions.length === 0}
-              <span class="snapshot-empty">{$t('manage.noEffectivePermissions')}</span>
-            {:else}
-              {#each localEffectivePermissions as permission (permission)}
-                <span>{permission}</span>
-              {/each}
-            {/if}
-          </div>
-        </section>
-        {#if localInheritedPermissions !== undefined}
-          <section aria-labelledby="inherited-permissions-title">
-            <h3 id="inherited-permissions-title">{$t('manage.inheritedPermissions')}</h3>
-            <div class="snapshot-values snapshot-values--muted">
-              {#if localInheritedPermissions.length === 0}
-                <span class="snapshot-empty">{$t('manage.noInheritedPermissions')}</span>
-              {:else}
-                {#each localInheritedPermissions as permission (permission)}
-                  <span>{permission}</span>
-                {/each}
-              {/if}
-            </div>
-          </section>
-        {/if}
-      </div>
-    </details>
-
     {#if error}
       <div class="workspace-error" role="alert">
         <Icon name="errorFilled" size="17px" />
@@ -420,7 +380,7 @@
         onVisibleKeysChange={reconcileVisibleSelection}
         onAdd={() => { void startCreating(); }}
         onDelete={(key) => { void deleteEntry(key); }}
-        onUndo={(key) => { void undoDelete(key); }}
+        onUndo={(key) => { void undoEntryChange(key); }}
       />
       <PermissionEntryEditor
         bind:this={editorComponent}
@@ -432,7 +392,7 @@
         onStartModeChange={setStartMode}
         onEndModeChange={setEndMode}
         onDelete={() => { if (selectedKey) void deleteEntry(selectedKey); }}
-        onUndo={() => { if (selectedKey) void undoDelete(selectedKey); }}
+        onUndo={() => { if (selectedKey) void undoEntryChange(selectedKey); }}
       />
       {#if loading}
         <div class="loading-overlay" aria-live="polite">
@@ -455,7 +415,7 @@
             },
           })}</span>
         {:else}
-          <Icon name="verified" size="16px" />
+          <Icon name="checkCircle" size="16px" />
           <span>{$t('manage.permissionNoUnsavedChanges')}</span>
         {/if}
         {#if hasInvalidEntries}
@@ -548,63 +508,6 @@
   .refresh-button:hover:not(:disabled) { color: var(--color-md3-on-surface); background: var(--color-md3-surface-container-high); }
   .refresh-button:active:not(:disabled) { transform: rotate(20deg) scale(0.94); }
 
-  .permission-snapshot {
-    flex: none;
-    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 58%, transparent);
-    border-bottom: 1px solid var(--color-md3-outline);
-    background: color-mix(in srgb, var(--color-md3-surface-container-high) 38%, transparent);
-  }
-
-  .permission-snapshot summary {
-    display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.55rem 1.15rem;
-    cursor: pointer;
-    list-style: none;
-  }
-
-  .permission-snapshot summary::-webkit-details-marker { display: none; }
-
-  .snapshot-summary-copy,
-  .snapshot-counts { display: flex; align-items: center; gap: 0.5rem; }
-
-  .snapshot-summary-copy { min-width: 0; color: var(--color-md3-primary-emphasis); }
-  .snapshot-summary-copy > span { display: grid; min-width: 0; }
-  .snapshot-summary-copy strong { color: var(--color-md3-on-surface); font: 600 0.76rem/1.3 var(--font-md3-sans); }
-  .snapshot-summary-copy small { color: var(--color-md3-on-surface-variant); font: 400 0.66rem/1.35 var(--font-md3-sans); }
-
-  .snapshot-counts { flex: none; color: var(--color-md3-on-surface-variant); font: 500 0.68rem/1.3 var(--font-md3-sans); }
-  .snapshot-counts > span { border-radius: 9999px; padding: 0.15rem 0.45rem; background: var(--color-md3-surface-container-highest); }
-  .snapshot-counts :global(.material-symbols-rounded) { transition: transform 150ms cubic-bezier(0.2, 0, 0, 1); }
-  .permission-snapshot[open] .snapshot-counts :global(.material-symbols-rounded) { transform: rotate(180deg); }
-
-  .snapshot-content {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 58%, transparent);
-    padding: 0.75rem 1.15rem 0.9rem;
-  }
-
-  .snapshot-content h3 { margin: 0 0 0.45rem; color: var(--color-md3-on-surface); font: 600 0.7rem/1.3 var(--font-md3-sans); }
-
-  .snapshot-values { display: flex; max-height: 4.5rem; flex-wrap: wrap; gap: 0.3rem; overflow: auto; }
-  .snapshot-values > span:not(.snapshot-empty) {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    border-radius: 9999px;
-    padding: 0.14rem 0.42rem;
-    color: var(--color-md3-on-primary-container);
-    background: var(--color-md3-primary-container);
-    font: 500 0.66rem/1.35 var(--font-md3-sans);
-  }
-
-  .snapshot-values--muted > span:not(.snapshot-empty) { color: var(--color-md3-on-surface-variant); background: var(--color-md3-surface-container-highest); }
-  .snapshot-empty { color: var(--color-md3-on-surface-variant); font: 400 0.68rem/1.4 var(--font-md3-sans); }
-
   .workspace-error {
     display: flex;
     flex: none;
@@ -680,10 +583,6 @@
     .permission-overview { padding-inline: 0.9rem; }
     .permission-overview-icon { display: none; }
     .permission-overview { grid-template-columns: minmax(0, 1fr) auto; }
-    .permission-snapshot summary { align-items: flex-start; padding-inline: 0.9rem; }
-    .snapshot-counts { flex-wrap: wrap; justify-content: flex-end; }
-    .snapshot-summary-copy small { display: none; }
-    .snapshot-content { grid-template-columns: 1fr; padding-inline: 0.9rem; }
     .permission-footer { align-items: flex-end; }
     .change-summary { display: grid; gap: 0.15rem; }
   }
@@ -691,16 +590,13 @@
   @media (max-width: 480px) {
     .permission-footer { align-items: stretch; flex-direction: column; }
     .footer-actions { justify-content: flex-end; }
-    .snapshot-counts > span { display: none; }
   }
 
   @media (pointer: coarse) {
     .refresh-button { width: 2.75rem; height: 2.75rem; }
-    .permission-snapshot summary { min-height: 3rem; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .refresh-button,
-    .snapshot-counts :global(.material-symbols-rounded) { transition: none; }
+    .refresh-button { transition: none; }
   }
 </style>

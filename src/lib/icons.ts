@@ -47,6 +47,7 @@ export const ICONS = {
   maximizeDialog:'crop_square',
   restoreDialog: 'filter_none',
   done:          'done',
+  undo:          'undo',
   add:           'add',
   remove:        'remove',
   code:          'code',
@@ -67,6 +68,9 @@ export const ICONS = {
 
   // ---- Download status ----
   checkCircle:   'check_circle',
+  today:         'today',
+  eventUpcoming: 'event_upcoming',
+  allInclusive:  'all_inclusive',
   errorFilled:   'error',
   schedule:      'schedule',
   pauseCircle:   'pause_circle',

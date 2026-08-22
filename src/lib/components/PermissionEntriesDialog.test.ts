@@ -45,7 +45,7 @@ afterEach(() => {
 describe('PermissionEntriesDialog', () => {
   it('directly stages an immediate grant and validates the inclusive time window', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(PermissionEntriesDialog, {
+    const { container } = render(PermissionEntriesDialog, {
       props: {
         title: 'Permissions',
         description: 'Manage permissions',
@@ -54,13 +54,18 @@ describe('PermissionEntriesDialog', () => {
       },
     });
 
+    expect(container.querySelector('.change-summary [data-icon="checkCircle"]')).toBeTruthy();
     await fireEvent.click(screen.getAllByRole('button', { name: 'manage.addPermissionEntry' })[0]);
+    expect(container.querySelector('[data-icon="approvalDelegation"]')).toBeTruthy();
+    expect(container.querySelector('[data-icon="today"]')).toBeTruthy();
+    expect(container.querySelector('[data-icon="eventUpcoming"]')).toBeTruthy();
+    expect(container.querySelector('[data-icon="allInclusive"]')).toBeTruthy();
     await fireEvent.input(screen.getByLabelText('manage.permissionName'), {
       target: { value: 'list_users' },
     });
     await fireEvent.click(screen.getByRole('button', { name: 'manage.permissionRevoke' }));
     await fireEvent.click(screen.getByRole('button', { name: 'manage.permissionStartSpecified' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'manage.permissionEndSpecified' }));
+    await fireEvent.click(screen.getByRole('switch', { name: 'manage.permissionNeverExpires' }));
 
     const startInput = screen.getByLabelText('manage.permissionStartsAt') as HTMLInputElement;
     const endInput = screen.getByLabelText('manage.permissionEndsAt') as HTMLInputElement;
@@ -99,6 +104,17 @@ describe('PermissionEntriesDialog', () => {
     expect(screen.getAllByText('search', { selector: 'strong' })).toHaveLength(2);
     expect(screen.getAllByText('manage.permissionState.expired').length).toBeGreaterThan(1);
 
+    await fireEvent.input(screen.getByLabelText('manage.permissionName'), {
+      target: { value: 'search_archive' },
+    });
+    expect(screen.getByRole('button', { name: 'manage.undoPermissionEntryChanges' })).toBeTruthy();
+    expect(document.querySelector('[data-icon="undo"]')).toBeTruthy();
+    const modifiedRow = screen.getByText('search_archive', { selector: 'strong' }).closest('li')!;
+    expect(Array.from(modifiedRow.querySelectorAll<HTMLButtonElement>('.entry-actions button'))
+      .map((button) => button.getAttribute('aria-label')))
+      .toEqual(['manage.undoPermissionEntryChanges', 'manage.deletePermissionEntry']);
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.undoPermissionEntryChanges' }));
+    expect((screen.getByLabelText('manage.permissionName') as HTMLInputElement).value).toBe('search');
     await fireEvent.input(screen.getByLabelText('manage.permissionName'), {
       target: { value: 'search_archive' },
     });
@@ -146,12 +162,14 @@ describe('PermissionEntriesDialog', () => {
     expect(screen.queryByText('current_rule', { selector: 'strong' })).toBeNull();
     expect(screen.getByText('expired_rule', { selector: 'strong' })).toBeTruthy();
     await waitFor(() => expect((screen.getByLabelText('manage.permissionName') as HTMLInputElement).value).toBe('expired_rule'));
-    expect(screen.getByText('manage.permissionSelected')).toBeTruthy();
+    expect(screen.queryByText('manage.permissionSelected')).toBeNull();
 
     await fireEvent.click(screen.getByRole('button', { name: /manage\.permissionFilterAll/ }));
     await fireEvent.input(screen.getByLabelText('manage.searchPermissionEntries'), {
       target: { value: 'current' },
     });
+    expect((screen.getByLabelText('manage.searchPermissionEntries') as HTMLInputElement).dataset.focusRing)
+      .toBe('delegated');
     expect(screen.getByText('current_rule', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('expired_rule', { selector: 'strong' })).toBeNull();
     await waitFor(() => expect((screen.getByLabelText('manage.permissionName') as HTMLInputElement).value).toBe('current_rule'));

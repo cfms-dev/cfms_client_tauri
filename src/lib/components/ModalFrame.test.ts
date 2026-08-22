@@ -93,6 +93,7 @@ type ModalOverrides = {
   closeOnBackdrop?: boolean;
   resizable?: boolean;
   maximizable?: boolean;
+  initialMaximized?: boolean;
   minWidth?: number;
   minHeight?: number;
 };
@@ -328,6 +329,27 @@ describe('ModalFrame', () => {
     expect(screen.getByRole('button', { name: 'Maximize dialog' }).getAttribute('aria-pressed')).toBe('false');
   });
 
+  it('can start maximized on desktop and restore to its default geometry', async () => {
+    const { container } = renderModal({
+      resizable: true,
+      maximizable: true,
+      initialMaximized: true,
+    });
+    const geometry = installDialogGeometry(container);
+
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(true));
+    expect(screen.getByRole('button', { name: 'Restore dialog' }).getAttribute('aria-pressed')).toBe('true');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore dialog' }));
+    await waitFor(() => expect(geometry.positioner.classList.contains('modal-positioner--maximized')).toBe(false));
+    expect(geometry.positioner.getBoundingClientRect()).toMatchObject({
+      left: 250,
+      top: 200,
+      width: 300,
+      height: 200,
+    });
+  });
+
   it.each([
     ['e', { x: 550, y: 300 }, { x: 650, y: 300 }, makeRect(250, 200, 400, 200)],
     ['w', { x: 250, y: 300 }, { x: 150, y: 300 }, makeRect(150, 200, 400, 200)],
@@ -477,6 +499,18 @@ describe('ModalFrame', () => {
 
     expect(container.querySelectorAll('.modal-resize-handle')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Maximize dialog' })).toBeNull();
+  });
+
+  it('ignores the initial maximized state on mobile platforms', async () => {
+    platformMocks.isMobilePlatform.mockReturnValue(true);
+    const { container } = renderModal({
+      resizable: true,
+      maximizable: true,
+      initialMaximized: true,
+    });
+    await Promise.resolve();
+
+    expect(container.querySelector('.modal-positioner--maximized')).toBeNull();
   });
 
   it('cleans up resize cancellation and lost pointer capture', async () => {

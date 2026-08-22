@@ -143,6 +143,7 @@
     <Icon name="search" size="18px" />
     <input
       value={query}
+      data-focus-ring="delegated"
       aria-label={$t('manage.searchPermissionEntries')}
       placeholder={$t('manage.searchPermissionEntries')}
       disabled={disabled}
@@ -216,9 +217,6 @@
                 </span>
               </span>
               <span class="entry-meta-line">
-                {#if selectedKey === row.key}
-                  <span class="selection-chip">{$t('manage.permissionSelected')}</span>
-                {/if}
                 <span class={`state-chip ${stateClass(row.state)}`}>
                   {$t(`manage.permissionState.${row.state}`)}
                 </span>
@@ -236,21 +234,36 @@
               </span>
               <span class="entry-time">{timeSummary(row.entry)}</span>
             </button>
-            <button
-              type="button"
-              class:undo-action={row.change === 'deleted'}
-              class:delete-action={row.change !== 'deleted'}
-              aria-label={row.change === 'deleted'
-                ? $t('manage.undoDeletePermissionEntry')
-                : $t('manage.deletePermissionEntry')}
-              title={row.change === 'deleted'
-                ? $t('manage.undoDeletePermissionEntry')
-                : $t('manage.deletePermissionEntry')}
-              disabled={disabled}
-              onclick={() => row.change === 'deleted' ? onUndo(row.key) : onDelete(row.key)}
-            >
-              <Icon name={row.change === 'deleted' ? 'history' : 'delete'} size="18px" />
-            </button>
+            <div class="entry-actions">
+              {#if row.change === 'deleted' || row.change === 'modified'}
+                <button
+                  type="button"
+                  class="undo-action"
+                  aria-label={row.change === 'deleted'
+                    ? $t('manage.undoDeletePermissionEntry')
+                    : $t('manage.undoPermissionEntryChanges')}
+                  title={row.change === 'deleted'
+                    ? $t('manage.undoDeletePermissionEntry')
+                    : $t('manage.undoPermissionEntryChanges')}
+                  disabled={disabled}
+                  onclick={() => onUndo(row.key)}
+                >
+                  <Icon name="undo" size="18px" />
+                </button>
+              {/if}
+              {#if row.change !== 'deleted'}
+                <button
+                  type="button"
+                  class="delete-action"
+                  aria-label={$t('manage.deletePermissionEntry')}
+                  title={$t('manage.deletePermissionEntry')}
+                  disabled={disabled}
+                  onclick={() => onDelete(row.key)}
+                >
+                  <Icon name="delete" size="18px" />
+                </button>
+              {/if}
+            </div>
           </li>
         {/each}
       </ul>
@@ -330,12 +343,14 @@
     box-shadow: inset 0 0 0 1px var(--color-md3-primary);
   }
 
-  .search-field input {
+  .search-field input,
+  .search-field input:focus {
     min-width: 0;
-    border: 0;
+    border: 0 !important;
     outline: 0;
     color: var(--color-md3-on-surface);
     background: transparent;
+    box-shadow: none !important;
     font: 400 0.8rem/1.4 var(--font-md3-sans);
   }
 
@@ -454,8 +469,7 @@
 
   .effect-chip,
   .state-chip,
-  .change-chip,
-  .selection-chip {
+  .change-chip {
     border-radius: 9999px;
     padding: 0.12rem 0.4rem;
     font: 600 0.64rem/1.35 var(--font-md3-sans);
@@ -485,7 +499,6 @@
 
   .change-chip { color: var(--color-md3-primary-emphasis); background: transparent; }
   .change-chip--deleted { color: var(--color-md3-error); }
-  .selection-chip { color: var(--color-md3-on-primary); background: var(--color-md3-primary); }
 
   .invalid-label {
     display: inline-flex;
@@ -505,12 +518,18 @@
     white-space: nowrap;
   }
 
+  .entry-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.1rem;
+    padding-right: 0.55rem;
+  }
+
   .delete-action,
   .undo-action {
     align-self: center;
     width: 2rem;
     height: 2rem;
-    margin-right: 0.55rem;
     border-radius: 9999px;
     transition: background-color 100ms ease, transform 120ms cubic-bezier(0.2, 0, 0, 1);
   }

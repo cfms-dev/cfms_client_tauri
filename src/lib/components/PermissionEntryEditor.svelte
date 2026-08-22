@@ -8,6 +8,7 @@
     type PermissionEntryValidation,
   } from '$lib/permission-entries';
   import Icon from './Icon.svelte';
+  import MdSwitch from './MdSwitch.svelte';
 
   type StartMode = 'immediate' | 'specified';
   type EndMode = 'never' | 'specified';
@@ -80,7 +81,7 @@
           })}</p>
         </div>
         <button bind:this={undoButton} type="button" disabled={disabled} onclick={onUndo}>
-          <Icon name="history" size="17px" />
+          <Icon name="undo" size="17px" />
           {$t('manage.undoDeletePermissionEntry')}
         </button>
       </div>
@@ -154,7 +155,7 @@
                 disabled={disabled}
                 onclick={() => onPatch({ granted: true })}
               >
-                <Icon name="checkCircle" size="17px" />
+                <Icon name="approvalDelegation" size="17px" />
                 <span>{$t('manage.permissionGrant')}</span>
               </button>
               <button
@@ -182,7 +183,7 @@
                 disabled={disabled}
                 onclick={() => onStartModeChange('immediate')}
               >
-                <Icon name="done" size="16px" />
+                <Icon name="today" size="16px" />
                 <span>{$t('manage.permissionStartImmediately')}</span>
               </button>
               <button
@@ -192,7 +193,7 @@
                 disabled={disabled}
                 onclick={() => onStartModeChange('specified')}
               >
-                <Icon name="schedule" size="16px" />
+                <Icon name="eventUpcoming" size="16px" />
                 <span>{$t('manage.permissionStartSpecified')}</span>
               </button>
             </div>
@@ -222,45 +223,35 @@
           </fieldset>
 
           <fieldset class="field-group" class:field-error={validation?.endTime !== null}>
-            <legend class="field-label">{$t('manage.permissionEndsAt')}</legend>
+            <legend class="field-label">{$t('manage.permissionValidity')}</legend>
             <span class="field-description">{$t('manage.permissionEndModeHelp')}</span>
-            <div class="segmented-control">
-              <button
-                type="button"
-                class:active={row.endMode === 'never'}
-                aria-pressed={row.endMode === 'never'}
-                disabled={disabled}
-                onclick={() => onEndModeChange('never')}
-              >
-                <Icon name="history" size="16px" />
+            <div class="expiry-switch-row">
+              <span class="expiry-switch-label">
+                <Icon name="allInclusive" size="18px" />
                 <span>{$t('manage.permissionNeverExpires')}</span>
-              </button>
-              <button
-                type="button"
-                class:active={row.endMode === 'specified'}
-                aria-pressed={row.endMode === 'specified'}
-                disabled={disabled}
-                onclick={() => onEndModeChange('specified')}
-              >
-                <Icon name="calendarToday" size="16px" />
-                <span>{$t('manage.permissionEndSpecified')}</span>
-              </button>
+              </span>
+              <MdSwitch
+                checked={row.endMode === 'never'}
+                ariaLabel={$t('manage.permissionNeverExpires')}
+                {disabled}
+                onChange={(checked) => onEndModeChange(checked ? 'never' : 'specified')}
+              />
             </div>
             {#if row.endMode === 'specified'}
-              <input
-                type="datetime-local"
-                step="1"
-                value={toLocalDateTimeInput(row.entry.end_time ?? Number.NaN)}
-                aria-label={$t('manage.permissionEndsAt')}
-                aria-invalid={validation?.endTime !== null}
-                aria-describedby={validation?.endTime ? 'permission-end-error' : undefined}
-                disabled={disabled}
-                oninput={(event) => updateEndTime(event.currentTarget.value)}
-              />
-            {:else}
-              <div class="mode-summary">
-                <Icon name="verified" size="16px" />
-                {$t('manage.permissionNoExpirySummary')}
+              <div class="end-time-section">
+                <label class="field-label" for="permission-entry-end-time">
+                  {$t('manage.permissionEndsAt')}
+                </label>
+                <input
+                  id="permission-entry-end-time"
+                  type="datetime-local"
+                  step="1"
+                  value={toLocalDateTimeInput(row.entry.end_time ?? Number.NaN)}
+                  aria-invalid={validation?.endTime !== null}
+                  aria-describedby={validation?.endTime ? 'permission-end-error' : undefined}
+                  disabled={disabled}
+                  oninput={(event) => updateEndTime(event.currentTarget.value)}
+                />
               </div>
             {/if}
             {#if validation?.endTime}
@@ -468,6 +459,34 @@
     color: var(--color-md3-on-surface-variant);
     background: var(--color-md3-surface-container-high);
     font: 400 0.78rem/1.4 var(--font-md3-sans);
+  }
+
+  .expiry-switch-row {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.15rem 0;
+  }
+
+  .expiry-switch-label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-md3-on-surface);
+    font: 600 0.78rem/1.35 var(--font-md3-sans);
+  }
+
+  .expiry-switch-label :global(.material-symbols-outlined) {
+    color: var(--color-md3-primary-emphasis);
+  }
+
+  .end-time-section {
+    display: grid;
+    gap: 0.45rem;
+    padding-top: 0.15rem;
   }
 
   .validation-message {
