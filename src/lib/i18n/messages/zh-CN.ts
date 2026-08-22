@@ -756,6 +756,13 @@ export const zh_CN = {
     progress: '第 {current} 项，共 {total} 项',
     chooseFeature: '选择要查看的功能',
     goToFeature: '查看第 {number} 项功能',
+    v046: {
+      label: 'CFMS Client 0.46 有什么新功能',
+      permissionManagement: {
+        title: '精细化权限规则工作区',
+        body: '在最大化工作区中并列查看规则列表与编辑器；搜索、筛选、添加或撤销授权，并为每条规则设置生效时间与有效期。',
+      },
+    },
     v045: {
       label: 'CFMS Client 0.45 有什么新功能',
       fullscreenTour: {

@@ -9,6 +9,7 @@ const assetNames = [
   ['server-diagnostics', 'server-diagnostics', 'v0.43'],
   ['account-administration', 'account-administration', 'v0.43'],
   ['fullscreen-feature-tour', 'fullscreen-tour', 'v0.45'],
+  ['permission-rule-workspace', 'permission-management', 'v0.46'],
 ] as const;
 const themes = ['light', 'dark'] as const;
 

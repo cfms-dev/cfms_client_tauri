@@ -12,6 +12,23 @@ const managementPermissions = [
 
 export const releaseTours: readonly ReleaseTour[] = [
   {
+    version: '0.46.0',
+    labelKey: 'releaseHighlights.v046.label',
+    highlights: [
+      {
+        id: 'permission-rule-workspace',
+        titleKey: 'releaseHighlights.v046.permissionManagement.title',
+        bodyKey: 'releaseHighlights.v046.permissionManagement.body',
+        animation: {
+          light: () => import('./animations/v0.46/permission-management.light.json'),
+          dark: () => import('./animations/v0.46/permission-management.dark.json'),
+        },
+        fallbackIcon: 'rule',
+        requiredAnyPermission: managementPermissions,
+      },
+    ],
+  },
+  {
     version: '0.45.0',
     labelKey: 'releaseHighlights.v045.label',
     highlights: [

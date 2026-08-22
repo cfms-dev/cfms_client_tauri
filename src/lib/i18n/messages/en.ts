@@ -762,6 +762,13 @@ export const en = {
     progress: 'Feature {current} of {total}',
     chooseFeature: 'Choose a feature to view',
     goToFeature: 'View feature {number}',
+    v046: {
+      label: "What's new in CFMS Client 0.46",
+      permissionManagement: {
+        title: 'A focused permission rule workspace',
+        body: 'Review rules and their editor side by side in a maximized workspace. Search, filter, grant or revoke access, and set when each rule takes effect.',
+      },
+    },
     v045: {
       label: "What's new in CFMS Client 0.45",
       fullscreenTour: {

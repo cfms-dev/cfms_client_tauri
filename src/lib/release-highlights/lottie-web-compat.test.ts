@@ -11,6 +11,8 @@ import flexibleWorkspaceDark from './animations/v0.43/flexible-workspace.dark.js
 import flexibleWorkspaceLight from './animations/v0.43/flexible-workspace.light.json';
 import fullscreenTourDark from './animations/v0.45/fullscreen-tour.dark.json';
 import fullscreenTourLight from './animations/v0.45/fullscreen-tour.light.json';
+import permissionManagementDark from './animations/v0.46/permission-management.dark.json';
+import permissionManagementLight from './animations/v0.46/permission-management.light.json';
 
 const diagnosticsThemes = [
   ['light', diagnosticsLight],
@@ -31,6 +33,10 @@ const flexibleWorkspaceThemes = [
 const fullscreenTourThemes = [
   ['light', fullscreenTourLight],
   ['dark', fullscreenTourDark],
+] as const;
+const permissionManagementThemes = [
+  ['light', permissionManagementLight],
+  ['dark', permissionManagementDark],
 ] as const;
 
 let restoreCanvas: (() => void) | undefined;
@@ -278,6 +284,52 @@ describe('full-screen feature tour lottie-web compatibility', () => {
       expect(anticipationFrame).not.toEqual(windowFrame);
       expect(expansionFrame).not.toEqual(anticipationFrame);
       expect(completedFrame).not.toEqual(expansionFrame);
+      expect(reducedMotionFrame).toEqual(completedFrame);
+
+      animation.destroy();
+      host.remove();
+    },
+  );
+});
+
+describe('permission rule workspace lottie-web compatibility', () => {
+  it.each(permissionManagementThemes)(
+    'renders the expansion, editing, and completed permission beats in the %s theme',
+    async (_theme, data) => {
+      const { default: lottie } =
+        await import('lottie-web/build/player/lottie_light');
+      const host = document.createElement('div');
+      document.body.append(host);
+      const animation = lottie.loadAnimation({
+        container: host,
+        renderer: 'svg',
+        loop: false,
+        autoplay: false,
+        animationData: structuredClone(data),
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        animation.addEventListener('DOMLoaded', resolve);
+        animation.addEventListener('data_failed', () =>
+          reject(new Error('Lottie rejected the animation data')),
+        );
+      });
+
+      const renderFrame = (frame: number) => {
+        animation.goToAndStop(frame, true);
+        return host.innerHTML;
+      };
+      const openingFrame = renderFrame(0);
+      const expandedFrame = renderFrame(32);
+      const selectedFrame = renderFrame(58);
+      const editedFrame = renderFrame(78);
+      const completedFrame = renderFrame(112);
+      const reducedMotionFrame = renderFrame(119);
+
+      expect(expandedFrame).not.toEqual(openingFrame);
+      expect(selectedFrame).not.toEqual(expandedFrame);
+      expect(editedFrame).not.toEqual(selectedFrame);
+      expect(completedFrame).not.toEqual(editedFrame);
       expect(reducedMotionFrame).toEqual(completedFrame);
 
       animation.destroy();
