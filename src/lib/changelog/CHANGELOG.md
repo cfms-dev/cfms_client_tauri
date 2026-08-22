@@ -4,6 +4,24 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.46.0
+**Released on:** 2026-08-22
+
+**Title:** Protocol Version 24
+
+### Fixed
+- Update delete and undo action buttons for better alignment and layout
+
+### Added
+- Add initial maximized state to ModalFrame and update related tests
+- Add PermissionEntryEditor and PermissionEntryList components
+- Update permission management system
+
+### Improved
+- Remove PermissionManagementButton component and replace with ActionButton in relevant places
+
+--- 
+
 ## v0.45.0
 **Released on:** 2026-08-21
 
