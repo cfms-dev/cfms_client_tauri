@@ -5,7 +5,6 @@ import {
   parseLocalDateTimeInput,
   permissionEntryChangeKind,
   permissionEntryMatchesFilter,
-  permissionEntryOverview,
   permissionEntrySuggestions,
   permissionEntryState,
   toLocalDateTimeInput,
@@ -96,13 +95,5 @@ describe('permission entries', () => {
       ['search', 'list_users'],
       ['view_audit_logs'],
     )).toEqual(['list_users', 'Search', 'view_audit_logs']);
-  });
-
-  it('summarizes direct rules and currently effective permissions for management rows', () => {
-    expect(permissionEntryOverview([
-      { permission: 'search', granted: true, start_time: 1, end_time: null },
-      { permission: 'search', granted: false, start_time: 2, end_time: null },
-    ], ['list_users'])).toEqual({ direct: 2, effective: 1 });
-    expect(permissionEntryOverview(undefined, undefined)).toEqual({ direct: 0, effective: 0 });
   });
 });

@@ -18,11 +18,6 @@ export interface PermissionEntryChangeCounts {
   total: number;
 }
 
-export interface PermissionEntryOverview {
-  direct: number;
-  effective: number;
-}
-
 export interface PermissionEntriesEditorData {
   entries: PermissionEntry[];
   effectivePermissions: string[];
@@ -137,14 +132,4 @@ export function permissionEntrySuggestions(
     }
   }
   return [...suggestions.values()].sort((a, b) => a.localeCompare(b));
-}
-
-export function permissionEntryOverview(
-  entries: readonly PermissionEntry[] | undefined,
-  effectivePermissions: readonly string[] | undefined,
-): PermissionEntryOverview {
-  return {
-    direct: entries?.length ?? 0,
-    effective: effectivePermissions?.length ?? 0,
-  };
 }

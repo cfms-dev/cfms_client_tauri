@@ -52,7 +52,7 @@
   import UserAvatarPicker from '$lib/components/UserAvatarPicker.svelte';
   import type { ContextMenuItem } from '$lib/components/context-menu';
   import type { IconName } from '$lib/icons';
-  import { permissionEntryOverview, type PermissionEntriesEditorData } from '$lib/permission-entries';
+  import type { PermissionEntriesEditorData } from '$lib/permission-entries';
   import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/keyboard';
 
   type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs';
@@ -1138,7 +1138,6 @@
           >
             {#each users as user (user.username)}
               {@const actionKey = `user:${user.username}`}
-              {@const permissionOverview = permissionEntryOverview(user.permissions, user.effective_permissions)}
               <div
                 class="manage-list-row"
                 role="listitem"
@@ -1156,12 +1155,7 @@
                 <div class="metadata-stack">
                   {@render MetadataLine($t('manage.lastLogin'), formatDate(user.last_login))}
                   {@render MetadataLine($t('manage.groups'), formatList(user.groups))}
-                  {@render MetadataLine($t('manage.permissions'), $t('manage.permissionOverviewCounts', {
-                    values: {
-                      direct: permissionOverview.direct,
-                      effective: permissionOverview.effective,
-                    },
-                  }))}
+                  {@render MetadataLine($t('manage.effectivePermissions'), formatList(user.effective_permissions))}
                 </div>
                 <button
                   class="manage-action-toggle rounded-full p-1.5 text-md3-on-surface-variant transition-colors hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis"
@@ -1247,7 +1241,6 @@
           >
             {#each groups as group (group.name)}
               {@const actionKey = `group:${group.name}`}
-              {@const permissionOverview = permissionEntryOverview(group.permissions, group.effective_permissions)}
               <div
                 class="manage-list-row"
                 role="listitem"
@@ -1263,12 +1256,7 @@
                   {@render PrimaryMetadataValue(group.name)}
                 </div>
                 <div class="metadata-stack">
-                  {@render MetadataLine($t('manage.permissions'), $t('manage.permissionOverviewCounts', {
-                    values: {
-                      direct: permissionOverview.direct,
-                      effective: permissionOverview.effective,
-                    },
-                  }))}
+                  {@render MetadataLine($t('manage.effectivePermissions'), formatList(group.effective_permissions))}
                   {@render MetadataLine($t('manage.members'), formatList(group.members))}
                 </div>
                 <button
