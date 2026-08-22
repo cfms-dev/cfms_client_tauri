@@ -527,9 +527,11 @@
 
   .delete-action,
   .undo-action {
+    display: grid;
     align-self: center;
     width: 2rem;
     height: 2rem;
+    place-items: center;
     border-radius: 9999px;
     transition: background-color 100ms ease, transform 120ms cubic-bezier(0.2, 0, 0, 1);
   }
