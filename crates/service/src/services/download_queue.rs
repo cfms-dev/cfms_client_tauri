@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -45,6 +45,7 @@ struct PersistContext {
 pub struct QueueState {
     /// In-memory task map, keyed by `task_id`.
     tasks: Arc<Mutex<HashMap<String, DownloadTaskDto>>>,
+    stopped_batches: Arc<Mutex<HashSet<String>>>,
 
     /// Persistence context. `None` until login.
     persist_ctx: Arc<Mutex<Option<PersistContext>>>,
@@ -61,6 +62,7 @@ impl QueueState {
     pub fn new() -> Self {
         Self {
             tasks: Arc::new(Mutex::new(HashMap::new())),
+            stopped_batches: Arc::new(Mutex::new(HashSet::new())),
             persist_ctx: Arc::new(Mutex::new(None)),
         }
     }
@@ -104,6 +106,7 @@ impl QueueState {
 
     /// Clear all in-memory tasks and reset the persistence context.
     pub fn clear(&self) {
+        self.stopped_batches.lock().unwrap().clear();
         {
             let mut map = self.tasks.lock().unwrap();
             map.clear();
@@ -191,7 +194,10 @@ impl QueueState {
         tasks
     }
 
-    fn claim_next_pending(&self) -> Option<DownloadTaskDto> {
+    fn claim_next_pending(
+        &self,
+        active: &ActiveRegistry,
+    ) -> Option<(DownloadTaskDto, watch::Receiver<bool>)> {
         let now = unix_now();
         let claimed = {
             let mut map = self.tasks.lock().unwrap();
@@ -210,11 +216,32 @@ impl QueueState {
             let task = map.get_mut(&next_id)?;
             task.started_at = Some(now);
             task.status = DownloadTaskStatus::Downloading;
-            task.clone()
+            (task.clone(), active.register(&next_id))
         };
 
         self.save();
         Some(claimed)
+    }
+
+    pub fn cancel_many(&self, ids: &[String], include_finished: bool) -> Vec<String> {
+        let mut tasks = self.tasks.lock().unwrap();
+        let mut accepted = Vec::new();
+        for id in ids {
+            if let Some(task) = tasks.get_mut(id) {
+                if task.status.is_terminal() {
+                    if include_finished {
+                        accepted.push(id.clone());
+                    }
+                    continue;
+                }
+                task.status = DownloadTaskStatus::Cancelled;
+                task.completed_at = Some(unix_now());
+                accepted.push(id.clone());
+            }
+        }
+        drop(tasks);
+        self.save();
+        accepted
     }
 
     // ------------------------------------------------------------------
@@ -222,12 +249,36 @@ impl QueueState {
     // ------------------------------------------------------------------
 
     pub fn insert(&self, task: &DownloadTaskDto) -> Result<()> {
+        let stopped = self.stopped_batches.lock().unwrap();
+        if task
+            .batch_id
+            .as_ref()
+            .is_some_and(|id| stopped.contains(id))
+        {
+            return Err(cfms_core::Error::Cancelled);
+        }
         {
             let mut map = self.tasks.lock().unwrap();
             map.insert(task.task_id.clone(), task.clone());
         }
+        drop(stopped);
         self.save();
         Ok(())
+    }
+
+    /// Close producer admission before resolving the final batch membership.
+    pub fn stop_batches(&self, ids: &[String]) -> Vec<String> {
+        let mut stopped = self.stopped_batches.lock().unwrap();
+        stopped.extend(ids.iter().cloned());
+        self.tasks
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|t| {
+                t.batch_id.as_ref().is_some_and(|id| ids.contains(id)) && !t.status.is_terminal()
+            })
+            .map(|t| t.task_id.clone())
+            .collect()
     }
 
     pub fn update_status(&self, task_id: &str, status: DownloadTaskStatus) -> Result<()> {
@@ -834,6 +885,12 @@ impl Default for ActiveRegistry {
 }
 
 impl ActiveRegistry {
+    pub fn request_cancel(&self, id: &str) {
+        self.cancel(id);
+    }
+    pub fn contains(&self, id: &str) -> bool {
+        self.inner.lock().unwrap().contains_key(id)
+    }
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(HashMap::new())),
@@ -995,13 +1052,12 @@ async fn download_worker(
             break;
         }
 
-        let Some(task) = queue.claim_next_pending() else {
+        let Some((task, cancel_rx)) = queue.claim_next_pending(&active) else {
             break;
         };
 
         let task_id = task.task_id.clone();
         let file_path = task.file_path.clone();
-        let cancel_rx = active.register(&task_id);
         emit_task_update(&queue, &state, &task_id);
 
         if transfer_conn
@@ -1657,6 +1713,28 @@ fn unix_now() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stopping_a_batch_closes_admission_for_in_flight_producer_requests() {
+        let queue = QueueState::new();
+        let mut first = task("first", DownloadTaskStatus::Pending);
+        first.batch_id = Some("batch".into());
+        queue.insert(&first).unwrap();
+        assert_eq!(queue.stop_batches(&["batch".into()]), vec!["first"]);
+        let mut late = task("late", DownloadTaskStatus::Pending);
+        late.batch_id = Some("batch".into());
+        assert!(matches!(
+            queue.insert(&late),
+            Err(cfms_core::Error::Cancelled)
+        ));
+        assert!(queue.get("late").is_none());
+        assert_eq!(queue.cancel_many(&["first".into()], true), vec!["first"]);
+        let active = ActiveRegistry::new();
+        assert!(queue.claim_next_pending(&active).is_none());
+        assert_eq!(queue.remove_terminal(&["first".into()]).0, vec!["first"]);
+        queue.clear();
+        assert!(queue.insert(&late).is_ok());
+    }
 
     fn task(id: &str, status: DownloadTaskStatus) -> DownloadTaskDto {
         DownloadTaskDto {

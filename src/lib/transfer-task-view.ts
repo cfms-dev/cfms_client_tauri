@@ -73,14 +73,14 @@ export function uploadSection(task: UploadTaskDto): TransferSectionKey {
 }
 
 export function matchesTransferQuery(
-  task: Pick<DownloadTaskDto, 'filename' | 'file_path'> | Pick<UploadTaskDto, 'file_name' | 'source_path'>,
+  task: (Pick<DownloadTaskDto, 'filename' | 'file_path'> | Pick<UploadTaskDto, 'file_name' | 'source_path'>) & { batch_name?: string | null },
   query: string,
 ) {
   const normalized = query.trim().toLocaleLowerCase();
   if (!normalized) return true;
   const name = 'filename' in task ? task.filename : task.file_name;
   const path = 'file_path' in task ? task.file_path : task.source_path;
-  return `${name}\n${path}`.toLocaleLowerCase().includes(normalized);
+  return `${name}\n${path}\n${task.batch_name ?? ''}`.toLocaleLowerCase().includes(normalized);
 }
 
 export function downloadCapabilities(task: DownloadTaskDto) {
@@ -101,9 +101,9 @@ export function uploadCapabilities(task: UploadTaskDto) {
     pause: task.status === 'pending' || task.status === 'uploading',
     resume: task.status === 'paused',
     restart: (task.status === 'interrupted' || task.status === 'failed') && task.source_available,
-    reselect: task.status === 'interrupted' && !task.source_available,
+    reselect: task.status === 'interrupted' || task.status === 'failed',
     cancel: ['pending', 'uploading', 'paused'].includes(task.status),
-    removeRecord: ['completed', 'failed', 'cancelled', 'skipped'].includes(task.status),
+    removeRecord: ['completed', 'failed', 'cancelled', 'skipped', 'interrupted'].includes(task.status),
   };
 }
 
@@ -111,4 +111,22 @@ export function sortSectionTasks<T extends { created_at: number }>(tasks: T[], s
   return [...tasks].sort((a, b) => section === 'history'
     ? b.created_at - a.created_at
     : a.created_at - b.created_at);
+}
+
+export function isTransferInProgress(task: { status: DownloadTaskStatus | UploadTaskStatus }) {
+  return ['uploading', 'downloading', 'decrypting', 'verifying', 'scheduled'].includes(task.status);
+}
+
+export function compareTransferIds(a: string, b: string) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Display order only; queue scheduling and each batch's child order are independent. */
+export function compareTransferEntries(
+  a: { active: boolean; createdAt: number; id: string },
+  b: { active: boolean; createdAt: number; id: string },
+) {
+  return Number(b.active) - Number(a.active)
+    || b.createdAt - a.createdAt
+    || compareTransferIds(a.id, b.id);
 }

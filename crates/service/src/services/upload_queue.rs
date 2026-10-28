@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use cfms_core::constants::KEY_LEN;
 use cfms_core::{Result, UploadTaskDto, UploadTaskStatus};
@@ -22,6 +25,9 @@ struct PersistContext {
 pub struct UploadQueueState {
     records: Arc<Mutex<HashMap<String, UploadTaskRecord>>>,
     persist_ctx: Arc<Mutex<Option<PersistContext>>>,
+    persistence_lock: Arc<Mutex<()>>,
+    generation: Arc<AtomicU64>,
+    sequence: Arc<AtomicU64>,
 }
 
 impl UploadQueueState {
@@ -38,6 +44,14 @@ impl UploadQueueState {
     ) -> Result<usize> {
         self.clear();
         let loaded = upload_task_persistence::load(app_data, server_hash, username, dek)?;
+        self.sequence.fetch_max(
+            loaded
+                .iter()
+                .map(|r| r.task.revision.max(r.task.queue_order))
+                .max()
+                .unwrap_or(0),
+            Ordering::SeqCst,
+        );
         let count = loaded.len();
         *self.persist_ctx.lock().unwrap() = Some(PersistContext {
             dir: app_data.to_path_buf(),
@@ -54,17 +68,89 @@ impl UploadQueueState {
     }
 
     pub fn clear(&self) {
+        let _save = self.persistence_lock.lock().unwrap();
+        self.generation.fetch_add(1, Ordering::SeqCst);
         self.records.lock().unwrap().clear();
         *self.persist_ctx.lock().unwrap() = None;
     }
 
     pub fn insert(&self, task: UploadTaskDto, request: serde_json::Value) -> Result<()> {
-        self.records
-            .lock()
-            .unwrap()
-            .insert(task.upload_id.clone(), UploadTaskRecord { task, request });
-        self.save();
+        self.insert_many(vec![(task, request)])?;
         Ok(())
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
+    }
+
+    pub fn get(&self, id: &str) -> Option<UploadTaskDto> {
+        self.records.lock().unwrap().get(id).map(|r| r.task.clone())
+    }
+
+    /// Commit a batch before making any of its members available to workers.
+    pub fn insert_many(&self, tasks: Vec<(UploadTaskDto, serde_json::Value)>) -> Result<()> {
+        let _save = self.persistence_lock.lock().unwrap();
+        let mut records = self.records.lock().unwrap();
+        let mut staged = records.clone();
+        for (mut task, request) in tasks {
+            if staged.contains_key(&task.upload_id) {
+                continue;
+            }
+            task.queue_order = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
+            task.revision = task.queue_order;
+            staged.insert(task.upload_id.clone(), UploadTaskRecord { task, request });
+        }
+        if let Some(ctx) = self.persist_ctx.lock().unwrap().as_ref() {
+            upload_task_persistence::save(
+                &ctx.dir,
+                &ctx.server_hash,
+                &ctx.username,
+                ctx.dek.as_ref().map(|dek| &**dek),
+                &staged.values().cloned().collect::<Vec<_>>(),
+            )?;
+        }
+        *records = staged;
+        Ok(())
+    }
+
+    /// Atomic claim prevents pause/cancel and the scheduler from racing.
+    pub fn claim(&self, id: &str) -> bool {
+        let mut records = self.records.lock().unwrap();
+        let Some(record) = records.get_mut(id) else {
+            return false;
+        };
+        if record.task.status != UploadTaskStatus::Pending {
+            return false;
+        }
+        record.task.status = UploadTaskStatus::Uploading;
+        record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
+        drop(records);
+        self.save();
+        true
+    }
+
+    pub fn cancel_many(&self, ids: &[String], include_finished: bool) -> Vec<String> {
+        let mut records = self.records.lock().unwrap();
+        let mut accepted = Vec::new();
+        for id in ids {
+            if let Some(record) = records.get_mut(id) {
+                if record.task.status.is_terminal() {
+                    if include_finished {
+                        accepted.push(id.clone());
+                    }
+                    continue;
+                }
+                record.task.status = UploadTaskStatus::Cancelled;
+                record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
+                record.task.updated_at = unix_now();
+                record.task.completed_at = Some(record.task.updated_at);
+                record.task.message = Some("Upload cancelled".into());
+                accepted.push(id.clone());
+            }
+        }
+        drop(records);
+        self.save();
+        accepted
     }
 
     pub fn list(&self) -> Vec<UploadTaskDto> {
@@ -124,8 +210,23 @@ impl UploadQueueState {
             if record.task.status.is_terminal() {
                 return Ok(false);
             }
+            let available = match status {
+                UploadTaskStatus::Paused => matches!(
+                    record.task.status,
+                    UploadTaskStatus::Pending
+                        | UploadTaskStatus::Uploading
+                        | UploadTaskStatus::Paused
+                ),
+                UploadTaskStatus::Pending => record.task.status == UploadTaskStatus::Paused,
+                _ => true,
+            };
+            if !available {
+                return Ok(false);
+            }
             record.task.status = status;
+            record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
             record.task.message = Some(message.to_string());
+            record.task.error = (status == UploadTaskStatus::Failed).then(|| message.to_string());
             record.task.updated_at = unix_now();
             record.task.completed_at = status.is_terminal().then_some(record.task.updated_at);
             true
@@ -159,7 +260,9 @@ impl UploadQueueState {
                 (false, false)
             } else {
                 record.task.status = UploadTaskStatus::Completed;
+                record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
                 record.task.progress = 1.0;
+                record.task.current_bytes = record.task.total_bytes;
                 record.task.message = Some(message.to_string());
                 record.task.error = None;
                 record.task.updated_at = now;
@@ -187,19 +290,30 @@ impl UploadQueueState {
                 return Ok(false);
             }
             record.task.status = UploadTaskStatus::Pending;
+            record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
             record.task.progress = 0.0;
             record.task.current_bytes = 0;
             record.task.message = None;
             record.task.error = None;
             record.task.completed_at = None;
             record.task.updated_at = unix_now();
-            record.task.retry_count = record.task.retry_count.saturating_add(1);
+            record.task.retry_count = 0;
+            record.task.queue_order = record.task.revision;
             true
         };
         if changed {
             self.save();
         }
         Ok(changed)
+    }
+
+    pub fn note_retry(&self, id: &str, attempt: u32) {
+        if let Some(record) = self.records.lock().unwrap().get_mut(id) {
+            if !record.task.status.is_terminal() {
+                record.task.retry_count = attempt;
+                record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
+            }
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -220,6 +334,19 @@ impl UploadQueueState {
             let Some(record) = records.get_mut(upload_id) else {
                 return;
             };
+            if record.task.status.is_terminal() {
+                return;
+            }
+            if (record.task.status == UploadTaskStatus::Paused
+                && status == UploadTaskStatus::Uploading)
+                || (record.task.status == UploadTaskStatus::Pending
+                    && matches!(
+                        status,
+                        UploadTaskStatus::Paused | UploadTaskStatus::Uploading
+                    ))
+            {
+                return;
+            }
             if let Some(task_id) = task_id {
                 record.task.task_id = Some(task_id.to_string());
             }
@@ -228,7 +355,18 @@ impl UploadQueueState {
             } else if let Some(message) = message.as_deref() {
                 record.task.message = Some(format!("{file_name} · {message}"));
             }
+            // A child file finishing does not finish its containing directory.
+            let status = if record.task.kind == cfms_core::UploadTaskKind::Directory
+                && matches!(
+                    status,
+                    UploadTaskStatus::Completed | UploadTaskStatus::Skipped
+                ) {
+                UploadTaskStatus::Uploading
+            } else {
+                status
+            };
             record.task.status = status;
+            record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
             if current_bytes > 0 {
                 record.task.current_bytes = current_bytes;
             }
@@ -268,10 +406,15 @@ impl UploadQueueState {
             for id in ids {
                 match records.get(id) {
                     None => failed.push((id.clone(), "Task not found".into())),
-                    Some(record) if !record.task.status.is_terminal() => failed.push((
-                        id.clone(),
-                        "Only finished upload records can be removed".into(),
-                    )),
+                    Some(record)
+                        if !record.task.status.is_terminal()
+                            && record.task.status != UploadTaskStatus::Interrupted =>
+                    {
+                        failed.push((
+                            id.clone(),
+                            "Only finished upload records can be removed".into(),
+                        ))
+                    }
                     Some(_) => {
                         records.remove(id);
                         succeeded.push(id.clone());
@@ -286,6 +429,7 @@ impl UploadQueueState {
     }
 
     fn save(&self) {
+        let _save = self.persistence_lock.lock().unwrap();
         let Some(ctx) = self.persist_ctx.lock().unwrap().clone() else {
             return;
         };
@@ -314,6 +458,104 @@ mod tests {
     use super::*;
     use cfms_core::UploadTaskKind;
 
+    #[test]
+    fn child_completion_preserves_directory_lifetime_and_total_bytes() {
+        let queue = UploadQueueState::new();
+        let mut directory = task("directory", "source", UploadTaskStatus::Pending);
+        directory.kind = UploadTaskKind::Directory;
+        queue.insert(directory, serde_json::Value::Null).unwrap();
+        assert!(queue.claim("directory"));
+        queue.update_progress(
+            "directory",
+            Some("child"),
+            "child.bin",
+            25,
+            100,
+            UploadTaskStatus::Completed,
+            None,
+        );
+        let directory = queue.get("directory").unwrap();
+        assert_eq!(directory.status, UploadTaskStatus::Uploading);
+        assert_eq!(directory.file_name, "directory.bin");
+        assert_eq!(directory.progress, 0.25);
+        queue.finish_directory("directory", "Complete").unwrap();
+        let completed = queue.get("directory").unwrap();
+        assert_eq!(completed.status, UploadTaskStatus::Completed);
+        assert_eq!(completed.current_bytes, 100);
+        assert_eq!(completed.total_bytes, 100);
+        assert!(completed.revision > directory.revision);
+    }
+
+    #[test]
+    fn interrupted_records_can_be_removed_and_late_progress_cannot_restore_them() {
+        let queue = UploadQueueState::new();
+        queue
+            .insert(
+                task("interrupted", "source", UploadTaskStatus::Interrupted),
+                serde_json::Value::Null,
+            )
+            .unwrap();
+        assert_eq!(
+            queue.remove_terminal(&["interrupted".into()]).0,
+            vec!["interrupted"]
+        );
+        queue.update_progress(
+            "interrupted",
+            None,
+            "source",
+            100,
+            100,
+            UploadTaskStatus::Completed,
+            None,
+        );
+        assert!(queue.list().is_empty());
+    }
+
+    #[test]
+    fn removed_batch_stays_removed_after_encrypted_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = [11; KEY_LEN];
+        let queue = UploadQueueState::new();
+        queue
+            .load_for_user(dir.path(), "server", "alice", Some(&key))
+            .unwrap();
+        let mut item = task("batch-file", "source", UploadTaskStatus::Pending);
+        item.batch_id = Some("batch".into());
+        item.batch_name = Some("Documents".into());
+        item.batch_index = 4;
+        queue.insert(item, serde_json::Value::Null).unwrap();
+        queue
+            .load_for_user(dir.path(), "server", "alice", Some(&key))
+            .unwrap();
+        let interrupted = queue.get("batch-file").unwrap();
+        assert_eq!(interrupted.status, UploadTaskStatus::Interrupted);
+        assert_eq!(interrupted.batch_id.as_deref(), Some("batch"));
+        assert_eq!(interrupted.batch_index, 4);
+        queue.remove_terminal(&["batch-file".into()]);
+        queue
+            .load_for_user(dir.path(), "server", "alice", Some(&key))
+            .unwrap();
+        assert!(queue.list().is_empty());
+    }
+
+    #[test]
+    fn a_failed_batch_commit_does_not_admit_unpersisted_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let queue = UploadQueueState::new();
+        queue
+            .load_for_user(dir.path(), "server", "alice", None)
+            .unwrap();
+        assert!(
+            queue
+                .insert(
+                    task("file", "source", UploadTaskStatus::Pending),
+                    serde_json::Value::Null
+                )
+                .is_err()
+        );
+        assert!(queue.list().is_empty());
+    }
+
     fn task(id: &str, source_path: &str, status: UploadTaskStatus) -> UploadTaskDto {
         UploadTaskDto {
             upload_id: id.into(),
@@ -334,6 +576,12 @@ mod tests {
             retry_count: 0,
             max_retries: 3,
             source_available: true,
+            batch_id: None,
+            batch_name: None,
+            batch_created_at: None,
+            batch_index: 0,
+            queue_order: 0,
+            revision: 0,
         }
     }
 

@@ -468,6 +468,12 @@ export interface UploadTaskDto {
   retry_count: number;
   max_retries: number;
   source_available: boolean;
+  batch_id?: string | null;
+  batch_name?: string | null;
+  batch_created_at?: number | null;
+  batch_index?: number;
+  queue_order?: number;
+  revision?: number;
 }
 
 export interface UploadEnqueueRequest {
@@ -479,6 +485,15 @@ export interface UploadEnqueueRequest {
   conflictStrategy: UploadConflictStrategy;
   conflictResolutions: DirectoryFileConflictResolution[];
   uploadName: string | null;
+  batchId?: string | null;
+  batchName?: string | null;
+  batchCreatedAt?: number | null;
+  batchIndex?: number;
+}
+
+export interface UploadBatchResult {
+  tasks: UploadTaskDto[];
+  failed: BatchActionResult['failed'];
 }
 
 export interface BatchActionResult {
@@ -487,7 +502,7 @@ export interface BatchActionResult {
 }
 
 export type TransferDirection = "download" | "upload";
-export type TransferControlAction = "pause" | "resume" | "cancel";
+export type TransferControlAction = "pause" | "resume" | "cancel" | "retry" | "cancel_and_remove";
 
 export interface SelectedUploadDirectory {
   uri: string;

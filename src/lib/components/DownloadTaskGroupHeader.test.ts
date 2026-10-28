@@ -22,7 +22,9 @@ vi.mock('svelte-i18n', () => ({
 
 vi.mock('$lib/motion/transitions', () => ({
   flyScale: () => ({ duration: 0 }),
+  menuScale: () => ({ duration: 0 }),
 }));
+vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 afterEach(() => cleanup());
 
@@ -105,6 +107,7 @@ function renderHeader(
     onResume: noop,
     onRetry: noop,
     onCancel: options.onCancel ?? noop,
+    onStopAndClear: noop,
     onDeleteFiles: noop,
     onRemoveRecords: noop,
     pendingAction: options.pendingAction ?? null,
@@ -159,7 +162,12 @@ describe('DownloadTaskGroupHeader rate-limit feedback', () => {
 });
 
 describe('DownloadTaskGroupHeader actions', () => {
-  it('shows primary and destructive actions while the group is collapsed', async () => {
+  it('places the matching count beside the name when the batch is filtered', () => {
+    renderHeader(group({ tasks: [task()], total: 2 }));
+    expect(screen.getByText('tasks.batchMatching:1,2').closest('.group-identity')).not.toBeNull();
+  });
+
+  it('keeps pause compact and places cancellation in the menu while collapsed', async () => {
     const onPause = vi.fn(noop);
     const onCancel = vi.fn(noop);
     renderHeader(group({
@@ -167,8 +175,11 @@ describe('DownloadTaskGroupHeader actions', () => {
       running: 1,
     }), { onPause, onCancel });
 
-    const pause = screen.getByRole('button', { name: 'tasks.pause' });
-    const cancel = screen.getByRole('button', { name: 'tasks.cancel' });
+    const pause = screen.getByRole('button', { name: 'tasks.actionOnBatch:tasks.pause,Evidence bundle,1' });
+    expect(pause.textContent).not.toContain('tasks.pause');
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'tasks.moreBatchActions:Evidence bundle' }));
+    const cancel = screen.getByRole('menuitem', { name: 'tasks.cancelTransfer (1)' });
     expect((pause as HTMLButtonElement).disabled).toBe(false);
     expect((cancel as HTMLButtonElement).disabled).toBe(false);
 
@@ -184,18 +195,36 @@ describe('DownloadTaskGroupHeader actions', () => {
       running: 1,
     }), { pendingAction: 'pause' });
 
-    expect((screen.getByRole('button', { name: 'tasks.pause' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'tasks.cancel' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'tasks.expandBatch' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'tasks.actionOnBatch:tasks.pause,Evidence bundle,1' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'tasks.moreBatchActions:Evidence bundle' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'tasks.expandBatchNamed:Evidence bundle' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('keeps disclosure semantics and toggles only the child task list', async () => {
     const onToggle = vi.fn();
     renderHeader(group(), { expanded: true, onToggle });
 
-    const disclosure = screen.getByRole('button', { name: 'tasks.collapseBatch' });
+    const disclosure = screen.getByRole('button', { name: 'tasks.collapseBatchNamed:Evidence bundle' });
     expect(disclosure.getAttribute('aria-expanded')).toBe('true');
     await fireEvent.click(disclosure);
     expect(onToggle).toHaveBeenCalledWith('batch-1');
+  });
+
+  it('renders the batch name outside buttons and keeps action clicks independent of disclosure', async () => {
+    const onToggle = vi.fn();
+    const onPause = vi.fn(noop);
+    renderHeader(group({ name: ':P', tasks: [task()] }), { onToggle, onPause });
+    const name = screen.getByText(':P');
+    expect(name.closest('button, fluent-button')).toBeNull();
+    await fireEvent.click(name);
+    await fireEvent.click(screen.getByRole('button', { name: 'tasks.actionOnBatch:tasks.pause,:P,1' }));
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(onPause).toHaveBeenCalledOnce();
+  });
+
+  it('supports pausing and resuming mixed-state batches independently', () => {
+    renderHeader(group({ tasks: [task(), task({ task_id: 'paused', status: 'paused' })], paused: 1 }));
+    expect(screen.getByRole('button', { name: 'tasks.actionOnBatch:tasks.pause,Evidence bundle,1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'tasks.actionOnBatch:tasks.resume,Evidence bundle,1' })).toBeTruthy();
   });
 });

@@ -3,11 +3,10 @@
 // All application state lives here as `$state` runes.  Components import
 // these and use them directly — no legacy Svelte stores needed.
 
-import { cancelUpload, enqueueUploadTask, getSetting, loadUserPreference, pauseUpload, resumeUpload, setSetting } from "./api";
+import { cancelUpload, enqueueUploadBatch, getSetting, loadUserPreference, pauseUpload, resumeUpload, setSetting } from "./api";
 import type {
   DownloadTaskDto,
   DownloadTaskStatus,
-  UploadProgressEvent,
   UploadTaskDto,
   UploadEnqueueRequest,
   ServiceStatusInfo,
@@ -160,6 +159,8 @@ class AuthStoreImpl {
     this.requires2fa = false;
     this.authenticationMethods = [];
     this.postLoginPending = false;
+    downloadStore.clear();
+    uploadStore.clear();
   }
 }
 
@@ -178,6 +179,8 @@ function normalizeNickname(nickname: string | null, username: string | null) {
 // ---------------------------------------------------------------------------
 
 class DownloadStoreImpl {
+  private removed = new Set<string>();
+  clear() { this.tasks = new Map(); this.speeds = new Map(); this.removed.clear(); this.activeBadgeCount = 0; }
   tasks = $state<Map<string, DownloadTaskDto>>(new Map());
   speeds = $state<Map<string, number>>(new Map());
   private speedTracker = new TransferSpeedTracker();
@@ -188,7 +191,7 @@ class DownloadStoreImpl {
   setAll(tasks: DownloadTaskDto[]) {
     const next = new Map<string, DownloadTaskDto>();
     for (const t of tasks) {
-      next.set(t.task_id, t);
+      if (!this.removed.has(t.task_id)) next.set(t.task_id, t);
     }
     this.tasks = next;
     const runningIds = new Set(tasks.filter((task) => task.status === "downloading").map((task) => task.task_id));
@@ -198,6 +201,7 @@ class DownloadStoreImpl {
 
   /** Upsert a single task into the map. */
   upsert(task: DownloadTaskDto) {
+    if (this.removed.has(task.task_id)) return;
     this.tasks.set(task.task_id, task);
     // Trigger reactivity by replacing the Map.
     this.tasks = new Map(this.tasks);
@@ -205,6 +209,7 @@ class DownloadStoreImpl {
 
   /** Remove a task from the map. */
   remove(taskId: string) {
+    this.removed.add(taskId);
     this.tasks.delete(taskId);
     this.tasks = new Map(this.tasks);
     this.clearSpeed(taskId);
@@ -345,309 +350,59 @@ const DEFAULT_TASK_CONCURRENCY = 3;
 const MIN_TASK_CONCURRENCY = 1;
 const MAX_TASK_CONCURRENCY = 8;
 
-class UploadStoreImpl {
+export class UploadStoreImpl {
   tasks = $state<Map<string, UploadTaskDto>>(new Map());
   maxConcurrent = $state(DEFAULT_TASK_CONCURRENCY);
-  private runners = new Map<string, (uploadId: string) => Promise<unknown>>();
-  private completionCallbacks = new Map<string, () => Promise<void> | void>();
-  private activeRunners = new Set<string>();
-  private processing = false;
+  private removed = new Set<string>();
   private concurrencyScopeKey: string | null = null;
 
   async initConcurrency(scopeKey: string) {
     if (this.concurrencyScopeKey === scopeKey) return;
+    if (this.concurrencyScopeKey !== null) this.clear();
     this.concurrencyScopeKey = scopeKey;
-    try {
-      const preferences = await loadUserPreference();
-      this.configureConcurrency(preferences.task_concurrency?.max_uploads);
-    } catch {
-      this.configureConcurrency(DEFAULT_TASK_CONCURRENCY);
-    }
+    try { this.configureConcurrency((await loadUserPreference()).task_concurrency?.max_uploads); }
+    catch { this.configureConcurrency(DEFAULT_TASK_CONCURRENCY); }
   }
 
-  configureConcurrency(value: number | null | undefined) {
-    this.maxConcurrent = normalizeTaskConcurrency(value);
-    void this.processQueue();
-  }
+  configureConcurrency(value: number | null | undefined) { this.maxConcurrent = normalizeTaskConcurrency(value); }
 
-  async addQueued(
-    request: UploadEnqueueRequest,
-    runner?: (uploadId: string) => Promise<unknown>,
-    onCompleted?: () => Promise<void> | void,
-  ) {
-    const task = await enqueueUploadTask(request);
-    this.tasks.set(task.upload_id, task);
-    if (runner) this.runners.set(task.upload_id, runner);
-    if (onCompleted) this.completionCallbacks.set(task.upload_id, onCompleted);
-    this.tasks = new Map(this.tasks);
-    void this.processQueue();
+  async addBatch(requests: UploadEnqueueRequest[]) {
+    const result = await enqueueUploadBatch(requests);
+    for (const task of result.tasks) this.applyTask(task);
+    return result;
   }
 
   setAll(tasks: UploadTaskDto[]) {
-    const taskIds = new Set(tasks.map((task) => task.upload_id));
-    for (const uploadId of this.runners.keys()) {
-      if (!taskIds.has(uploadId)) this.runners.delete(uploadId);
-    }
-    for (const uploadId of this.completionCallbacks.keys()) {
-      if (!taskIds.has(uploadId)) this.completionCallbacks.delete(uploadId);
-    }
-    this.tasks = new Map(tasks.map((task) => [task.upload_id, task]));
+    // Events can arrive while an IPC snapshot is in flight. Keep newer revisions.
+    for (const task of tasks) this.applyTask(task);
   }
 
-  registerRunner(uploadId: string, runner: (uploadId: string) => Promise<unknown>) {
-    const task = this.tasks.get(uploadId);
-    if (!task) return;
-    this.runners.set(uploadId, runner);
-    this.tasks.set(uploadId, {
-      ...task,
-      status: "pending",
-      progress: 0,
-      current_bytes: 0,
-      message: null,
-      error: null,
-      completed_at: null,
-    });
-    this.tasks = new Map(this.tasks);
-    void this.processQueue();
+  applyTask(task: UploadTaskDto) {
+    if (this.removed.has(task.upload_id)) return false;
+    const old = this.tasks.get(task.upload_id);
+    if (old && (old.revision ?? 0) > (task.revision ?? 0)) return false;
+    this.tasks = new Map(this.tasks).set(task.upload_id, task);
+    return true;
   }
 
-  async pause(uploadId: string) {
-    const task = this.tasks.get(uploadId);
-    if (!task || ["completed", "failed", "cancelled", "skipped", "interrupted"].includes(task.status)) return;
+  async pause(id: string) { return pauseUpload(id); }
+  async resume(id: string) { return resumeUpload(id); }
+  async cancel(id: string) { return cancelUpload(id); }
 
-    if (task.status === "uploading") {
-      const interrupted = await pauseUpload(uploadId);
-      if (interrupted) return;
-    }
-
-    this.setStatus(uploadId, "paused", "Upload paused");
+  remove(id: string) {
+    this.removed.add(id);
+    const next = new Map(this.tasks);
+    next.delete(id);
+    this.tasks = next;
   }
 
-  async resume(uploadId: string) {
-    const task = this.tasks.get(uploadId);
-    if (!task || task.status !== "paused") return;
-    const resumed = await resumeUpload(uploadId);
-    if (!resumed) return;
-    this.tasks.set(uploadId, {
-      ...task,
-      status: "pending",
-      message: null,
-      error: null,
-      completed_at: null,
-    });
-    this.tasks = new Map(this.tasks);
-    void this.processQueue();
-  }
-
-  async cancel(uploadId: string) {
-    const task = this.tasks.get(uploadId);
-    if (!task || ["completed", "failed", "cancelled", "skipped", "interrupted"].includes(task.status)) return;
-
-    if (task.status === "uploading") {
-      const interrupted = await cancelUpload(uploadId);
-      if (interrupted) return;
-    }
-
-    this.setStatus(uploadId, "cancelled", "Upload cancelled", true);
-  }
-
-  async processQueue() {
-    if (this.processing) return;
-    this.processing = true;
-
-    try {
-      while (true) {
-        const slots = this.maxConcurrent - this.activeRunners.size;
-        if (slots <= 0) break;
-
-        const nextTasks = [...this.tasks.values()]
-          .sort((a, b) => a.created_at - b.created_at)
-          .filter((task) =>
-            task.status === "pending"
-            && this.runners.has(task.upload_id)
-            && !this.activeRunners.has(task.upload_id)
-          )
-          .slice(0, slots);
-        if (nextTasks.length === 0) break;
-
-        for (const task of nextTasks) {
-          this.startRunner(task);
-        }
-      }
-    } finally {
-      this.processing = false;
-    }
-  }
-
-  private startRunner(task: UploadTaskDto) {
-    const runner = this.runners.get(task.upload_id);
-    if (!runner || this.activeRunners.has(task.upload_id)) return;
-
-    this.activeRunners.add(task.upload_id);
-    this.tasks.set(task.upload_id, {
-      ...task,
-      status: "uploading",
-      message: task.message ?? "Preparing upload",
-      error: null,
-      completed_at: null,
-    });
-    this.tasks = new Map(this.tasks);
-
-    void (async () => {
-      try {
-        await runner(task.upload_id);
-        const current = this.tasks.get(task.upload_id);
-        if (current && current.status === "uploading") {
-          this.tasks.set(task.upload_id, {
-            ...current,
-            status: "completed",
-            progress: 1,
-            current_bytes: current.total_bytes || current.current_bytes || 1,
-            total_bytes: current.total_bytes || current.current_bytes || 1,
-            message: "Upload completed",
-            completed_at: Math.floor(Date.now() / 1000),
-          });
-          this.tasks = new Map(this.tasks);
-        }
-
-        const after = this.completionCallbacks.get(task.upload_id);
-        const finished = this.tasks.get(task.upload_id);
-        if (after && finished && ["completed", "skipped"].includes(finished.status)) {
-          await after();
-        }
-      } catch (err) {
-        const current = this.tasks.get(task.upload_id);
-        if (!current || ["paused", "cancelled", "failed"].includes(current.status)) {
-          return;
-        }
-        this.markFailed(task.upload_id, formatStoreError(err));
-      } finally {
-        this.activeRunners.delete(task.upload_id);
-        void this.processQueue();
-      }
-    })();
-  }
-
-  applyProgress(event: UploadProgressEvent) {
-    const oldTask = this.tasks.get(event.upload_id);
-    const terminal = event.status === "completed"
-      || event.status === "failed"
-      || event.status === "skipped"
-      || event.status === "cancelled";
-    const next: UploadTaskDto = {
-      ...(oldTask ?? {
-        upload_id: event.upload_id, task_id: null, file_name: event.file_name,
-        source_path: "", kind: "file" as const, target_parent_id: null,
-        created_at: Math.floor(Date.now() / 1000), updated_at: Math.floor(Date.now() / 1000),
-        retry_count: 0, max_retries: 3, source_available: false,
-      }),
-      upload_id: event.upload_id,
-      task_id: event.task_id ?? oldTask?.task_id ?? null,
-      file_name: event.file_name,
-      status: event.status,
-      progress:
-        event.total_bytes === 0 && (event.status === "paused" || event.status === "cancelled")
-          ? (oldTask?.progress ?? event.progress)
-          : event.progress,
-      current_bytes: event.current_bytes || oldTask?.current_bytes || 0,
-      total_bytes: event.total_bytes || oldTask?.total_bytes || 0,
-      message: event.message,
-      error: event.status === "failed" ? event.message : null,
-      updated_at: Math.floor(Date.now() / 1000),
-      completed_at: terminal ? Math.floor(Date.now() / 1000) : null,
-    };
-    this.tasks.set(event.upload_id, next);
-    this.tasks = new Map(this.tasks);
-  }
-
-  markFailed(uploadId: string, error: string) {
-    const task = this.tasks.get(uploadId);
-    if (!task) return;
-    this.tasks.set(uploadId, {
-      ...task,
-      status: "failed",
-      error,
-      message: error,
-      completed_at: Math.floor(Date.now() / 1000),
-    });
-    this.tasks = new Map(this.tasks);
-  }
-
-  remove(uploadId: string) {
-    this.tasks.delete(uploadId);
-    this.runners.delete(uploadId);
-    this.completionCallbacks.delete(uploadId);
-    this.tasks = new Map(this.tasks);
-  }
-
-  clearFinished() {
-    this.clearTerminalByStatus(["completed", "failed", "cancelled", "skipped"]);
-  }
-
-  clearCompletedAndCancelled() {
-    this.clearTerminalByStatus(["completed", "cancelled", "skipped"]);
-  }
-
-  clearFailedAndCancelled() {
-    this.clearTerminalByStatus(["failed", "cancelled", "skipped"]);
-  }
-
-  private clearTerminalByStatus(statuses: UploadTaskDto["status"][]) {
-    const toClear = new Set(statuses);
-    for (const task of this.allTasks) {
-      if (toClear.has(task.status)) {
-        this.runners.delete(task.upload_id);
-        this.completionCallbacks.delete(task.upload_id);
-      }
-    }
-    this.tasks = new Map(
-      [...this.tasks].filter(([, task]) =>
-        !toClear.has(task.status)
-      ),
-    );
-  }
-
-  get allTasks(): UploadTaskDto[] {
-    return [...this.tasks.values()].sort((a, b) => b.created_at - a.created_at);
-  }
-
-  get activeTasks(): UploadTaskDto[] {
-    return this.allTasks.filter((task) => task.status === "pending" || task.status === "uploading");
-  }
-
-  get pausedTasks(): UploadTaskDto[] {
-    return this.allTasks.filter((task) => task.status === "paused");
-  }
-
-  get completedTasks(): UploadTaskDto[] {
-    return this.allTasks.filter((task) => task.status === "completed" || task.status === "skipped");
-  }
-
-  get failedTasks(): UploadTaskDto[] {
-    return this.allTasks.filter((task) => task.status === "failed");
-  }
-
-  get cancelledTasks(): UploadTaskDto[] {
-    return this.allTasks.filter((task) => task.status === "cancelled");
-  }
-
-  private setStatus(
-    uploadId: string,
-    status: UploadTaskDto["status"],
-    message: string,
-    complete = false,
-  ) {
-    const task = this.tasks.get(uploadId);
-    if (!task) return;
-    this.tasks.set(uploadId, {
-      ...task,
-      status,
-      message,
-      error: status === "failed" ? message : task.error,
-      completed_at: complete ? Math.floor(Date.now() / 1000) : null,
-    });
-    this.tasks = new Map(this.tasks);
-  }
+  clear() { this.tasks = new Map(); this.removed.clear(); }
+  get allTasks() { return [...this.tasks.values()].sort((a, b) => b.created_at - a.created_at); }
+  get activeTasks() { return this.allTasks.filter(t => ['pending', 'uploading'].includes(t.status)); }
+  get pausedTasks() { return this.allTasks.filter(t => t.status === 'paused'); }
+  get completedTasks() { return this.allTasks.filter(t => ['completed', 'skipped'].includes(t.status)); }
+  get failedTasks() { return this.allTasks.filter(t => ['failed', 'interrupted'].includes(t.status)); }
+  get cancelledTasks() { return this.allTasks.filter(t => t.status === 'cancelled'); }
 }
 
 export const uploadStore = new UploadStoreImpl();

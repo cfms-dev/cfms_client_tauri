@@ -283,6 +283,18 @@ pub struct UploadTaskDto {
     pub retry_count: u32,
     pub max_retries: u32,
     pub source_available: bool,
+    #[serde(default)]
+    pub batch_id: Option<String>,
+    #[serde(default)]
+    pub batch_name: Option<String>,
+    #[serde(default)]
+    pub batch_created_at: Option<i64>,
+    #[serde(default)]
+    pub batch_index: u32,
+    #[serde(default)]
+    pub queue_order: u64,
+    #[serde(default)]
+    pub revision: u64,
 }
 
 // ---------------------------------------------------------------------------

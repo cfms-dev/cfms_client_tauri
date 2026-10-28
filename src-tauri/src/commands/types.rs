@@ -85,6 +85,21 @@ pub struct UploadEnqueueRequest {
     #[serde(default)]
     pub conflict_resolutions: Vec<DirectoryFileConflictResolution>,
     pub upload_name: Option<String>,
+    #[serde(default)]
+    pub batch_id: Option<String>,
+    #[serde(default)]
+    pub batch_name: Option<String>,
+    #[serde(default)]
+    pub batch_created_at: Option<i64>,
+    #[serde(default)]
+    pub batch_index: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadBatchResult {
+    pub tasks: Vec<cfms_core::UploadTaskDto>,
+    pub failed: Vec<BatchActionFailure>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,13 +116,22 @@ pub struct BatchActionResult {
     pub failed: Vec<BatchActionFailure>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TransferDirection { Download, Upload }
+pub enum TransferDirection {
+    Download,
+    Upload,
+}
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum TransferControlAction { Pause, Resume, Cancel }
+pub enum TransferControlAction {
+    Pause,
+    Resume,
+    Cancel,
+    Retry,
+    CancelAndRemove,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

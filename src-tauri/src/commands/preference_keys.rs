@@ -212,6 +212,7 @@ pub async fn discard_locked_preference_data<R: Runtime>(
     .await
     .map_err(|_| "publicKey.discardFailed")??;
     state.tasks.clear();
+    state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
     state.upload_tasks.clear();
     *state.inner.dek.write().await = Some(key);
     state

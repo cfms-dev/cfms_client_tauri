@@ -1,46 +1,49 @@
 <script lang="ts">
   import FluentButton from '$lib/components/FluentButton.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskDto, UploadEnqueueRequest, UploadTaskDto } from '$lib/api';
+  import type { DownloadTaskDto, UploadTaskDto, TransferControlAction, BatchActionResult } from '$lib/api';
   import {
     cancelDownload, controlTransferTasks, deleteDownloadedFiles, getDownloadTasks, getUploadTasks,
     getDocument, getDocumentInfo, openDownloadedFile, pauseDownload, removeTransferRecords,
-    resumeDownload, retryDownload, retryUploadTask, uploadDirectory, uploadDocumentFile,
+    resumeDownload, retryDownload, retryUploadTask,
   } from '$lib/api';
   import { formatUserFacingError } from '$lib/user-facing-errors';
   import { dialogStore } from '$lib/dialogs.svelte';
   import { downloadStore, notificationStore, uploadStore } from '$lib/stores.svelte';
-  import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopActiveDownloadBatch } from '$lib/download-batch-control';
+  import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopDownloadBatchAndWait } from '$lib/download-batch-control';
   import {
-    buildDownloadTaskSections,
-    type DownloadTaskGroup, type DownloadTaskRow,
+    buildDownloadTaskRows,
+    type DownloadTaskRow,
   } from '$lib/download-task-groups';
   import {
-    TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery, sortSectionTasks,
+    TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery,
     uploadSection, type TransferSectionFilter, type TransferSectionKey,
   } from '$lib/transfer-task-view';
   import { registerKeyboardCommands } from '$lib/keyboard';
   import { pickDirectory } from '$lib/directory-picker';
   import { flyScale } from '$lib/motion/transitions';
-  import type { IconName } from '$lib/icons';
   import VirtualList from '$lib/components/VirtualList.svelte';
   import DownloadTaskCard from '$lib/components/DownloadTaskCard.svelte';
   import DownloadTaskGroupHeader from '$lib/components/DownloadTaskGroupHeader.svelte';
   import DocumentIdDownloadDialog from '$lib/components/DocumentIdDownloadDialog.svelte';
   import UploadTaskCard from '$lib/components/UploadTaskCard.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import MdCheckbox from '$lib/components/MdCheckbox.svelte';
+  import UploadTaskGroupHeader from '$lib/components/UploadTaskGroupHeader.svelte';
+  import ContextMenu from '$lib/components/ContextMenu.svelte';
+  import type { ContextMenuItem } from '$lib/components/context-menu';
+  import { buildUploadTaskRows, canControlTransfer, matchesCleanup, transferId, type UploadTaskGroup, type CleanupKind, type TransferTask } from '$lib/transfer-batches';
   import TaskActionButton from '$lib/components/TaskActionButton.svelte';
+  import { TRANSFER_ACTIONS, transferControlMenu, transferCleanupMenu } from '$lib/transfer-actions';
 
   type TaskTab = 'downloads' | 'uploads';
   type GroupAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete' | 'remove';
-  type DownloadPageRow =
-    | { kind: 'section'; section: TransferSectionKey; count: number }
-    | { kind: 'download'; section: TransferSectionKey; row: DownloadTaskRow };
+  type DownloadPageRow = { kind: 'download'; row: DownloadTaskRow };
   type UploadPageRow =
-    | { kind: 'section'; section: TransferSectionKey; count: number }
-    | { kind: 'upload'; section: TransferSectionKey; task: UploadTaskDto };
+    | { kind: 'upload'; task: UploadTaskDto; groupId?: string }
+    | { kind: 'upload-group'; group: UploadTaskGroup };
 
   let activeTab = $state<TaskTab>('downloads');
   let searchQuery = $state('');
@@ -48,19 +51,48 @@
   let loading = $state(false);
   let errorMessage = $state('');
   let expandedGroups = $state(new Set<string>());
-  let collapsedSections = $state(new Set<TransferSectionKey>());
   let pendingDownloadActions = $state(new Set<string>());
   let pendingUploadActions = $state(new Set<string>());
   let pendingGroupActions = $state(new Map<string, GroupAction>());
   let directDownloadOpen = $state(false);
   let directDownloadBusy = $state(false);
   let directDownloadError = $state('');
-  let batchFailureSequence = 0;
+  let selectedIds = $state(new Set<string>());
+  let selectedBatches = $state(new Set<string>());
+  let bulkBusy = $state(false);
+  let bulkResult = $state<{ succeeded: number; failed: Array<{ name: string; error: string }> } | null>(null);
+  let cleanupMenu = $state({ open: false, x: 0, y: 0, source: null as HTMLElement | null });
+  $effect(() => {
+    activeTab; searchQuery; sectionFilter;
+    untrack(() => {
+      selectedIds = new Set();
+      selectedBatches = new Set();
+      cleanupMenu.open = false;
+    });
+  });
 
   const downloadTasks = $derived([...downloadStore.tasks.values()]);
   const uploadTasks = $derived(uploadStore.allTasks);
-  const visibleDownloads = $derived(downloadTasks.filter((task) => matchesTransferQuery(task, searchQuery)));
-  const visibleUploads = $derived(uploadTasks.filter((task) => matchesTransferQuery(task, searchQuery)));
+  const visibleDownloads = $derived(downloadTasks.filter((task) => matchesTransferQuery(task, searchQuery) && (sectionFilter === 'all' || downloadSection(task) === sectionFilter)));
+  const visibleUploads = $derived(uploadTasks.filter((task) => matchesTransferQuery(task, searchQuery) && (sectionFilter === 'all' || uploadSection(task) === sectionFilter)));
+  const visibleTasks = $derived<TransferTask[]>(activeTab === 'downloads' ? visibleDownloads : visibleUploads);
+  const scopeTasks = $derived(selectedIds.size ? visibleTasks.filter(task => selectedIds.has(transferId(task))) : visibleTasks);
+  const allSelected = $derived(visibleTasks.length > 0 && visibleTasks.every(task => selectedIds.has(transferId(task))));
+  const someSelected = $derived(visibleTasks.some(task => selectedIds.has(transferId(task))));
+  $effect(() => {
+    const visibleIds = new Set(visibleTasks.map(transferId));
+    untrack(() => {
+      if ([...selectedIds].some(id => !visibleIds.has(id))) {
+        selectedIds = new Set([...selectedIds].filter(id => visibleIds.has(id)));
+      }
+    });
+  });
+  const cleanupItems = $derived<ContextMenuItem[]>([
+    ...transferControlMenu({ count: controlCount, run: runBulkControl, translate: $t, busy: bulkBusy }),
+    ...transferCleanupMenu({ count: kind => kind === 'active' ? controlCount('cancel_and_remove') : scopeTasks.filter(task => matchesCleanup(task, kind)).length,
+      run: runCleanup, translate: $t, busy: bulkBusy }),
+  ]);
+  const moreScopeLabel = $derived($t(selectedIds.size ? 'tasks.moreSelectedActions' : 'tasks.moreFilteredActions', { values: { count: scopeTasks.length } }));
   const downloadRows = $derived.by(() => buildDownloadPageRows());
   const uploadRows = $derived.by(() => buildUploadPageRows());
   const currentRows = $derived(activeTab === 'downloads' ? downloadRows : uploadRows);
@@ -72,15 +104,17 @@
     : visibleUploads.filter((task) => uploadSection(task) === 'attention').length);
 
   onMount(() => {
+    if (new URLSearchParams(window.location.search).get('tab') === 'uploads') activeTab = 'uploads';
     void refresh();
     return registerKeyboardCommands({
       id: 'tasks.refresh', label: () => $t('common.refresh'), group: () => $t('tasks.title'),
       shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }], scope: 'page',
-      enabled: () => !loading, handler: refresh,
+      enabled: () => !loading && !bulkBusy, handler: refresh,
     });
   });
 
   async function refresh() {
+    if (bulkBusy) return;
     loading = true;
     errorMessage = '';
     try {
@@ -95,41 +129,133 @@
   }
 
   function buildDownloadPageRows(): DownloadPageRow[] {
-    const rows: DownloadPageRow[] = [];
-    for (const group of buildDownloadTaskSections(
-      downloadTasks, expandedGroups, $downloadBatchSnapshots, searchQuery,
-    )) {
-      if (sectionFilter !== 'all' && sectionFilter !== group.section) continue;
-      rows.push({ kind: 'section', section: group.section, count: group.count });
-      if (collapsedSections.has(group.section)) continue;
-      for (const row of group.rows) {
-        rows.push({ kind: 'download', section: group.section, row });
+    const visible = new Set(visibleDownloads.map(t => t.task_id));
+    const expanded = searchQuery.trim() ? new Set(downloadTasks.map(t => t.batch_id ?? '')) : expandedGroups;
+    return buildDownloadTaskRows(downloadTasks, expanded, $downloadBatchSnapshots).flatMap((row): DownloadPageRow[] => {
+      if (row.kind === 'group') {
+        const matching = row.group.tasks.filter(t => visible.has(t.task_id));
+        const nameMatches = row.group.name.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase());
+        if (!matching.length && !(row.group.preparing && nameMatches && ['all', 'active'].includes(sectionFilter))) return [];
+        return [{ kind: 'download', row: { ...row, group: { ...row.group, tasks: matching } } }];
       }
-    }
-    return rows;
+      return visible.has(row.task.task_id) ? [{ kind: 'download', row }] : [];
+    });
   }
 
   function buildUploadPageRows(): UploadPageRow[] {
-    const rows: UploadPageRow[] = [];
-    for (const section of TRANSFER_SECTION_ORDER) {
-      if (sectionFilter !== 'all' && sectionFilter !== section) continue;
-      const tasks = sortSectionTasks(visibleUploads.filter((task) => uploadSection(task) === section), section);
-      if (tasks.length === 0) continue;
-      rows.push({ kind: 'section', section, count: tasks.length });
-      if (collapsedSections.has(section)) continue;
-      for (const task of tasks) rows.push({ kind: 'upload', section, task });
+    return buildUploadTaskRows(uploadTasks, expandedGroups, searchQuery, sectionFilter).map(row => row.kind === 'group'
+      ? { kind: 'upload-group', group: row.group }
+      : { kind: 'upload', task: row.task, groupId: row.groupId });
+  }
+
+  function selectTasks(tasks: TransferTask[], checked: boolean) {
+    const next = new Set(selectedIds);
+    for (const task of tasks) checked ? next.add(transferId(task)) : next.delete(transferId(task));
+    selectedIds = next;
+    if (!checked) selectedBatches = new Set([...selectedBatches].filter(id => !tasks.some(task => task.batch_id === id)));
+  }
+  function selectBatch(id: string, tasks: TransferTask[], checked: boolean) {
+    selectTasks(tasks, checked);
+    const next = new Set(selectedBatches);
+    checked ? next.add(id) : next.delete(id);
+    selectedBatches = next;
+  }
+  function selectMatching(checked: boolean) {
+    selectTasks(visibleTasks, checked);
+    selectedBatches = checked && !searchQuery.trim() && sectionFilter === 'all'
+      ? new Set(visibleTasks.map(task => task.batch_id).filter((id): id is string => Boolean(id))) : new Set();
+  }
+  function groupSelected(tasks: TransferTask[]) { return tasks.length > 0 && tasks.every(t => selectedIds.has(transferId(t))); }
+  function groupMixed(tasks: TransferTask[]) { return !groupSelected(tasks) && tasks.some(t => selectedIds.has(transferId(t))); }
+
+  function openCleanupMenu(event: MouseEvent) {
+    const source = event.currentTarget as HTMLElement;
+    const rect = source.getBoundingClientRect();
+    cleanupMenu = { open: true, x: rect.left, y: rect.bottom, source };
+  }
+
+  function producerBatches(tasks = scopeTasks) {
+    if (activeTab !== 'downloads' || searchQuery.trim() || sectionFilter !== 'all') return [];
+    if (selectedIds.size) return [...selectedBatches];
+    const ids = new Set(tasks.filter((t): t is DownloadTaskDto => !('upload_id' in t)).map(t => t.batch_id).filter((id): id is string => Boolean(id)));
+    if (tasks === scopeTasks) for (const batch of $downloadBatchSnapshots) ids.add(batch.batchId);
+    return [...ids];
+  }
+  function controlCount(action: TransferControlAction) {
+    const taskCount = scopeTasks.filter(t => canControlTransfer(t, action)).length;
+    const live = $downloadBatchSnapshots.filter(b => action !== 'retry' && producerBatches().includes(b.batchId)
+      && (action !== 'pause' || !b.paused) && (action !== 'resume' || b.paused));
+    return taskCount + live.length;
+  }
+
+  async function runBulkControl(action: TransferControlAction, tasks = scopeTasks, explicitBatch?: string) {
+    if (bulkBusy) return;
+    const direction = activeTab === 'uploads' ? 'upload' : 'download';
+    const targets = tasks.filter(task => canControlTransfer(task, action));
+    const batches = explicitBatch && !searchQuery.trim() && sectionFilter === 'all'
+      ? [explicitBatch] : producerBatches(tasks);
+    if (!targets.length && !batches.length) return;
+    bulkBusy = true;
+    bulkResult = null;
+    try {
+      if (action === 'cancel_and_remove' && !await dialogStore.confirm({
+        title: $t('tasks.stopAndClearTitle'),
+        message: $t('tasks.stopAndClearConfirm', { values: { count: targets.length } }),
+        confirmLabel: $t('tasks.cleanup.active'), cancelLabel: $t('common.cancel'), danger: true,
+      })) return;
+      for (const id of batches) {
+        if (action === 'pause') pauseActiveDownloadBatches(id);
+        if (action === 'resume') resumeActiveDownloadBatches(id);
+      }
+      const cancelling = action === 'cancel' || action === 'cancel_and_remove';
+      const stopping = cancelling ? batches.map(id => stopDownloadBatchAndWait(id)) : [];
+      const request = batches.length && cancelling
+        ? controlTransferTasks(direction, targets.map(transferId), action, batches)
+        : controlTransferTasks(direction, targets.map(transferId), action);
+      const [operation, ...producers] = await Promise.allSettled([request, ...stopping]);
+      if (operation.status === 'rejected') throw operation.reason;
+      const result = operation.value as BatchActionResult;
+      if (action === 'cancel_and_remove') removeSucceeded(result);
+      const producerErrors = producers.flatMap((producer, i) => producer.status === 'rejected'
+        ? [{ name: $downloadBatchSnapshots.find(b => b.batchId === batches[i])?.batchName ?? batches[i], error: formatUserFacingError(producer.reason) }] : []);
+      reportBulkResult(result, tasks, producerErrors);
+      await (direction === 'upload' ? refreshUploads() : refreshDownloads());
+    } catch (error) { errorMessage = formatUserFacingError(error); }
+    finally { bulkBusy = false; }
+  }
+
+  async function runCleanup(kind: CleanupKind, tasks = scopeTasks) {
+    if (kind === 'active') return runBulkControl('cancel_and_remove', tasks);
+    if (bulkBusy) return;
+    const targets = tasks.filter(t => matchesCleanup(t, kind));
+    if (!targets.length) return;
+    bulkBusy = true;
+    bulkResult = null;
+    try {
+      const result = await removeTransferRecords(activeTab === 'uploads' ? 'upload' : 'download', targets.map(transferId));
+      removeSucceeded(result);
+      reportBulkResult(result, targets);
+    } catch (error) { errorMessage = formatUserFacingError(error); }
+    finally { bulkBusy = false; }
+  }
+
+  function removeSucceeded(result: BatchActionResult) {
+    const next = new Set(selectedIds);
+    for (const id of result.succeeded) {
+      if (activeTab === 'uploads') uploadStore.remove(id); else downloadStore.remove(id);
+      next.delete(id);
     }
-    return rows;
+    selectedIds = next;
+  }
+  function reportBulkResult(result: BatchActionResult, tasks: TransferTask[], extra: Array<{ name: string; error: string }> = []) {
+    bulkResult = { succeeded: result.succeeded.length, failed: result.failed.map(item => {
+      const task = tasks.find(t => transferId(t) === item.id);
+      return { name: task ? ('file_name' in task ? task.file_name : task.filename) : item.id, error: formatUserFacingError(item.error) };
+    }).concat(extra) };
   }
 
   function sectionLabel(section: TransferSectionKey) {
     return $t(`tasks.sections.${section}`);
-  }
-
-  function toggleSection(section: TransferSectionKey) {
-    const next = new Set(collapsedSections);
-    next.has(section) ? next.delete(section) : next.add(section);
-    collapsedSections = next;
   }
 
   function toggleGroup(groupId: string) {
@@ -227,8 +353,8 @@
   async function handleCancelUpload(id: string) { await runUpload(id, () => uploadStore.cancel(id)); }
   async function handleRestartUpload(id: string) {
     await runUpload(id, async () => {
-      const request = await retryUploadTask(id);
-      uploadStore.registerRunner(id, uploadRunner(request));
+      await retryUploadTask(id);
+      await refreshUploads();
     }, false);
   }
   async function handleReselectUpload(id: string) {
@@ -250,8 +376,8 @@
         sourcePath = typeof selected === 'string' ? selected : null;
       }
       if (!sourcePath) return;
-      const request = await retryUploadTask(id, sourcePath);
-      uploadStore.registerRunner(id, uploadRunner(request));
+      await retryUploadTask(id, sourcePath);
+      await refreshUploads();
     }, false);
   }
   async function handleRemoveUpload(id: string) {
@@ -262,23 +388,18 @@
     }, false);
   }
 
-  function uploadRunner(request: UploadEnqueueRequest) {
-    return (uploadId: string) => request.kind === 'directory'
-      ? uploadDirectory(request.targetParentId, request.sourcePath, uploadId, request.conflictStrategy, request.uploadName ?? request.fileName, request.conflictResolutions)
-      : uploadDocumentFile(request.targetParentId, request.sourcePath, uploadId, request.conflictStrategy, request.uploadName ?? request.fileName);
-  }
-
-  function groupTasks(groupId: string) { return downloadTasks.filter((task) => task.batch_id === groupId); }
+  function groupTasks(groupId: string) { return visibleDownloads.filter((task) => task.batch_id === groupId); }
   async function runGroup(groupId: string, actionName: GroupAction, action: () => Promise<void>) {
     pendingGroupActions = new Map(pendingGroupActions).set(groupId, actionName);
     try { await action(); await refreshDownloads(); }
     catch (error) { errorMessage = formatError(error); }
     finally { const next = new Map(pendingGroupActions); next.delete(groupId); pendingGroupActions = next; }
   }
-  async function handlePauseGroup(id: string) { await runGroup(id, 'pause', async () => { pauseActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'pending' || t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => pauseDownload(t.task_id))); }); }
-  async function handleResumeGroup(id: string) { await runGroup(id, 'resume', async () => { resumeActiveDownloadBatches(id); await Promise.all(groupTasks(id).filter((t) => t.status === 'paused').map((t) => resumeDownload(t.task_id))); }); }
-  async function handleRetryGroup(id: string) { await runGroup(id, 'retry', async () => { await Promise.all(groupTasks(id).filter((t) => t.status === 'failed').map((t) => retryDownload(t.task_id))); }); }
-  async function handleCancelGroup(id: string) { await runGroup(id, 'cancel', async () => { stopActiveDownloadBatch(id); await Promise.all(groupTasks(id).filter((t) => !t.completed_at).map((t) => cancelDownload(t.task_id))); }); }
+  async function handlePauseGroup(id: string) { await runBulkControl('pause', groupTasks(id), id); }
+  async function handleResumeGroup(id: string) { await runBulkControl('resume', groupTasks(id), id); }
+  async function handleRetryGroup(id: string) { await runBulkControl('retry', groupTasks(id), id); }
+  async function handleCancelGroup(id: string) { await runBulkControl('cancel', groupTasks(id), id); }
+  async function handleStopAndClearGroup(id: string) { await runBulkControl('cancel_and_remove', groupTasks(id), id); }
   async function handleDeleteGroupFiles(id: string) {
     const completedTasks = groupTasks(id).filter((task) => task.status === 'completed');
     if (completedTasks.length === 0) return;
@@ -292,7 +413,7 @@
     if (!confirmed) return;
     await runGroup(id, 'delete', async () => {
       const result = await deleteDownloadedFiles(completedTasks.map((task) => task.task_id));
-      showBatchFailures(result);
+      reportBulkResult(result, groupTasks(id));
     });
   }
   async function handleRemoveGroupRecords(id: string) {
@@ -307,7 +428,8 @@
     if (!confirmed) return;
     await runGroup(id, 'remove', async () => {
       const result = await removeTransferRecords('download', tasks.map((task) => task.task_id));
-      showBatchFailures(result);
+      removeSucceeded(result);
+      reportBulkResult(result, groupTasks(id));
       if (result.failed.length === 0) {
         const next = new Set(expandedGroups);
         next.delete(id);
@@ -316,93 +438,6 @@
     });
   }
 
-  async function handleSectionAction(section: TransferSectionKey) {
-    errorMessage = '';
-    try {
-      const downloads = visibleDownloads.filter((task) => downloadSection(task) === section);
-      const uploads = visibleUploads.filter((task) => uploadSection(task) === section);
-      if (activeTab === 'downloads') {
-        if (section === 'attention') await Promise.all(downloads.filter((t) => t.status === 'failed').map((t) => handleRetry(t.task_id)));
-        if (section === 'active') showBatchFailures(await controlTransferTasks('download', downloads.filter((t) => t.status === 'scheduled' || (t.status === 'downloading' && t.supports_resume)).map((t) => t.task_id), 'pause'));
-        if (section === 'waiting') showBatchFailures(await controlTransferTasks('download', downloads.filter((t) => t.status === 'paused').map((t) => t.task_id), 'resume'));
-        if (section === 'history') {
-          const result = await removeTransferRecords('download', downloads.map((t) => t.task_id));
-          showBatchFailures(result);
-          await refreshDownloads();
-        }
-        if (section === 'active' || section === 'waiting') await refreshDownloads();
-      } else {
-        if (section === 'attention') await Promise.all(uploads.filter((t) => t.source_available).map((t) => handleRestartUpload(t.upload_id)));
-        if (section === 'active') showBatchFailures(await controlTransferTasks('upload', uploads.map((t) => t.upload_id), 'pause'));
-        if (section === 'waiting') showBatchFailures(await controlTransferTasks('upload', uploads.filter((t) => t.status === 'paused').map((t) => t.upload_id), 'resume'));
-        if (section === 'history') {
-          const result = await removeTransferRecords('upload', uploads.map((t) => t.upload_id));
-          showBatchFailures(result);
-          await refreshUploads();
-        }
-        if (section === 'active' || section === 'waiting') await refreshUploads();
-      }
-    } catch (error) {
-      errorMessage = formatError(error);
-    }
-  }
-
-  function showBatchFailures(result: { failed: Array<{ id: string; error: string }> }) {
-    if (result.failed.length === 0) return;
-
-    const groupKey = `task-batch-failure-${Date.now()}-${batchFailureSequence++}`;
-    const groupTitle = $t('tasks.batchFailedSummary', {
-      values: { count: result.failed.length },
-    });
-    for (const item of result.failed) {
-      const task = downloadTasks.find((candidate) => candidate.task_id === item.id)
-        ?? uploadTasks.find((candidate) => candidate.upload_id === item.id);
-      const name = task
-        ? ('filename' in task ? task.filename : task.file_name)
-        : item.id;
-      const detail = $t('tasks.batchFailureItem', {
-        values: { name, error: item.error },
-      });
-      notificationStore.error(detail, 8000, {
-        groupKey,
-        groupTitle,
-        itemText: detail,
-        summaryText: (count) => $t('tasks.batchFailureDetails', { values: { count } }),
-      });
-    }
-  }
-
-  function sectionActionLabel(section: TransferSectionKey) {
-    if (section === 'attention') return $t('tasks.retryAvailable');
-    if (section === 'active') return $t('tasks.pauseAvailable');
-    if (section === 'waiting') return $t('tasks.resumePaused');
-    return $t('tasks.clearHistory');
-  }
-  function sectionActionIcon(section: TransferSectionKey): IconName {
-    if (section === 'attention') return 'restartAlt';
-    if (section === 'active') return 'pause';
-    if (section === 'waiting') return 'resume';
-    return 'clearAll';
-  }
-  function sectionActionTone(section: TransferSectionKey): 'primary' | 'warning' | 'danger' {
-    if (section === 'active') return 'warning';
-    if (section === 'history') return 'danger';
-    return 'primary';
-  }
-  function sectionActionAvailable(section: TransferSectionKey) {
-    if (activeTab === 'downloads') {
-      const tasks = visibleDownloads.filter((task) => downloadSection(task) === section);
-      if (section === 'attention') return tasks.some((task) => task.status === 'failed');
-      if (section === 'active') return tasks.some((task) => task.status === 'scheduled' || (task.status === 'downloading' && task.supports_resume));
-      if (section === 'waiting') return tasks.some((task) => task.status === 'paused');
-      return tasks.length > 0;
-    }
-    const tasks = visibleUploads.filter((task) => uploadSection(task) === section);
-    if (section === 'attention') return tasks.some((task) => task.source_available);
-    if (section === 'active') return tasks.length > 0;
-    if (section === 'waiting') return tasks.some((task) => task.status === 'paused');
-    return tasks.length > 0;
-  }
   function handleTabKeydown(event: KeyboardEvent) {
     const tabs: Array<'downloads' | 'uploads'> = ['downloads', 'uploads'];
     const current = tabs.indexOf(activeTab);
@@ -420,14 +455,14 @@
     buttons?.[next]?.focus();
   }
   function rowKey(row: DownloadPageRow | UploadPageRow) {
-    if (row.kind === 'section') return `section:${row.section}`;
+    if (row.kind === 'upload-group') return `upload-group:${row.group.id}`;
     if (row.kind === 'upload') return `upload:${row.task.upload_id}`;
     const item = row.row;
-    if (item.kind === 'group') return `group:${row.section}:${item.group.id}`;
+    if (item.kind === 'group') return `group:${item.group.id}`;
     return `download:${item.task.task_id}`;
   }
-  function estimateSize(index: number) { return currentRows[index]?.kind === 'section' ? 46 : 76; }
-  function formatError(error: unknown) { return error instanceof Error ? error.message : String(error); }
+  function estimateSize(index: number) { const row = currentRows[index]; return row?.kind === 'upload-group' || (row?.kind === 'download' && row.row.kind === 'group') ? 116 : 76; }
+  function formatError(error: unknown) { return formatUserFacingError(error); }
 </script>
 
 <div class="workspace-page task-page">
@@ -446,7 +481,7 @@
       />
       <FluentButton data-fluent-owner="routes-home-tasks-page"
         onclick={refresh}
-        disabled={loading}
+        disabled={loading || bulkBusy}
         title={$t('common.refresh')}
         aria-label={$t('common.refresh')}
         type="button"
@@ -460,15 +495,15 @@
   </header>
 
   <div class="task-tabs" role="tablist" aria-label={$t('tasks.title')}>
-    <button data-fluent-owner="routes-home-tasks-page" role="tab" aria-selected={activeTab === 'downloads'} tabindex={activeTab === 'downloads' ? 0 : -1} class:active={activeTab === 'downloads'} onclick={() => (activeTab = 'downloads')} onkeydown={handleTabKeydown}><Icon name="download" size="18px" /> {$t('tasks.downloads')} <span>{downloadTasks.length}</span></button>
-    <button data-fluent-owner="routes-home-tasks-page" role="tab" aria-selected={activeTab === 'uploads'} tabindex={activeTab === 'uploads' ? 0 : -1} class:active={activeTab === 'uploads'} onclick={() => (activeTab = 'uploads')} onkeydown={handleTabKeydown}><Icon name="upload" size="18px" /> {$t('tasks.uploads')} <span>{uploadTasks.length}</span></button>
+    <button data-fluent-owner="routes-home-tasks-page" role="tab" disabled={bulkBusy} aria-selected={activeTab === 'downloads'} tabindex={activeTab === 'downloads' ? 0 : -1} class:active={activeTab === 'downloads'} onclick={() => (activeTab = 'downloads')} onkeydown={handleTabKeydown}><Icon name="download" size="18px" /> {$t('tasks.downloads')} <span>{downloadTasks.length}</span></button>
+    <button data-fluent-owner="routes-home-tasks-page" role="tab" disabled={bulkBusy} aria-selected={activeTab === 'uploads'} tabindex={activeTab === 'uploads' ? 0 : -1} class:active={activeTab === 'uploads'} onclick={() => (activeTab = 'uploads')} onkeydown={handleTabKeydown}><Icon name="upload" size="18px" /> {$t('tasks.uploads')} <span>{uploadTasks.length}</span></button>
   </div>
 
   <div class="task-toolbar" role="toolbar" aria-label={$t('tasks.filters')}>
     <label class="search-field cfms-input-composite cfms-field-surface">
       <Icon name="search" size="18px" />
       <span class="sr-only">{$t('tasks.search')}</span>
-      <input class="cfms-native-field" data-focus-ring="delegated" bind:value={searchQuery} placeholder={$t('tasks.searchPlaceholder')} />
+      <input class="cfms-native-field" data-focus-ring="delegated" bind:value={searchQuery} disabled={bulkBusy} placeholder={$t('tasks.searchPlaceholder')} />
       {#if searchQuery}
         <span class="cfms-input-composite__end">
           <FluentButton data-fluent-owner="routes-home-tasks-page"
@@ -484,7 +519,7 @@
     </label>
     <label class="section-filter">
       <span>{$t('files.filter')}</span>
-      <select class="cfms-native-field" bind:value={sectionFilter}>
+      <select class="cfms-native-field" bind:value={sectionFilter} disabled={bulkBusy}>
         <option value="all">{$t('tasks.all')}</option>
         {#each TRANSFER_SECTION_ORDER as section}<option value={section}>{sectionLabel(section)}</option>{/each}
       </select>
@@ -494,6 +529,34 @@
       {#if attentionCount > 0}<span class="attention"><strong>{attentionCount}</strong> {$t('tasks.needAttention')}</span>{/if}
     </div>
   </div>
+
+  <div class="bulk-toolbar" role="toolbar" aria-label={$t('tasks.bulkActions')} aria-busy={bulkBusy}>
+    <MdCheckbox checked={allSelected} indeterminate={someSelected && !allSelected} disabled={bulkBusy || !visibleTasks.length}
+      ariaLabel={$t('tasks.selectAllMatching')} onChange={selectMatching} />
+    <span class="bulk-scope">{$t(selectedIds.size ? 'tasks.selectedScope' : 'tasks.filteredScope', { values: { count: scopeTasks.length } })}</span>
+    <div class="bulk-actions">
+      {#each (['pause', 'resume'] as const) as action}
+        {@const count = controlCount(action)}
+        <TaskActionButton icon={TRANSFER_ACTIONS[action].icon}
+          label={$t(selectedIds.size ? 'tasks.actionOnSelected' : 'tasks.actionOnFiltered', { values: { action: $t(TRANSFER_ACTIONS[action].label), count } })}
+          disabled={bulkBusy || !count} onclick={() => runBulkControl(action)} />
+      {/each}
+      <FluentButton appearance="subtle" iconOnly class="bulk-menu-trigger" title={moreScopeLabel} aria-label={moreScopeLabel} onclick={openCleanupMenu}
+        disabled={bulkBusy || !cleanupItems.some(item => !('type' in item) && !item.hidden)} aria-haspopup="menu" aria-expanded={cleanupMenu.open}>
+        <Icon name="more" size="20px" />
+      </FluentButton>
+    </div>
+  </div>
+  {#if bulkResult}
+    <div class="bulk-result" role="status">
+      <span>{$t('tasks.bulkResult', { values: { succeeded: bulkResult.succeeded, failed: bulkResult.failed.length } })}</span>
+      {#if bulkResult.failed.length}
+        <details><summary>{$t('tasks.showFailureDetails')}</summary>
+          <ul>{#each bulkResult.failed as item}<li><strong>{item.name}</strong>: {item.error}</li>{/each}</ul>
+        </details>
+      {/if}
+    </div>
+  {/if}
 
   {#if errorMessage}
     <div class="error-banner" role="alert" in:flyScale={{ y: -4, duration: 180 }}><Icon name="errorFilled" size="18px" /><span>{errorMessage}</span><FluentButton data-fluent-owner="routes-home-tasks-page"
@@ -510,32 +573,36 @@
         items={currentRows} keyOf={rowKey} estimateSize={estimateSize} gap={0} overscan={8}
         threshold={32} resetKey={`${activeTab}:${sectionFilter}:${searchQuery}`}
         viewportClass="task-list-viewport" contentClass="task-list-content" itemClass="task-list-item"
-        keyboardNavigation keyboardTargetSelector="button, fluent-button"
+        keyboardNavigation keyboardTargetSelector="button, fluent-button, fluent-checkbox"
       >
         {#snippet children(row)}
-          {#if row.kind === 'section'}
-            <div class="section-header">
-              <FluentButton data-fluent-owner="routes-home-tasks-page"
-                onclick={() => toggleSection(row.section)}
-                aria-expanded={!collapsedSections.has(row.section)}
-                type="button"
-                appearance="subtle"
-                class="section-toggle"
-              >
-                <span class:section-chevron-expanded={!collapsedSections.has(row.section)} class="section-chevron"><Icon name="expandMore" size="18px" /></span>
-                <strong>{sectionLabel(row.section)}</strong><span>{row.count}</span>
-              </FluentButton>
-              {#if sectionActionAvailable(row.section)}
-                <TaskActionButton presentation="labelled" icon={sectionActionIcon(row.section)} label={sectionActionLabel(row.section)} tone={sectionActionTone(row.section)} onclick={() => handleSectionAction(row.section)} />
-              {/if}
+          {#if row.kind === 'upload-group'}
+            <div class="selectable-row">
+              <MdCheckbox checked={groupSelected(row.group.matching)} indeterminate={groupMixed(row.group.matching)} disabled={bulkBusy}
+                ariaLabel={$t('tasks.selectBatch', { values: { name: row.group.name } })} onChange={checked => selectBatch(row.group.id, row.group.matching, checked)} />
+              <div class="transfer-row-content">
+                <UploadTaskGroupHeader group={row.group} expanded={expandedGroups.has(row.group.id) || Boolean(searchQuery.trim())} pending={bulkBusy}
+                  onToggle={() => toggleGroup(row.group.id)} onControl={action => runBulkControl(action, row.group.matching)} onRemove={kind => runCleanup(kind, row.group.matching)} />
+              </div>
+            </div>          {:else if row.kind === 'upload'}
+            <div class="selectable-row" class:group-child={Boolean(row.groupId)}>
+              <MdCheckbox checked={selectedIds.has(row.task.upload_id)} disabled={bulkBusy} ariaLabel={$t('tasks.selectTask', { values: { name: row.task.file_name } })} onChange={checked => selectTasks([row.task], checked)} />
+              <div class="transfer-row-content"><UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={bulkBusy || pendingUploadActions.has(row.task.upload_id)} /></div>
             </div>
-          {:else if row.kind === 'upload'}
-            <UploadTaskCard task={row.task} onPause={handlePauseUpload} onResume={handleResumeUpload} onRestart={handleRestartUpload} onReselect={handleReselectUpload} onCancel={handleCancelUpload} onRemove={handleRemoveUpload} pending={pendingUploadActions.has(row.task.upload_id)} />
           {:else if row.row.kind === 'group'}
-            <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id)} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onDeleteFiles={handleDeleteGroupFiles} onRemoveRecords={handleRemoveGroupRecords} bytesPerSecond={row.row.group.tasks.reduce((sum, task) => sum + (downloadStore.speeds.get(task.task_id) ?? 0), 0)} pendingAction={pendingGroupActions.get(row.row.group.id) ?? null} />
+            {@const group = row.row.group}
+            <div class="selectable-row">
+              <MdCheckbox checked={groupSelected(row.row.group.tasks)} indeterminate={groupMixed(row.row.group.tasks)} disabled={bulkBusy || !row.row.group.tasks.length}
+                ariaLabel={$t('tasks.selectBatch', { values: { name: row.row.group.name } })} onChange={checked => selectBatch(group.id, group.tasks, checked)} />
+              <div class="transfer-row-content">
+                <DownloadTaskGroupHeader group={row.row.group} expanded={expandedGroups.has(row.row.group.id) || Boolean(searchQuery.trim())} onToggle={toggleGroup} onPause={handlePauseGroup} onResume={handleResumeGroup} onRetry={handleRetryGroup} onCancel={handleCancelGroup} onStopAndClear={handleStopAndClearGroup} onDeleteFiles={handleDeleteGroupFiles} onRemoveRecords={handleRemoveGroupRecords} bytesPerSecond={row.row.group.tasks.reduce((sum, task) => sum + (downloadStore.speeds.get(task.task_id) ?? 0), 0)} pendingAction={bulkBusy ? 'cancel' : pendingGroupActions.get(row.row.group.id) ?? null} />
+              </div>
+            </div>
           {:else}
-            <div class:group-child={row.row.kind === 'group-task'}>
-              <DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} bytesPerSecond={downloadStore.speeds.get(row.row.task.task_id) ?? 0} pendingAction={pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} />
+            {@const task = row.row.task}
+            <div class="selectable-row" class:group-child={row.row.kind === 'group-task'}>
+              <MdCheckbox checked={selectedIds.has(row.row.task.task_id)} disabled={bulkBusy} ariaLabel={$t('tasks.selectTask', { values: { name: row.row.task.filename } })} onChange={checked => selectTasks([task], checked)} />
+              <div class="transfer-row-content"><DownloadTaskCard task={row.row.task} onPause={handlePause} onResume={handleResume} onRetry={handleRetry} onCancel={handleCancel} onOpen={handleOpen} onRemove={handleRemoveDownload} onDeleteFile={handleDeleteFile} bytesPerSecond={downloadStore.speeds.get(row.row.task.task_id) ?? 0} pendingAction={bulkBusy || pendingDownloadActions.has(row.row.task.task_id) ? 'cancel' : null} /></div>
             </div>
           {/if}
         {/snippet}
@@ -546,6 +613,8 @@
   </section>
 </div>
 
+<ContextMenu open={cleanupMenu.open} x={cleanupMenu.x} y={cleanupMenu.y} sourceElement={cleanupMenu.source} items={cleanupItems} onClose={() => (cleanupMenu.open = false)} />
+
 <DocumentIdDownloadDialog
   open={directDownloadOpen}
   busy={directDownloadBusy}
@@ -555,6 +624,17 @@
 />
 
 <style>
+  .bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .bulk-scope { margin-inline-end: auto; font-size: 12px; color: var(--explorer-text-muted); }
+  .bulk-actions { display: flex; flex: none; align-items: center; gap: 4px; margin-inline-start: auto; }
+  .bulk-actions :global(.bulk-menu-trigger[icon-only]) { inline-size: 36px; block-size: 36px; }
+  .bulk-result { padding: 10px 12px; font-size: 13px; border: 1px solid var(--explorer-border); border-radius: var(--borderRadiusMedium); }
+  .bulk-result details { margin-top: 6px; }
+  .bulk-result ul { margin: 8px 0 0; padding-inline-start: 20px; max-height: 160px; overflow: auto; }
+  .selectable-row { display: flex; align-items: flex-start; min-width: 0; }
+  .selectable-row > :global(.cfms-choice-target) { margin-block-start: 18px; flex: none; }
+  .transfer-row-content { flex: 1; min-width: 0; }
+
   .task-page {
     display: flex;
     height: 100%;
@@ -601,12 +681,6 @@
 
   .task-list-shell { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; background: transparent; }
   :global(.task-list-viewport) { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .section-header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--explorer-border); padding: 0.35rem 0.55rem; background: transparent; }
-  :global(.section-toggle[data-fluent-owner="routes-home-tasks-page"]) { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--explorer-text); }
-  .section-chevron { display: inline-flex; transition: transform 180ms var(--motion-easing-emphasized-decelerate); }
-  .section-chevron-expanded { transform: rotate(180deg); }
-  :global(.section-toggle[data-fluent-owner="routes-home-tasks-page"]) strong { font-size: 12px; }
-  :global(.section-toggle[data-fluent-owner="routes-home-tasks-page"]) span { color: var(--explorer-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
   .group-child { position: relative; padding-left: 1.5rem; background: transparent; }
   .group-child::before { position: absolute; top: 0; bottom: 0; left: 0.72rem; width: 1px; background: color-mix(in srgb, var(--explorer-accent) 45%, var(--explorer-border)); content: ''; }
@@ -621,6 +695,8 @@
   }
 
   @media (max-width: 520px) {
+    .bulk-scope { flex: 1; min-width: 0; }
+    .bulk-actions { flex-basis: 100%; justify-content: flex-end; }
     .task-page { padding: 16px; }
     .task-header { align-items: flex-start; }
     .task-toolbar { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
@@ -633,6 +709,7 @@
   }
 
   @media (pointer: coarse) {
+    .bulk-actions :global(.bulk-menu-trigger[icon-only]) { inline-size: 44px; block-size: 44px; }
     :global(.icon-button[data-fluent-owner="routes-home-tasks-page"]) { width: 44px; height: 44px; }
     .task-tabs :global(:is(button[data-fluent-owner="routes-home-tasks-page"], .cfms-button[data-fluent-owner="routes-home-tasks-page"])) { min-height: 44px; }
   }
@@ -641,8 +718,7 @@
     :global(.icon-button[data-fluent-owner="routes-home-tasks-page"]),
     .task-tabs :global(:is(button[data-fluent-owner="routes-home-tasks-page"], .cfms-button[data-fluent-owner="routes-home-tasks-page"])),
     .search-field,
-    .search-field :global(:is(button[data-fluent-owner="routes-home-tasks-page"], .cfms-button[data-fluent-owner="routes-home-tasks-page"])),
-    .section-chevron { transition: none; }
+    .search-field :global(:is(button[data-fluent-owner="routes-home-tasks-page"], .cfms-button[data-fluent-owner="routes-home-tasks-page"])) { transition: none; }
     :global(.icon-button[data-fluent-owner="routes-home-tasks-page"]:active:not(:is(:disabled, [disabled]))),
     .search-field :global(:is(button[data-fluent-owner="routes-home-tasks-page"], .cfms-button[data-fluent-owner="routes-home-tasks-page"]):active) { transform: none; }
   }

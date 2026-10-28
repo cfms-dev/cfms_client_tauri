@@ -23,6 +23,8 @@ let activeBatchId: string | null = null;
 let paused = false;
 let resumeWaiters = new Set<() => void>();
 const snapshots = new Map<string, DownloadBatchSnapshot>();
+const completions = new Map<AbortController, () => void>();
+const finished = new Map<AbortController, Promise<void>>();
 
 export const downloadBatchSnapshots = writable<DownloadBatchSnapshot[]>([]);
 
@@ -33,6 +35,8 @@ export function beginDownloadBatch(batch: DownloadBatchMetadata) {
     if (activeBatchId) removeDownloadBatchSnapshot(activeBatchId);
   }
   activeController = new AbortController();
+  const controller = activeController;
+  finished.set(controller, new Promise<void>(resolve => completions.set(controller, resolve)));
   activeBatchId = batch.batchId;
   setDownloadBatchSnapshot(batch.batchId, {
     batchId: batch.batchId,
@@ -51,11 +55,27 @@ export function beginDownloadBatch(batch: DownloadBatchMetadata) {
 }
 
 export function finishDownloadBatch(controller: AbortController) {
+  completions.get(controller)?.();
+  completions.delete(controller);
+  finished.delete(controller);
   if (activeController === controller) {
     if (activeBatchId) removeDownloadBatchSnapshot(activeBatchId);
     activeController = null;
     activeBatchId = null;
   }
+}
+
+/** An in-flight request must settle before callers can report producer cleanup. */
+export async function stopDownloadBatchAndWait(batchId: string): Promise<void> {
+  if (activeBatchId !== batchId || !activeController) return;
+  const completion = finished.get(activeController);
+  stopActiveDownloadBatch(batchId);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([completion, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Folder queueing did not stop within 10 seconds. Try again.')), 10_000);
+    })]);
+  } finally { clearTimeout(timer); }
 }
 
 export function stopActiveDownloadBatch(batchId?: string | Event) {

@@ -5,6 +5,9 @@ async fn apply_successful_login_response(
     clear_dek: bool,
     clear_tasks: bool,
 ) -> Result<(), String> {
+    if clear_tasks {
+        state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
+    }
     let issued = IssuedToken::from_response(data, GENERAL)?;
     let exp = issued.claims.exp.floor() as i64;
     *state.inner.user_id.write().await = Some(issued.claims.sub.clone());

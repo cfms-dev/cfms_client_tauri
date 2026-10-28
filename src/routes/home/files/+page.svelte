@@ -43,8 +43,6 @@
     setCurrentRevision,
     setDocumentTags,
     searchFiles,
-    uploadDirectory,
-    uploadDocumentFile,
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
@@ -56,6 +54,8 @@
     type SearchFilesResponse,
     type UploadConflictStrategy,
     type UploadRevisionProgressEvent,
+    type UploadEnqueueRequest,
+    type UploadTaskDto,
     type UserPreference,
   } from '$lib/api';
   import type {
@@ -533,6 +533,7 @@
       })),
     ];
   }
+  let queuedUploadCount = $state(0);
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
   const parentTargetId = $derived.by<string | null | undefined>(() => {
     if (
@@ -762,6 +763,9 @@
     returnNavigation?: DirectoryNavigationSnapshot,
     surfaceAccessDenied = true,
   ): Promise<boolean> {
+    if (!directorySorter) return false;
+    resolveFirstDirectorySnapshot?.(false);
+    resolveFirstDirectorySnapshot = null;
     pendingAddressDocument = null;
     const normalizedFolderId = normalizeDirectoryId(folderId);
     const deniedReturnNavigation = returnNavigation
@@ -2987,91 +2991,35 @@
       if (resolver.cancelled) return;
     }
 
-    for (const candidate of availableFiles) {
-      scheduleUploadCandidate(targetFolderId, candidate, 'fail');
-    }
+    const batchId = createUploadId();
+    const batchCreatedAt = Math.floor(Date.now() / 1000);
+    const batchName = breadcrumbSegments.at(-1)?.label ?? $t('files.rootDirectory');
+    const requests: UploadEnqueueRequest[] = [];
+    const add = (candidate: UploadCandidate, conflictStrategy: UploadConflictStrategy, conflictResolutions: DirectoryFileConflictResolution[] = []) => {
+      requests.push({
+        uploadId: createUploadId(), fileName: candidate.name, sourcePath: candidate.sourcePath,
+        kind: candidate.kind, targetParentId: targetFolderId, conflictStrategy, conflictResolutions,
+        uploadName: candidate.name, batchId, batchName, batchCreatedAt, batchIndex: requests.length,
+      });
+    };
+    for (const candidate of availableFiles) add(candidate, 'fail');
     for (const { candidate, action } of decisions) {
       if (candidate.directoryPath && candidate.relativePath) {
-        directoryResolutions.get(candidate.directoryPath)?.push({
-          relativePath: candidate.relativePath,
-          conflictStrategy: action,
-        });
-      } else if (action !== 'skip') {
-        scheduleUploadCandidate(targetFolderId, candidate, action);
+        directoryResolutions.get(candidate.directoryPath)?.push({ relativePath: candidate.relativePath, conflictStrategy: action });
+      } else { add(candidate, action); }
+    }
+    for (const candidate of directoryCandidates) add(candidate, 'fail', directoryResolutions.get(candidate.sourcePath) ?? []);
+    // Preserve selection order even when conflict decisions were collected separately.
+    requests.sort((a, b) => candidates.findIndex(c => c.sourcePath === a.sourcePath) - candidates.findIndex(c => c.sourcePath === b.sourcePath));
+    requests.forEach((request, index) => { request.batchIndex = index; });
+    try {
+      const result = await uploadStore.addBatch(requests);
+      queuedUploadCount = result.tasks.length;
+      if (result.tasks.length) notificationStore.success($t('tasks.batchQueued', { values: { count: result.tasks.length } }));
+      if (result.failed.length) {
+        error = $t('tasks.batchEnqueueFailed', { values: { count: result.failed.length } }) + '\n' + result.failed.map(item => `${requests.find(r => r.uploadId === item.id)?.fileName ?? item.id}: ${item.error}`).join('\n');
       }
-    }
-    for (const candidate of directoryCandidates) {
-      scheduleUploadCandidate(
-        targetFolderId,
-        candidate,
-        'fail',
-        directoryResolutions.get(candidate.sourcePath) ?? [],
-      );
-    }
-  }
-
-  function scheduleUploadCandidate(
-    targetFolderId: string | null,
-    candidate: UploadCandidate,
-    conflictStrategy: UploadConflictStrategy,
-    conflictResolutions: DirectoryFileConflictResolution[] = [],
-  ) {
-    const action = candidate.kind === 'directory'
-      ? (uploadId: string, uploadName: string) => uploadDirectory(
-          targetFolderId,
-          candidate.sourcePath,
-          uploadId,
-          conflictStrategy,
-          uploadName,
-          conflictResolutions,
-        )
-      : (uploadId: string, uploadName: string) => uploadDocumentFile(
-          targetFolderId,
-          candidate.sourcePath,
-          uploadId,
-          conflictStrategy,
-          uploadName,
-        );
-
-    scheduleUpload(candidate.sourcePath, action, candidate.name, {
-      kind: candidate.kind,
-      targetParentId: targetFolderId,
-      conflictStrategy,
-      conflictResolutions,
-    });
-  }
-
-  function scheduleUpload(
-    sourcePath: string,
-    action: (uploadId: string, uploadName: string) => Promise<unknown>,
-    displayName?: string,
-    metadata?: {
-      kind: 'file' | 'directory';
-      targetParentId: string | null;
-      conflictStrategy: UploadConflictStrategy;
-      conflictResolutions: DirectoryFileConflictResolution[];
-    },
-  ) {
-    const uploadId = createUploadId();
-    const uploadName = displayName?.trim() || uploadDisplayName(sourcePath);
-    void uploadStore.addQueued(
-      {
-        uploadId,
-        fileName: uploadName,
-        sourcePath,
-        kind: metadata?.kind ?? 'file',
-        targetParentId: metadata?.targetParentId ?? null,
-        conflictStrategy: metadata?.conflictStrategy ?? 'fail',
-        conflictResolutions: metadata?.conflictResolutions ?? [],
-        uploadName,
-      },
-      (id) => action(id, uploadName),
-      async () => {
-        await loadDirectory(currentFolderId);
-      },
-    ).catch((err) => {
-      error = formatError(err);
-    });
+    } catch (err) { error = formatError(err); }
   }
 
   function createUploadId() {
@@ -3642,6 +3590,15 @@
     let unlisten: UnlistenFn | null = null;
     let unlistenDragDrop: UnlistenFn | null = null;
     let disposed = false;
+    let unlistenUploads: UnlistenFn | null = null;
+    let uploadRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    void listen<UploadTaskDto>('cfms:upload-task', ({ payload: task }) => {
+      if (disposed || !['completed', 'skipped'].includes(task.status) || !sameDirectoryId(task.target_parent_id, currentFolderId)) return;
+      clearTimeout(uploadRefreshTimer);
+      uploadRefreshTimer = setTimeout(() => {
+        if (!disposed) void loadDirectory(currentFolderId, true);
+      }, 250);
+    }).then(stop => { if (disposed) stop(); else unlistenUploads = stop; });
     directorySorter = createProgressiveDirectorySorter(handleDirectorySnapshot, handleDirectorySorterError);
     const unregisterKeyboardCommands = registerKeyboardCommands([
       ...([-1, 1] as const).map((direction) => ({
@@ -3827,6 +3784,8 @@
     reloadUserPreference();
     return () => {
       disposed = true;
+      clearTimeout(uploadRefreshTimer);
+      unlistenUploads?.();
       directoryGeneration = directoryLoader.invalidate();
       resolveFirstDirectorySnapshot?.(false);
       resolveFirstDirectorySnapshot = null;
@@ -3896,6 +3855,14 @@
       />
     {/snippet}
   </ExplorerNavigationBar>
+
+  {#if queuedUploadCount > 0}
+    <div class="upload-queued-notice" role="status">
+      <span>{$t('tasks.batchQueued', { values: { count: queuedUploadCount } })}</span>
+      <FluentButton appearance="subtle" onclick={() => goto('/home/tasks?tab=uploads')}>{$t('tasks.viewTransfers')}</FluentButton>
+      <FluentButton appearance="subtle" iconOnly aria-label={$t('common.close')} onclick={() => (queuedUploadCount = 0)}><Icon name="close" size="16px" /></FluentButton>
+    </div>
+  {/if}
 
   {#snippet serverSearch()}
     <!-- Search -->
@@ -4206,6 +4173,9 @@
 </div>
 
 <style>
+  .upload-queued-notice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--explorer-border); }
+  .upload-queued-notice span { margin-inline-end: auto; }
+
   .files-page {
     display: flex;
     height: 100%;

@@ -35,6 +35,9 @@ pub async fn reload_tasks_for_user(
         .load_for_user(&state.app_data_dir, &server_hash, &username, dek.as_deref())
         .map_err(|e| format!("Failed to load download tasks: {e}"))?;
 
+    state
+        .active_uploads
+        .interrupt_all(UploadInterruption::Cancelled);
     let upload_count = state
         .upload_tasks
         .load_for_user(&state.app_data_dir, &server_hash, &username, dek.as_deref())

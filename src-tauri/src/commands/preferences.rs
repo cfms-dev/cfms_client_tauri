@@ -237,6 +237,7 @@ pub async fn reset_preference_dek<R: Runtime>(
     .map_err(|e| format!("Preference DEK reset cleanup task failed: {e}"))??;
 
     state.tasks.clear();
+    state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
     state.upload_tasks.clear();
     state.inner.preference_dek_local_only.store(false, std::sync::atomic::Ordering::SeqCst);
     let _ = cache_current_preference_key(&app, &state).await;
@@ -244,6 +245,11 @@ pub async fn reset_preference_dek<R: Runtime>(
 }
 
 fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference) {
+    state.inner.upload_max_concurrent.store(
+        preferences.task_concurrency.max_uploads as usize,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    state.active_uploads.changed.notify_one();
     state.inner.download_max_concurrent.store(
         preferences.task_concurrency.max_downloads as usize,
         std::sync::atomic::Ordering::Relaxed,

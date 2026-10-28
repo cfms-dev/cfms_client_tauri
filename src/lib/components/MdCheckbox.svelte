@@ -3,16 +3,16 @@
   import type { Checkbox } from '@fluentui/web-components';
   import { disabledAttribute } from '$lib/fluent/control';
   interface Props {
-    checked?: boolean; disabled?: boolean; ariaLabel?: string; class?: string;
+    checked?: boolean; indeterminate?: boolean; disabled?: boolean; ariaLabel?: string; class?: string;
     onChange?: (checked: boolean) => void;
   }
-  let { checked = $bindable(false), disabled = false, ariaLabel = '', class: className = '', onChange }: Props = $props();
+  let { checked = $bindable(false), indeterminate = false, disabled = false, ariaLabel = '', class: className = '', onChange }: Props = $props();
   const controlId = $props.id();
   let element: Checkbox | undefined = $state();
-  $effect(() => { if (element) element.checked = checked; });
+  $effect(() => { if (element) { element.checked = checked; element.indeterminate = indeterminate; } });
 </script>
 <label class="cfms-choice-target" for={controlId}><fluent-checkbox bind:this={element} id={controlId} role="checkbox" use:disabledAttribute={disabled} aria-label={ariaLabel}
-  aria-checked={checked} aria-disabled={disabled || undefined} data-focus-ring="fluent"
+  aria-checked={indeterminate ? 'mixed' : checked} aria-disabled={disabled || undefined} data-focus-ring="fluent"
   size="large" class="cfms-checkbox {className}"
   onchange={() => { if (element && !disabled) { checked = element.checked; onChange?.(checked); } }}
 ></fluent-checkbox></label>

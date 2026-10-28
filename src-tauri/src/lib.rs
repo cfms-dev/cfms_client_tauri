@@ -17,7 +17,6 @@ mod public_key_auth;
 mod secure_store;
 mod window_backdrop;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{
     Arc, Mutex,
@@ -39,94 +38,8 @@ use cfms_service::services::upload_queue::UploadQueueState;
 use cfms_service::state::AppState;
 use localization::LocalizationManager;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UploadInterruption {
-    Paused,
-    Cancelled,
-}
-
-struct ActiveUpload {
-    control_tx: watch::Sender<Option<UploadInterruption>>,
-    transfer_conn: Option<cfms_transport::Connection>,
-}
-
-#[derive(Clone, Default)]
-pub struct ActiveUploadRegistry {
-    inner: Arc<Mutex<HashMap<String, ActiveUpload>>>,
-}
-
-impl ActiveUploadRegistry {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn register(&self, upload_id: &str) -> watch::Receiver<Option<UploadInterruption>> {
-        let (control_tx, control_rx) = watch::channel(None);
-        let mut map = self.inner.lock().unwrap();
-        map.insert(
-            upload_id.to_string(),
-            ActiveUpload {
-                control_tx,
-                transfer_conn: None,
-            },
-        );
-        control_rx
-    }
-
-    pub fn set_transfer_conn(&self, upload_id: &str, conn: cfms_transport::Connection) {
-        let mut map = self.inner.lock().unwrap();
-        if let Some(active) = map.get_mut(upload_id) {
-            active.transfer_conn = Some(conn);
-        }
-    }
-
-    pub fn clear_transfer_conn(&self, upload_id: &str) {
-        let mut map = self.inner.lock().unwrap();
-        if let Some(active) = map.get_mut(upload_id) {
-            active.transfer_conn = None;
-        }
-    }
-
-    pub fn resume(&self, upload_id: &str) -> bool {
-        let map = self.inner.lock().unwrap();
-        let Some(active) = map.get(upload_id) else {
-            return false;
-        };
-        let is_paused = *active.control_tx.borrow() == Some(UploadInterruption::Paused);
-        if !is_paused {
-            return false;
-        }
-        active.control_tx.send(None).is_ok()
-    }
-
-    pub fn unregister(&self, upload_id: &str) {
-        let mut map = self.inner.lock().unwrap();
-        map.remove(upload_id);
-    }
-
-    pub fn interrupt(&self, upload_id: &str, reason: UploadInterruption) -> bool {
-        let mut map = self.inner.lock().unwrap();
-        if let Some(active) = map.get_mut(upload_id) {
-            let _ = active.control_tx.send(Some(reason));
-            if let Some(conn) = active.transfer_conn.take() {
-                tauri::async_runtime::spawn(async move { conn.close().await });
-            }
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn interrupt_all(&self, reason: UploadInterruption) {
-        let mut map = self.inner.lock().unwrap();
-        for active in map.values_mut() {
-            let _ = active.control_tx.send(Some(reason));
-            if let Some(conn) = active.transfer_conn.take() {
-                tauri::async_runtime::spawn(async move { conn.close().await });
-            }
-        }
-    }
-}
+mod upload_runtime;
+pub use upload_runtime::{ActiveUploadRegistry, UploadInterruption};
 
 struct ActiveConnectAttempt {
     id: u64,
@@ -527,6 +440,11 @@ pub fn run() {
                 service_manager: sm,
             });
 
+            if !reset_recovery_mode {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(commands::run_upload_queue(handle));
+            }
+
             let main_window_config = app
                 .config()
                 .app
@@ -576,6 +494,7 @@ pub fn run() {
             commands::remove_download_records,
             commands::delete_downloaded_files,
             commands::enqueue_upload,
+            commands::enqueue_upload_batch,
             commands::get_upload_tasks,
             commands::retry_upload,
             commands::remove_upload_records,

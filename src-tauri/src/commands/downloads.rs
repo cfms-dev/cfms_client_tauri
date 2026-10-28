@@ -83,6 +83,10 @@ pub async fn retry_download(
     state: tauri::State<'_, AppHandleState>,
     task_id: String,
 ) -> Result<bool, String> {
+    retry_download_task(&state, task_id).await
+}
+
+async fn retry_download_task(state: &AppHandleState, task_id: String) -> Result<bool, String> {
     if state.tasks.get(&task_id).is_some_and(|task| {
         task.status == DownloadTaskStatus::Failed
             && task.failure_kind == Some(cfms_core::DownloadFailureKind::ServerTaskUnclaimable)

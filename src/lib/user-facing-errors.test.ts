@@ -38,4 +38,12 @@ describe('user-facing server errors', () => {
       'Server returned 403: denied\nCFMS_ERROR_DATA:{"scope":"account"}',
     )).toBe('Server returned 403: denied');
   });
+
+  it('explains retained transfer records in the current locale', async () => {
+    const error = 'Cancellation was not confirmed within 10 seconds. The record was kept; try again.';
+    expect(formatUserFacingError(error)).toBe('Stopping was not confirmed within 10 seconds. The record was kept. Try again.');
+    locale.set('zh-CN');
+    await waitLocale();
+    expect(formatUserFacingError(error)).toBe('10 秒内未确认任务停止，记录已保留，请稍后重试。');
+  });
 });

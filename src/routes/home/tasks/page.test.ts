@@ -17,11 +17,12 @@ const mocks = vi.hoisted(() => ({
   confirmDialog: vi.fn(),
   deleteDownloadedFiles: vi.fn(),
   removeTransferRecords: vi.fn(),
+  controlTransferTasks: vi.fn(),
 }));
 
 vi.mock('$lib/api', () => ({
   cancelDownload: vi.fn(),
-  controlTransferTasks: vi.fn(),
+  controlTransferTasks: mocks.controlTransferTasks,
   deleteDownloadedFiles: mocks.deleteDownloadedFiles,
   getDocument: mocks.getDocument,
   getDocumentInfo: mocks.getDocumentInfo,
@@ -74,14 +75,17 @@ vi.mock('$lib/download-batch-control', () => ({
   pauseActiveDownloadBatches: vi.fn(),
   resumeActiveDownloadBatches: vi.fn(),
   stopActiveDownloadBatch: vi.fn(),
+  stopDownloadBatchAndWait: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('$lib/keyboard', () => ({
+vi.mock('$lib/keyboard', async (importOriginal) => ({
+  ...await importOriginal<typeof import('$lib/keyboard')>(),
   registerKeyboardCommands: () => () => undefined,
 }));
 
 vi.mock('$lib/motion/transitions', () => ({
   flyScale: () => ({ duration: 0 }),
+  menuScale: () => ({ duration: 0 }),
 }));
 
 vi.mock('svelte-i18n', () => ({
@@ -127,6 +131,106 @@ beforeEach(() => {
   mocks.confirmDialog.mockResolvedValue(true);
   mocks.deleteDownloadedFiles.mockResolvedValue({ succeeded: [], failed: [] });
   mocks.removeTransferRecords.mockResolvedValue({ succeeded: [], failed: [] });
+  mocks.controlTransferTasks.mockResolvedValue({ succeeded: [], failed: [] });
+});
+
+describe('bulk selection and cleanup', () => {
+  async function openManagement() {
+    await fireEvent.click(screen.getByRole('button', { name: /tasks.more(Selected|Filtered)Actions/ }));
+  }
+  async function selectAll() {
+    const checkbox = screen.getByRole('checkbox', { name: 'tasks.selectAllMatching' }) as HTMLElement & { checked: boolean };
+    checkbox.checked = true;
+    await fireEvent.change(checkbox);
+  }
+
+  it('hides unavailable menu actions and avoids a duplicate all-finished cleanup action', async () => {
+    downloadStore.tasks.set('complete', batchTask('complete', 'completed'));
+    await renderLoadedPage();
+    const actions = screen.getByRole('toolbar', { name: 'tasks.bulkActions' });
+    const pauseAndResume = within(actions).getAllByRole('button', { name: 'tasks.actionOnFiltered' });
+    expect(pauseAndResume).toHaveLength(2);
+    expect(pauseAndResume.every(button => button.hasAttribute('disabled'))).toBe(true);
+    await openManagement();
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual(['tasks.cleanup.completed (1)']);
+  });
+
+  it('restores focus to the more button after Escape without changing batch expansion', async () => {
+    downloadStore.tasks.set('complete', batchTask('complete', 'completed'));
+    await renderLoadedPage();
+    const trigger = screen.getByRole('button', { name: 'tasks.moreFilteredActions' });
+    trigger.focus();
+    await fireEvent.click(trigger);
+    const item = screen.getByRole('menuitem', { name: 'tasks.cleanup.completed (1)' });
+    await waitFor(() => expect(document.activeElement).toBe(item));
+    await fireEvent.keyDown(item, { key: 'Escape' });
+    await waitFor(() => expect(trigger.getAttribute('aria-expanded')).toBe('false'));
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.getByRole('button', { name: /tasks.expandBatchNamed/ }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('selects a batch without expanding its children', async () => {
+    downloadStore.tasks.set('complete', batchTask('complete', 'completed'));
+    await renderLoadedPage();
+    const checkbox = screen.getByRole('checkbox', { name: /tasks.selectBatch/ }) as HTMLElement & { checked: boolean };
+    checkbox.checked = true;
+    await fireEvent.change(checkbox);
+    expect(screen.getByText('tasks.selectedScope')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /tasks.expandBatchNamed/ }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('selects and clears all 67 matches beyond the rendered virtual rows', async () => {
+    const tasks = Array.from({ length: 67 }, (_, i) => ({ ...batchTask(`file-${i}`, 'completed'), batch_id: null }));
+    for (const task of tasks) downloadStore.tasks.set(task.task_id, task);
+    await renderLoadedPage();
+    expect(screen.getAllByRole('checkbox').length).toBeLessThan(68);
+    await selectAll();
+    await openManagement();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.cleanup.completed (67)' }));
+    await waitFor(() => expect(mocks.removeTransferRecords).toHaveBeenCalledWith('download', tasks.map(t => t.task_id)));
+  });
+
+  it('clears selection when filters change and only acts on matching failed tasks', async () => {
+    downloadStore.tasks.set('complete', batchTask('complete', 'completed'));
+    downloadStore.tasks.set('failed', batchTask('failed', 'failed'));
+    await renderLoadedPage();
+    await selectAll();
+    expect(screen.getByText('tasks.selectedScope')).toBeTruthy();
+    await fireEvent.change(screen.getByRole('combobox'), { target: { value: 'attention' } });
+    expect(screen.getByText('tasks.filteredScope')).toBeTruthy();
+    await openManagement();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.cleanup.failed (1)' }));
+    await waitFor(() => expect(mocks.removeTransferRecords).toHaveBeenCalledWith('download', ['failed']));
+  });
+
+  it('confirms stopping work and waits for acknowledgement before removing records', async () => {
+    const tasks = ['pending', 'downloading', 'paused'].map((status, i) => batchTask(`file-${i}`, status as DownloadTaskDto['status']));
+    for (const task of tasks) downloadStore.tasks.set(task.task_id, task);
+    let acknowledge!: (result: { succeeded: string[]; failed: Array<{ id: string; error: string }> }) => void;
+    mocks.controlTransferTasks.mockReturnValue(new Promise(resolve => { acknowledge = resolve; }));
+    await renderLoadedPage();
+    await openManagement();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.cleanup.active (3)' }));
+    await waitFor(() => expect(mocks.controlTransferTasks).toHaveBeenCalledWith('download', tasks.map(t => t.task_id), 'cancel_and_remove', ['batch-1']));
+    expect(mocks.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ title: 'tasks.stopAndClearTitle', danger: true }));
+    expect(downloadStore.remove).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole('tab', { name: /tasks.uploads/ }).hasAttribute('disabled')).toBe(true));
+    acknowledge({ succeeded: ['file-0', 'file-1'], failed: [{ id: 'file-2', error: 'Cancellation timeout' }] });
+    await waitFor(() => expect(downloadStore.remove).toHaveBeenCalledWith('file-0'));
+    expect(downloadStore.remove).not.toHaveBeenCalledWith('file-2');
+    await fireEvent.click(screen.getByText('tasks.showFailureDetails'));
+    expect(screen.getByText('Cancellation timeout', { exact: false })).toBeTruthy();
+  });
+
+  it('leaves the queue intact when stopping is not confirmed', async () => {
+    downloadStore.tasks.set('pending', batchTask('pending', 'pending'));
+    mocks.confirmDialog.mockResolvedValueOnce(false);
+    await renderLoadedPage();
+    await openManagement();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.cleanup.active (1)' }));
+    expect(mocks.controlTransferTasks).not.toHaveBeenCalled();
+    expect(downloadStore.remove).not.toHaveBeenCalled();
+  });
 });
 
 afterEach(() => {
@@ -253,16 +357,20 @@ describe('terminal download batch cleanup', () => {
 
   it('offers separate file deletion and record removal for a mixed-result batch', async () => {
     await renderLoadedPage();
-    await fireEvent.click(screen.getByRole('button', { name: 'tasks.expandBatch' }));
+    await fireEvent.click(screen.getByRole('button', { name: /tasks.expandBatchNamed/ }));
 
-    await fireEvent.click(screen.getByRole('button', { name: 'tasks.deleteBatchFiles' }));
+    await fireEvent.click(screen.getByRole('button', { name: /tasks.moreBatchActions/ }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.deleteBatchFiles (1)' }));
     await waitFor(() => expect(mocks.deleteDownloadedFiles).toHaveBeenCalledWith(['complete']));
     expect(mocks.confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
       title: 'tasks.deleteBatchFilesTitle',
       danger: true,
     }));
 
-    const removeButton = screen.getByRole('button', { name: 'tasks.removeBatchRecords' });
+    const moreButton = screen.getByRole('button', { name: /tasks.moreBatchActions/ });
+    await waitFor(() => expect(moreButton.hasAttribute('disabled')).toBe(false));
+    await fireEvent.click(moreButton);
+    const removeButton = screen.getByRole('menuitem', { name: 'tasks.removeBatchRecords (2)' });
     await waitFor(() => expect(removeButton.hasAttribute('disabled')).toBe(false));
     await fireEvent.click(removeButton);
     await waitFor(() => expect(mocks.removeTransferRecords).toHaveBeenCalledWith(
@@ -277,8 +385,9 @@ describe('terminal download batch cleanup', () => {
   it('does nothing when destructive file deletion is not confirmed', async () => {
     mocks.confirmDialog.mockResolvedValueOnce(false);
     await renderLoadedPage();
-    await fireEvent.click(screen.getByRole('button', { name: 'tasks.expandBatch' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'tasks.deleteBatchFiles' }));
+    await fireEvent.click(screen.getByRole('button', { name: /tasks.expandBatchNamed/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /tasks.moreBatchActions/ }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'tasks.deleteBatchFiles (1)' }));
 
     expect(mocks.deleteDownloadedFiles).not.toHaveBeenCalled();
   });

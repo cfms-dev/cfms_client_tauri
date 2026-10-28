@@ -53,9 +53,9 @@
       opacity 120ms var(--motion-easing-standard);
   }
 
-  :global(.task-action-icon[data-fluent-owner="lib-components-task-action-button"]) {
-    width: 36px;
-    height: 36px;
+  :global(.task-action-icon[data-fluent-owner="lib-components-task-action-button"][icon-only]) {
+    inline-size: 36px;
+    block-size: 36px;
     border-radius: var(--borderRadiusMedium);
   }
 
@@ -93,7 +93,7 @@
   :global(.task-action[data-fluent-owner="lib-components-task-action-button"][disabled]) { color: var(--colorNeutralForegroundDisabled); }
 
   @media (pointer: coarse) {
-    :global(.task-action-icon[data-fluent-owner="lib-components-task-action-button"]) { width: 44px; height: 44px; }
+    :global(.task-action-icon[data-fluent-owner="lib-components-task-action-button"][icon-only]) { inline-size: 44px; block-size: 44px; }
     :global(.task-action-labelled[data-fluent-owner="lib-components-task-action-button"]) { min-height: 44px; }
   }
 

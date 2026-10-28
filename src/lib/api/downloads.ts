@@ -58,8 +58,9 @@ export async function controlTransferTasks(
   direction: TransferDirection,
   ids: string[],
   action: TransferControlAction,
+  batchIds: string[] = [],
 ): Promise<BatchActionResult> {
-  return invoke("control_transfer_tasks", { direction, ids, action });
+  return invoke("control_transfer_tasks", { direction, ids, action, batchIds });
 }
 
 export async function removeTransferRecords(

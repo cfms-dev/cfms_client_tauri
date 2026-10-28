@@ -525,14 +525,9 @@ pub async fn upload_new_revision<R: Runtime>(
 
     let mut attempt = 0u32;
     loop {
-        let result = cfms_transfer::upload::send(
-            &transfer_conn,
-            &task_id,
-            &source.path,
-            false,
-            &progress,
-        )
-        .await;
+        let result =
+            cfms_transfer::upload::send(&transfer_conn, &task_id, &source.path, false, &progress)
+                .await;
         match result {
             Ok(()) => break,
             Err(error) => {
@@ -658,7 +653,10 @@ pub async fn inspect_upload_directory_conflicts<R: Runtime>(
         .await?;
         let local_directory = root.join(&local_relative);
         let children = std::fs::read_dir(&local_directory).map_err(|e| {
-            format!("Failed to read directory {}: {e}", local_directory.display())
+            format!(
+                "Failed to read directory {}: {e}",
+                local_directory.display()
+            )
         })?;
 
         for child in children {
@@ -678,7 +676,10 @@ pub async fn inspect_upload_directory_conflicts<R: Runtime>(
                     stack.push((relative, folder.id.clone()));
                 }
             } else if path.is_file()
-                && (listing.documents.iter().any(|document| document.title == name)
+                && (listing
+                    .documents
+                    .iter()
+                    .any(|document| document.title == name)
                     || listing.folders.iter().any(|folder| folder.name == name))
             {
                 on_conflict
@@ -732,6 +733,13 @@ pub async fn upload_directory<R: Runtime>(
         .into_iter()
         .map(|resolution| (resolution.relative_path, resolution.conflict_strategy))
         .collect::<std::collections::HashMap<_, _>>();
+    let mut directory_control = state
+        .active_uploads
+        .subscribe(&upload_id)
+        .ok_or_else(|| "Upload must be submitted through the queue".to_string())?;
+    wait_for_upload_resume(&app_handle, &upload_id, &mut directory_control)
+        .await
+        .map_err(|r| upload_interruption_message(r).to_string())?;
     let root_result = create_server_directory(&state, parent_id, root_name.clone(), true).await?;
     let root_id = root_result.id;
     let entries = collect_directory_entries(&root)?;
@@ -739,9 +747,29 @@ pub async fn upload_directory<R: Runtime>(
     let mut uploaded_files = 0usize;
     let mut dir_ids = std::collections::HashMap::<std::path::PathBuf, String>::new();
     dir_ids.insert(std::path::PathBuf::new(), root_id.clone());
+    let total_bytes = entries
+        .iter()
+        .filter(|p| p.is_file())
+        .filter_map(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len())
+        .sum();
     let mut transfer_session = UploadTransferSession::new();
+    transfer_session.directory_progress = Some((0, total_bytes));
+    state.upload_tasks.update_progress(
+        &upload_id,
+        None,
+        &root_name,
+        0,
+        total_bytes,
+        cfms_core::UploadTaskStatus::Uploading,
+        None,
+    );
+    emit_upload_snapshot(&app_handle, &upload_id);
 
     for entry in entries {
+        wait_for_upload_resume(&app_handle, &upload_id, &mut directory_control)
+            .await
+            .map_err(|r| upload_interruption_message(r).to_string())?;
         let relative = match entry.strip_prefix(&root) {
             Ok(path) => path.to_path_buf(),
             Err(e) => {
@@ -769,14 +797,14 @@ pub async fn upload_directory<R: Runtime>(
                 transfer_session.close().await;
                 return Err("Directory has no valid name".to_string());
             };
-            let id =
-                match create_server_directory(&state, Some(parent_server_id), name, true).await {
-                    Ok(result) => result.id,
-                    Err(err) => {
-                        transfer_session.close().await;
-                        return Err(err);
-                    }
-                };
+            let id = match create_server_directory(&state, Some(parent_server_id), name, true).await
+            {
+                Ok(result) => result.id,
+                Err(err) => {
+                    transfer_session.close().await;
+                    return Err(err);
+                }
+            };
             dir_ids.insert(relative, id);
             continue;
         }
@@ -796,6 +824,7 @@ pub async fn upload_directory<R: Runtime>(
                 .get(&relative_upload_path(&relative))
                 .copied()
                 .unwrap_or(conflict_strategy);
+            let entry_bytes = std::fs::metadata(&entry).map(|m| m.len()).unwrap_or(0);
             if let Err(err) = upload_local_file(
                 &app_handle,
                 &state,
@@ -812,6 +841,9 @@ pub async fn upload_directory<R: Runtime>(
                 return Err(err);
             }
             uploaded_files += 1;
+            if let Some((ref mut completed, _)) = transfer_session.directory_progress {
+                *completed += entry_bytes;
+            }
         }
     }
 
@@ -822,6 +854,7 @@ pub async fn upload_directory<R: Runtime>(
         .finish_directory(&upload_id, "Upload completed")
         .map_err(|error| format!("Failed to finish directory upload task: {error}"))?;
     if directory_completed {
+        emit_upload_snapshot(&app_handle, &upload_id);
         let _ = app_handle.emit(
             "cfms:upload-progress",
             UploadProgressEvent {
@@ -885,39 +918,39 @@ pub async fn classify_upload_path(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn pause_upload(
+pub async fn pause_upload<R: Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    let active = state.active_uploads.interrupt(&upload_id, UploadInterruption::Paused);
-    if active { return Ok(true); }
-    state.upload_tasks
-        .set_status(&upload_id, cfms_core::UploadTaskStatus::Paused, "Upload paused")
-        .map_err(|error| format!("Failed to pause upload: {error}"))
+    let changed = control_upload_task(&state, &upload_id, TransferControlAction::Pause)?;
+    emit_upload_snapshot(&app, &upload_id);
+    state.active_uploads.changed.notify_one();
+    Ok(changed)
 }
 
 #[tauri::command]
-pub async fn resume_upload(
+pub async fn resume_upload<R: Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    let active = state.active_uploads.resume(&upload_id);
-    if active { return Ok(true); }
-    state.upload_tasks
-        .set_status(&upload_id, cfms_core::UploadTaskStatus::Pending, "Waiting to upload")
-        .map_err(|error| format!("Failed to resume upload: {error}"))
+    let changed = control_upload_task(&state, &upload_id, TransferControlAction::Resume)?;
+    emit_upload_snapshot(&app, &upload_id);
+    state.active_uploads.changed.notify_one();
+    Ok(changed)
 }
 
 #[tauri::command]
-pub async fn cancel_upload(
+pub async fn cancel_upload<R: Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     upload_id: String,
 ) -> Result<bool, String> {
-    let active = state.active_uploads.interrupt(&upload_id, UploadInterruption::Cancelled);
-    if active { return Ok(true); }
-    state.upload_tasks
-        .set_status(&upload_id, cfms_core::UploadTaskStatus::Cancelled, "Upload cancelled")
-        .map_err(|error| format!("Failed to cancel upload: {error}"))
+    let changed = control_upload_task(&state, &upload_id, TransferControlAction::Cancel)?;
+    emit_upload_snapshot(&app, &upload_id);
+    state.active_uploads.changed.notify_one();
+    Ok(changed)
 }
 
 /// Search documents and directories on the server.

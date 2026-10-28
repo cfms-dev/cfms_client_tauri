@@ -155,6 +155,12 @@ mod tests {
             retry_count: 0,
             max_retries: 3,
             source_available: true,
+            batch_id: None,
+            batch_name: None,
+            batch_created_at: None,
+            batch_index: 0,
+            queue_order: 0,
+            revision: 0,
         }
     }
 

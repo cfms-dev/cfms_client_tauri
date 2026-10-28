@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DownloadTaskDto } from './api';
 import type { DownloadBatchSnapshot } from './download-batch-control';
 import {
-  buildDownloadTaskSections, canDeleteDownloadTaskGroupFiles,
+  buildDownloadTaskRows, buildDownloadTaskSections, canDeleteDownloadTaskGroupFiles,
   canRemoveDownloadTaskGroupRecords, downloadTaskGroupSection,
 } from './download-task-groups';
 
@@ -54,6 +54,39 @@ const snapshot: DownloadBatchSnapshot = {
 };
 
 describe('download task groups', () => {
+  it('prioritizes live and preparing work, including snapshot-only batches, with stable ties', () => {
+    const tasks = [
+      { ...task('history', 'completed', null), created_at: 50 },
+      { ...task('mixed-failed', 'failed', 'mixed'), batch_created_at: 1 },
+      { ...task('mixed-running', 'downloading', 'mixed'), batch_created_at: 1 },
+      { ...task('scheduled', 'scheduled', null), created_at: 3 },
+      { ...task('paused', 'paused', null), created_at: 60 },
+    ];
+    const snapshots = [snapshot, { ...snapshot, batchId: 'paused-batch', batchCreatedAt: 100, paused: true }];
+    const ids = (input: DownloadTaskDto[]) => buildDownloadTaskRows(input, new Set(), snapshots)
+      .map(row => row.kind === 'group' ? row.group.id : row.task.task_id);
+    expect(ids(tasks)).toEqual(['batch-live', 'scheduled', 'mixed', 'paused-batch', 'paused', 'history']);
+    expect(ids([...tasks].reverse())).toEqual(ids(tasks));
+  });
+
+  it('keeps download children in arrival order when status or input order changes', () => {
+    const tasks = [
+      { ...task('b', 'downloading'), created_at: 2 },
+      { ...task('a', 'completed'), created_at: 2 },
+      { ...task('first', 'failed'), created_at: 1 },
+    ];
+    const children = (input: DownloadTaskDto[]) => buildDownloadTaskRows(input, new Set(['batch-1']))
+      .flatMap(row => row.kind === 'group-task' ? [row.task.task_id] : []);
+    expect(children(tasks)).toEqual(['first', 'a', 'b']);
+    expect(children([...tasks].reverse().map(task => ({ ...task, status: 'completed' })))).toEqual(children(tasks));
+  });
+
+  it('counts remaining records after cleanup rather than a stale admission estimate', () => {
+    const [section] = buildDownloadTaskSections([
+      { ...task('remaining', 'completed'), batch_estimated_total: 67 },
+    ], new Set());
+    expect(section.rows[0]).toMatchObject({ kind: 'group', group: { total: 1, completed: 1, progress: 1 } });
+  });
   it('assigns a mixed-state batch to one highest-priority section', () => {
     const sections = buildDownloadTaskSections([
       task('failed', 'failed'),
@@ -91,7 +124,7 @@ describe('download task groups', () => {
     expect(sections[0].rows.slice(1).map((row) => row.kind))
       .toEqual(Array.from({ length: 634 }, () => 'group-task'));
     expect(sections[0].rows.slice(1).map((row) => row.kind === 'group-task' ? row.task.task_id : null))
-      .toEqual(Array.from({ length: 634 }, (_, index) => `task-${633 - index}`));
+      .toEqual(Array.from({ length: 634 }, (_, index) => `task-${index}`));
   });
 
   it('places an active snapshot-only batch in progress exactly once', () => {
@@ -115,7 +148,7 @@ describe('download task groups', () => {
     if (groupRow.kind === 'group') {
       expect(groupRow.group.total).toBe(2);
       expect(groupRow.group.completed).toBe(1);
-      expect(groupRow.group.progress).toBe(0.5);
+      expect(groupRow.group.progress).toBe(0.75);
     }
     expect(childRow).toMatchObject({ kind: 'group-task', task: { task_id: 'match' } });
     expect(sections[0].rows).toHaveLength(2);

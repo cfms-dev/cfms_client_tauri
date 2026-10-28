@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType, BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy, UploadEnqueueRequest, UploadTaskDto } from './types';
+import type { AccessEntry, AccessEntityType, AccessType, BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -366,6 +366,10 @@ export async function resumeUpload(uploadId: string): Promise<boolean> {
 
 export async function cancelUpload(uploadId: string): Promise<boolean> {
   return invoke("cancel_upload", { uploadId });
+}
+
+export async function enqueueUploadBatch(requests: UploadEnqueueRequest[]): Promise<UploadBatchResult> {
+  return invoke("enqueue_upload_batch", { requests });
 }
 
 export async function enqueueUploadTask(request: UploadEnqueueRequest): Promise<UploadTaskDto> {

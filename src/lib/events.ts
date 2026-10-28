@@ -6,7 +6,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { get } from "svelte/store";
 import { _ as t } from "svelte-i18n";
-import type { ServiceEvent, UploadProgressEvent } from "./api";
+import type { ServiceEvent, UploadTaskDto, TransferDirection } from "./api";
 import {
   authStore,
   downloadStore,
@@ -18,6 +18,7 @@ import {
 } from "./stores.svelte";
 
 let unlisten: (() => void) | null = null;
+let unlistenRemoved: (() => void) | null = null;
 let unlistenUpload: (() => void) | null = null;
 
 /** Start listening for backend `cfms:event` events. */
@@ -140,20 +141,30 @@ export async function initEventListeners(): Promise<void> {
     }
   });
 
-  unlistenUpload = await listen<UploadProgressEvent>("cfms:upload-progress", (payload) => {
-    const event = payload.payload;
-    uploadStore.applyProgress(event);
-    if (event.status === "completed") {
-      eventLog.push("success", `Upload complete: ${event.file_name}`);
-    } else if (event.status === "failed") {
-      eventLog.push("error", `Upload failed: ${event.message ?? event.file_name}`);
-      notificationStore.error(`Upload failed: ${event.message ?? event.file_name}`, 3000, {
-        groupKey: "upload-failed",
-        groupTitle: "Uploads failed",
-        itemText: `${event.file_name}: ${event.message ?? "Unknown error"}`,
-        summaryText: (count) => `${count} upload${count === 1 ? "" : "s"} failed`,
-      });
+  unlistenUpload = await listen<UploadTaskDto>("cfms:upload-task", ({ payload: task }) => {
+    const previous = uploadStore.tasks.get(task.upload_id);
+    if (!uploadStore.applyTask(task) || previous?.status === task.status) return;
+    if (task.status === 'completed') eventLog.push('success', `Upload complete: ${task.file_name}`);
+    if (task.status === 'failed') eventLog.push('error', `Upload failed: ${task.error ?? task.message ?? task.file_name}`);
+    if (['completed', 'failed', 'skipped', 'cancelled', 'interrupted'].includes(task.status)) {
+      const batchId = task.batch_id;
+      const batch = uploadStore.allTasks.filter(t => batchId ? t.batch_id === batchId : t.upload_id === task.upload_id);
+      const finished = batch.every(t => ['completed', 'failed', 'skipped', 'cancelled', 'interrupted'].includes(t.status));
+      if (finished) {
+        const failed = batch.filter(t => ['failed', 'interrupted'].includes(t.status)).length;
+        const message = translate(failed ? 'tasks.batchFinishedWithErrors' : 'tasks.batchFinished', { count: batch.length, failed });
+        if (failed) notificationStore.error(message, 8000);
+        else notificationStore.success(message);
+      }
     }
+    emitExtensionEvent('tasks.changed');
+  });
+  unlistenRemoved = await listen<{ direction: TransferDirection; ids: string[] }>('cfms:transfer-records-removed', ({ payload }) => {
+    for (const id of payload.ids) {
+      if (payload.direction === 'upload') uploadStore.remove(id);
+      else downloadStore.remove(id);
+    }
+    updateDownloadBadgeFromStore();
   });
 }
 
@@ -173,6 +184,8 @@ function updateDownloadBadgeFromStore() {
 
 /** Stop listening for backend events. */
 export function stopEventListeners(): void {
+  unlistenRemoved?.();
+  unlistenRemoved = null;
   if (unlisten) {
     unlisten();
     unlisten = null;

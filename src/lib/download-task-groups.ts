@@ -2,7 +2,7 @@ import type { DownloadTaskDto } from './api';
 import { serverAvailability } from './api/server-errors';
 import type { DownloadBatchSnapshot } from './download-batch-control';
 import {
-  TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery, type TransferSectionKey,
+  TRANSFER_SECTION_ORDER, compareTransferEntries, compareTransferIds, isTransferInProgress, downloadSection, matchesTransferQuery, type TransferSectionKey,
 } from './transfer-task-view';
 
 export type DownloadTaskRow =
@@ -85,18 +85,14 @@ export function buildDownloadTaskRows(
     });
   }
 
-  entries.sort((a, b) => {
-    const aRunning = a.kind === 'group' ? a.group.running > 0 : isRunningDownloadTask(a.task);
-    const bRunning = b.kind === 'group' ? b.group.running > 0 : isRunningDownloadTask(b.task);
-    if (aRunning !== bRunning) return aRunning ? -1 : 1;
-
-    const aCreated = a.kind === 'group' ? a.group.createdAt : a.task.created_at;
-    const bCreated = b.kind === 'group' ? b.group.createdAt : b.task.created_at;
-    return bCreated - aCreated;
-  });
+  const sortKey = (entry: typeof entries[number]) => entry.kind === 'group'
+    ? { id: entry.group.id, createdAt: entry.group.createdAt,
+      active: (entry.group.preparing && !entry.group.batchPaused) || entry.group.tasks.some(isTransferInProgress) }
+    : { id: entry.task.task_id, createdAt: entry.task.created_at, active: isTransferInProgress(entry.task) };
+  const sorted = entries.map(entry => ({ entry, ...sortKey(entry) })).sort(compareTransferEntries);
 
   const rows: DownloadTaskRow[] = [];
-  for (const entry of entries) {
+  for (const { entry } of sorted) {
     if (entry.kind === 'task') {
       rows.push(entry);
       continue;
@@ -202,15 +198,11 @@ function buildDownloadTaskGroup(
   tasks: DownloadTaskDto[],
   activeBatch?: DownloadBatchSnapshot,
 ): DownloadTaskGroup {
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const aRunning = isRunningDownloadTask(a);
-    const bRunning = isRunningDownloadTask(b);
-    if (aRunning !== bRunning) return aRunning ? -1 : 1;
-    return b.created_at - a.created_at;
-  });
+  const sortedTasks = [...tasks].sort((a, b) => a.created_at - b.created_at || compareTransferIds(a.task_id, b.task_id));
 
   const totalBytes = sortedTasks.reduce((sum, task) => sum + Math.max(0, task.total_bytes), 0);
-  const currentBytes = sortedTasks.reduce((sum, task) => sum + Math.max(0, task.current_bytes), 0);
+  const currentBytes = sortedTasks.reduce((sum, task) => sum + (['completed', 'deleted'].includes(task.status)
+    ? Math.max(0, task.total_bytes) : Math.min(Math.max(0, task.total_bytes), Math.max(0, task.current_bytes))), 0);
   const averageProgress = sortedTasks.length === 0
     ? 0
     : sortedTasks.reduce((sum, task) => sum + clampProgress(task.progress), 0) / sortedTasks.length;
@@ -226,11 +218,13 @@ function buildDownloadTaskGroup(
   const rateLimited = scheduledTasks.filter((task) =>
     serverAvailability(task.error)?.kind === 'rate_limited'
   ).length;
-  const estimatedTotal = maxEstimatedTotal(sortedTasks);
   const isBatchGroup = Boolean(activeBatch || sortedTasks.some((task) => task.batch_id?.trim()));
-  const total = Math.max(sortedTasks.length, estimatedTotal, activeBatch?.discovered ?? 0, activeBatch?.queued ?? 0);
+  const total = Math.max(sortedTasks.length, activeBatch?.discovered ?? 0, activeBatch?.queued ?? 0);
   const progressKnown = !activeBatch || total > 0;
-  const progress = isBatchGroup
+  const allSizesKnown = sortedTasks.length > 0 && sortedTasks.every(task => task.total_bytes > 0);
+  const progress = !activeBatch && allSizesKnown
+    ? Math.min(1, currentBytes / totalBytes)
+    : isBatchGroup
     ? (total > 0 ? completed / total : 0)
     : (totalBytes > 0 ? currentBytes / totalBytes : averageProgress);
 
@@ -269,9 +263,6 @@ function countStatus(tasks: DownloadTaskDto[], statuses: string[]) {
   return tasks.filter((task) => statusSet.has(task.status)).length;
 }
 
-function maxEstimatedTotal(tasks: DownloadTaskDto[]) {
-  return tasks.reduce((max, task) => Math.max(max, task.batch_estimated_total ?? 0), 0);
-}
 
 function minCreatedAt(tasks: DownloadTaskDto[]) {
   return tasks.reduce((min, task) => Math.min(min, task.created_at), Number.MAX_SAFE_INTEGER);

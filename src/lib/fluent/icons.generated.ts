@@ -489,6 +489,20 @@ import svg486 from '@fluentui/svg-icons/icons/person_key_24_regular.svg?raw';
 import svg487 from '@fluentui/svg-icons/icons/person_key_24_filled.svg?raw';
 import svg488 from '@fluentui/svg-icons/icons/person_key_20_regular.svg?raw';
 import svg489 from '@fluentui/svg-icons/icons/person_key_20_filled.svg?raw';
+import svg490 from '@fluentui/svg-icons/icons/stop_24_regular.svg?raw';
+import svg491 from '@fluentui/svg-icons/icons/stop_24_filled.svg?raw';
+import svg492 from '@fluentui/svg-icons/icons/stop_20_regular.svg?raw';
+import svg493 from '@fluentui/svg-icons/icons/stop_20_filled.svg?raw';
+import svg494 from '@fluentui/svg-icons/icons/document_dismiss_24_regular.svg?raw';
+import svg495 from '@fluentui/svg-icons/icons/document_dismiss_24_filled.svg?raw';
+import svg496 from '@fluentui/svg-icons/icons/document_dismiss_20_regular.svg?raw';
+import svg497 from '@fluentui/svg-icons/icons/document_dismiss_20_filled.svg?raw';
+import svg498 from '@fluentui/svg-icons/icons/broom_24_regular.svg?raw';
+import svg499 from '@fluentui/svg-icons/icons/broom_24_filled.svg?raw';
+import svg500 from '@fluentui/svg-icons/icons/broom_20_regular.svg?raw';
+import svg501 from '@fluentui/svg-icons/icons/broom_20_filled.svg?raw';
+import svg502 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_regular.svg?raw';
+import svg503 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -647,4 +661,9 @@ export const ICON_VARIANTS = {
   pushPin: { regular: svg478, filled: svg479, small: svg480, smallFilled: svg481 },
   contactCard: { regular: svg482, filled: svg483, small: svg484, smallFilled: svg485 },
   personKey: { regular: svg486, filled: svg487, small: svg488, smallFilled: svg489 },
+  stopTransfer: { regular: svg490, filled: svg491, small: svg492, smallFilled: svg493 },
+  removeTransferRecord: { regular: svg494, filled: svg495, small: svg496, smallFilled: svg497 },
+  clearTransferRecords: { regular: svg498, filled: svg499, small: svg500, smallFilled: svg501 },
+  stopAndClearTransfers: { regular: svg502, filled: svg503, small: svg502, smallFilled: svg503 },
+  cancelledTransfer: { regular: svg256, filled: svg257, small: svg258, smallFilled: svg259 },
 } as const;
