@@ -3161,7 +3161,7 @@
     requests.forEach((request, index) => { request.batchIndex = index; });
     try {
       const result = await uploadStore.addBatch(requests);
-      if (result.tasks.length) notificationStore.success(
+      if (result.tasks.length > 1) notificationStore.success(
         $t('tasks.batchQueued', { values: { count: result.tasks.length } }),
         undefined,
         { action: { label: $t('tasks.viewTransfers'), onClick: () => { void goto('/home/tasks?tab=uploads'); } } },

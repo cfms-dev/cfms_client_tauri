@@ -154,7 +154,7 @@ export async function initEventListeners(): Promise<void> {
         const failed = batch.filter(t => ['failed', 'interrupted'].includes(t.status)).length;
         const message = translate(failed ? 'tasks.batchFinishedWithErrors' : 'tasks.batchFinished', { count: batch.length, failed });
         if (failed) notificationStore.error(message, 8000);
-        else notificationStore.success(message);
+        else if (batch.length > 1) notificationStore.success(message);
       }
     }
     emitExtensionEvent('tasks.changed');

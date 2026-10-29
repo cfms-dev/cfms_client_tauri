@@ -98,7 +98,7 @@ afterEach(() => {
 });
 
 describe('upload confirmation', () => {
-  it.each(['file-drop', 'folder-drop', 'file-picker', 'folder-picker'])('shows one actionable toast and no banner for %s', async (source) => {
+  it.each(['file-drop', 'folder-drop', 'file-picker', 'folder-picker'])('silently queues one object for %s', async (source) => {
     const enqueue = vi.spyOn(uploadStore, 'addBatch').mockResolvedValue({ tasks: [{ upload_id: 'new' } as UploadTaskDto], failed: [] });
     mocks.classifyUploadPath.mockResolvedValue(source === 'folder-drop' ? 'directory' : 'file');
     const { container } = await openFiles();
@@ -106,8 +106,24 @@ describe('upload confirmation', () => {
     if (source.endsWith('drop')) mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/new'] } });
     else await fireEvent.click(screen.getByRole('button', { name: source === 'file-picker' ? 'Upload files' : 'Upload folder' }));
     await waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
+    await tick();
+    expect(notificationStore.entries).toHaveLength(0);
+    expect(container.querySelector('.upload-queued-notice')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'View transfers' })).toBeNull();
+  });
+
+  it.each(['drop', 'picker'])('shows one actionable toast and no banner for multiple objects from %s', async (source) => {
+    const enqueue = vi.spyOn(uploadStore, 'addBatch').mockResolvedValue({
+      tasks: [{ upload_id: 'one' }, { upload_id: 'two' }] as UploadTaskDto[], failed: [],
+    });
+    mocks.open.mockResolvedValue(['C:/uploads/one', 'C:/uploads/two']);
+    const { container } = await openFiles();
+    render(SnackBarHost);
+    if (source === 'drop') mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two'] } });
+    else await fireEvent.click(screen.getByRole('button', { name: 'Upload files' }));
+    await waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
     await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
-    expect(notificationStore.entries[0].text).toContain('Added 1 uploads');
+    expect(notificationStore.entries[0].text).toContain('Added 2 uploads');
     expect(container.querySelector('.upload-queued-notice')).toBeNull();
     await fireEvent.click(await screen.findByRole('button', { name: 'View transfers' }));
     expect(mocks.goto).toHaveBeenCalledExactlyOnceWith('/home/tasks?tab=uploads');
@@ -124,15 +140,26 @@ describe('upload confirmation', () => {
     expect(notificationStore.entries[0].action).toBeUndefined();
   });
 
-  it('reports the actual accepted count alongside partial enqueue failures', async () => {
+  it('only reports errors when a multiple-object selection accepts one task', async () => {
     vi.spyOn(uploadStore, 'addBatch').mockResolvedValue({
       tasks: [{ upload_id: 'accepted' } as UploadTaskDto], failed: [{ id: 'failed', error: 'offline' }],
     });
     await openFiles();
     mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two'] } });
+    await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    expect(notificationStore.entries[0].type).toBe('error');
+    expect(notificationStore.entries[0].text).toContain('offline');
+  });
+
+  it('reports the actual accepted count alongside partial enqueue failures for multiple accepted tasks', async () => {
+    vi.spyOn(uploadStore, 'addBatch').mockResolvedValue({
+      tasks: [{ upload_id: 'one' }, { upload_id: 'two' }] as UploadTaskDto[], failed: [{ id: 'failed', error: 'offline' }],
+    });
+    await openFiles();
+    mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two', 'C:/uploads/three'] } });
     await waitFor(() => expect(notificationStore.entries).toHaveLength(2));
     expect(notificationStore.entries.find((entry) => entry.type === 'success')).toMatchObject({
-      text: 'Added 1 uploads. Manage them in Transfers.', action: { label: 'View transfers' },
+      text: 'Added 2 uploads. Manage them in Transfers.', action: { label: 'View transfers' },
     });
     expect(notificationStore.entries.find((entry) => entry.type === 'error')?.text).toContain('offline');
   });
