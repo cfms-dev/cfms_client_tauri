@@ -8,7 +8,8 @@
   import { shortIdentifier } from '$lib/identifiers';
   import { formatLocalDateTimeWithUtcOffset } from '$lib/date-time';
   import { serverAvailability } from '$lib/api/server-errors';
-  import { formatUserFacingError } from '$lib/user-facing-errors';
+  import { transferFailureReason } from '$lib/transfer-failure-reason';
+  import TransferFailureHint from './TransferFailureHint.svelte';
   import { flyScale } from '$lib/motion/transitions';
   import type { IconName } from '$lib/icons';
   import DownloadProgress from './DownloadProgress.svelte';
@@ -41,7 +42,7 @@
     if (availability?.kind === 'server_busy') return 'tasks.serverBusyAutoRetry';
     return null;
   });
-  const displayError = $derived(task.error ? formatUserFacingError(task.error) : null);
+  const displayError = $derived(transferFailureReason(task, $t));
 
   function statusIcon(status: DownloadTaskStatus): IconName {
     return ({ pending: 'schedule', downloading: 'download', paused: 'pauseCircle', decrypting: 'lockOpen',
@@ -78,7 +79,10 @@
     </div>
 
     <div class="task-state" aria-live="polite" aria-atomic="true">
-      <span class="text-xs font-semibold {statusColor(task.status)}">{$t(downloadStatusMessageKey(task.status))}</span>
+      <div class="task-status-label">
+        <span class="text-xs font-semibold {statusColor(task.status)}">{$t(downloadStatusMessageKey(task.status))}</span>
+        {#if task.status === 'failed' && displayError}<TransferFailureHint reason={displayError} />{/if}
+      </div>
       {#if retryReasonKey}
         <span class="truncate text-[11px] text-md3-warning">{$t(retryReasonKey)}</span>
       {:else if phaseMessageKey}
@@ -119,7 +123,7 @@
         <div><dt>{$t('tasks.retryCount')}</dt><dd>{task.retry_count} / {task.max_retries}</dd></div>
         <div><dt>{$t('tasks.resumeSupport')}</dt><dd>{task.supports_resume ? $t('common.yes') : $t('common.no')}</dd></div>
       </dl>
-      {#if displayError}<p class="detail-error"><span class="cfms-icon-text__icon"><Icon name="errorFilled" size="16px" /></span><span class="min-w-0 break-words">{displayError}</span></p>{/if}
+      {#if displayError}<p class="detail-error"><span class="cfms-icon-text__icon"><Icon name="errorFilled" size="16px" /></span><span class="error-text">{displayError}</span></p>{/if}
       {#if capabilities.cancel && !capabilities.pause && task.status !== 'paused'}<p class="text-xs text-md3-on-surface-variant">{$t('tasks.pauseUnavailable')}</p>{/if}
       <div class="detail-actions">
         {#if capabilities.cancel}<TaskActionButton presentation="labelled" icon="stopTransfer" label={$t('tasks.cancelTransfer')} tone="danger" onclick={() => run('cancel', onCancel)} disabled={Boolean(pendingAction)} />{/if}
@@ -135,6 +139,7 @@
   .task-row-main { display: grid; grid-template-columns: 28px minmax(160px, 1.5fr) minmax(112px, .7fr) minmax(180px, 1.2fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: .55rem .7rem; }
   .status-icon { display: grid; place-items: center; }
   .task-identity,.task-state { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+  .task-status-label { display: flex; align-items: center; gap: 4px; }
   .task-actions { display: flex; align-items: center; gap: 4px; }
   .row-disclosure { display: grid; width: 36px; height: 36px; place-items: center; border-radius: var(--borderRadiusMedium); color: var(--explorer-text-muted); transition: color 120ms var(--motion-easing-standard), background-color 120ms var(--motion-easing-standard), transform 120ms var(--motion-easing-standard); }
   .row-disclosure:hover { background: var(--explorer-surface-selected); color: var(--explorer-text); }
@@ -147,6 +152,7 @@
   .details-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem 1rem; }
   dt { font-size: 12px; color: var(--explorer-text-muted); } dd { margin-top: .15rem; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--explorer-text); }
   .detail-error { display: flex; align-items: flex-start; gap: 4px; margin-top: .65rem; font-size: 12px; color: var(--explorer-danger); }
+  .error-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
   .detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: .7rem; }
   @media (max-width: 760px) { .task-row-main { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; padding: .65rem; } .task-state { grid-column: 2; } .task-progress { grid-column: 2 / -1; } .task-actions { grid-column: 3; grid-row: 1 / span 2; } .details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .task-details { padding-left: 2.75rem; } }
   @media (pointer: coarse) { .row-disclosure { width: 44px; height: 44px; } }

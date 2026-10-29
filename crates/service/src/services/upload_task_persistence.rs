@@ -74,10 +74,12 @@ pub fn load(
     Ok(records
         .into_values()
         .map(|mut record| {
-            if !record.task.status.is_terminal() {
+            if matches!(
+                record.task.status,
+                UploadTaskStatus::Pending | UploadTaskStatus::Uploading | UploadTaskStatus::Paused
+            ) {
                 record.task.status = UploadTaskStatus::Interrupted;
-                record.task.message =
-                    Some("Upload was interrupted when the application closed".into());
+                record.task.message = Some("Upload did not finish in the previous session".into());
                 record.task.error = None;
                 record.task.completed_at = None;
             }
@@ -193,6 +195,58 @@ mod tests {
         save(dir.path(), "server", "alice", Some(&key), &[record]).unwrap();
         let loaded = load(dir.path(), "server", "alice", Some(&key)).unwrap();
         assert_eq!(loaded[0].task.status, UploadTaskStatus::Completed);
+    }
+
+    #[test]
+    fn recovery_only_converts_unfinished_session_work() {
+        for status in [
+            UploadTaskStatus::Pending,
+            UploadTaskStatus::Uploading,
+            UploadTaskStatus::Paused,
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let key = [7u8; KEY_LEN];
+            let record = UploadTaskRecord {
+                task: task("missing", status),
+                request: serde_json::Value::Null,
+            };
+            save(dir.path(), "server", "alice", Some(&key), &[record]).unwrap();
+            let loaded = load(dir.path(), "server", "alice", Some(&key)).unwrap();
+            assert_eq!(loaded[0].task.status, UploadTaskStatus::Interrupted);
+            assert_eq!(
+                loaded[0].task.message.as_deref(),
+                Some("Upload did not finish in the previous session")
+            );
+            assert_eq!(loaded[0].task.error, None);
+        }
+    }
+
+    #[test]
+    fn repeated_reloads_preserve_existing_failure_and_interruption_reasons() {
+        for status in [UploadTaskStatus::Interrupted, UploadTaskStatus::Failed] {
+            let dir = tempfile::tempdir().unwrap();
+            let key = [7u8; KEY_LEN];
+            let mut original = task("missing", status);
+            original.message = Some("Original session reason".into());
+            original.error = Some("Original detailed error".into());
+            let mut records = vec![UploadTaskRecord {
+                task: original,
+                request: serde_json::Value::Null,
+            }];
+            for _ in 0..2 {
+                save(dir.path(), "server", "alice", Some(&key), &records).unwrap();
+                records = load(dir.path(), "server", "alice", Some(&key)).unwrap();
+                assert_eq!(records[0].task.status, status);
+                assert_eq!(
+                    records[0].task.message.as_deref(),
+                    Some("Original session reason")
+                );
+                assert_eq!(
+                    records[0].task.error.as_deref(),
+                    Some("Original detailed error")
+                );
+            }
+        }
     }
 
     #[test]

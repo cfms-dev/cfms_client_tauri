@@ -3,6 +3,8 @@ import { _ as t } from 'svelte-i18n';
 import { serverAvailability, serverErrorMessage } from '$lib/api/server-errors';
 
 const transferErrors: Record<string, string> = {
+  'Upload was interrupted when the application closed': 'tasks.errors.previousSessionIncomplete',
+  'Upload did not finish in the previous session': 'tasks.errors.previousSessionIncomplete',
   'Cancellation was not confirmed within 10 seconds. The record was kept; try again.': 'tasks.errors.stopTimeout',
   'Transfer is still stopping. Its record was kept; try again.': 'tasks.errors.stillStopping',
   'Previous upload execution has not stopped yet': 'tasks.errors.stillStopping',

@@ -829,6 +829,8 @@ export const zh_CN = {
   },
   tasks: {
     errors: {
+      previousSessionIncomplete: '上次会话结束时，上传尚未完成，请重新开始上传。',
+      noDetails: '未提供详细原因。',
       stopTimeout: '10 秒内未确认任务停止，记录已保留，请稍后重试。',
       stillStopping: '任务仍在停止中，记录已保留，请稍后重试。',
       queueStopTimeout: '10 秒内未确认目录入队过程停止，请稍后重试。',

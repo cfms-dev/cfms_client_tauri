@@ -835,6 +835,8 @@ export const en = {
   },
   tasks: {
     errors: {
+      previousSessionIncomplete: 'This upload was unfinished when the previous session ended. Restart the upload.',
+      noDetails: 'No detailed reason was provided.',
       stopTimeout: 'Stopping was not confirmed within 10 seconds. The record was kept. Try again.',
       stillStopping: 'The transfer is still stopping. The record was kept. Try again.',
       queueStopTimeout: 'Folder queueing did not stop within 10 seconds. Try again.',
