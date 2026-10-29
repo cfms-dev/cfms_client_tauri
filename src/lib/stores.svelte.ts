@@ -563,6 +563,11 @@ export const floatingProgressStore = new FloatingProgressStoreImpl();
 
 export type NotificationType = "info" | "success" | "warning" | "error";
 
+export interface NotificationAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface NotificationEntry {
   id: number;
   type: NotificationType;
@@ -571,12 +576,14 @@ export interface NotificationEntry {
   timeoutMs: number | null;
   groupKey?: string;
   groupTitle?: string;
+  action?: NotificationAction;
   items: Array<{ text: string; createdAt: number }>;
 }
 
 export interface NotificationOptions {
   groupKey?: string;
   groupTitle?: string;
+  action?: NotificationAction;
   itemText?: string;
   summaryText?: (count: number, latestText: string) => string;
 }
@@ -603,6 +610,7 @@ class NotificationStoreImpl {
           ...existing,
           text: options.summaryText?.(items.length, itemText) ?? text,
           groupTitle: options.groupTitle ?? existing.groupTitle,
+          action: options.action ?? existing.action,
           items,
           createdAt: now,
           timeoutMs: timeoutMs > 0 ? timeoutMs : null,
@@ -620,6 +628,7 @@ class NotificationStoreImpl {
       timeoutMs: timeoutMs > 0 ? timeoutMs : null,
       groupKey: options.groupKey,
       groupTitle: options.groupTitle,
+      action: options.action,
       items: [{ text: options.itemText ?? text, createdAt: Date.now() }],
     };
     this.entries = [entry, ...this.entries].slice(0, 5);

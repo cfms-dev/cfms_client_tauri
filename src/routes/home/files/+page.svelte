@@ -46,6 +46,7 @@
     uploadNewRevision,
     viewAccessEntries,
     type AccessEntry,
+    type ListDirectoryResponse,
     type DirectoryFileConflictResolution,
     type DownloadBatchMetadata,
     type RevisionEntry,
@@ -142,6 +143,7 @@
     DirectoryLoadController,
     DirectoryRequestTimeoutError,
   } from '$lib/files/directory-load-controller';
+  import { DirectoryRefreshController } from '$lib/files/directory-refresh-controller';
   import { canSearchFiles } from '$lib/files/search-permissions';
   import { isAccessDeniedError, serverAvailability, serverErrorStatus } from '$lib/api/server-errors';
   import {
@@ -203,6 +205,8 @@
     returnNavigation: DirectoryNavigationSnapshot;
   };
 
+  type DirectoryRefreshTarget = FilePreferenceScope & { folderId: string | null };
+
   type FileListIndex = {
     folderById: Map<string, ServerDirectoryEntry>;
     documentById: Map<string, ServerDocumentEntry>;
@@ -262,6 +266,13 @@
   let activeDirectoryReturnNavigation: DirectoryNavigationSnapshot | null = null;
   const directoryLoader = new DirectoryLoadController(listDirectoryPage);
   let directorySorter: ProgressiveDirectorySorter | null = null;
+  const directoryRefresh = new DirectoryRefreshController(
+    listDirectoryPage,
+    applyBackgroundDirectory,
+    handleBackgroundDirectoryError,
+  );
+  let refreshLocation: DirectoryRefreshTarget | null = null;
+  let refreshErrorNotification: number | null = null;
   let fileTable: {
     captureViewportAnchor: () => FileTableViewportAnchor | null;
     restoreViewportAnchor: (index: number, offset: number) => Promise<void>;
@@ -328,6 +339,7 @@
     targets: BatchRulesTarget[];
     identity: BatchRulesIdentity;
     initialTemplateKey: string;
+    refreshTarget: DirectoryRefreshTarget;
   } | null>(null);
   let moveTargetDialog = $state<{
     objectType: ServerObjectType;
@@ -533,7 +545,6 @@
       })),
     ];
   }
-  let queuedUploadCount = $state(0);
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
   const parentTargetId = $derived.by<string | null | undefined>(() => {
     if (
@@ -605,6 +616,107 @@
 
   // --- Data loading ---
 
+  $effect(() => {
+    const target = captureDirectoryRefreshTarget();
+    const blocked = loading || navigationBusy || addressLookupBusy
+      || directoryLoadPhase === 'initial-loading' || directoryLoadPhase === 'loading-more';
+    untrack(() => {
+      if (refreshLocation && !sameRefreshTarget(refreshLocation, target)) {
+        directoryRefresh.invalidate();
+        clearRefreshErrorNotification();
+      }
+      refreshLocation = target;
+      directoryRefresh.setBlocked(blocked);
+    });
+  });
+
+  function captureDirectoryRefreshTarget(): DirectoryRefreshTarget {
+    return { ...currentFilePreferenceScope(), folderId: currentFolderId };
+  }
+
+  function sameRefreshTarget(left: DirectoryRefreshTarget, right: DirectoryRefreshTarget) {
+    return sameDirectoryId(left.folderId, right.folderId)
+      && left.serverAddress === right.serverAddress && left.username === right.username;
+  }
+
+  function isCurrentRefreshTarget(target: DirectoryRefreshTarget) {
+    return directorySorter !== null && !directoryAccessDenied
+      && sameRefreshTarget(target, captureDirectoryRefreshTarget());
+  }
+
+  function refreshDirectory(target: DirectoryRefreshTarget): Promise<boolean> {
+    if (!isCurrentRefreshTarget(target)) return Promise.resolve(false);
+    return directoryRefresh.request(target.folderId, () => isCurrentRefreshTarget(target));
+  }
+
+  function clearRefreshErrorNotification() {
+    if (refreshErrorNotification !== null) notificationStore.remove(refreshErrorNotification);
+    refreshErrorNotification = null;
+  }
+
+  function handleBackgroundDirectoryError(folderId: string | null, cause: unknown) {
+    if (!sameDirectoryId(folderId, currentFolderId)) return;
+    if (isAccessDeniedError(cause)) {
+      directoryRefresh.invalidate();
+      directoryGeneration = directoryLoader.invalidate();
+      clearRefreshErrorNotification();
+      clearSelection();
+      showDirectoryAccessDenied(folderId, activeDirectoryReturnNavigation ?? captureDirectoryNavigation());
+      return;
+    }
+    clearRefreshErrorNotification();
+    const target = captureDirectoryRefreshTarget();
+    refreshErrorNotification = notificationStore.warning(
+      $t('workspace.backgroundRefreshFailed', { values: { error: formatDirectoryLoadError(cause) } }),
+      undefined,
+      { action: { label: $t('common.retry'), onClick: () => { void refreshDirectory(target); } } },
+    );
+  }
+
+  function applyBackgroundDirectory(listing: ListDirectoryResponse, signal: AbortSignal): Promise<void> {
+    const target = captureDirectoryRefreshTarget();
+    const generation = directoryGeneration;
+    return new Promise((resolve, reject) => {
+      let committed = false;
+      const cancel = () => { sorter.dispose(); resolve(); };
+      const sorter = createProgressiveDirectorySorter((snapshot) => {
+        if (committed) {
+          handleDirectorySnapshot(snapshot);
+          return;
+        }
+        if (signal.aborted || generation !== directoryGeneration || !isCurrentRefreshTarget(target)) {
+          signal.removeEventListener('abort', cancel);
+          cancel();
+          return;
+        }
+        if (snapshot.revision !== sortRevision) {
+          sorter.resort(generation, sortRevision, sortField, sortDirection);
+          return;
+        }
+        committed = true;
+        signal.removeEventListener('abort', cancel);
+        directorySorter?.dispose();
+        directorySorter = sorter;
+        parentId = normalizeDirectoryId(listing.parent_id);
+        directoryLoadError = null;
+        clearRefreshErrorNotification();
+        handleDirectorySnapshot(snapshot, true);
+        resolve();
+      }, (cause) => {
+        if (committed) handleDirectorySorterError(cause);
+        else {
+          signal.removeEventListener('abort', cancel);
+          sorter.dispose();
+          reject(cause);
+        }
+      });
+      signal.addEventListener('abort', cancel, { once: true });
+      if (signal.aborted) { cancel(); return; }
+      sorter.reset(generation, sortRevision, sortField, sortDirection);
+      sorter.append(generation, sortRevision, listing.folders, listing.documents, true);
+    });
+  }
+
   function createFileListIndex(
     nextFolders: ServerDirectoryEntry[],
     nextDocuments: ServerDocumentEntry[],
@@ -645,12 +757,20 @@
     performance.mark(name);
   }
 
-  function handleDirectorySnapshot(snapshot: ProgressiveSortSnapshot) {
+  function handleDirectorySnapshot(snapshot: ProgressiveSortSnapshot, preserveSelection = false) {
     if (snapshot.generation !== directoryGeneration || snapshot.revision !== sortRevision) return;
     const viewportAnchor = directoryLoadedCount > 0 ? fileTable?.captureViewportAnchor() ?? null : null;
     folders = snapshot.folders;
     documents = snapshot.documents;
     fileListIndex = createFileListIndex(snapshot.folders, snapshot.documents);
+    if (preserveSelection) {
+      commitSelection(
+        new Set([...selectedFolderIds].filter((id) => fileListIndex.folderById.has(id))),
+        new Set([...selectedDocumentIds].filter((id) => fileListIndex.documentById.has(id))),
+      );
+      if (focusedItemKey && !fileListIndex.keyToIndex.has(focusedItemKey)) focusedItemKey = null;
+      if (selectionAnchorKey && !fileListIndex.keyToIndex.has(selectionAnchorKey)) selectionAnchorKey = null;
+    }
     directoryLoadedCount = snapshot.loadedCount;
     loading = false;
     markFilePerformance('files:sort-snapshot-applied');
@@ -672,7 +792,11 @@
     if (viewportAnchor) {
       const anchorIndex = fileListIndex.keyToIndex.get(viewportAnchor.key);
       if (anchorIndex !== undefined) {
-        void tick().then(() => fileTable?.restoreViewportAnchor(anchorIndex, viewportAnchor.offset));
+        void tick().then(() => {
+          if (snapshot.generation === directoryGeneration && snapshot.revision === sortRevision) {
+            return fileTable?.restoreViewportAnchor(anchorIndex, viewportAnchor.offset);
+          }
+        });
       }
     }
     void revealPendingAddressDocument(snapshot.complete);
@@ -761,9 +885,11 @@
     folderId: string | null,
     preserveOnError = false,
     returnNavigation?: DirectoryNavigationSnapshot,
-    surfaceAccessDenied = true,
   ): Promise<boolean> {
     if (!directorySorter) return false;
+    directoryRefresh.setBlocked(true);
+    directoryRefresh.invalidate();
+    clearRefreshErrorNotification();
     resolveFirstDirectorySnapshot?.(false);
     resolveFirstDirectorySnapshot = null;
     pendingAddressDocument = null;
@@ -809,7 +935,7 @@
       if (generation !== directoryGeneration) return false;
       directoryLoadError = formatDirectoryLoadError(e);
       directoryLoadPhase = 'partial-error';
-      if (surfaceAccessDenied && isAccessDeniedError(e)) {
+      if (isAccessDeniedError(e)) {
         showDirectoryAccessDenied(normalizedFolderId, deniedReturnNavigation);
       } else {
         error = directoryLoadError;
@@ -1841,6 +1967,7 @@
     kind: 'folder' | 'document',
     item: ServerDirectoryEntry | ServerDocumentEntry,
   ) {
+    const refreshTarget = captureDirectoryRefreshTarget();
     try {
       if (kind === 'folder') {
         await deleteDirectory((item as ServerDirectoryEntry).id);
@@ -1848,13 +1975,14 @@
         await deleteDocument((item as ServerDocumentEntry).id);
       }
       status = $t('files.deleted');
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     } catch (e) {
       error = String(e);
     }
   }
 
   async function handleRenameDocument(doc: ServerDocumentEntry) {
+    const refreshTarget = captureDirectoryRefreshTarget();
     const next = await dialogStore.prompt({
       title: $t('files.rename'),
       message: $t('files.renamePrompt'),
@@ -1866,11 +1994,12 @@
     await runFileAction(async () => {
       await renameDocument(doc.id, next.trim());
       status = $t('files.renamed');
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     });
   }
 
   async function handleRenameFolder(folder: ServerDirectoryEntry) {
+    const refreshTarget = captureDirectoryRefreshTarget();
     const next = await dialogStore.prompt({
       title: $t('files.rename'),
       message: $t('files.renamePrompt'),
@@ -1882,7 +2011,7 @@
     await runFileAction(async () => {
       await renameDirectory(folder.id, next.trim());
       status = $t('files.renamed');
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     });
   }
 
@@ -1913,6 +2042,7 @@
   async function handleMoveToTarget(targetFolderId: string | null) {
     if (!moveTargetDialog) return;
     const dialog = moveTargetDialog;
+    const refreshTarget = { ...captureDirectoryRefreshTarget(), folderId: dialog.originalParentId };
     const target = normalizeDirectoryId(targetFolderId);
 
     if (dialog.objectType === 'directory' && target === dialog.objectId) {
@@ -1930,7 +2060,7 @@
       }, target);
       moveTargetDialog = null;
       status = $t('files.moved');
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     } catch (err) {
       error = formatError(err);
       moveTargetDialog = { ...dialog, saving: false };
@@ -1939,6 +2069,7 @@
 
   async function handleBatchMoveToTarget(targetFolderId: string | null) {
     if (!batchMoveDialog || totalSelected === 0) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     const target = normalizeDirectoryId(targetFolderId);
     const selectedFolders = [...selectedFolderIds];
     const selectedDocuments = [...selectedDocumentIds];
@@ -1956,7 +2087,7 @@
       batchMoveDialog = null;
       clearSelection();
       status = $t('files.batchMoved', { values: { count: selectedDocuments.length + selectedFolders.length } });
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     } catch (err) {
       error = formatError(err);
       batchMoveDialog = { excludedDirectoryIds: selectedFolders, saving: false };
@@ -1977,6 +2108,7 @@
     ) return;
 
     dropMoveBusy = true;
+    const refreshTarget = captureDirectoryRefreshTarget();
     error = null;
     try {
       await moveFileItems(items, targetFolderId);
@@ -1985,11 +2117,11 @@
       status = movedCount === 1
         ? $t('files.moved')
         : $t('files.batchMoved', { values: { count: movedCount } });
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     } catch (err) {
       const accessDenied = isAccessDeniedError(err);
       // Reload because an earlier item in a multi-item move may have succeeded.
-      await loadDirectory(currentFolderId, true);
+      await refreshDirectory(refreshTarget);
       if (!accessDenied) error = formatError(err);
     } finally {
       dropMoveBusy = false;
@@ -2043,10 +2175,12 @@
 
   async function saveDocumentTags(selected: string[]) {
     if (!documentTagsDialog) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     const tags = normalizeTags(selected);
     await setDocumentTags(documentTagsDialog.documentId, tags);
     status = $t('files.tagsUpdated', { values: { name: documentTagsDialog.title } });
     documentTagsDialog = null;
+    await refreshDirectory(refreshTarget);
   }
 
   async function handleFolderProperties(folder: ServerDirectoryEntry) {
@@ -2090,6 +2224,7 @@
 
   async function handleRevokeAccess(entryId: number) {
     if (!accessEntriesDialog) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     await runFileAction(async () => {
       await revokeAccess(entryId);
       accessEntriesDialog = {
@@ -2100,6 +2235,7 @@
         ),
       };
       status = $t('files.accessRevoked');
+      await refreshDirectory(refreshTarget);
     });
   }
 
@@ -2119,6 +2255,7 @@
 
   async function handleSubmitAuthorize(value: AccessGrantFormValue) {
     if (!authorizeDialog) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     const dialog = authorizeDialog;
     authorizeDialog = { ...dialog, saving: true };
     error = null;
@@ -2140,6 +2277,7 @@
           name: dialog.targetName,
         },
       });
+      await refreshDirectory(refreshTarget);
     } catch (err) {
       error = formatError(err);
       authorizeDialog = { ...dialog, saving: false };
@@ -2169,6 +2307,7 @@
       targets,
       identity: { server: serverStateStore.remoteAddress, username: authStore.username },
       initialTemplateKey: accessRulesTemplateKey(targets, focusedItemKey, contextItemKey),
+      refreshTarget: captureDirectoryRefreshTarget(),
     };
     batchBusy = true;
   }
@@ -2193,8 +2332,9 @@
 
   async function refreshAfterBatchAccessRules() {
     if (batchAccessRulesGuard()) return;
-    const loaded = await loadDirectory(currentFolderId, true, undefined, false);
-    if (!loaded) throw new Error(directoryLoadError ?? $t('files.batchRules.refreshFailed'));
+    const target = batchAccessRulesDialog!.refreshTarget;
+    const loaded = await refreshDirectory(target);
+    if (!loaded) throw new Error($t('files.batchRules.refreshFailed'));
     await loadSelectionDetails();
   }
 
@@ -2225,6 +2365,7 @@
     inheritParent: boolean,
   ) {
     if (!accessRulesDialog) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     const dialog = accessRulesDialog;
     accessRulesDialog = { ...dialog, saving: true };
     error = null;
@@ -2238,6 +2379,7 @@
       );
       accessRulesDialog = null;
       status = $t('files.accessRulesSaved');
+      await refreshDirectory(refreshTarget);
     } catch (err) {
       error = formatError(err);
       accessRulesDialog = { ...dialog, saving: false };
@@ -2245,6 +2387,7 @@
   }
 
   async function handleUploadNewVersion(doc: ServerDocumentEntry) {
+    const refreshTarget = captureDirectoryRefreshTarget();
     let selected: string | null;
     try {
       selected = await open({
@@ -2271,7 +2414,7 @@
       try {
         notificationStore.info($t('files.uploadRevisionStarted'), 2500);
         await uploadNewRevision(doc.id, selected);
-        await loadDirectory(currentFolderId);
+        await refreshDirectory(refreshTarget);
         if (revisionsDialog?.documentId === doc.id) {
           revisionsDialog = {
             ...revisionsDialog,
@@ -2318,10 +2461,11 @@
 
   async function handleSetCurrentRevision(revision: RevisionEntry) {
     if (!revisionsDialog || revision.is_current) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     await runFileAction(async () => {
       await setCurrentRevision(revisionsDialog!.documentId, revision.id);
       await refreshRevisionsDialog();
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
       status = $t('files.setCurrentRevisionSuccess');
     });
   }
@@ -2353,6 +2497,7 @@
   // --- Toolbar actions ---
 
   async function handleCreateFolder() {
+    const refreshTarget = captureDirectoryRefreshTarget();
     const name = await dialogStore.prompt({
       title: $t('files.newFolder'),
       message: $t('files.newFolderPrompt'),
@@ -2361,8 +2506,8 @@
     });
     if (!name || !name.trim()) return;
     try {
-      await createDirectory(currentFolderId, name.trim(), true);
-      await loadDirectory(currentFolderId);
+      await createDirectory(refreshTarget.folderId, name.trim(), true);
+      await refreshDirectory(refreshTarget);
     } catch (e) {
       error = String(e);
     }
@@ -2370,6 +2515,7 @@
 
   async function handleDeleteSelected() {
     if (totalSelected === 0 || batchBusy) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     const progressId = 'files:batch-delete';
     const progressTitle = $t('files.batchDeleting');
     const total = totalSelected;
@@ -2388,7 +2534,7 @@
         updateBatchProgress(progressId, progressTitle, completed, total);
       }
       clearSelection();
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
     } catch (e) {
       error = String(e);
     } finally {
@@ -2574,6 +2720,7 @@
 
   async function handleDeleteRevision(revision: RevisionEntry) {
     if (!revisionsDialog || revision.is_current) return;
+    const refreshTarget = captureDirectoryRefreshTarget();
     if (!(await dialogStore.confirm({
       title: $t('files.deleteRevision'),
       message: $t('files.deleteRevisionConfirm', {
@@ -2587,7 +2734,7 @@
     await runFileAction(async () => {
       await deleteRevision(revision.id);
       await refreshRevisionsDialog();
-      await loadDirectory(currentFolderId);
+      await refreshDirectory(refreshTarget);
       status = $t('files.deleteRevisionSuccess');
     });
   }
@@ -3014,8 +3161,11 @@
     requests.forEach((request, index) => { request.batchIndex = index; });
     try {
       const result = await uploadStore.addBatch(requests);
-      queuedUploadCount = result.tasks.length;
-      if (result.tasks.length) notificationStore.success($t('tasks.batchQueued', { values: { count: result.tasks.length } }));
+      if (result.tasks.length) notificationStore.success(
+        $t('tasks.batchQueued', { values: { count: result.tasks.length } }),
+        undefined,
+        { action: { label: $t('tasks.viewTransfers'), onClick: () => { void goto('/home/tasks?tab=uploads'); } } },
+      );
       if (result.failed.length) {
         error = $t('tasks.batchEnqueueFailed', { values: { count: result.failed.length } }) + '\n' + result.failed.map(item => `${requests.find(r => r.uploadId === item.id)?.fileName ?? item.id}: ${item.error}`).join('\n');
       }
@@ -3594,9 +3744,11 @@
     let uploadRefreshTimer: ReturnType<typeof setTimeout> | undefined;
     void listen<UploadTaskDto>('cfms:upload-task', ({ payload: task }) => {
       if (disposed || !['completed', 'skipped'].includes(task.status) || !sameDirectoryId(task.target_parent_id, currentFolderId)) return;
+      const refreshTarget = captureDirectoryRefreshTarget();
+      const refreshGeneration = directoryGeneration;
       clearTimeout(uploadRefreshTimer);
       uploadRefreshTimer = setTimeout(() => {
-        if (!disposed) void loadDirectory(currentFolderId, true);
+        if (!disposed && refreshGeneration === directoryGeneration) void refreshDirectory(refreshTarget);
       }, 250);
     }).then(stop => { if (disposed) stop(); else unlistenUploads = stop; });
     directorySorter = createProgressiveDirectorySorter(handleDirectorySnapshot, handleDirectorySorterError);
@@ -3784,6 +3936,9 @@
     reloadUserPreference();
     return () => {
       disposed = true;
+      directoryRefresh.setBlocked(true);
+      directoryRefresh.invalidate();
+      clearRefreshErrorNotification();
       clearTimeout(uploadRefreshTimer);
       unlistenUploads?.();
       directoryGeneration = directoryLoader.invalidate();
@@ -3855,14 +4010,6 @@
       />
     {/snippet}
   </ExplorerNavigationBar>
-
-  {#if queuedUploadCount > 0}
-    <div class="upload-queued-notice" role="status">
-      <span>{$t('tasks.batchQueued', { values: { count: queuedUploadCount } })}</span>
-      <FluentButton appearance="subtle" onclick={() => goto('/home/tasks?tab=uploads')}>{$t('tasks.viewTransfers')}</FluentButton>
-      <FluentButton appearance="subtle" iconOnly aria-label={$t('common.close')} onclick={() => (queuedUploadCount = 0)}><Icon name="close" size="16px" /></FluentButton>
-    </div>
-  {/if}
 
   {#snippet serverSearch()}
     <!-- Search -->
@@ -4173,9 +4320,6 @@
 </div>
 
 <style>
-  .upload-queued-notice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--explorer-border); }
-  .upload-queued-notice span { margin-inline-end: auto; }
-
   .files-page {
     display: flex;
     height: 100%;

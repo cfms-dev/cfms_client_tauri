@@ -232,6 +232,16 @@
     });
   });
 
+  $effect(() => {
+    const rowKeys = new Set([
+      ...folders.map((folder) => `folder:${folder.id}`),
+      ...documents.map((document) => `document:${document.id}`),
+    ]);
+    untrack(() => {
+      if (!activeRowKey || !rowKeys.has(activeRowKey)) activeRowKey = rowKeys.values().next().value ?? null;
+    });
+  });
+
   function getRowAt(index: number): FileTableRow {
     if (index < folders.length) return { kind: 'folder', folder: folders[index] };
     return { kind: 'document', document: documents[index - folders.length] };

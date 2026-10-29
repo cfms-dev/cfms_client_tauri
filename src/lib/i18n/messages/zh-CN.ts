@@ -294,6 +294,7 @@ export const zh_CN = {
     loadingMoreItems: '正在加载更多项目...',
     loadingInterrupted: '加载已中断',
     directoryRequestTimedOut: '服务器未能及时完成此目录的加载。',
+    backgroundRefreshFailed: '目录刷新失败，已保留当前列表。{error}',
     retryLoading: '重试',
     commandBar: '文件命令',
     sort: '排序',

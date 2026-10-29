@@ -1,4 +1,4 @@
-import type { ListDirectoryPageResponse } from '$lib/api';
+import type { ListDirectoryPageResponse, ListDirectoryResponse } from '$lib/api';
 
 export type DirectoryPageFetcher = (
   folderId: string | null,
@@ -78,6 +78,29 @@ export class DirectoryLoadController {
       }
     }
     return { status: 'cancelled' };
+  }
+
+  /** Collect a complete replacement without publishing partially refreshed rows. */
+  async collect(
+    generation: number,
+    folderId: string | null,
+    pageSize: number,
+  ): Promise<ListDirectoryResponse | null> {
+    const first = await this.requestPage(generation, folderId, null, pageSize);
+    if (!first) return null;
+    const result: ListDirectoryResponse = {
+      folders: [...first.folders],
+      documents: [...first.documents],
+      parent_id: first.parent_id,
+    };
+    if (!first.has_more) return result;
+    if (!first.next_cursor) throw new Error('Directory page reported more items without a cursor.');
+    const continuation = await this.continue(generation, folderId, first.next_cursor, pageSize, (page) => {
+      result.folders.push(...page.folders);
+      result.documents.push(...page.documents);
+    });
+    if (continuation.status === 'partial-error') throw continuation.error;
+    return continuation.status === 'complete' ? result : null;
   }
 }
 

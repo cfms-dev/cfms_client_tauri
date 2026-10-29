@@ -295,6 +295,7 @@ export const en = {
     loadingMoreItems: 'Loading more items...',
     loadingInterrupted: 'Loading interrupted',
     directoryRequestTimedOut: 'The server did not finish loading this directory in time.',
+    backgroundRefreshFailed: 'Could not refresh this folder. The current list has been kept. {error}',
     retryLoading: 'Retry',
     commandBar: 'File commands',
     sort: 'Sort',

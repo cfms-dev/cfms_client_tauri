@@ -36,6 +36,39 @@ async function advance(ms: number) {
 }
 
 describe('shared floating notifications', () => {
+  it('renders a notification action, pauses its timer on focus, and dismisses before invoking it', async () => {
+    render(SnackBarHost);
+    const onClick = vi.fn(() => expect(notificationStore.entries).toHaveLength(0));
+    notificationStore.success('Uploads queued', undefined, { action: { label: 'View transfers', onClick } });
+    await tick();
+    const action = screen.getByRole('button', { name: 'View transfers' });
+    expect(document.activeElement).not.toBe(action);
+    await advance(2000);
+    await fireEvent.focusIn(action);
+    await advance(10000);
+    expect(screen.getByText('Uploads queued')).toBeTruthy();
+    await fireEvent.click(action);
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Uploads queued')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('preserves an existing grouped action and replaces it when a new action is supplied', async () => {
+    render(SnackBarHost);
+    const first = vi.fn();
+    const latest = vi.fn();
+    notificationStore.info('First', 0, { groupKey: 'action', action: { label: 'First action', onClick: first } });
+    notificationStore.info('Second', 0, { groupKey: 'action' });
+    await tick();
+    expect(screen.getByRole('button', { name: 'First action' })).toBeTruthy();
+    notificationStore.info('Third', 0, { groupKey: 'action', action: { label: 'Latest action', onClick: latest } });
+    await tick();
+    expect(screen.queryByRole('button', { name: 'First action' })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Latest action' }));
+    expect(latest).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it('uses seven seconds for every default notification method', async () => {
     render(SnackBarHost);
     notificationStore.info('Info');

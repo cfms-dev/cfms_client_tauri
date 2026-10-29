@@ -213,6 +213,14 @@
                 {/each}
               </div>
             {/if}
+            {#if entry.action}
+              <div class="snackbar-footer">
+                <FluentButton data-fluent-owner="lib-components-snack-bar-host" appearance="subtle" tone="primary" class="snackbar-action"
+                  onclick={() => { remove(entry.id); entry.action?.onClick(); }}>
+                  {entry.action.label}
+                </FluentButton>
+              </div>
+            {/if}
           </div>
           <div class="snackbar-actions">
             {#if entry.items.length > 1}
@@ -280,6 +288,9 @@
   .snackbar-warning .snackbar-icon { color: var(--colorStatusWarningForeground1); }
   .snackbar-error .snackbar-icon { color: var(--colorStatusDangerForeground1); }
   .snackbar-actions { display: flex; flex: none; align-items: center; gap: 4px; margin: -6px -6px -6px 0; }
+  .snackbar-footer { display: flex; flex-wrap: wrap; margin-top: 8px; }
+  :global(.snackbar-action[data-fluent-owner="lib-components-snack-bar-host"]) { min-inline-size: 0; padding-inline: 8px; margin-inline-start: -8px; text-align: start; }
+  :global(.snackbar-action[data-fluent-owner="lib-components-snack-bar-host"]::part(content)) { white-space: normal; overflow-wrap: anywhere; }
   :global(.snackbar-expand[data-fluent-owner="lib-components-snack-bar-host"]) { min-inline-size: 0; padding-inline: 8px; }
   .snackbar-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--colorNeutralStroke2); max-height: 128px; overflow: auto; font-size: 12px; line-height: 16px; }
   .snackbar-details p + p { margin-top: 4px; }
