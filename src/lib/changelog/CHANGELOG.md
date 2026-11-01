@@ -4,6 +4,26 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.58.0
+**Released on:** 2026-11-01
+
+**Title:** Improved Task Management UI
+
+### Added
+- Enhance breadcrumb navigation with overflow handling and context menu
+- Enhance upload task notifications and error handling for multiple tasks
+- Implement directory background refresh functionality
+- Enhance upload and download task error handling with detailed failure reasons
+- Implement upload task management and control features
+
+### Fixed
+- Make background material fixed when scrolling; remove background for lists
+
+### Improved
+- Remove unreleased extension features
+
+--- 
+
 ## v0.57.0
 **Released on:** 2026-10-27
 
