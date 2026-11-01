@@ -184,7 +184,9 @@
 .cfms-field--disabled > .cfms-field__content::before { background: var(--colorNeutralBackgroundDisabled); }
 
 /* Only the paint layer filters the backdrop: fixed descendants keep the
- * viewport as their containing block. Content containers blur once, not per row. */
+ * viewport as their containing block. Material hosts must not scroll: put
+ * overflow on an inner content region so the paint stays behind the viewport.
+ * Transparent lists do not opt into a content surface. Blur once, not per row. */
 :where(.cfms-content-surface, .cfms-field-surface, .settings-section) {
   position: relative;
   isolation: isolate;

@@ -48,7 +48,7 @@
       </div>
       {#if info.permissions.length}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scroll region needs keyboard access.) -->
-        <div class="permission-scroll permission-scroll--rules cfms-content-surface" role="region" tabindex="0" aria-label={$t('settings.account.directPermissions')}>
+        <div class="permission-scroll permission-scroll--rules" role="region" tabindex="0" aria-label={$t('settings.account.directPermissions')}>
         <ul class="permission-rules" aria-label={$t('settings.account.directPermissions')}>
           {#each info.permissions as entry}
             {@const state = permissionEntryState(entry, now)}
@@ -72,7 +72,7 @@
           <h3>{source.title} <span class="count">{source.permissions.length}</span></h3>
           {#if source.permissions.length}
             <!-- svelte-ignore a11y_no_noninteractive_tabindex (The scroll region needs keyboard access.) -->
-            <div class="permission-scroll cfms-content-surface" role="region" tabindex="0" aria-label={source.title}>
+            <div class="permission-scroll" role="region" tabindex="0" aria-label={source.title}>
             <ul class="permission-names" aria-label={source.title}>
               {#each source.permissions as permission (permission)}<li><code>{permission}</code></li>{/each}
             </ul>

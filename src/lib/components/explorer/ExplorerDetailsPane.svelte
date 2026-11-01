@@ -245,6 +245,7 @@
 
   .explorer-details-header {
     display: flex;
+    flex-shrink: 0;
     min-height: 54px;
     align-items: center;
     justify-content: space-between;
@@ -290,7 +291,7 @@
       width: auto;
       min-width: 0;
       max-height: 58vh;
-      overflow: auto;
+      overflow: clip;
       border: 1px solid var(--explorer-border-strong);
       border-radius: var(--explorer-radius-large) var(--explorer-radius-large) 0 0;
       box-shadow: var(--explorer-shadow);

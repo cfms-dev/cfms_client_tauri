@@ -300,7 +300,7 @@
 </section>
 
 <style>
-  .schedule-editor { min-height: 100%; background: var(--color-md3-surface-container); }
+  .schedule-editor { min-height: 100%; }
   header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--color-md3-outline); padding: 1rem 1.1rem 0.9rem; }
   h2, p { margin: 0; }
   h2 { margin-top: 0.15rem; color: var(--color-md3-on-surface); font-family: var(--font-md3-sans); font-size: 16px; line-height: 1.25; }

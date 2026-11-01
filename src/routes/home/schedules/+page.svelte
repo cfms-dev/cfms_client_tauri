@@ -533,70 +533,76 @@ FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; s
 
       {#if editorMode !== null}
         <aside class="cfms-content-surface inspector">
-          <ScheduleEditor
-            {taskTypes}
-            schedule={editorMode === 'edit' ? selected : null}
-            busy={editorBusy}
-            onSave={saveSchedule}
-            onCancel={() => (editorMode = null)}
-          />
+          <div class="inspector-scroll">
+            <ScheduleEditor
+              {taskTypes}
+              schedule={editorMode === 'edit' ? selected : null}
+              busy={editorBusy}
+              onSave={saveSchedule}
+              onCancel={() => (editorMode = null)}
+            />
+          </div>
         </aside>
       {:else if selected}
-        <aside class="cfms-content-surface inspector schedule-details" aria-labelledby="schedule-detail-title">
-          <header>
-            <div><p>{$t('schedules.definition')}</p><h2 id="schedule-detail-title">{selected.task_name}</h2></div>
-            <FluentButton data-fluent-owner="routes-home-schedules-page"
-              type="button"
-              aria-label={$t('common.close')}
-              onclick={() => (selected = null)}
-              appearance="subtle"
-              class="icon-action"
-              iconOnly
-            ><Icon name="close" size="19px" /></FluentButton>
-          </header>
-          <dl>
-            <div><dt>{$t('schedules.statusLabel')}</dt><dd>{$t(`schedules.status.${displayStatus(selected)}`)}</dd></div>
-            <div><dt>{$t('schedules.enabled')}</dt><dd>{selected.enabled ? $t('common.yes') : $t('common.no')}</dd></div>
-            <div><dt>{$t('schedules.nextRun')}</dt><dd>{formatDate(selected.next_run_at)}</dd></div>
-            <div><dt>{$t('schedules.pendingRun')}</dt><dd>{formatDate(selected.pending_scheduled_for)}</dd></div>
-            <div><dt>{$t('schedules.triggerType')}</dt><dd>{triggerSummary(selected)}</dd></div>
-            <div><dt>{$t('schedules.timezone')}</dt><dd>{selected.trigger.timezone}</dd></div>
-            <div><dt>{$t('schedules.revision')}</dt><dd>{selected.revision}</dd></div>
-            <div><dt>{$t('schedules.updatedBy')}</dt><dd>{selected.updated_by ?? $t('common.unknown')}</dd></div>
-            <div><dt>{$t('schedules.updatedAt')}</dt><dd>{formatDate(selected.updated_at)}</dd></div>
-            <div class="wide"><dt>{$t('schedules.activeExecution')}</dt><dd class="mono">{selected.active_execution_id ?? $t('common.none')}</dd></div>
-            <div class="wide"><dt>{$t('schedules.scheduleId')}</dt><dd class="mono">{selected.id}</dd></div>
-          </dl>
-          <div class="payload-preview"><strong>{$t('schedules.payload')}</strong><pre>{JSON.stringify(selected.payload, null, 2)}</pre></div>
-          {#if canManage && selected.status !== 'deleted'}
-            <footer>
+        <aside class="cfms-content-surface inspector" aria-labelledby="schedule-detail-title">
+          <div class="inspector-scroll schedule-details">
+            <header>
+              <div><p>{$t('schedules.definition')}</p><h2 id="schedule-detail-title">{selected.task_name}</h2></div>
               <FluentButton data-fluent-owner="routes-home-schedules-page"
                 type="button"
-                disabled={rowBusyId === selected.id}
-                onclick={() => void removeSchedule(selected!)}
+                aria-label={$t('common.close')}
+                onclick={() => (selected = null)}
                 appearance="subtle"
-                tone="danger"
-                class="danger-action"
-              >
-                <Icon name="delete" size="18px" />{$t('schedules.deleteAction')}
-              </FluentButton>
-              <FluentButton data-fluent-owner="routes-home-schedules-page"
-                type="button"
-                disabled={rowBusyId === selected.id || !taskAllowed(selected)}
-                onclick={() => void openEdit(selected!)}
-                appearance="subtle"
-                class="primary-action"
-              >
-                <Icon name="edit" size="18px" />{$t('common.edit')}
-              </FluentButton>
-            </footer>
-          {/if}
+                class="icon-action"
+                iconOnly
+              ><Icon name="close" size="19px" /></FluentButton>
+            </header>
+            <dl>
+              <div><dt>{$t('schedules.statusLabel')}</dt><dd>{$t(`schedules.status.${displayStatus(selected)}`)}</dd></div>
+              <div><dt>{$t('schedules.enabled')}</dt><dd>{selected.enabled ? $t('common.yes') : $t('common.no')}</dd></div>
+              <div><dt>{$t('schedules.nextRun')}</dt><dd>{formatDate(selected.next_run_at)}</dd></div>
+              <div><dt>{$t('schedules.pendingRun')}</dt><dd>{formatDate(selected.pending_scheduled_for)}</dd></div>
+              <div><dt>{$t('schedules.triggerType')}</dt><dd>{triggerSummary(selected)}</dd></div>
+              <div><dt>{$t('schedules.timezone')}</dt><dd>{selected.trigger.timezone}</dd></div>
+              <div><dt>{$t('schedules.revision')}</dt><dd>{selected.revision}</dd></div>
+              <div><dt>{$t('schedules.updatedBy')}</dt><dd>{selected.updated_by ?? $t('common.unknown')}</dd></div>
+              <div><dt>{$t('schedules.updatedAt')}</dt><dd>{formatDate(selected.updated_at)}</dd></div>
+              <div class="wide"><dt>{$t('schedules.activeExecution')}</dt><dd class="mono">{selected.active_execution_id ?? $t('common.none')}</dd></div>
+              <div class="wide"><dt>{$t('schedules.scheduleId')}</dt><dd class="mono">{selected.id}</dd></div>
+            </dl>
+            <div class="payload-preview"><strong>{$t('schedules.payload')}</strong><pre>{JSON.stringify(selected.payload, null, 2)}</pre></div>
+            {#if canManage && selected.status !== 'deleted'}
+              <footer>
+                <FluentButton data-fluent-owner="routes-home-schedules-page"
+                  type="button"
+                  disabled={rowBusyId === selected.id}
+                  onclick={() => void removeSchedule(selected!)}
+                  appearance="subtle"
+                  tone="danger"
+                  class="danger-action"
+                >
+                  <Icon name="delete" size="18px" />{$t('schedules.deleteAction')}
+                </FluentButton>
+                <FluentButton data-fluent-owner="routes-home-schedules-page"
+                  type="button"
+                  disabled={rowBusyId === selected.id || !taskAllowed(selected)}
+                  onclick={() => void openEdit(selected!)}
+                  appearance="subtle"
+                  class="primary-action"
+                >
+                  <Icon name="edit" size="18px" />{$t('common.edit')}
+                </FluentButton>
+              </footer>
+            {/if}
+          </div>
         </aside>
       {:else}
         <aside class="cfms-content-surface inspector inspector-empty" aria-label={$t('schedules.inspectorLabel')}>
-          <Icon name="eventUpcoming" size="28px" />
-          <strong>{$t('schedules.inspectTitle')}</strong>
-          <p>{$t('schedules.inspectDescription')}</p>
+          <div class="inspector-scroll inspector-empty-content">
+            <Icon name="eventUpcoming" size="28px" />
+            <strong>{$t('schedules.inspectTitle')}</strong>
+            <p>{$t('schedules.inspectDescription')}</p>
+          </div>
         </aside>
       {/if}
     </div>
@@ -659,8 +665,10 @@ FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; s
   :global(.icon-action[data-fluent-owner="routes-home-schedules-page"]:hover:not(:is(:disabled, [disabled]))) { background: var(--color-md3-surface-container-highest); color: var(--color-md3-on-surface); }
   .pagination { justify-content: center; border-top: 1px solid var(--color-md3-outline); padding: 0.55rem 1rem; color: var(--color-md3-on-surface-variant); font-size: 12px; }
   .pagination :global(:is(button[data-fluent-owner="routes-home-schedules-page"], .cfms-button[data-fluent-owner="routes-home-schedules-page"])) { padding: 0.25rem 0.55rem; }
-  .inspector { min-width: 0; overflow: auto; border-left: 1px solid var(--color-md3-outline); background: var(--color-md3-surface-container); }
-  .inspector-empty { display: none; place-items: center; align-content: center; gap: 8px; padding: 1.5rem; color: var(--color-md3-on-surface-variant); text-align: center; }
+  .inspector { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: clip; border-left: 1px solid var(--color-md3-outline); }
+  .inspector-scroll { min-width: 0; min-height: 0; flex: 1; overflow: auto; }
+  .inspector-empty { display: none; }
+  .inspector-empty-content { display: grid; place-items: center; align-content: safe center; gap: 8px; padding: 1.5rem; color: var(--color-md3-on-surface-variant); text-align: center; }
   .inspector-empty strong { color: var(--color-md3-on-surface); font-size: 14px; }
   .inspector-empty p { max-width: 32ch; font-size: 12px; line-height: 1.5; }
   .schedule-details > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--color-md3-outline); padding: 1rem 1.1rem; }
@@ -692,7 +700,7 @@ FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; s
   @container (min-width: 1100px) {
     .schedule-workspace { grid-template-columns: minmax(0, 1fr) minmax(330px, 420px); }
     .schedule-workspace.has-inspector .ledger { display: flex; }
-    .inspector-empty { display: grid; }
+    .inspector-empty { display: flex; }
   }
   @media (max-width: 1279px) {
     .inspector { border-left: 0; }

@@ -232,7 +232,6 @@
     bind:this={menuEl}
     use:portal
     class="context-menu-surface cfms-acrylic-surface cfms-menu-surface fixed z-50"
-    class:has-shortcuts={hasShortcuts}
     style="left: {menuX}px; top: {menuY}px; transform-origin: {originX} {originY};"
     transition:menuScale={{ duration: 140 }}
     role="menu"
@@ -240,75 +239,86 @@
     onkeydown={handleKeydown}
     oncontextmenu={(event) => event.preventDefault()}
   >
-    {#each visibleItems as item, index (`${isContextMenuDivider(item) ? 'divider' : item.id}:${index}`)}
-      {#if isContextMenuDivider(item)}
-        <div class="context-menu-separator" role="separator"></div>
-      {:else}
-        <button
-          data-menu-item
-          class="context-menu-item"
-          class:danger={item.danger}
-          class:requires-elevation={item.requiresElevation && !item.disabled}
-          role="menuitem"
-          tabindex="-1"
-          onclick={() => handleItemSelect(item)}
-          disabled={item.disabled && !item.disabledReason}
-          aria-disabled={item.disabled ? 'true' : undefined}
-          aria-describedby={itemReason(item) ? `${instanceId}-reason-${index}` : undefined}
-          onpointerenter={(event) => {
-            if (event.pointerType !== 'touch') showReason(item, index, event.currentTarget);
-          }}
-          onpointerleave={(event) => {
-            if (reasonTarget?.anchor !== event.currentTarget) return;
-            reasonHovered = false;
-            leaveReason();
-          }}
-          onfocus={(event) => showReason(item, index, event.currentTarget, true)}
-          onblur={leaveReason}
-          onpointerdown={(event) => {
-            if (event.pointerType === 'touch') showReason(item, index, event.currentTarget, true);
-          }}
-        >
-          <Icon class="context-menu-icon" name={item.icon} size="20px" filled={item.iconFilled} duotone={!item.iconFilled && !item.danger && !item.disabled} tone={item.requiresElevation && !item.disabled ? 'warning' : 'default'} />
-          <span class="context-menu-label">{item.label}</span>
-          {#if item.shortcuts?.length}
-            <ShortcutKeys class="context-menu-shortcut" shortcuts={item.shortcuts} variant="menu" />
+    <div class="context-menu-scroll" class:has-shortcuts={hasShortcuts} role="presentation">
+      {#each visibleItems as item, index (`${isContextMenuDivider(item) ? 'divider' : item.id}:${index}`)}
+        {#if isContextMenuDivider(item)}
+          <div class="context-menu-separator" role="separator"></div>
+        {:else}
+          <button
+            data-menu-item
+            class="context-menu-item"
+            class:danger={item.danger}
+            class:requires-elevation={item.requiresElevation && !item.disabled}
+            role="menuitem"
+            tabindex="-1"
+            onclick={() => handleItemSelect(item)}
+            disabled={item.disabled && !item.disabledReason}
+            aria-disabled={item.disabled ? 'true' : undefined}
+            aria-describedby={itemReason(item) ? `${instanceId}-reason-${index}` : undefined}
+            onpointerenter={(event) => {
+              if (event.pointerType !== 'touch') showReason(item, index, event.currentTarget);
+            }}
+            onpointerleave={(event) => {
+              if (reasonTarget?.anchor !== event.currentTarget) return;
+              reasonHovered = false;
+              leaveReason();
+            }}
+            onfocus={(event) => showReason(item, index, event.currentTarget, true)}
+            onblur={leaveReason}
+            onpointerdown={(event) => {
+              if (event.pointerType === 'touch') showReason(item, index, event.currentTarget, true);
+            }}
+          >
+            <Icon class="context-menu-icon" name={item.icon} size="20px" filled={item.iconFilled} duotone={!item.iconFilled && !item.danger && !item.disabled} tone={item.requiresElevation && !item.disabled ? 'warning' : 'default'} />
+            <span class="context-menu-label">{item.label}</span>
+            {#if item.shortcuts?.length}
+              <ShortcutKeys class="context-menu-shortcut" shortcuts={item.shortcuts} variant="menu" />
+            {/if}
+          </button>
+          {#if itemReason(item)}
+            <span
+              use:portal
+              id={`${instanceId}-reason-${index}`}
+              class="context-menu-reason cfms-acrylic-surface"
+              role="tooltip"
+              hidden={!reasonOpen || reasonTarget?.itemId !== item.id}
+              style:left="{reasonPosition.left}px"
+              style:top="{reasonPosition.top}px"
+              onpointerenter={() => { reasonHovered = true; clearTimeout(reasonHideTimer); }}
+              onpointerleave={() => { reasonHovered = false; leaveReason(); }}
+            >{itemReason(item)}</span>
           {/if}
-        </button>
-        {#if itemReason(item)}
-          <span
-            use:portal
-            id={`${instanceId}-reason-${index}`}
-            class="context-menu-reason cfms-acrylic-surface"
-            role="tooltip"
-            hidden={!reasonOpen || reasonTarget?.itemId !== item.id}
-            style:left="{reasonPosition.left}px"
-            style:top="{reasonPosition.top}px"
-            onpointerenter={() => { reasonHovered = true; clearTimeout(reasonHideTimer); }}
-            onpointerleave={() => { reasonHovered = false; leaveReason(); }}
-          >{itemReason(item)}</span>
         {/if}
-      {/if}
-    {/each}
+      {/each}
+    </div>
   </div>
 {/if}
 
 <style>
   .context-menu-surface {
-    display: grid;
-    /* Include row insets as tracks so full-width buttons share content columns. */
-    grid-template-columns: 8px [icon] 20px 8px [label] minmax(0, 1fr) 8px;
+    display: flex;
+    flex-direction: column;
     width: max-content;
     min-width: min(190px, calc(100vw - 16px));
     max-width: min(320px, calc(100vw - 16px));
-    padding: 4px;
     max-height: calc(100dvh - 16px);
+    overflow: clip;
+    font: 400 14px/20px var(--fontFamilyBase);
+  }
+  .context-menu-scroll {
+    display: grid;
+    /* Include row insets as tracks so full-width buttons share content columns. */
+    grid-template-columns: 8px [icon] 20px 8px [label] minmax(0, 1fr) 8px;
+    grid-auto-rows: max-content;
+    align-content: start;
+    min-width: 0;
+    min-height: 0;
+    padding: 4px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-    font: 400 14px/20px var(--fontFamilyBase);
   }
-  .context-menu-surface.has-shortcuts {
+  .context-menu-scroll.has-shortcuts {
     grid-template-columns: 8px [icon] 20px 8px [label] minmax(0, 1fr) 16px [shortcut] max-content 8px;
   }
   .context-menu-item {
