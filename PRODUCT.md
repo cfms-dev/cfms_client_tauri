@@ -39,7 +39,6 @@ Authorized files are decrypted locally. Users therefore work in trusted environm
 - A shared cross-platform interface for desktop and Android, with platform-specific interaction optimization where needed, including enlarged touch targets on touch devices. Platform support does not imply a different visual language for each operating system.
 - Sensitive networking and file operations cross the Tauri IPC boundary and are handled by the Rust service layer rather than directly by the frontend.
 - Server addresses, permissions, document scope, administrative capabilities, and lockdown state remain controlled by the connected CFMS server.
-- Installable signed extension packages are desktop-only at present; built-in optional modules may remain available on mobile.
 
 ## Brand Commitments
 

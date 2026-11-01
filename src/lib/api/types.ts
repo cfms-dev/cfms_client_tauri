@@ -740,12 +740,6 @@ export interface UserPreference {
   privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;
   transfer: TransferPreference;
-  extensions?: Record<string, {
-    enabled: boolean;
-    install_epoch: string;
-    granted_capabilities: string[];
-    settings: unknown;
-  }>;
 }
 
 export type ColorSchemePreference = 'light' | 'dark' | 'system';

@@ -70,10 +70,4 @@ describe('settings entry visibility', () => {
     expect(github?.group).toBe('maintenance');
     expect(github?.requiresAuth).toBeUndefined();
   });
-
-  it('keeps extension settings outside user-reachable settings', () => {
-    const entries = getVisibleSettingsEntries({ isLoggedIn: true, isMobile: false });
-
-    expect(entries.some((entry) => entry.href === '/home/settings/extensions')).toBe(false);
-  });
 });

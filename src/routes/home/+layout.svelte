@@ -32,9 +32,6 @@
     registerKeyboardCommands,
   } from '$lib/keyboard';
   import { supportsKeyboardShortcuts } from '$lib/platform';
-  import { extensionsStore } from '$lib/extensions.svelte';
-  import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
-  import { isIconName } from '$lib/icons';
   import { shouldOfferConnectionReturn } from '$lib/public-utility-navigation';
   import { transitionOutOfSession } from '$lib/session-exit';
   import { formatUserFacingError } from '$lib/user-facing-errors';
@@ -99,19 +96,6 @@
     { id: 'home', label: $t('nav.home'), href: '/home/overview', icon: 'home', exact: true },
     { id: 'files', label: $t('workspace.allFiles'), href: '/home/files', icon: 'folder', exact: true },
     { id: 'tasks', label: $t('workspace.transfers'), href: '/home/tasks', icon: 'tasks', badge: activeTaskCount, exact: true },
-    // Keep dynamic extension navigation implemented while the feature remains
-    // intentionally absent from user-reachable surfaces.
-    ...(USER_EXTENSIONS_ENABLED
-      ? extensionsStore.enabledInstallations.flatMap((installation) =>
-          installation.manifest.entrypoints.navigation.map((entry) => ({
-            id: `extension:${installation.manifest.id}:${entry.id}`,
-            label: entry.label,
-            href: `/home/extensions/view?extension=${encodeURIComponent(installation.manifest.id)}&page=${encodeURIComponent(entry.page)}`,
-            icon: isIconName(entry.icon) ? entry.icon : 'extensions',
-            exact: true,
-          })),
-        )
-      : []),
   ]);
 
   const bottomNavigation = $derived<WorkspaceNavItem[]>([
@@ -136,14 +120,6 @@
     if (path === '/home/overview') return $t('nav.home');
     if (path === '/home/files') return $t('workspace.allFiles');
     if (path === '/home/tasks') return $t('workspace.transfers');
-    if (path === '/home/extensions/view') {
-      const extensionId = $page.url.searchParams.get('extension');
-      const pageId = $page.url.searchParams.get('page');
-      const installation = extensionsStore.enabledInstallations.find((item) => item.manifest.id === extensionId);
-      return installation?.manifest.entrypoints.navigation.find((entry) => entry.page === pageId)?.label
-        ?? installation?.manifest.name
-        ?? $t('settings.extensions.title');
-    }
     if (path === '/home/trash') return $t('workspace.recycleBin');
     if (path === '/home/manage') return $t('workspace.administration');
     if (path === '/home/schedules') return $t('workspace.schedules');
@@ -164,14 +140,6 @@
     if (!path.startsWith('/home')) return;
     loadedFavoriteScope = scope;
     void refreshFavorites();
-  });
-
-  $effect(() => {
-    if (!USER_EXTENSIONS_ENABLED) return;
-    const scope = authStore.isLoggedIn && !authStore.postLoginPending && authStore.username
-      ? `${serverStateStore.remoteAddress ?? ''}:${authStore.username}`
-      : null;
-    void extensionsStore.activateForAccount(scope);
   });
 
   onMount(() => {

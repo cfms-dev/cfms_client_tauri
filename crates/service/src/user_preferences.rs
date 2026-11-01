@@ -176,31 +176,46 @@ mod tests {
     }
 
     #[test]
-    fn extension_activation_roundtrips_inside_encrypted_preferences() {
+    fn legacy_extension_state_is_ignored_and_removed_only_on_encrypted_save() {
         let temp = tempfile::tempdir().unwrap();
-        let mut preferences = UserPreference::default();
-        preferences.extensions.insert(
-            "org.cfms.example".into(),
-            cfms_core::ExtensionPreference {
-                enabled: true,
-                install_epoch: "epoch-1".into(),
-                granted_capabilities: vec!["account.summary.read".into()],
-                settings: serde_json::json!({ "view": "compact" }),
-            },
-        );
-        save(
-            temp.path(),
-            SERVER_HASH,
-            USERNAME,
-            Some(&dek()),
-            &preferences,
-        )
-        .unwrap();
+        let mut expected = UserPreference::default();
+        expected
+            .favourites
+            .files
+            .insert("doc-1".into(), "Report.pdf".into());
+        expected.app_lock = serde_json::json!({ "verifier": "existing-pin-verifier" });
+        expected.root_back_button_behavior = Some("background".into());
+        expected.privacy.screenshot_protection_enabled = false;
+        let expected_json = serde_json::to_value(&expected).unwrap();
+        let mut legacy = expected_json.clone();
+        legacy["extensions"] = serde_json::json!({
+            "org.cfms.example": {
+                "enabled": true,
+                "install_epoch": "epoch-1",
+                "granted_capabilities": ["account.summary.read"],
+                "settings": { "view": "compact" }
+            }
+        });
+        let encrypted =
+            cfms_crypto::encrypt_config(&serde_json::to_vec(&legacy).unwrap(), &dek()).unwrap();
+        let path = file_path(temp.path(), SERVER_HASH, USERNAME);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &encrypted).unwrap();
 
         let loaded = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek())).unwrap();
-        assert_eq!(loaded.extensions, preferences.extensions);
-        let raw = std::fs::read(file_path(temp.path(), SERVER_HASH, USERNAME)).unwrap();
+        assert_eq!(serde_json::to_value(&loaded).unwrap(), expected_json);
+        assert_eq!(std::fs::read(&path).unwrap(), encrypted);
+
+        save(temp.path(), SERVER_HASH, USERNAME, Some(&dek()), &loaded).unwrap();
+        let raw = std::fs::read(&path).unwrap();
+        assert!(cfms_crypto::is_encrypted(&raw));
         assert!(!String::from_utf8_lossy(&raw).contains("org.cfms.example"));
+        let saved: serde_json::Value =
+            serde_json::from_slice(&cfms_crypto::decrypt_config(&raw, &dek()).unwrap()).unwrap();
+        assert!(saved.get("extensions").is_none());
+        assert_eq!(saved, expected_json);
+        let reloaded = load(temp.path(), SERVER_HASH, USERNAME, Some(&dek())).unwrap();
+        assert_eq!(serde_json::to_value(reloaded).unwrap(), expected_json);
     }
 
     #[test]

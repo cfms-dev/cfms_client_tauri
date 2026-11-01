@@ -82,8 +82,6 @@ describe('upload finish notifications', () => {
     const upload = uploadTask('one', overrides);
     uploadStore.setAll([upload]);
     const log = vi.spyOn(eventLog, 'push');
-    const changed = vi.fn();
-    window.addEventListener('cfms:extension-event', changed, { once: true });
     await initEventListeners();
 
     emitUpload(upload, 'completed');
@@ -91,7 +89,6 @@ describe('upload finish notifications', () => {
     expect(notificationStore.entries).toHaveLength(0);
     expect(uploadStore.tasks.get('one')?.status).toBe('completed');
     expect(log).toHaveBeenCalledWith('success', 'Upload complete: one');
-    expect(changed).toHaveBeenCalledOnce();
   });
 
   it.each(['skipped', 'cancelled'] as const)('silently finishes a single %s task', async (status) => {

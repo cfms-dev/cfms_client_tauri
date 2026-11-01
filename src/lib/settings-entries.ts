@@ -1,5 +1,4 @@
 import type { IconName } from '$lib/icons';
-import { USER_EXTENSIONS_ENABLED } from '$lib/feature-flags';
 import { isMobilePlatform } from '$lib/platform';
 
 type SettingsPlatformScope = 'all' | 'mobile';
@@ -29,7 +28,6 @@ export interface SettingsEntry {
   tone?: 'default' | 'danger';
   requiresAuth?: boolean;
   platformScope?: SettingsPlatformScope;
-  feature?: 'extensions';
 }
 
 interface SettingsEntryVisibilityContext {
@@ -145,16 +143,6 @@ export const SETTINGS_ENTRIES: readonly SettingsEntry[] = [
     tone: 'danger',
   },
   {
-    // Kept in the catalog so the extension settings implementation can be
-    // restored without recreating its navigation metadata.
-    labelKey: 'settings.extensions.title',
-    descriptionKey: 'settings.extensions.description',
-    icon: 'extensions',
-    href: '/home/settings/extensions',
-    group: 'maintenance',
-    feature: 'extensions',
-  },
-  {
     labelKey: 'settings.updates.title',
     descriptionKey: 'settings.updates.description',
     icon: 'browserUpdated',
@@ -192,7 +180,6 @@ export function isSettingsEntryVisible(
   entry: SettingsEntry,
   context: SettingsEntryVisibilityContext,
 ): boolean {
-  if (entry.feature === 'extensions' && !USER_EXTENSIONS_ENABLED) return false;
   if (entry.requiresAuth && !context.isLoggedIn) return false;
   if (entry.platformScope === 'mobile') return context.isMobile ?? isMobilePlatform();
   return true;

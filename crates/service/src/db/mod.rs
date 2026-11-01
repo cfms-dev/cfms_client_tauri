@@ -18,9 +18,6 @@ pub use migrate::open;
 pub fn open_in_memory() -> cfms_core::Result<rusqlite::Connection> {
     let conn = rusqlite::Connection::open_in_memory()
         .map_err(|e| cfms_core::Error::Other(format!("open in-memory database: {e}")))?;
-    conn.execute_batch(schema::SCHEMA_V1)
-        .map_err(|e| cfms_core::Error::Other(format!("initialize in-memory schema v1: {e}")))?;
-    conn.execute_batch(schema::SCHEMA_V2)
-        .map_err(|e| cfms_core::Error::Other(format!("initialize in-memory schema v2: {e}")))?;
+    migrate::migrate(&conn)?;
     Ok(conn)
 }

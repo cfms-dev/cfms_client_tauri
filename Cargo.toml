@@ -48,7 +48,6 @@ rand = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 base64ct = { version = "1", features = ["alloc"] }
 ed25519-dalek = "3"
-zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # ---------------------------------------------------------------------------
 # Database

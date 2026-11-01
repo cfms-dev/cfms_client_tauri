@@ -57,7 +57,6 @@
           <li>{$t('settings.localData.deletedPreferences')}</li>
           <li>{$t('settings.localData.deletedTasks')}</li>
           <li>{$t('settings.localData.deletedCaches')}</li>
-          <li>{$t('settings.localData.deletedExtensions')}</li>
           <li>{$t('settings.localData.deletedWebview')}</li>
         </ul>
       </section>

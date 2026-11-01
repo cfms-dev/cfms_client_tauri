@@ -39,7 +39,6 @@ export async function initEventListeners(): Promise<void> {
       case "DownloadTaskUpdated": {
         downloadStore.upsert(event.data.task);
         updateDownloadBadgeFromStore();
-        emitExtensionEvent("tasks.changed");
         break;
       }
 
@@ -51,7 +50,6 @@ export async function initEventListeners(): Promise<void> {
           "info",
           `Download task renewed: ${event.data.old_task_id.slice(0, 8)}… → ${event.data.task.task_id.slice(0, 8)}…`,
         );
-        emitExtensionEvent("tasks.changed");
         break;
       }
 
@@ -108,7 +106,6 @@ export async function initEventListeners(): Promise<void> {
       case "ConnectionRestored": {
         serverStateStore.connected = true;
         eventLog.push("success", "Connection restored");
-        emitExtensionEvent("connection.changed");
         break;
       }
 
@@ -116,7 +113,6 @@ export async function initEventListeners(): Promise<void> {
         serverStateStore.connected = false;
         eventLog.push("error", `Connection lost: ${event.data.error}`);
         notificationStore.error("Connection lost. Please reconnect.", 8000);
-        emitExtensionEvent("connection.changed");
         break;
       }
 
@@ -157,7 +153,6 @@ export async function initEventListeners(): Promise<void> {
         else if (batch.length > 1) notificationStore.success(message);
       }
     }
-    emitExtensionEvent('tasks.changed');
   });
   unlistenRemoved = await listen<{ direction: TransferDirection; ids: string[] }>('cfms:transfer-records-removed', ({ payload }) => {
     for (const id of payload.ids) {
@@ -166,10 +161,6 @@ export async function initEventListeners(): Promise<void> {
     }
     updateDownloadBadgeFromStore();
   });
-}
-
-function emitExtensionEvent(name: "connection.changed" | "tasks.changed") {
-  window.dispatchEvent(new CustomEvent("cfms:extension-event", { detail: name }));
 }
 
 function translate(key: string, values: Record<string, string | number> = {}) {

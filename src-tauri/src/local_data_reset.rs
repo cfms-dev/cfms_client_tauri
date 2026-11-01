@@ -503,6 +503,9 @@ mod tests {
         fs::create_dir_all(&downloads).unwrap();
         fs::write(downloads.join("kept.txt"), b"kept").unwrap();
         fs::write(root.join("removed.txt"), b"removed").unwrap();
+        let retired_packages = root.join("extensions").join("packages");
+        fs::create_dir_all(&retired_packages).unwrap();
+        fs::write(retired_packages.join("old-package.json"), b"retired").unwrap();
         fs::write(&marker, b"marker").unwrap();
 
         clear_directory_contents(&root, &[downloads.clone(), marker.clone()]).unwrap();
@@ -510,6 +513,7 @@ mod tests {
         assert!(downloads.join("kept.txt").exists());
         assert!(marker.exists());
         assert!(!root.join("removed.txt").exists());
+        assert!(!root.join("extensions").exists());
     }
 
     #[test]
