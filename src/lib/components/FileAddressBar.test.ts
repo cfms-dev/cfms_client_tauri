@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import FileAddressBar from './FileAddressBar.svelte';
 
@@ -12,6 +12,9 @@ vi.mock('svelte-i18n', () => ({
     },
   },
 }));
+
+vi.mock('$lib/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 afterEach(cleanup);
 
@@ -35,18 +38,30 @@ function renderAddressBar(overrides: Partial<Parameters<typeof render<typeof Fil
 }
 
 describe('FileAddressBar', () => {
-  it('keeps the breadcrumb unchanged when lookup support is disabled', () => {
-    renderAddressBar({ lookupEnabled: false });
-    expect(screen.getByText('Projects')).toBeTruthy();
+  it('uses collapsing breadcrumbs without allowing editing when lookup support is disabled', async () => {
+    const { component, container, onBeginEdit } = renderAddressBar({ lookupEnabled: false });
+    expect(within(screen.getByRole('navigation')).getByText('Projects')).toBeTruthy();
+    expect(container.querySelector('.cfms-breadcrumb-container--collapse')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'files.editAddress' })).toBeNull();
+    await fireEvent.pointerUp(container.querySelector('.file-address__breadcrumb')!);
+    await component.beginEdit();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(onBeginEdit).not.toHaveBeenCalled();
   });
 
-  it('enters edit mode from the button, prefills the known path, and submits', async () => {
+  it('enters edit mode from the blank button, selects the known path, and submits', async () => {
     const { onBeginEdit, onSubmit } = renderAddressBar();
-    await fireEvent.click(screen.getByRole('button', { name: 'files.editAddress' }));
+    const blank = screen.getByRole('button', { name: 'files.editAddress' });
+    expect(blank.textContent).toBe('');
+    expect(blank.querySelector('svg')).toBeNull();
+    expect(blank.getAttribute('aria-keyshortcuts')).toBe('Alt+D F4');
+    await fireEvent.click(blank);
 
-    const input = screen.getByRole('textbox', { name: 'files.addressLabel' });
-    expect((input as HTMLInputElement).value).toBe('/Projects');
+    const input = screen.getByRole('textbox', { name: 'files.addressLabel' }) as HTMLInputElement;
+    expect(input.value).toBe('/Projects');
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
     expect(onBeginEdit).toHaveBeenCalledOnce();
 
     await fireEvent.input(input, { target: { value: '/Projects/2026' } });
@@ -54,14 +69,81 @@ describe('FileAddressBar', () => {
     expect(onSubmit).toHaveBeenCalledWith('/Projects/2026');
   });
 
-  it('supports blank-area entry and Escape cancellation', async () => {
+  it.each(['.file-address__view', '.file-address__breadcrumb', '.cfms-breadcrumb-container', '.cfms-breadcrumb'])('enters from real blank space in %s and supports Escape cancellation', async (selector) => {
     const { container, onCancel } = renderAddressBar({ knownPath: null });
-    await fireEvent.pointerUp(container.querySelector('.file-address__view')!);
+    await fireEvent.pointerUp(container.querySelector(selector)!);
     const input = screen.getByRole('textbox', { name: 'files.addressLabel' });
     expect((input as HTMLInputElement).value).toBe('');
 
     await fireEvent.keyDown(input, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('clears the path without cancelling or submitting and keeps the input focused', async () => {
+    const { component, onSubmit, onCancel } = renderAddressBar();
+    await component.beginEdit();
+    const input = screen.getByRole('textbox') as HTMLInputElement;
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'files.addressGo' })).toBeNull();
+
+    const clear = screen.getByRole('button', { name: 'common.clear' });
+    clear.focus();
+    await fireEvent.click(clear);
+
+    expect(input.value).toBe('');
+    expect(document.activeElement).toBe(input);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'common.clear' })).toBeNull();
+
+    await fireEvent.input(input, { target: { value: '/Other' } });
+    expect(screen.getByRole('button', { name: 'common.clear' })).toBeTruthy();
+    await fireEvent.submit(input.closest('form')!);
+    expect(onSubmit).toHaveBeenCalledWith('/Other');
+  });
+
+  it('shows progress while resolving and prevents clearing or repeated submission', async () => {
+    const { component, rerender, onSubmit } = renderAddressBar();
+    await component.beginEdit();
+    await rerender({ busy: true });
+
+    const input = screen.getByRole('textbox') as HTMLInputElement;
+    expect(input.readOnly).toBe(true);
+    expect(screen.getByRole('status', { name: 'files.addressResolving' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'common.clear' })).toBeNull();
+    await fireEvent.submit(input.closest('form')!);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('does not edit when clicking a directory, the current label or a separator', async () => {
+    const { onNavigate, onBeginEdit } = renderAddressBar({
+      segments: [{ label: 'Parent', path: 'parent-id' }, { label: 'Projects', path: 'projects-id' }],
+    });
+    const nav = screen.getByRole('navigation');
+    const parent = within(nav).getByRole('button', { name: 'Parent' });
+    await fireEvent.pointerUp(parent);
+    await fireEvent.click(parent);
+    await fireEvent.pointerUp(within(nav).getByText('Projects'));
+    await fireEvent.pointerUp(nav.querySelector('[data-breadcrumb-separator]')!);
+    expect(onNavigate).toHaveBeenCalledWith('parent-id');
+    expect(onBeginEdit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('ignores secondary-button releases and blocks every edit entry while busy', async () => {
+    const { component, container, rerender, onBeginEdit } = renderAddressBar();
+    // jsdom has no PointerEvent constructor; define the button on a bubbling event.
+    const secondaryRelease = new Event('pointerup', { bubbles: true });
+    Object.defineProperty(secondaryRelease, 'button', { value: 2 });
+    await fireEvent(container.querySelector('.file-address__breadcrumb')!, secondaryRelease);
+    expect(onBeginEdit).not.toHaveBeenCalled();
+
+    await rerender({ busy: true });
+    await fireEvent.pointerUp(container.querySelector('.file-address__breadcrumb')!);
+    await fireEvent.click(screen.getByRole('button', { name: 'files.editAddress' }));
+    await component.beginEdit();
+    expect(onBeginEdit).not.toHaveBeenCalled();
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 
