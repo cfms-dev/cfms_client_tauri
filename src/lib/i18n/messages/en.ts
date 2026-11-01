@@ -647,7 +647,7 @@ export const en = {
     editAddress: 'Edit file address',
     hiddenPathSegments: 'Show hidden parent directories',
     addressPlaceholder: '/Projects/2026/Report.pdf',
-    addressHelp: "Enter an absolute path beginning with '/'. Press Enter to go or Esc to leave editing. Write '/' in a node name as %2F and '%' as %25.",
+    addressHelp: "Enter an absolute path beginning with '/'. Write '/' in a node name as %2F and '%' as %25.",
     addressGo: 'Go to address',
     addressResolving: 'Resolving address',
     addressRequired: "Enter an absolute path beginning with '/'.",

@@ -16,7 +16,10 @@ vi.mock('svelte-i18n', () => ({
 vi.mock('$lib/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderAddressBar(overrides: Partial<Parameters<typeof render<typeof FileAddressBar>>[1]> = {}) {
   const callbacks = {
@@ -88,6 +91,10 @@ describe('FileAddressBar', () => {
     expect(screen.queryByRole('button', { name: 'files.addressGo' })).toBeNull();
 
     const clear = screen.getByRole('button', { name: 'common.clear' });
+    await fireEvent.pointerDown(input);
+    await fireEvent.pointerDown(input.closest('form')!);
+    await fireEvent.pointerDown(clear.querySelector('svg')!);
+    expect(screen.getByRole('textbox')).toBe(input);
     clear.focus();
     await fireEvent.click(clear);
 
@@ -101,6 +108,79 @@ describe('FileAddressBar', () => {
     expect(screen.getByRole('button', { name: 'common.clear' })).toBeTruthy();
     await fireEvent.submit(input.closest('form')!);
     expect(onSubmit).toHaveBeenCalledWith('/Other');
+  });
+
+  it.each([
+    { busy: false, error: null },
+    { busy: true, error: null },
+    { busy: false, error: 'files.addressUnavailable' },
+  ])('cancels outside presses without blocking the pressed control (%j)', async (state) => {
+    const { component, container, rerender, onCancel, onSubmit } = renderAddressBar();
+    await component.beginEdit();
+    await fireEvent.input(screen.getByRole('textbox'), { target: { value: '/Draft' } });
+    await rerender(state);
+
+    const outside = document.createElement('button');
+    const onClick = vi.fn(() => expect(onCancel).toHaveBeenCalledOnce());
+    outside.addEventListener('click', onClick);
+    container.append(outside);
+    expect(await fireEvent.pointerDown(outside)).toBe(true);
+    outside.focus();
+    await fireEvent.click(outside);
+
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(outside);
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByRole('navigation')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+    await fireEvent.pointerDown(document.body);
+    expect(onCancel).toHaveBeenCalledOnce();
+
+    await rerender({ busy: false, error: null });
+    await component.beginEdit();
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('/Projects');
+  });
+
+  it.each([null, 'files.addressUnavailable'])('treats supporting text as outside the editor (error=%s)', async (error) => {
+    const { component, container, rerender, onCancel } = renderAddressBar();
+    await component.beginEdit();
+    await rerender({ error });
+    await fireEvent.pointerDown(container.querySelector('.file-address__support')!);
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('keeps editing through keyboard focus changes and presses on the progress indicator', async () => {
+    const { component, container, rerender, onCancel } = renderAddressBar();
+    await component.beginEdit();
+    const input = screen.getByRole('textbox');
+    await fireEvent.keyDown(input, { key: 'Tab' });
+    screen.getByRole('button', { name: 'common.clear' }).focus();
+    expect(screen.getByRole('textbox')).toBe(input);
+    await rerender({ busy: true });
+    await fireEvent.pointerDown(container.querySelector('.file-address__progress')!);
+    expect(screen.getByRole('textbox')).toBe(input);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('removes the outside listener on finish and unmount, and registers it again on reentry', async () => {
+    const addListener = vi.spyOn(document, 'addEventListener');
+    const removeListener = vi.spyOn(document, 'removeEventListener');
+    const { component, unmount, onCancel } = renderAddressBar();
+    await component.beginEdit();
+    const firstListener = addListener.mock.calls.find(([type, , capture]) => type === 'pointerdown' && capture === true)![1];
+    component.finishEdit();
+    await fireEvent.pointerDown(document.body);
+    expect(removeListener).toHaveBeenCalledWith('pointerdown', firstListener, true);
+    expect(onCancel).not.toHaveBeenCalled();
+
+    await component.beginEdit();
+    const listeners = addListener.mock.calls.filter(([type, , capture]) => type === 'pointerdown' && capture === true);
+    expect(listeners).toHaveLength(2);
+    unmount();
+    expect(removeListener).toHaveBeenCalledWith('pointerdown', listeners[1][1], true);
+    await fireEvent.pointerDown(document.body);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it('shows progress while resolving and prevents clearing or repeated submission', async () => {

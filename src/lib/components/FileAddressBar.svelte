@@ -32,6 +32,7 @@
   let editing = $state(false);
   let value = $state('');
   let input = $state<HTMLInputElement | null>(null);
+  let form = $state<HTMLFormElement | null>(null);
 
   export async function beginEdit() {
     if (!lookupEnabled || editing || busy) return;
@@ -77,6 +78,16 @@
   $effect(() => {
     if (!lookupEnabled) editing = false;
   });
+
+  $effect(() => {
+    if (!editing || !form) return;
+    const editingForm = form;
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (editing && !event.composedPath().includes(editingForm)) cancelEdit();
+    };
+    document.addEventListener('pointerdown', handleOutsidePointerDown, true);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown, true);
+  });
 </script>
 
 <div
@@ -86,7 +97,7 @@
   aria-busy={busy}
 >
   {#if editing}
-    <form class="file-address__form cfms-field-surface" aria-label={$t('files.addressLabel')} onsubmit={(event) => { event.preventDefault(); submit(); }}>
+    <form bind:this={form} class="file-address__form cfms-field-surface" aria-label={$t('files.addressLabel')} onsubmit={(event) => { event.preventDefault(); submit(); }}>
       <input
         bind:this={input}
         bind:value
@@ -174,7 +185,7 @@
     min-width: 0;
     flex: 1;
     overflow: hidden;
-    padding-inline: 8px 4px;
+    padding-inline: 0 4px;
   }
 
   .file-address__form {
