@@ -7,7 +7,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 SCRIPT_PATH = Path(__file__).parents[1] / "validate-android-release.py"
 SPEC = importlib.util.spec_from_file_location("validate_android_release", SCRIPT_PATH)
 if SPEC is None or SPEC.loader is None:

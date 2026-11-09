@@ -62,8 +62,40 @@ impl ServerCertVerifier for NoOpVerifier {
     }
 }
 
-pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<ClientConfig> {
-    build_config_with_identity(ca_dir, disable_enforcement, None, None)
+/// TLS and revocation must travel together: production callers cannot accidentally
+/// pass a rustls configuration that omits the CRL gate.
+#[derive(Debug, Clone)]
+pub struct TlsConfig {
+    pub(crate) client: Arc<ClientConfig>,
+    pub(crate) roots: Arc<RootCertStore>,
+    pub(crate) crl: Arc<crate::crl::CrlService>,
+    pub(crate) disabled: bool,
+}
+
+impl TlsConfig {
+    /// A plaintext test transport. It is rejected for wss:// connections.
+    pub fn plaintext() -> Self {
+        Self {
+            client: Arc::new(
+                ClientConfig::builder()
+                    .with_root_certificates(RootCertStore::empty())
+                    .with_no_client_auth(),
+            ),
+            roots: Arc::new(RootCertStore::empty()),
+            crl: Arc::new(crate::crl::CrlService::new()),
+            disabled: false,
+        }
+    }
+}
+
+pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<TlsConfig> {
+    build_config_with_identity(
+        ca_dir,
+        disable_enforcement,
+        None,
+        None,
+        Arc::new(crate::crl::CrlService::new()),
+    )
 }
 
 pub fn build_config_with_identity(
@@ -71,7 +103,8 @@ pub fn build_config_with_identity(
     disable_enforcement: bool,
     client_cert_path: Option<&Path>,
     client_key_path: Option<&Path>,
-) -> Result<ClientConfig> {
+    crl: Arc<crate::crl::CrlService>,
+) -> Result<TlsConfig> {
     let identity = match (client_cert_path, client_key_path) {
         (Some(cert), Some(key)) if !cert.as_os_str().is_empty() && !key.as_os_str().is_empty() => {
             Some(load_client_identity_pair(cert, key)?)
@@ -83,12 +116,18 @@ pub fn build_config_with_identity(
         let builder = ClientConfig::builder()
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(NoOpVerifier));
-        return match identity {
+        let config = match identity {
             Some((certs, key)) => builder
                 .with_client_auth_cert(certs, key)
                 .map_err(|e| cfms_core::Error::Connection(format!("client identity error: {e}"))),
             None => Ok(builder.with_no_client_auth()),
-        };
+        }?;
+        return Ok(TlsConfig {
+            client: Arc::new(config),
+            roots: Arc::new(RootCertStore::empty()),
+            crl,
+            disabled: true,
+        });
     }
 
     let mut root_store = load_trust_store(ca_dir)?;
@@ -97,14 +136,21 @@ pub fn build_config_with_identity(
         root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     }
 
-    let builder = ClientConfig::builder().with_root_certificates(root_store);
+    let roots = Arc::new(root_store);
+    let builder = ClientConfig::builder().with_root_certificates(Arc::clone(&roots));
 
-    match identity {
+    let config = match identity {
         Some((certs, key)) => builder
             .with_client_auth_cert(certs, key)
             .map_err(|e| cfms_core::Error::Connection(format!("client identity error: {e}"))),
         None => Ok(builder.with_no_client_auth()),
-    }
+    }?;
+    Ok(TlsConfig {
+        client: Arc::new(config),
+        roots,
+        crl,
+        disabled: false,
+    })
 }
 
 /// Check whether a filename matches the OpenSSL `c_rehash` convention:

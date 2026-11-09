@@ -454,9 +454,7 @@ mod public_key_stream_tests {
             assert_eq!(payload, b"following request");
         });
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let tls = rustls::ClientConfig::builder()
-            .with_root_certificates(rustls::RootCertStore::empty())
-            .with_no_client_auth();
+        let tls = cfms_transport::tls::TlsConfig::plaintext();
         let connection =
             cfms_transport::Connection::connect(&format!("ws://{address}"), tls, None, true)
                 .await

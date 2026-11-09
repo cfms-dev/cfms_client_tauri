@@ -523,7 +523,8 @@ export type ServiceEvent =
   | { event: "DownloadCancelled"; data: { task_id: string } }
   | { event: "ActiveCountChanged"; data: { count: number } }
   | { event: "Lockdown"; data: { status: boolean; reason: string | null } }
-  | { event: "ConnectionRestored" }
+  | { event: "ConnectionRestored"; data: { connection_id: number; status: RevocationStatus } }
+  | { event: "ConnectionSecurityChanged"; data: { connection_id: number; status: RevocationStatus } }
   | { event: "ConnectionLost"; data: { error: string } }
   | { event: "TokenExpired" }
   | {
@@ -585,7 +586,16 @@ export interface UserAuthentication {
   policies: Record<AuthPurpose, AuthPolicy>;
 }
 
+export interface RevocationStatus {
+  state: 'checking' | 'checked' | 'unknown' | 'revoked' | 'skipped';
+  reasons: string[];
+  checked_at: number | null;
+  valid_until: number | null;
+}
+
 export interface ServerState {
+  connection_id?: number | null;
+  revocation?: RevocationStatus | null;
   connected: boolean;
   server_address: string | null;
   /** Human-readable display name reported by the server via server_info. */
@@ -671,6 +681,7 @@ export interface ServerDiagnostics {
 }
 
 export interface ConnectionSettings {
+  crl_allowed_hosts: string[];
   enable_proxy: boolean;
   follow_system_proxy: boolean;
   custom_proxy: string;

@@ -70,6 +70,7 @@ async fn create_transfer_connection(
         disable_ssl,
         client_cert_path.as_deref(),
         client_key_path.as_deref(),
+        std::sync::Arc::clone(&state.crl_service),
     )?;
 
     cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await
@@ -1342,12 +1343,15 @@ async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json:
 
 /// Build a JSON server-state payload (connection fields only — no auth data).
 async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json::Value {
-    let connected = inner
-        .conn
-        .read()
-        .await
-        .as_ref()
-        .is_some_and(|conn| !conn.is_closed());
+    let (security, connected) = {
+        let connection = inner.conn.read().await;
+        (
+            connection
+                .as_ref()
+                .map(|conn| (conn.id(), conn.revocation_status())),
+            connection.as_ref().is_some_and(|conn| !conn.is_closed()),
+        )
+    };
     let server_address = inner.server_address.read().await.clone();
     let server_name = inner.server_name.read().await.clone();
     let protocol_version = inner.server_protocol_version.read().await;
@@ -1357,6 +1361,8 @@ async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json
 
     serde_json::json!({
         "connected": connected,
+        "connection_id": security.as_ref().map(|(id, _)| id),
+        "revocation": security.map(|(_, status)| status),
         "server_address": server_address,
         "server_name": server_name,
         "protocol_version": *protocol_version,

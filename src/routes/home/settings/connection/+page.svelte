@@ -1,5 +1,7 @@
 <script lang="ts">
   import MdOutlinedField from '$lib/components/MdOutlinedField.svelte';
+  import ConnectionSecurity from '$lib/components/ConnectionSecurity.svelte';
+  import { formatUserFacingError } from '$lib/user-facing-errors';
   import FluentButton from '$lib/components/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
@@ -21,6 +23,7 @@
   import FluentTextInput from '$lib/components/FluentTextInput.svelte';
 
   const defaultConfig: ConnectionSettings = {
+    crl_allowed_hosts: [],
     enable_proxy: false,
     follow_system_proxy: false,
     custom_proxy: '',
@@ -32,6 +35,7 @@
   };
 
   let config = $state<ConnectionSettings>({ ...defaultConfig });
+  let crlHostsText = $state('');
   let caStatus = $state<CaCertificateStatus | null>(null);
   let caUpdating = $state(false);
   let caResult = $state<string | null>(null);
@@ -40,7 +44,7 @@
   let error = $state<string | null>(null);
   const autoSave = createAutoSave({
     onError: (message) => {
-      error = message;
+      error = formatUserFacingError(message);
     },
   });
 
@@ -65,6 +69,7 @@
         getCaCertificateStatus(),
       ]);
       config = connectionConfig;
+      crlHostsText = connectionConfig.crl_allowed_hosts.join(', ');
       caStatus = certificateStatus;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -96,9 +101,14 @@
   }
 
   function resetConnection() {
+    crlHostsText = '';
     caResult = null;
     error = null;
     applyConnection({ ...defaultConfig });
+  }
+
+  function saveCrlHosts() {
+    applyConnection({ ...config, crl_allowed_hosts: crlHostsText.split(/[,\s]+/).filter(Boolean) });
   }
 
   function setRememberConnectionAddresses(enabled: boolean) {
@@ -156,6 +166,18 @@
   />
 
   <div class="settings-section-list">
+    <section class="settings-section space-y-3">
+      <h2 class="text-sm font-semibold">{$t('settings.connection.crlTitle')}</h2>
+      <p class="text-xs text-md3-on-surface-variant">{$t('settings.connection.crlHint')}</p>
+      <ConnectionSecurity details />
+      <div role="group" aria-label={$t('settings.connection.crlAllowedHosts')} onfocusout={saveCrlHosts}>
+        <FluentTextInput id="crl-allowed-hosts" label={$t('settings.connection.crlAllowedHosts')}
+          value={crlHostsText} disabled={loading}
+          oninput={(value) => { crlHostsText = value; }}
+          onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveCrlHosts(); } }} />
+      </div>
+      <p class="text-xs text-md3-on-surface-variant">{$t('settings.connection.crlAllowedHostsHint')}</p>
+    </section>
     <section class="settings-section space-y-3">
       <h2 class="text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {$t('settings.connection.basic')}

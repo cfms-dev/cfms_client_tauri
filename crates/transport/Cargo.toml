@@ -19,6 +19,19 @@ dashmap.workspace = true
 url.workspace = true
 base64ct.workspace = true
 zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex = "0.4"
+rustls-webpki.workspace = true
+x509-parser.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+bytes.workspace = true
+ipnet.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
+time = "0.3"

@@ -104,8 +104,28 @@ export async function initEventListeners(): Promise<void> {
       }
 
       case "ConnectionRestored": {
+        if (!serverStateStore.remoteAddress || (serverStateStore.connectionId !== null && event.data.connection_id < serverStateStore.connectionId)) break;
+        serverStateStore.connectionId = event.data.connection_id;
+        serverStateStore.revocation = event.data.status;
         serverStateStore.connected = true;
         eventLog.push("success", "Connection restored");
+        break;
+      }
+
+      case "ConnectionSecurityChanged": {
+        if (event.data.connection_id !== serverStateStore.connectionId) break;
+        const previous = serverStateStore.revocation;
+        serverStateStore.revocation = event.data.status;
+        const status = event.data.status;
+        if (status.state === 'revoked') serverStateStore.connected = false;
+        if (previous?.state !== status.state || previous?.reasons.join() !== status.reasons.join()) {
+          if (status.state === 'unknown' || status.state === 'revoked') {
+            const message = translate(`settings.connection.crlState.${status.state}`);
+            eventLog.push(status.state === 'revoked' ? 'error' : 'warning', message);
+            if (status.state === 'revoked') notificationStore.error(message);
+            else notificationStore.warning(message);
+          }
+        }
         break;
       }
 

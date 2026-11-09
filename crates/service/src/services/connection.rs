@@ -12,6 +12,7 @@ pub const DEFAULT_RECONNECT_ATTEMPTS: usize = 3;
 
 #[derive(Debug, Clone)]
 struct ConnectionConfig {
+    crl: Arc<cfms_transport::crl::CrlService>,
     url: String,
     ca_dir: std::path::PathBuf,
     disable_ssl: bool,
@@ -35,9 +36,9 @@ pub async fn run(state: Arc<AppState>, mut shutdown_rx: watch::Receiver<bool>) {
                 }
 
                 match ensure_connected(&state, DEFAULT_RECONNECT_ATTEMPTS, true).await {
-                    Ok(_) => {
+                    Ok(conn) => {
                         tracing::info!("Primary connection restored by watchdog");
-                        let _ = state.event_tx.send(ServiceEvent::ConnectionRestored);
+                        let _ = state.event_tx.send(ServiceEvent::ConnectionRestored { connection_id: conn.id(), status: conn.revocation_status() });
                     }
                     Err(error) => {
                         tracing::warn!("Primary connection reconnect failed: {error}");
@@ -75,6 +76,7 @@ pub async fn ensure_connected(
     for attempt in 1..=attempts {
         match connect_once(&config).await {
             Ok(conn) => {
+                watch_security(state, &conn);
                 let mut current = state.conn.write().await;
                 *current = Some(conn.clone());
                 return Ok(conn);
@@ -99,6 +101,23 @@ pub async fn ensure_connected(
     }
 
     Err(last_error.unwrap_or_else(|| "Reconnect failed".to_string()))
+}
+
+/// Events carry connection identity; consumers discard updates from old connections.
+/// Own only a watch receiver, so an obsolete connection cannot be kept alive.
+pub fn watch_security(state: &AppState, connection: &cfms_transport::Connection) {
+    let events = state.event_tx.clone();
+    let id = connection.id();
+    let mut updates = connection.security_updates();
+    tokio::spawn(async move {
+        while updates.changed().await.is_ok() {
+            let status = updates.borrow_and_update().clone();
+            let _ = events.send(ServiceEvent::ConnectionSecurityChanged {
+                connection_id: id,
+                status,
+            });
+        }
+    });
 }
 
 async fn has_closed_connection(state: &AppState) -> bool {
@@ -140,6 +159,7 @@ async fn load_config(state: &AppState) -> Result<ConnectionConfig, String> {
     let client_key_path = state.client_key_path.read().await.clone();
 
     Ok(ConnectionConfig {
+        crl: Arc::clone(&state.crl_service),
         url,
         ca_dir,
         disable_ssl,
@@ -156,6 +176,7 @@ async fn connect_once(config: &ConnectionConfig) -> cfms_core::Result<cfms_trans
         config.disable_ssl,
         config.client_cert_path.as_deref(),
         config.client_key_path.as_deref(),
+        Arc::clone(&config.crl),
     )?;
 
     let connection = cfms_transport::Connection::connect(

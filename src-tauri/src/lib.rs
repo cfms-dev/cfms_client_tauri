@@ -536,6 +536,7 @@ pub fn run() {
             commands::disconnect,
             commands::get_auth_status,
             commands::get_server_state,
+            commands::refresh_connection_security,
             commands::get_2fa_status,
             commands::setup_2fa,
             commands::validate_2fa,

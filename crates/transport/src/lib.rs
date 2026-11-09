@@ -27,6 +27,8 @@
 #![forbid(unsafe_code)]
 
 pub mod connector;
+pub mod crl;
+mod crl_fetch;
 pub mod frame;
 pub mod proxy;
 pub mod stream;

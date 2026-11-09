@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ConnectionSecurity from '$lib/components/ConnectionSecurity.svelte';
   import type { Snippet } from 'svelte';
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
@@ -427,6 +428,11 @@
             aria-hidden="true"
           ></span>
           <strong>{accountDisplayName}</strong>
+          {#if serverStateStore.revocation?.state === 'unknown' || serverStateStore.revocation?.state === 'skipped'}
+            <span role="img" aria-label={$t(`settings.connection.crlState.${serverStateStore.revocation.state}`)} title={$t(`settings.connection.crlState.${serverStateStore.revocation.state}`)} style="color: var(--colorStatusWarningForeground1)">
+              <Icon name="warning" size="16px" />
+            </span>
+          {/if}
           <Icon name="expandMore" size="16px" />
         </button>
 
@@ -473,6 +479,7 @@
                 </button>
               {/if}
             </div>
+            <div class="explorer-account-security" role="presentation"><ConnectionSecurity details /></div>
             <span class="explorer-menu-separator"></span>
             <button data-menu-item role="menuitem" tabindex="-1" onclick={() => { closeAccountMenu(); void goto('/home/settings/account'); }}>
               <Icon name="contactCard" size="18px" /><span>{$t('settings.account.title')}</span>
@@ -645,6 +652,7 @@
   .explorer-account-menu button:hover:not(:disabled) { background: var(--explorer-surface-hover); }
   .explorer-account-menu button:disabled { opacity: 0.45; }
   .explorer-account-summary { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; padding: 0.65rem; }
+  .explorer-account-security { inline-size: min(300px, calc(100vw - 32px)); box-sizing: border-box; padding: 0 0.3rem 0.3rem; }
   .explorer-account-menu .explorer-account-avatar { position: relative; display: grid; width: 42px; height: 42px; place-items: center; overflow: visible; border-radius: 999px; padding: 0; transition: transform 140ms ease, box-shadow 140ms ease; }
   .explorer-account-menu button.explorer-account-avatar:hover { transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--explorer-accent) 22%, transparent); }
   .explorer-account-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: grid; width: 17px; height: 17px; place-items: center; border: 2px solid var(--explorer-surface-raised); border-radius: 999px; color: var(--colorNeutralForegroundOnBrand); background: var(--colorBrandBackground); }

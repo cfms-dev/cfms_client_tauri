@@ -306,6 +306,10 @@ pub struct UploadTaskDto {
 #[serde(tag = "event", content = "data")]
 #[allow(clippy::large_enum_variant)] // Event payloads cross the serialized service boundary as values.
 pub enum ServiceEvent {
+    ConnectionSecurityChanged {
+        connection_id: u64,
+        status: crate::RevocationStatus,
+    },
     /// A download's progress has changed.
     DownloadProgress {
         task_id: String,
@@ -340,7 +344,10 @@ pub enum ServiceEvent {
         reason: Option<String>,
     },
     /// The primary connection was restored after an unexpected disconnect.
-    ConnectionRestored,
+    ConnectionRestored {
+        connection_id: u64,
+        status: crate::RevocationStatus,
+    },
     /// The primary connection could not be restored automatically.
     ConnectionLost { error: String },
     /// The authentication token has expired.

@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
-
 EXPECTED_APK_ABIS = {
     "app-arm64-release.apk": {"arm64-v8a"},
     "app-x86_64-release.apk": {"x86_64"},

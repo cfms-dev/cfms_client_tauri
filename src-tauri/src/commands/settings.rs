@@ -63,6 +63,12 @@ pub async fn get_connection_settings(
     Ok(ConnectionSettingsDto::load(&state.settings))
 }
 
+/// Wake native CRL monitors after foreground restoration; this never relaxes policy.
+#[tauri::command]
+pub fn refresh_connection_security(state: tauri::State<'_, AppHandleState>) {
+    state.inner.crl_service.refresh_active();
+}
+
 #[tauri::command]
 pub async fn set_connection_settings(
     state: tauri::State<'_, AppHandleState>,
@@ -76,6 +82,16 @@ pub async fn set_connection_settings(
         )?;
     }
     let proxy_setting = settings.proxy_setting_value();
+    let crl_hosts = cfms_transport::crl::normalize_allowed_hosts(&settings.crl_allowed_hosts)
+        .map_err(|_| "crl_invalid_hosts".to_string())?;
+    state
+        .settings
+        .set(
+            "crl_allowed_hosts",
+            &serde_json::to_string(&crl_hosts).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| format!("Failed to write CRL allowed hosts: {e}"))?;
+    state.inner.crl_service.set_allowed_hosts(&crl_hosts)?;
 
     state
         .settings

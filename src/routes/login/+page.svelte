@@ -65,6 +65,7 @@
   import ProgressRing from "$lib/components/ProgressRing.svelte";
   import AvatarPreview from "$lib/components/AvatarPreview.svelte";
   import AuthServerContext from "$lib/components/AuthServerContext.svelte";
+  import ConnectionSecurity from '$lib/components/ConnectionSecurity.svelte';
   import AuthScene from "$lib/components/AuthScene.svelte";
   import AccountDisabledNotice from "$lib/components/AccountDisabledNotice.svelte";
   import DialogActionButton from "$lib/components/DialogActionButton.svelte";
@@ -852,7 +853,10 @@
         </p>
       </div>
     {:else}
-      <AuthServerContext label={$t('login.signInToServer', { values: { serverName } })} />
+      <div class="login-server-status">
+        <AuthServerContext label={$t('login.signInToServer', { values: { serverName } })} />
+        <ConnectionSecurity />
+      </div>
 
       <div class="auth-content-stage">
       {#if accountDisabled}
@@ -1259,6 +1263,8 @@
     min-height: 0;
     padding-top: 2rem;
   }
+
+  .login-server-status { display: grid; gap: 12px; }
 
   .auth-state-view,
   .login-view {

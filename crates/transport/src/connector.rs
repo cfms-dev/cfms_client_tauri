@@ -7,17 +7,17 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use cfms_core::Result;
+use cfms_core::{Result, RevocationState, RevocationStatus};
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::{self, Message};
-use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, client_async_with_config};
 use tracing::{debug, error, info, warn};
 
 use crate::frame::{self, FrameHeader, FrameKind};
@@ -87,6 +87,14 @@ impl AsyncWrite for MaybeProxyStream {
 
 /// Channel capacity for per-stream MPSC queues.
 const STREAM_BUFFER: usize = 256;
+static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
+
+struct StopOnDrop(watch::Sender<bool>);
+impl Drop for StopOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.send(true);
+    }
+}
 
 /// A multiplexed WebSocket connection to a CFMS server.
 ///
@@ -104,6 +112,10 @@ const STREAM_BUFFER: usize = 256;
 /// 5. Call [`Connection::close`] to shut down.
 #[derive(Clone)]
 pub struct Connection {
+    id: u64,
+    security: watch::Receiver<RevocationStatus>,
+    revoked: Arc<AtomicBool>,
+    stop: Arc<StopOnDrop>,
     /// Shared WebSocket sender — cloned per `Connection` instance.
     ws_tx: Arc<tokio::sync::Mutex<futures_util::stream::SplitSink<WsStream, Message>>>,
 
@@ -140,7 +152,7 @@ impl Connection {
     ///   first.
     pub async fn connect(
         url: &str,
-        tls: rustls::ClientConfig,
+        tls: crate::tls::TlsConfig,
         proxy: Option<&str>,
         force_ipv4: bool,
     ) -> Result<Self> {
@@ -149,24 +161,67 @@ impl Connection {
 
             let proxy_stream = crate::proxy::connect_proxy(proxy_addr, &host, port).await?;
             let transport = MaybeProxyStream::Proxied(proxy_stream);
-            return Self::connect_over_stream(url, tls, transport).await;
+            return Self::connect_over_stream(url, tls, transport, proxy, force_ipv4).await;
         }
 
         let (host, port) = parse_ws_url(url)?;
         let tcp_stream = crate::proxy::connect_tcp(&host, port, force_ipv4).await?;
-        Self::connect_over_stream(url, tls, MaybeProxyStream::Direct(tcp_stream)).await
+        Self::connect_over_stream(
+            url,
+            tls,
+            MaybeProxyStream::Direct(tcp_stream),
+            proxy,
+            force_ipv4,
+        )
+        .await
     }
 
     async fn connect_over_stream(
         url: &str,
-        tls: rustls::ClientConfig,
+        tls: crate::tls::TlsConfig,
         transport: MaybeProxyStream,
+        proxy: Option<&str>,
+        force_ipv4: bool,
     ) -> Result<Self> {
-        let connector = Connector::Rustls(Arc::new(tls));
-        let (ws_stream, _response) =
-            client_async_tls_with_config(url, transport, None, Some(connector))
+        let mut refresh = tls.crl.wake.subscribe();
+        let secure = url::Url::parse(url)
+            .map_err(|e| cfms_core::Error::Connection(e.to_string()))?
+            .scheme()
+            == "wss";
+        let (host, _) = parse_ws_url(url)?;
+        let name = rustls::pki_types::ServerName::try_from(host)
+            .map_err(|e| cfms_core::Error::Connection(e.to_string()))?;
+        let (transport, chain, status) = if secure {
+            let stream = tokio_rustls::TlsConnector::from(Arc::clone(&tls.client))
+                .connect(name.clone(), transport)
                 .await
-                .map_err(map_handshake_error)?;
+                .map_err(|e| cfms_core::Error::Connection(format!("TLS handshake failed: {e}")))?;
+            let chain = stream
+                .get_ref()
+                .1
+                .peer_certificates()
+                .unwrap_or_default()
+                .iter()
+                .map(|cert| cert.clone().into_owned())
+                .collect::<Vec<_>>();
+            let status = if tls.disabled {
+                RevocationStatus::new(RevocationState::Skipped, "verification_disabled")
+            } else {
+                tls.crl
+                    .check(&chain, Arc::clone(&tls.roots), &name, proxy, force_ipv4)
+                    .await?
+            };
+            (MaybeTlsStream::Rustls(stream), chain, status)
+        } else {
+            (
+                MaybeTlsStream::Plain(transport),
+                vec![],
+                RevocationStatus::new(RevocationState::Skipped, "plaintext"),
+            )
+        };
+        let (ws_stream, _response) = client_async_with_config(url, transport, None)
+            .await
+            .map_err(map_handshake_error)?;
 
         info!("WebSocket connected to {url}");
 
@@ -174,7 +229,13 @@ impl Connection {
 
         let (new_streams_tx, new_streams_rx) = mpsc::channel(64);
 
+        let (security_tx, security) = watch::channel(status);
+        let (stop_tx, stop_rx) = watch::channel(false);
         let conn = Self {
+            id: NEXT_CONNECTION_ID.fetch_add(1, Ordering::Relaxed),
+            security,
+            revoked: Arc::new(AtomicBool::new(false)),
+            stop: Arc::new(StopOnDrop(stop_tx)),
             ws_tx: Arc::new(tokio::sync::Mutex::new(ws_tx)),
             streams: Arc::new(DashMap::new()),
             new_streams: Arc::new(tokio::sync::Mutex::new(new_streams_rx)),
@@ -190,23 +251,93 @@ impl Connection {
         let ws_tx_for_close = Arc::clone(&conn.ws_tx);
         let closed = Arc::clone(&conn.closed);
         let close_info = Arc::clone(&conn.close_info);
+        let stop_on_exit = conn.stop.0.clone();
+        let mut receive_stop = stop_rx.clone();
         tokio::spawn(async move {
-            if let Err(e) = Self::recv_loop(
+            let result = tokio::select! {
+                _ = receive_stop.changed() => Ok(()),
+                result = Self::recv_loop(
                 ws_rx,
                 streams,
                 new_streams_tx,
                 Arc::clone(&closed),
                 close_info,
-            )
-            .await
-            {
+                ) => result,
+            };
+            if let Err(e) = result {
                 error!("Receive loop exited with error: {e}");
             }
             closed.store(true, Ordering::SeqCst);
+            let _ = stop_on_exit.send(true);
             // On loop exit, close the WebSocket sender.
             let mut tx = ws_tx_for_close.lock().await;
-            let _ = tx.close().await;
+            let _ = tokio::time::timeout(Duration::from_secs(2), tx.close()).await;
         });
+
+        if secure && !tls.disabled {
+            let mut stop_rx = stop_rx;
+            let proxy = proxy.map(str::to_owned);
+            let closed = Arc::clone(&conn.closed);
+            let revoked = Arc::clone(&conn.revoked);
+            let streams = Arc::clone(&conn.streams);
+            let stop = conn.stop.0.clone();
+            tokio::spawn(async move {
+                'monitor: loop {
+                    let delay = security_tx
+                        .borrow()
+                        .valid_until
+                        .map(|expiry| expiry.saturating_sub(crate::crl::now()).clamp(1, 60))
+                        .unwrap_or(60);
+                    tokio::select! {
+                        _ = stop_rx.changed() => break,
+                        _ = tokio::time::sleep(Duration::from_secs(delay)) => {},
+                        _ = refresh.changed() => {},
+                    }
+                    if *stop_rx.borrow() {
+                        break;
+                    }
+                    let result = loop {
+                        tokio::select! {
+                            _ = stop_rx.changed() => break 'monitor,
+                            // Retain notifications that arrive during I/O, and restart
+                            // under the latest policy/evidence rather than losing a wakeup.
+                            _ = refresh.changed() => continue,
+                            result = tls.crl.check(&chain, Arc::clone(&tls.roots), &name, proxy.as_deref(), force_ipv4) => break result,
+                        }
+                    };
+                    match result {
+                        Ok(status) => {
+                            security_tx.send_if_modified(|old| {
+                                let changed = *old != status;
+                                *old = status;
+                                changed
+                            });
+                        }
+                        Err(error) => {
+                            let is_revoked =
+                                matches!(error, cfms_core::Error::CertificateRevoked(_));
+                            revoked.store(is_revoked, Ordering::SeqCst);
+                            closed.store(true, Ordering::SeqCst);
+                            streams.clear();
+                            security_tx.send_replace(RevocationStatus::new(
+                                if is_revoked {
+                                    RevocationState::Revoked
+                                } else {
+                                    RevocationState::Unknown
+                                },
+                                if is_revoked {
+                                    "certificate_revoked"
+                                } else {
+                                    "tls_invalid"
+                                },
+                            ));
+                            let _ = stop.send(true);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
 
         Ok(conn)
     }
@@ -220,6 +351,7 @@ impl Connection {
     /// Dedicated transfer connections use a smaller queue so backpressure
     /// reaches the WebSocket instead of accumulating large file messages.
     pub async fn create_stream_with_capacity(&self, capacity: usize) -> Result<Stream> {
+        self.check_open()?;
         if capacity == 0 {
             return Err(cfms_core::Error::Protocol(
                 "stream buffer capacity must be greater than zero".into(),
@@ -252,6 +384,28 @@ impl Connection {
         self.closed.load(Ordering::SeqCst)
     }
 
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+    pub fn revocation_status(&self) -> RevocationStatus {
+        self.security.borrow().clone()
+    }
+    pub fn security_updates(&self) -> watch::Receiver<RevocationStatus> {
+        self.security.clone()
+    }
+
+    fn check_open(&self) -> Result<()> {
+        if self.revoked.load(Ordering::SeqCst) {
+            return Err(cfms_core::Error::CertificateRevoked(
+                "server certificate chain".into(),
+            ));
+        }
+        if self.is_closed() {
+            return Err(cfms_core::Error::Connection("connection closed".into()));
+        }
+        Ok(())
+    }
+
     /// Return the peer-provided WebSocket close information, when available.
     pub fn close_info(&self) -> Option<ConnectionCloseInfo> {
         self.close_info.read().ok().and_then(|info| info.clone())
@@ -265,6 +419,8 @@ impl Connection {
     /// Close the connection and all associated streams.
     pub async fn close(self) {
         self.closed.store(true, Ordering::SeqCst);
+        let _ = self.stop.0.send(true);
+        self.streams.clear();
         let mut tx = self.ws_tx.lock().await;
         let _ = tx.close().await;
         info!("Connection closed");
@@ -280,7 +436,13 @@ impl Connection {
         let wire_data = frame::encode(&header, payload);
 
         let mut tx = self.ws_tx.lock().await;
-        if let Err(e) = tx.send(Message::Binary(wire_data.into())).await {
+        self.check_open()?;
+        let mut stop = self.stop.0.subscribe();
+        let send = tokio::select! {
+            _ = stop.changed() => { self.check_open()?; return Err(cfms_core::Error::Connection("connection closed".into())); },
+            result = tx.send(Message::Binary(wire_data.into())) => result,
+        };
+        if let Err(e) = send {
             self.closed.store(true, Ordering::SeqCst);
             return Err(cfms_core::Error::Connection(format!("send failed: {e}")));
         }
@@ -305,10 +467,16 @@ impl Connection {
         const PING_INTERVAL: Duration = Duration::from_secs(30);
 
         loop {
+            if closed.load(Ordering::SeqCst) {
+                break;
+            }
             let msg = tokio::time::timeout(PING_INTERVAL, ws_rx.next()).await;
 
             match msg {
                 Ok(Some(Ok(Message::Binary(data)))) => {
+                    if closed.load(Ordering::SeqCst) {
+                        break;
+                    }
                     let (header, payload) = frame::decode(&data)?;
 
                     // If this is a new stream (not yet in the map), it's
@@ -576,9 +744,7 @@ mod tests {
         });
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let tls = rustls::ClientConfig::builder()
-            .with_root_certificates(rustls::RootCertStore::empty())
-            .with_no_client_auth();
+        let tls = crate::tls::TlsConfig::plaintext();
         let connection = super::Connection::connect(&format!("ws://{address}"), tls, None, true)
             .await
             .unwrap();

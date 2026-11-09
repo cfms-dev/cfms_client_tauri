@@ -17,6 +17,8 @@ const transferErrors: Record<string, string> = {
 /** Format a server error for UI display using the active application locale. */
 export function formatUserFacingError(error: unknown): string {
   const message = serverErrorMessage(error);
+  if (message.includes('certificate_revoked')) return get(t)('settings.connection.crlState.revoked');
+  if (message.includes('crl_invalid_hosts')) return get(t)('settings.connection.crlAllowedHostsInvalid');
   const transferKey = transferErrors[message];
   if (transferKey) return get(t)(transferKey);
   const availability = serverAvailability(error);

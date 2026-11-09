@@ -74,6 +74,10 @@ export async function getConnectionSettings(): Promise<ConnectionSettings> {
   return invoke("get_connection_settings");
 }
 
+export function refreshConnectionSecurity(): Promise<void> {
+  return invoke('refresh_connection_security');
+}
+
 /** Save connection settings consumed by backend connections. */
 export async function setConnectionSettings(
   settings: ConnectionSettings,

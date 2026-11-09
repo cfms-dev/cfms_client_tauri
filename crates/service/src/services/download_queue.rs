@@ -1636,6 +1636,7 @@ async fn create_transfer_connection(
         disable_ssl,
         client_cert_path.as_deref(),
         client_key_path.as_deref(),
+        Arc::clone(&state.crl_service),
     )?;
 
     cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await

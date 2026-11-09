@@ -6,6 +6,8 @@ pub struct ConnectionSettingsDto {
     pub force_ipv4: bool,
     pub client_cert_path: String,
     pub client_key_path: String,
+    #[serde(default)]
+    pub crl_allowed_hosts: Vec<String>,
     pub remember_connection_addresses: bool,
     pub recent_connection_addresses: Vec<String>,
 }
@@ -390,6 +392,12 @@ impl ConnectionSettingsDto {
                 .get("client_key_path")
                 .ok()
                 .flatten()
+                .unwrap_or_default(),
+            crl_allowed_hosts: settings
+                .get("crl_allowed_hosts")
+                .ok()
+                .flatten()
+                .and_then(|value| serde_json::from_str(&value).ok())
                 .unwrap_or_default(),
             remember_connection_addresses: settings
                 .get("remember_connection_addresses")

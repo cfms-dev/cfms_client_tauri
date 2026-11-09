@@ -60,6 +60,7 @@ pub struct AppState {
     // --- Connection ---
     /// Multiplexed WSS connection to the CFMS server.
     pub conn: RwLock<Option<cfms_transport::Connection>>,
+    pub crl_service: Arc<cfms_transport::crl::CrlService>,
     /// Server address (e.g. `"cfms.example.com:8443"`).
     pub server_address: RwLock<Option<String>>,
     /// Human-readable server name as reported by `server_info`.
@@ -156,6 +157,7 @@ impl AppState {
             preference_dek_local_only: AtomicBool::new(false),
             avatar_path: RwLock::new(None),
             conn: RwLock::new(None),
+            crl_service: Arc::new(cfms_transport::crl::CrlService::new()),
             server_address: RwLock::new(None),
             server_name: RwLock::new(None),
             server_protocol_version: RwLock::new(None),

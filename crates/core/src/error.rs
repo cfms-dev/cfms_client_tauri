@@ -18,6 +18,10 @@ pub enum Error {
     #[error("connection failed: {0}")]
     Connection(String),
 
+    /// Authenticated revocation evidence; never retry as an ordinary network failure.
+    #[error("certificate_revoked: {0}")]
+    CertificateRevoked(String),
+
     /// The WebSocket upgrade was rejected with an HTTP response.
     #[error("connection rejected ({status}): {message}")]
     ConnectionRejected {

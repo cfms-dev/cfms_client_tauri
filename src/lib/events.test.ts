@@ -5,7 +5,7 @@ import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DownloadTaskDto, ServiceEvent, UploadTaskDto } from './api';
 import { initEventListeners, stopEventListeners } from './events';
-import { downloadStore, eventLog, notificationStore, uploadStore } from './stores.svelte';
+import { downloadStore, eventLog, notificationStore, uploadStore, serverStateStore } from './stores.svelte';
 
 const eventCallbacks = vi.hoisted(() => new Map<string, (payload: { payload: unknown }) => void>());
 
@@ -72,6 +72,38 @@ function uploadTask(id: string, overrides: Partial<UploadTaskDto> = {}): UploadT
 function emitUpload(task: UploadTaskDto, status: UploadTaskDto['status']) {
   eventCallbacks.get('cfms:upload-task')!({ payload: { ...task, status, revision: 2 } });
 }
+
+describe('connection security events', () => {
+  afterEach(() => serverStateStore.clear());
+
+  it('discards old connection updates and deduplicates unchanged warnings', async () => {
+    serverStateStore.connectionId = 20;
+    serverStateStore.connected = true;
+    serverStateStore.remoteAddress = 'wss://example.test';
+    await initEventListeners();
+    const warning = vi.spyOn(notificationStore, 'warning');
+    const status = { state: 'unknown', reasons: ['timeout'], checked_at: 1, valid_until: null } as const;
+    const emit = (id: number, time: number) => eventCallbacks.get('cfms:event')!({ payload: { event: 'ConnectionSecurityChanged', data: { connection_id: id, status: { ...status, checked_at: time } } } });
+    emit(19, 1);
+    expect(serverStateStore.revocation).toBeNull();
+    emit(20, 1); emit(20, 2);
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(serverStateStore.revocation?.checked_at).toBe(2);
+  });
+
+  it('marks the current revoked connection disconnected and ignores a stale restoration', async () => {
+    serverStateStore.connectionId = 20;
+    serverStateStore.connected = true;
+    serverStateStore.remoteAddress = 'wss://example.test';
+    await initEventListeners();
+    const revoked = { state: 'revoked', reasons: ['certificate_revoked'], checked_at: 1, valid_until: null };
+    eventCallbacks.get('cfms:event')!({ payload: { event: 'ConnectionSecurityChanged', data: { connection_id: 20, status: revoked } } });
+    expect(serverStateStore.connected).toBe(false);
+    eventCallbacks.get('cfms:event')!({ payload: { event: 'ConnectionRestored', data: { connection_id: 19, status: revoked } } });
+    expect(serverStateStore.connectionId).toBe(20);
+    expect(serverStateStore.connected).toBe(false);
+  });
+});
 
 describe('upload finish notifications', () => {
   it.each([

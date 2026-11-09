@@ -6,7 +6,9 @@ async fn apply_successful_login_response(
     clear_tasks: bool,
 ) -> Result<(), String> {
     if clear_tasks {
-        state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
+        state
+            .active_uploads
+            .interrupt_all(UploadInterruption::Cancelled);
     }
     let issued = IssuedToken::from_response(data, GENERAL)?;
     let exp = issued.claims.exp.floor() as i64;
@@ -229,9 +231,7 @@ mod password_change_protocol_tests {
             })).unwrap()).into())).await.unwrap();
         });
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let tls = rustls::ClientConfig::builder()
-            .with_root_certificates(rustls::RootCertStore::empty())
-            .with_no_client_auth();
+        let tls = cfms_transport::tls::TlsConfig::plaintext();
         let connection =
             cfms_transport::Connection::connect(&format!("ws://{address}"), tls, None, true)
                 .await
@@ -309,9 +309,7 @@ mod password_change_protocol_tests {
                 }
             });
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        let tls = rustls::ClientConfig::builder()
-            .with_root_certificates(rustls::RootCertStore::empty())
-            .with_no_client_auth();
+        let tls = cfms_transport::tls::TlsConfig::plaintext();
         let connection =
             cfms_transport::Connection::connect(&format!("ws://{address}"), tls, None, true)
                 .await
@@ -459,7 +457,10 @@ pub async fn recover_preference_dek<R: Runtime>(
         *dek = Some(recovered_dek);
     }
     remember_server_preference_dek(&state.inner, Some(encrypted_for_current_password)).await;
-    state.inner.preference_dek_local_only.store(false, std::sync::atomic::Ordering::SeqCst);
+    state
+        .inner
+        .preference_dek_local_only
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     let _ = cache_current_preference_key(&app, &state).await;
 
     Ok(())
@@ -551,6 +552,18 @@ pub async fn connect(
 ) -> Result<serde_json::Value, String> {
     let (attempt_id, mut cancel_rx) = state.connect_attempts.register();
 
+    if let Ok(directory) = app_handle.path().app_cache_dir() {
+        state
+            .inner
+            .crl_service
+            .set_cache_directory(directory.join("crl"))
+            .await;
+    }
+    state
+        .inner
+        .crl_service
+        .set_allowed_hosts(&ConnectionSettingsDto::load(&state.settings).crl_allowed_hosts)?;
+
     clear_auth_state(&state).await;
     close_primary_connection(&state).await;
     clear_connection_state(&state).await;
@@ -570,6 +583,7 @@ pub async fn connect(
             effective_disable_ssl,
             client_cert_path.as_deref(),
             client_key_path.as_deref(),
+            std::sync::Arc::clone(&state.inner.crl_service),
         )
         .map_err(|e| format!("TLS config error: {e}"))?;
 
@@ -632,12 +646,12 @@ pub async fn connect(
     // empty) because we haven't logged in yet — exactly matching the Python
     // reference which passes `username=None, token=None` in `_request()`.
     let server_info_result = tokio::select! {
-        biased;
-        _ = wait_for_connect_cancellation(&mut cancel_rx) => {
-            Err(CONNECT_CANCELLED_ERROR.to_string())
-        }
-        result = request_server_info(&conn) => result,
-   };
+         biased;
+         _ = wait_for_connect_cancellation(&mut cancel_rx) => {
+             Err(CONNECT_CANCELLED_ERROR.to_string())
+         }
+         result = request_server_info(&conn) => result,
+    };
     let server_info: ServerInfo = match server_info_result {
         Ok(server_info) => server_info,
         Err(error) => {
@@ -680,6 +694,7 @@ pub async fn connect(
     }
 
     // --- Store connection state ---
+    cfms_service::services::connection::watch_security(&state.inner, &conn);
     {
         let mut c = state.inner.conn.write().await;
         *c = Some(conn);

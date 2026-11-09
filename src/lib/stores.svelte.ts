@@ -13,6 +13,7 @@ import type {
   AuthStatus,
   ServerState,
   ServerInfo,
+  RevocationStatus,
 } from "./api";
 import { TransferSpeedTracker } from "./transfer-speed";
 
@@ -21,6 +22,8 @@ import { TransferSpeedTracker } from "./transfer-speed";
 // ---------------------------------------------------------------------------
 
 class ServerStateStoreImpl {
+  connectionId = $state<number | null>(null);
+  revocation = $state<RevocationStatus | null>(null);
   remoteAddress = $state<string | null>(null);
   serverName = $state<string | null>(null);
   protocolVersion = $state<number | null>(null);
@@ -40,6 +43,8 @@ class ServerStateStoreImpl {
 
   /** Apply a full ServerState snapshot from the backend. */
   apply(s: ServerState) {
+    this.connectionId = s.connection_id ?? null;
+    this.revocation = s.revocation ?? null;
     this.connected = s.connected;
     this.remoteAddress = s.server_address;
     this.serverName = s.server_name ?? this.serverName;
@@ -61,6 +66,8 @@ class ServerStateStoreImpl {
 
   /** Reset all server state to defaults (on disconnect). */
   clear() {
+    this.connectionId = null;
+    this.revocation = null;
     this.remoteAddress = null;
     this.serverName = null;
     this.protocolVersion = null;

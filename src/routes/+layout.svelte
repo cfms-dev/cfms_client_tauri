@@ -46,7 +46,7 @@
     notificationStore,
   } from "$lib/stores.svelte";
   import { appLockStore } from "$lib/app-lock.svelte";
-  import { clearAuthSession, getLocalDataResetStatus, getServiceStatus, getAuthStatus, getServerState } from "$lib/api";
+  import { clearAuthSession, getLocalDataResetStatus, getServiceStatus, getAuthStatus, getServerState, refreshConnectionSecurity } from "$lib/api";
   import AppLockOverlay from "$lib/components/AppLockOverlay.svelte";
   import LockdownBanner from "$lib/components/LockdownBanner.svelte";
   import DialogHost from "$lib/components/DialogHost.svelte";
@@ -461,6 +461,7 @@
         }
       } else {
         appLockStore.recordActivity();
+        void refreshConnectionSecurity().catch(() => {});
       }
     };
 

@@ -100,6 +100,7 @@ fn format_server_error_parts(
 
 fn format_transport_error(error: &cfms_core::Error) -> String {
     match error {
+        cfms_core::Error::CertificateRevoked(_) => "certificate_revoked".to_string(),
         cfms_core::Error::ConnectionRejected {
             status,
             message,
@@ -109,11 +110,7 @@ fn format_transport_error(error: &cfms_core::Error) -> String {
             if let Some(seconds) = retry_after_seconds {
                 data.insert("retry_after_seconds".into(), (*seconds).into());
             }
-            format_server_error_parts(
-                *status,
-                message,
-                &serde_json::Value::Object(data),
-            )
+            format_server_error_parts(*status, message, &serde_json::Value::Object(data))
         }
         cfms_core::Error::Server {
             code,
@@ -140,17 +137,16 @@ fn format_transport_error(error: &cfms_core::Error) -> String {
             if let Some(retryable) = retryable {
                 data.insert("retryable".into(), (*retryable).into());
             }
-            format_server_error_parts(
-                *code,
-                message,
-                &serde_json::Value::Object(data),
-            )
+            format_server_error_parts(*code, message, &serde_json::Value::Object(data))
         }
         _ => format!("Connection failed: {error}"),
     }
 }
 
 fn is_transient_connection_error(error: &str) -> bool {
+    if error.contains("certificate_revoked") {
+        return false;
+    }
     let lower = error.to_ascii_lowercase();
     lower.contains("connection closed")
         || lower.contains("connection failed")
@@ -267,14 +263,8 @@ async fn install_fresh_preference_dek(
     conn: &cfms_transport::Connection,
 ) -> Result<(), String> {
     let new_dek = dek::generate_dek();
-    let encrypted = rewrap_and_upload_preference_dek(
-        conn,
-        new_dek.clone(),
-        password,
-        username,
-        token,
-    )
-    .await?;
+    let encrypted =
+        rewrap_and_upload_preference_dek(conn, new_dek.clone(), password, username, token).await?;
 
     {
         let mut d = inner.dek.write().await;
