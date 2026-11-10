@@ -12,6 +12,7 @@ pub enum BackdropTheme {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BackdropMode {
+    #[cfg(target_os = "windows")]
     Mica,
     Solid,
 }
@@ -82,6 +83,7 @@ mod tests {
 
     #[test]
     fn ipc_values_and_fallbacks_match_the_frontend_contract() {
+        #[cfg(target_os = "windows")]
         assert_eq!(
             serde_json::to_string(&BackdropMode::Mica).unwrap(),
             "\"mica\""
