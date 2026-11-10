@@ -31,7 +31,9 @@
   .cfms-field {
     --cfms-outline-color: var(--colorNeutralStroke1);
     --cfms-field-padding-block: 0px;
-    --cfms-control-height: calc(var(--cfms-control-height-medium) + 2 * var(--cfms-field-padding-block));
+    /* Give ordinary notched labels room without resizing compact or explicit
+     * large fields. Date/time clearance already reaches this minimum. */
+    --cfms-control-height: max(var(--cfms-field-height-medium), calc(var(--cfms-control-height-medium) + 2 * var(--cfms-field-padding-block)));
     box-sizing: border-box;
     position: relative;
     block-size: fit-content;

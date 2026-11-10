@@ -3,6 +3,7 @@
   --cfms-control-height-small: 24px;
   --cfms-control-height-medium: 32px;
   --cfms-control-height-large: 40px;
+  --cfms-field-height-medium: 40px;
   --cfms-field-label-offset: 8px;
 }
 
@@ -240,6 +241,7 @@
     --cfms-control-height-small: 44px;
     --cfms-control-height-medium: 44px;
     --cfms-control-height-large: 44px;
+    --cfms-field-height-medium: 44px;
   }
   :root .cfms-native-field:not([data-focus-ring="delegated"]) { font-size: 16px; }
   .workspace-page [role="tablist"] > [role="tab"] { min-block-size: 44px; }
