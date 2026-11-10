@@ -326,7 +326,7 @@
                   type="text"
                   autocomplete="off"
                   spellcheck="false"
-                  placeholder="get_document"
+                  placeholder="core.document.get"
                   aria-invalid={actionError ? 'true' : undefined}
                   aria-describedby={actionError ? 'developer-business-error' : undefined}
                   bind:value={action}
