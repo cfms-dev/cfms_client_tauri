@@ -12,6 +12,14 @@ export interface DownloadBatchMetadata {
   batchEstimatedTotal?: number | null;
 }
 
+export interface ResolvedNodeTarget {
+  segments: Array<{ id: string; label: string }>;
+  target: { kind: 'directory'; id: string; label: string } | { kind: 'document'; id: string; label: string; parentId: string | null };
+}
+export function resolveNodeTarget(path: string): Promise<ResolvedNodeTarget> {
+  return invoke('resolve_node_target', { path });
+}
+
 /** List a directory on the CFMS server via the active WSS connection.
  *
  * Pass `folderId = null` to list the root directory.

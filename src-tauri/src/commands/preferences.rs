@@ -27,6 +27,7 @@ use tauri::Runtime;
 pub async fn load_user_preference(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
+    let _auth = state.inner.auth_update.lock().await;
     let username = {
         let u = state.inner.username.read().await;
         u.clone()
@@ -60,57 +61,96 @@ pub async fn load_user_preference(
     pref.transfer = pref.transfer.normalized();
     sync_runtime_preferences(&state, &pref);
 
-    serde_json::to_value(pref).map_err(|e| format!("Serialization error: {e}"))
+    public_preferences(pref)
 }
 
-/// Save the user preference file to disk.
-///
-/// Writes the preference encrypted with the DEK.  Saving without a DEK is an
-/// error because local preference files must never be persisted as plaintext.
-///
-/// Mirrors [`save_user_preference`] in the Python reference.
-#[tauri::command]
-pub async fn save_user_preference(
-    state: tauri::State<'_, AppHandleState>,
-    preferences: serde_json::Value,
-) -> Result<(), String> {
-    let username = {
-        let u = state.inner.username.read().await;
-        u.clone()
+/// Domain updates capture one authenticated scope and publish only after persistence.
+pub(super) async fn update_preferences(
+    state: &AppHandleState,
+    mutate: impl FnOnce(&mut UserPreference) -> Result<(), String> + Send + 'static,
+) -> Result<UserPreference, String> {
+    let generation = state
+        .inner
+        .auth_generation
+        .load(std::sync::atomic::Ordering::SeqCst);
+    let _auth = state.inner.auth_update.lock().await;
+    if generation
+        != state
+            .inner
+            .auth_generation
+            .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        return Err("The active account changed".into());
     }
-    .ok_or_else(|| "Not logged in".to_string())?;
-
-    let server_addr = {
-        let a = state.inner.server_address.read().await;
-        a.clone()
-    }
-    .ok_or_else(|| "No server address".to_string())?;
-
-    let server_hash = cfms_core::get_server_hash(&server_addr);
-    let mut preferences: UserPreference =
-        serde_json::from_value(preferences).map_err(|e| format!("Invalid preference data: {e}"))?;
-    preferences.task_concurrency = preferences.task_concurrency.normalized();
-    preferences.transfer = preferences.transfer.normalized();
-    sync_runtime_preferences(&state, &preferences);
-
-    let dek = {
-        let d = state.inner.dek.read().await;
-        d.clone()
-    };
-
-    let app_data_dir = state.app_data_dir.clone();
-    tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::save(
-            &app_data_dir,
-            &server_hash,
+    let username = state
+        .inner
+        .username
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
+    let server = state
+        .inner
+        .server_address
+        .read()
+        .await
+        .clone()
+        .ok_or("No server address")?;
+    let dek = state
+        .inner
+        .dek
+        .read()
+        .await
+        .clone()
+        .ok_or("Preference DEK is unavailable")?;
+    let app_data = state.app_data_dir.clone();
+    let preferences = tokio::task::spawn_blocking(move || {
+        cfms_service::user_preferences::update(
+            &app_data,
+            &cfms_core::get_server_hash(&server),
             &username,
-            dek.as_deref(),
-            &preferences,
+            &dek,
+            mutate,
         )
-        .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| format!("Preference save task failed: {e}"))?
+    .map_err(|e| e.to_string())??;
+    sync_runtime_preferences(state, &preferences);
+    let _ = state
+        .inner
+        .event_tx
+        .send(cfms_core::ServiceEvent::UserPreferencesChanged);
+    Ok(preferences)
+}
+
+#[tauri::command]
+pub async fn update_user_preferences(
+    state: tauri::State<'_, AppHandleState>,
+    patch: cfms_service::user_preferences::PreferencePatch,
+) -> Result<serde_json::Value, String> {
+    let pref = update_preferences(&state, move |pref| patch.apply(pref)).await?;
+    public_preferences(pref)
+}
+
+#[tauri::command]
+pub async fn mutate_file_preferences(
+    state: tauri::State<'_, AppHandleState>,
+    mutation: cfms_service::user_preferences::FilePreferenceMutation,
+) -> Result<serde_json::Value, String> {
+    let pref = update_preferences(&state, move |pref| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        mutation.apply(pref, now)
+    })
+    .await?;
+    public_preferences(pref)
+}
+
+fn public_preferences(mut pref: UserPreference) -> Result<serde_json::Value, String> {
+    pref.app_lock = serde_json::Value::Null;
+    serde_json::to_value(pref).map_err(|e| e.to_string())
 }
 
 /// Set up preference encryption during the post-login loading flow.
@@ -323,27 +363,13 @@ pub async fn save_appearance_preference(
             .set_appearance(&appearance)
             .map_err(|e| format!("Failed to write global appearance setting: {e}"));
     };
-    let app_data_dir = state.app_data_dir.clone();
-
-    tokio::task::spawn_blocking(move || {
-        let mut preferences = cfms_service::user_preferences::load(
-            &app_data_dir,
-            &server_hash,
-            &username,
-            Some(&*dek),
-        )?;
-        preferences.appearance = appearance;
-        cfms_service::user_preferences::save(
-            &app_data_dir,
-            &server_hash,
-            &username,
-            Some(&*dek),
-            &preferences,
-        )
+    let _ = (server_hash, username, dek);
+    update_preferences(&state, move |pref| {
+        pref.appearance = appearance;
+        Ok(())
     })
-    .await
-    .map_err(|e| format!("Appearance preference save task failed: {e}"))?
-    .map_err(|e| e.to_string())
+    .await?;
+    Ok(())
 }
 
 async fn appearance_user_scope(

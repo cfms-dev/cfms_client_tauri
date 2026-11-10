@@ -14,7 +14,7 @@
   import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-  import { downloadBatchSnapshots, pauseActiveDownloadBatches, resumeActiveDownloadBatches, stopDownloadBatchAndWait } from '$lib/features/transfers/download-batch-control';
+  import { downloadBatchSnapshots, refreshDownloadBatches } from '$lib/features/transfers/download-batch-control';
   import {
     buildDownloadTaskRows,
     type DownloadTaskRow,
@@ -205,22 +205,10 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
         message: $t('tasks.stopAndClearConfirm', { values: { count: targets.length } }),
         confirmLabel: $t('tasks.cleanup.active'), cancelLabel: $t('common.cancel'), danger: true,
       })) return;
-      for (const id of batches) {
-        if (action === 'pause') pauseActiveDownloadBatches(id);
-        if (action === 'resume') resumeActiveDownloadBatches(id);
-      }
-      const cancelling = action === 'cancel' || action === 'cancel_and_remove';
-      const stopping = cancelling ? batches.map(id => stopDownloadBatchAndWait(id)) : [];
-      const request = batches.length && cancelling
-        ? controlTransferTasks(direction, targets.map(transferId), action, batches)
-        : controlTransferTasks(direction, targets.map(transferId), action);
-      const [operation, ...producers] = await Promise.allSettled([request, ...stopping]);
-      if (operation.status === 'rejected') throw operation.reason;
-      const result = operation.value as BatchActionResult;
+      const result = await controlTransferTasks(direction, targets.map(transferId), action, batches);
+      await refreshDownloadBatches();
       if (action === 'cancel_and_remove') removeSucceeded(result);
-      const producerErrors = producers.flatMap((producer, i) => producer.status === 'rejected'
-        ? [{ name: $downloadBatchSnapshots.find(b => b.batchId === batches[i])?.batchName ?? batches[i], error: formatUserFacingError(producer.reason) }] : []);
-      reportBulkResult(result, tasks, producerErrors);
+      reportBulkResult(result, tasks, []);
       await (direction === 'upload' ? refreshUploads() : refreshDownloads());
     } catch (error) { errorMessage = formatUserFacingError(error); }
     finally { bulkBusy = false; }

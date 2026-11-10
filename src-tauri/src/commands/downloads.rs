@@ -12,9 +12,19 @@ use cfms_service::transfers::download_queue;
 /// Add a download task to the persistent queue.
 #[tauri::command]
 pub async fn add_download(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
-    task: DownloadTaskDto,
+    mut task: DownloadTaskDto,
 ) -> Result<(), String> {
+    let identity = cfms_service::rpc::SessionIdentity::capture(&state.inner).await?;
+    let path = cfms_service::files::download_paths::prepare_named_file(
+        &super::transfer_helpers::download_root(&app)?,
+        &task.filename,
+    )?;
+    task.filename = path.file_name().unwrap().to_string_lossy().into_owned();
+    task.file_path = path.to_string_lossy().into_owned();
+    let guard = state.inner.auth_update.lock().await;
+    identity.ensure_current_locked(&state.inner, &guard).await?;
     state
         .tasks
         .insert(&task)

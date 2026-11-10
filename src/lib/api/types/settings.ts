@@ -16,7 +16,8 @@ export interface UserPreference {
   record_recent_visits: boolean;
   use_external_storage: boolean;
   external_storage_path: string;
-  app_lock?: unknown;
+  /** App-lock verifier material is never exposed through general preferences. */
+  app_lock?: null;
   root_back_button_behavior?: "background" | "exit" | null;
   privacy?: PrivacyPreference;
   task_concurrency: TaskConcurrencyPreference;

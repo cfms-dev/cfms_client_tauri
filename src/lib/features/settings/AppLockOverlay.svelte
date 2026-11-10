@@ -17,15 +17,12 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   let busy = $state(false);
   let status = $state<string | null>(null);
   let verificationMethod = $state<'biometric' | 'platform' | null>(null);
-  let failedAttempts = $state(0);
-  let lockoutUntil = $state(0);
+  const failedAttempts = $derived(appLockStore.failedAttempts);
+  const lockoutUntil = $derived(appLockStore.lockoutUntil);
   let now = $state(Date.now());
   let shake = $state(false);
   let countdownTimer: number | null = null;
 
-  const maxAttempts = 5;
-  const temporaryLockoutAttempts = 3;
-  const lockoutMs = 30_000;
   const lockedOutMs = $derived(Math.max(0, lockoutUntil - now));
   const canUsePin = $derived(appLockStore.hasPin && lockedOutMs <= 0 && !busy);
   const canUseBiometric = $derived(
@@ -68,8 +65,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     busy = false;
     verificationMethod = null;
     status = null;
-    failedAttempts = 0;
-    lockoutUntil = 0;
     shake = false;
   }
 
@@ -98,7 +93,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     busy = true;
     try {
       if (await appLockStore.verifyPin(pin)) {
-        appLockStore.unlock();
         resetEntry();
         return;
       }
@@ -125,7 +119,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
         cancelTitle: $t('common.cancel'),
         fallbackTitle: $t('appLock.unlock.biometricFallback'),
       })) {
-        appLockStore.unlock();
         resetEntry();
         return;
       }
@@ -150,7 +143,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     status = $t('appLock.unlock.platformPrompt');
     try {
       if (await appLockStore.verifyPlatformCredential()) {
-        appLockStore.unlock();
         resetEntry();
         return;
       }
@@ -169,24 +161,14 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   }
 
   async function handleFailedAttempt() {
-    failedAttempts += 1;
     pin = '';
     triggerShake();
-
-    if (failedAttempts >= maxAttempts) {
-      await forceDisconnect();
+    if (appLockStore.disconnectRequired) {
+      notificationStore.error($t('appLock.unlock.disconnected'), 7000);
+      await goto('/connect', { replaceState: true });
       return;
     }
-
-    if (failedAttempts >= temporaryLockoutAttempts) {
-      lockoutUntil = Date.now() + lockoutMs;
-    }
     status = $t('appLock.unlock.invalidVerification');
-  }
-
-  async function forceDisconnect() {
-    status = $t('appLock.unlock.tooManyAttempts');
-    await logoutAndDisconnect($t('appLock.unlock.disconnected'), 'error');
   }
 
   async function logoutAndDisconnect(
@@ -212,7 +194,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
     authStore.clear();
     serverStateStore.clear();
-    appLockStore.unlock();
+    appLockStore.resetForSignedOut();
 
     if (errorMessage) {
       notificationStore.error(errorMessage);

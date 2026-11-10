@@ -3,7 +3,7 @@
   import { _ as t } from 'svelte-i18n';
   import {
     loadUserPreference,
-    saveUserPreference,
+    updateUserPreferences,
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
@@ -57,13 +57,7 @@
     externalStoragePath = nextExternalStoragePath;
     error = null;
     void autoSave.run(async () => {
-      const next: UserPreference = {
-        ...(preferences as UserPreference),
-        use_external_storage: nextUseExternalStorage,
-        external_storage_path: nextExternalStoragePath.trim(),
-      };
-      await saveUserPreference(next);
-      preferences = next;
+      preferences = await updateUserPreferences({ use_external_storage: nextUseExternalStorage, external_storage_path: nextExternalStoragePath.trim() });
     });
   }
 

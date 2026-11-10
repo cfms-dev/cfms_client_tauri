@@ -1,6 +1,6 @@
 import {
   loadUserPreference,
-  saveUserPreference,
+  mutateFilePreferences,
   type Favourites,
   type ServerDirectoryEntry,
   type ServerDocumentEntry,
@@ -72,11 +72,7 @@ export async function loadRecentVisits(scope: FilePreferenceScope): Promise<Rece
   if (records.length === 0) {
     const migrated = getLegacyRecentVisits(scope);
     if (migrated.length > 0) {
-      records = migrated;
-      await saveUserPreference({
-        ...preferences,
-        recent_visits: records,
-      });
+      records = (await mutateFilePreferences({ operation: 'import_visits', records: migrated })).recent_visits;
       clearLegacyRecentVisits(scope);
     }
   }
@@ -89,60 +85,23 @@ export async function rememberVisit(
 ): Promise<RecentFileRecord[]> {
   assertFilePreferenceScope(scope);
 
-  const preferences = await loadUserPreference();
-  if (!shouldRecordRecentVisits(preferences)) {
-    clearLegacyRecentVisits(scope);
-    return [];
-  }
-
-  const existing = recentRecordsFromPreference(preferences);
-  const next: RecentFileRecord = {
-    ...record,
-    parentId: normalizeDirectoryId(record.parentId),
-    visitedAt: Date.now(),
-  };
-  const records = [
-    next,
-    ...existing.filter((item) => item.type !== record.type || item.id !== record.id),
-  ].slice(0, MAX_RECENT_VISITS);
-
-  await saveUserPreference({
-    ...preferences,
-    recent_visits: records,
-  });
+  const preferences = await mutateFilePreferences({ operation: 'visit', record });
   clearLegacyRecentVisits(scope);
-  return records;
+  return preferences.recent_visits;
 }
 
-export async function removeRecentVisit(
-  scope: FilePreferenceScope,
-  record: FileRecord,
-): Promise<RecentFileRecord[]> {
+export async function removeRecentVisit(scope: FilePreferenceScope, record: FileRecord): Promise<RecentFileRecord[]> {
   assertFilePreferenceScope(scope);
-
-  const preferences = await loadUserPreference();
-  const records = recentRecordsFromPreference(preferences).filter(
-    (item) => item.type !== record.type || item.id !== record.id,
-  );
-
-  await saveUserPreference({
-    ...preferences,
-    recent_visits: records,
-  });
+  const preferences = await mutateFilePreferences({ operation: 'remove_visit', record });
   clearLegacyRecentVisits(scope);
-  return records;
+  return preferences.recent_visits;
 }
 
 export async function clearRecentVisits(scope: FilePreferenceScope): Promise<RecentFileRecord[]> {
   assertFilePreferenceScope(scope);
-
-  const preferences = await loadUserPreference();
-  await saveUserPreference({
-    ...preferences,
-    recent_visits: [],
-  });
+  const preferences = await mutateFilePreferences({ operation: 'clear_visits' });
   clearLegacyRecentVisits(scope);
-  return [];
+  return preferences.recent_visits;
 }
 
 function getLegacyRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] {
@@ -210,44 +169,14 @@ export async function setFavoriteRecord(
   favorite: boolean,
 ): Promise<UserPreference> {
   assertFilePreferenceScope(scope);
-  const preferences = await loadUserPreference();
-  const favourites = normalizeFavourites(preferences.favourites);
-  const target = record.type === 'directory' ? favourites.directories : favourites.files;
-
-  if (favorite) {
-    target[record.id] = record.name;
-  } else {
-    delete target[record.id];
-  }
-
-  const next: UserPreference = {
-    ...preferences,
-    favourites,
-  };
-  await saveUserPreference(next);
-  notifyFavoritesChanged();
+  const next = await mutateFilePreferences({ operation: 'favorite', record, favorite });
   return next;
 }
 
 export async function clearFavoriteRecords(scope: FilePreferenceScope): Promise<UserPreference> {
   assertFilePreferenceScope(scope);
-  const preferences = await loadUserPreference();
-  const next: UserPreference = {
-    ...preferences,
-    favourites: {
-      files: {},
-      directories: {},
-    },
-  };
-  await saveUserPreference(next);
-  notifyFavoritesChanged();
+  const next = await mutateFilePreferences({ operation: 'clear_favorites' });
   return next;
-}
-
-function notifyFavoritesChanged() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('cfms:favorites-changed'));
-  }
 }
 
 export function isFavoriteRecord(preferences: UserPreference | null, record: FileRecord): boolean {

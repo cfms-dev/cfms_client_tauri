@@ -3,7 +3,9 @@
 //! Commands declare their dependencies explicitly. Business rules that do not
 //! need Tauri live in `cfms-service`; platform effects stay in this crate.
 
+pub(crate) mod access_batches;
 pub(crate) mod admin;
+pub(crate) mod app_lock;
 pub(crate) mod auth_connection;
 pub(crate) mod authentication;
 pub(crate) mod avatars;

@@ -2,6 +2,17 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { BatchActionResult, DownloadTaskDto, DownloadTaskStatus, TransferControlAction, TransferDirection } from './types/transfers';
 
+export interface DownloadSelection { id: string; name: string; kind: 'directory' | 'document' }
+export interface DownloadBatchSnapshot {
+  batchId: string; batchName: string; batchRootId: string | null; batchCreatedAt: number;
+  phase: 'collecting' | 'queueing'; paused: boolean; discovered: number; queued: number; failed: number;
+  rateLimited: number; rateLimitWaiting: boolean; finished?: boolean; error?: string | null;
+}
+export function startDownloadBatch(selection: DownloadSelection[], name: string, rootId: string | null): Promise<DownloadBatchSnapshot> {
+  return invoke('start_download_batch', { selection, name, rootId });
+}
+export function getDownloadBatches(): Promise<DownloadBatchSnapshot[]> { return invoke('get_download_batches'); }
+
 /** Add a download task to the queue. */
 export async function addDownload(task: DownloadTaskDto): Promise<void> {
   return invoke("add_download", { task });

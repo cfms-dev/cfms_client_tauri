@@ -33,7 +33,7 @@ Each domain exposes a public entrypoint via its root export (`index.ts` or root 
 
 * **Composite Views:** Cross-domain screens reside in `src/lib/app/<domain>` to coordinate multiple underlying features.
 * **Workflow Co-location:** Major pages (such as Files, Login, and Administration) co-locate `.svelte` view templates with adjacent `.svelte.ts` instance-level reactive workflows. Workflows expose state through explicit accessors; UI bindings target the workflow instance directly to prevent reactivity loss caused by premature destructuring.
-* **Independent Business Rules:** Headless rules—including directory discovery, rate limiting, retry policies, and download queuing—remain encapsulated in `features/transfers` independent of UI lifecycle.
+* **Native Business Workflows:** Rust services own directory-download discovery/admission, batch access-rule execution, preference mutations, PIN verification and lock policy, and node-target resolution. Frontend feature controllers submit intentions, mirror native snapshots, and present editing, confirmation, and failure-decision UI. They do not run transfer producers or replay mutations.
 * **State Ownership:** State modules are strictly segregated by owner (`authentication`, `connection`, `upload`, `download`, and `shortcuts`). UI notifications and viewport metrics reside in `shared`. Clearing account state resets user-scoped transfer views to preserve session boundary semantics. A single monolithic global store is strictly prohibited.
 * **Native Event Subscriptions:** `app/events.ts` orchestrates the registration, failure cleanup, and teardown of native event listeners. Individual domain `events.ts` modules interpret payloads and mutate their respective state. Shared UI components requiring navigation must rely on context or callbacks rather than importing concrete routing instances.
 * **IPC Invocations:** `api.ts` and `api/types.ts` serve as entrypoints, with implementations organized by domain. Concrete invoke calls reside under `api/`, while platform-specific operations (file pickers, window controls, process handling, biometrics) are abstracted behind `shared/platform/native-*`.
@@ -76,7 +76,11 @@ Dependencies flow downward strictly along the graph hierarchy:
 * `runtime` oversees background task lifecycles and structured cancellation tokens.
 * `rpc` manages transport encryption, frame streaming, and generic response decoding.
 * `session` returns sanitized session snapshots, explicitly excluding raw tokens, passphrases, or master secrets.
-* Enforces domain logic independent of GUI runtimes: pagination mapping, upload path validation, and retry policies.
+* Enforces domain logic independent of GUI runtimes: pagination mapping, upload/download path validation, retry policies, and node-target resolution.
+* Directory-download producers and access-rule batches are process-local and bound to server, account, and authentication generation. Downloads continue across page navigation; closing an access-rule dialog stops future requests and lets the in-flight result settle. Existing admitted transfer records retain their encrypted persistence.
+* Batch mutation RPCs send once. A response lost after sending is `unconfirmed`, requiring explicit resubmission; only explicit transient rejection responses use bounded backoff. Batch summaries use the existing service-event bridge; access-rule item changes are queried in pages of at most 128 rows by revision.
+* Preference mutations serialize each encrypted file's read/modify/write transaction and atomically replace it. Public IPC snapshots exclude PIN verifier material. Runtime settings and change events publish only after a successful save.
+* The app lock remains a convenience screen lock: Rust owns PIN validation, attempt limits, cooldown and idle deadlines; platform prompts remain platform adapters. It does not gate sensitive IPC or change background-transfer authorization.
 
 
 * **Error Handling:**

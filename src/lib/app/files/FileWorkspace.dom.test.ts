@@ -39,6 +39,7 @@ vi.mock('$lib/api', async (original) => ({
   ...await original<typeof import('$lib/api')>(),
   listDirectoryPage: mocks.listDirectoryPage, listDirectory: mocks.listDirectory,
   loadUserPreference: async () => ({}), classifyUploadPath: mocks.classifyUploadPath,
+  mutateFilePreferences: async () => ({ recent_visits: [] }),
   inspectUploadDirectoryConflicts: mocks.inspectUploadDirectoryConflicts,
 }));
 

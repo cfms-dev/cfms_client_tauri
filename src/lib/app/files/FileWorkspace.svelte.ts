@@ -27,7 +27,7 @@ import {
   moveDocument,
   renameDirectory,
   renameDocument,
-  resolveNodePath,
+  resolveNodeTarget,
   revokeAccess,
   setAccessRules,
   setCurrentRevision,
@@ -51,15 +51,7 @@ import {
 import type { ServerDirectoryEntry, ServerDocumentEntry, ServerObjectType } from '$lib/api';
 import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarget } from '$lib/features/access/batch-access-rules';
 import { accessRulesTemplateKey } from '$lib/features/access/access-rules-edit';
-import {
-  beginDownloadBatch,
-  finishDownloadBatch,
-  addDiscoveredDownloadBatchItems,
-  isDownloadBatchStop,
-  markDownloadBatchFailed,
-  setDownloadBatchPhase,
-  waitForDownloadBatchResume,
-} from '$lib/features/transfers/download-batch-control';
+
 import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '$lib/features/files/FileTable.svelte';
 import type { AccessGrantFormValue } from '$lib/features/access/access-grants';
 import type { AccessRulesRecord } from '$lib/features/access/access-rules';
@@ -116,7 +108,7 @@ import {
   type UploadConflictDecision,
 } from '$lib/features/files/upload-conflicts';
 import { shortIdentifier } from '$lib/shared/format/identifiers';
-import { classifyNodePathTerminal, decodeResolvedNodePath, knownAbsoluteNodePath, type ResolvedNodePathSegment } from '$lib/features/files/node-path';
+import { knownAbsoluteNodePath, type ResolvedNodePathSegment } from '$lib/features/files/node-path';
 import type { IconName } from '$lib/shared/ui/icons';
 import type { CommandAction, FileDetailModel } from '$lib/features/files/explorer-types';
 import {
@@ -132,7 +124,7 @@ import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
 import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { createDirectoryDownloadController, type DownloadQueueItem } from '$lib/features/transfers/directory-download-controller';
+import { startDirectoryDownload } from '$lib/features/transfers/directory-download-controller';
 import { fromStore } from 'svelte/store';
 
 export type SearchResultRow =
@@ -203,8 +195,7 @@ export function createFileWorkspace() {
 
   let status = $state<string | null>(null);
 
-  const { queueDocumentDownload, collectDirectoryDownloadItems, queueCollectedDownloads, createDownloadBatchMetadata } =
-    createDirectoryDownloadController((value) => { status = value; });
+
 
   let searchQuery = $state('');
 
@@ -1100,9 +1091,9 @@ export function createFileWorkspace() {
     addressLookupBusy = true;
     addressLookupError = null;
     try {
-      const response = await resolveNodePath(path);
+      const response = await resolveNodeTarget(path);
       if (runId !== addressLookupRunId) return;
-      const resolvedSegments = decodeResolvedNodePath(path, response.node_ids);
+      const resolvedSegments = response.segments;
 
       if (resolvedSegments.length === 0) {
         const ok = await navigateDirectory({ folderId: null, navigationRootId: null, navigationRootLabel: null, navHistory: [] });
@@ -1118,14 +1109,8 @@ export function createFileWorkspace() {
       }
 
       const terminal = resolvedSegments[resolvedSegments.length - 1];
-      const expectedParentId = normalizeDirectoryId(response.node_ids.at(-2) ?? null);
-      const target = await classifyNodePathTerminal({
-        terminal,
-        expectedParentId,
-        getDirectoryInfo,
-        getDocumentInfo,
-        errorStatus: serverErrorStatus,
-      });
+      const target = response.target;
+      const expectedParentId = target.kind === 'document' ? target.parentId : null;
       if (runId !== addressLookupRunId) return;
 
       if (target.kind === 'directory') {
@@ -2611,97 +2596,23 @@ export function createFileWorkspace() {
     if (totalSelected === 0 || batchBusy) return;
     batchBusy = true;
     error = null;
-
-    const selectedDocuments = documents.filter((doc) => selectedDocumentIds.has(doc.id));
-    const selectedFolders = folders.filter((folder) => selectedFolderIds.has(folder.id));
-    const batch = createDownloadBatchMetadata(
-      selectedFolders.length === 1 && selectedDocuments.length === 0
-        ? selectedFolders[0].name
-        : selectedItemsLabel,
-      currentFolderId,
-    );
-    const controller = beginDownloadBatch(batch);
-    let queued = 0;
-    let failed = 0;
-    let rateLimited = 0;
-
     try {
-      const items: DownloadQueueItem[] = selectedDocuments.map((document) => ({
-        document,
-        pathParts: [],
-      }));
-      addDiscoveredDownloadBatchItems(batch.batchId, items.length);
-
-      for (const folder of selectedFolders) {
-        await waitForDownloadBatchResume(controller.signal);
-        try {
-          const result = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal, batch.batchId);
-          items.push(...result.items);
-          failed += result.failed;
-          rateLimited += result.rateLimited;
-        } catch (e) {
-          if (isDownloadBatchStop(e)) throw e;
-          failed += 1;
-          if (serverAvailability(e)?.kind === 'rate_limited') rateLimited += 1;
-          markDownloadBatchFailed(batch.batchId, e);
-        }
-      }
-
-      setDownloadBatchPhase(batch.batchId, 'queueing');
-      const result = await queueCollectedDownloads(items, controller.signal, batch);
-      queued += result.queued;
-      failed += result.failed;
-      rateLimited += result.rateLimited;
-
-      if (queued > 0) {
-        status = translator.current('files.batchDownloadQueued', { values: { count: queued } });
-      }
-      if (failed > 0) {
-        error = batchDownloadFailureText(failed, rateLimited);
-      }
-      if (queued > 0 && failed === 0) clearSelection();
-    } catch (e) {
-      if (isDownloadBatchStop(e)) {
-        status = translator.current('files.batchDownloadStopped');
-      } else {
-        error = formatError(e);
-      }
-    } finally {
-      finishDownloadBatch(controller);
-      batchBusy = false;
-    }
+      await startDirectoryDownload([
+        ...documents.filter(doc => selectedDocumentIds.has(doc.id)).map(doc => ({ id: doc.id, name: doc.title, kind: 'document' as const })),
+        ...folders.filter(folder => selectedFolderIds.has(folder.id)).map(folder => ({ id: folder.id, name: folder.name, kind: 'directory' as const })),
+      ], selectedItemsLabel, currentFolderId);
+      clearSelection();
+    } catch (e) { error = formatError(e); }
+    finally { batchBusy = false; }
   }
 
   async function handleDownloadFolder(folder: ServerDirectoryEntry) {
     if (batchBusy) return;
     batchBusy = true;
     error = null;
-    const batch = createDownloadBatchMetadata(folder.name, folder.id);
-    const controller = beginDownloadBatch(batch);
-
-    try {
-      const collected = await collectDirectoryDownloadItems(folder, [folder.name], controller.signal, batch.batchId);
-      setDownloadBatchPhase(batch.batchId, 'queueing');
-      const queuedResult = await queueCollectedDownloads(collected.items, controller.signal, batch);
-      const queued = queuedResult.queued;
-      const failed = collected.failed + queuedResult.failed;
-      const rateLimited = collected.rateLimited + queuedResult.rateLimited;
-      if (queued > 0) {
-        status = translator.current('files.batchDownloadQueued', { values: { count: queued } });
-      }
-      if (failed > 0) {
-        error = batchDownloadFailureText(failed, rateLimited);
-      }
-    } catch (e) {
-      if (isDownloadBatchStop(e)) {
-        status = translator.current('files.batchDownloadStopped');
-      } else {
-        error = formatError(e);
-      }
-    } finally {
-      finishDownloadBatch(controller);
-      batchBusy = false;
-    }
+    try { await startDirectoryDownload([{ id: folder.id, name: folder.name, kind: 'directory' }], folder.name || translator.current('tasks.folderBatch'), folder.id); }
+    catch (e) { error = formatError(e); }
+    finally { batchBusy = false; }
   }
 
   async function handleDeleteRevision(revision: RevisionEntry) {
@@ -2723,16 +2634,6 @@ export function createFileWorkspace() {
       await refreshDirectory(refreshTarget);
       status = translator.current('files.deleteRevisionSuccess');
     });
-  }
-
-  function batchDownloadFailureText(failed: number, rateLimited: number) {
-    if (rateLimited <= 0) {
-      return translator.current('files.batchDownloadPartialFailed', { values: { count: failed } });
-    }
-    const other = Math.max(0, failed - rateLimited);
-    return other > 0
-      ? translator.current('files.batchDownloadRateLimitedMixed', { values: { rateLimited, other } })
-      : translator.current('files.batchDownloadRateLimited', { values: { count: rateLimited } });
   }
 
   function handleMoveSelected() {

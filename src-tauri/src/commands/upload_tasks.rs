@@ -265,8 +265,43 @@ pub async fn control_transfer_tasks<R: Runtime>(
         TransferControlAction::Cancel | TransferControlAction::CancelAndRemove
     );
     let mut ids: std::collections::HashSet<_> = ids.into_iter().collect();
+    let batch_ids = batch_ids.unwrap_or_default();
+    if matches!(direction, TransferDirection::Download) {
+        let action_name = match action {
+            TransferControlAction::Pause => "pause",
+            TransferControlAction::Resume => "resume",
+            TransferControlAction::Cancel => "cancel",
+            TransferControlAction::CancelAndRemove => "cancel_and_remove",
+            TransferControlAction::Retry => "retry",
+        };
+        state
+            .inner
+            .download_batches
+            .control(&batch_ids, action_name);
+        ids.extend(
+            state
+                .tasks
+                .list(None)
+                .into_iter()
+                .filter(|task| {
+                    task.batch_id
+                        .as_ref()
+                        .is_some_and(|id| batch_ids.contains(id))
+                })
+                .map(|task| task.task_id),
+        );
+        let _ = state
+            .inner
+            .event_tx
+            .send(cfms_core::ServiceEvent::DownloadBatchesChanged);
+    }
     if cancelling && matches!(direction, TransferDirection::Download) {
-        ids.extend(state.tasks.stop_batches(&batch_ids.unwrap_or_default()));
+        ids.extend(state.tasks.stop_batches(&batch_ids));
+        state
+            .inner
+            .download_batches
+            .wait_stopped(&batch_ids)
+            .await?;
     }
     let ids: Vec<_> = ids.into_iter().collect();
     let frozen = if cancelling {

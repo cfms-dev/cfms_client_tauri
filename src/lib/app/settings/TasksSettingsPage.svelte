@@ -3,7 +3,7 @@
   import { _ as t } from 'svelte-i18n';
   import {
     loadUserPreference,
-    saveUserPreference,
+    updateUserPreferences,
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
@@ -69,8 +69,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
     maxDownloadChunkSize = normalizeDownloadChunkSize(nextMaxDownloadChunkSize);
     error = null;
     void autoSave.run(async () => {
-      const next: UserPreference = {
-        ...(preferences as UserPreference),
+      const patch = {
         task_concurrency: {
           max_downloads: normalizeConcurrency(nextMaxDownloads),
           max_uploads: normalizeConcurrency(nextMaxUploads),
@@ -79,9 +78,8 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
           max_download_chunk_size: normalizeDownloadChunkSize(nextMaxDownloadChunkSize),
         },
       };
-      await saveUserPreference(next);
-      preferences = next;
-      uploadStore.configureConcurrency(next.task_concurrency.max_uploads);
+      preferences = await updateUserPreferences(patch);
+      uploadStore.configureConcurrency(preferences.task_concurrency.max_uploads);
     });
   }
 

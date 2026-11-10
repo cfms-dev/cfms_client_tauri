@@ -1,12 +1,8 @@
 use super::server_actions::server_action_json;
-use super::shared_helpers::format_server_error_parts;
 use super::transfer_helpers::download_root;
 use super::transfer_helpers::non_empty_optional;
-use super::transfer_helpers::unix_now;
 use crate::AppHandleState;
 use cfms_core::CursorPage;
-use cfms_core::DownloadTaskDto;
-use cfms_core::DownloadTaskStatus;
 use cfms_core::FileEntry;
 use cfms_core::ListDirectoryResponse;
 use cfms_core::NodeLookupResponse;
@@ -17,8 +13,32 @@ use cfms_service::files::parse_listing_page_dto;
 use cfms_service::files::supports_node_lookup;
 use cfms_service::files::validate_node_lookup_response;
 use cfms_service::files::{ListingCursorPage, SERVER_CURSOR_PAGE_SIZE, merge_listing_response};
-use cfms_service::transfers::download_queue;
-use tauri::Manager;
+
+#[tauri::command]
+pub async fn start_download_batch(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppHandleState>,
+    selection: Vec<cfms_service::transfers::download_batches::DownloadSelection>,
+    name: String,
+    root_id: Option<String>,
+) -> Result<cfms_service::transfers::download_batches::DownloadBatchSnapshot, String> {
+    cfms_service::transfers::download_batches::DownloadBatchRegistry::start(
+        state.inner.clone(),
+        state.tasks.clone(),
+        download_root(&app)?,
+        selection,
+        name,
+        root_id,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_download_batches(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<Vec<cfms_service::transfers::download_batches::DownloadBatchSnapshot>, String> {
+    Ok(state.inner.download_batches.snapshots(&state.inner).await)
+}
 
 // File scanning
 // ---------------------------------------------------------------------------
@@ -86,6 +106,14 @@ pub async fn list_directory_page(
 /// Resolve one absolute, human-readable path through the optional
 /// `node_lookup` server extension.
 #[tauri::command]
+pub async fn resolve_node_target(
+    state: tauri::State<'_, AppHandleState>,
+    path: String,
+) -> Result<cfms_service::files::node_path::ResolvedNodeTarget, String> {
+    cfms_service::files::node_path::resolve(&state.inner, &path).await
+}
+
+#[tauri::command]
 pub async fn resolve_node_path(
     state: tauri::State<'_, AppHandleState>,
     path: String,
@@ -127,61 +155,33 @@ pub async fn get_document(
     batch_created_at: Option<i64>,
     batch_estimated_total: Option<u32>,
 ) -> Result<serde_json::Value, String> {
-    let server_task = download_queue::request_server_download_task(&state.inner, &document_id)
-        .await
-        .map_err(format_download_task_request_error)?;
-    let task_id = server_task.task_id;
-    let supports_resume = server_task.supports_resume;
-
-    // Build a local download path.  Use the Tauri download directory when
-    // available; otherwise fall back to the app data directory.
-    let download_root = app_handle
-        .path()
-        .resolve("downloads", tauri::path::BaseDirectory::Download)
-        .unwrap_or_else(|_| {
-            app_handle
-                .path()
-                .resolve("downloads", tauri::path::BaseDirectory::AppData)
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        });
-
-    // Ensure the download directory exists.
-    let _ = std::fs::create_dir_all(&download_root);
-
-    let file_path = download_root.join(&filename);
-    let display_filename = download_display_filename(&filename);
-    let now = unix_now();
-
-    let task = DownloadTaskDto {
-        task_id: task_id.clone(),
-        file_id: document_id.clone(),
-        filename: display_filename.clone(),
-        file_path: file_path.to_string_lossy().into_owned(),
-        status: DownloadTaskStatus::Pending,
-        progress: 0.0,
-        current_bytes: 0,
-        total_bytes: 0,
-        message: None,
-        error: None,
-        failure_kind: None,
-        created_at: now,
-        started_at: None,
-        completed_at: None,
-        priority: 0,
-        retry_count: 0,
-        max_retries: 3,
-        scheduled_time: None,
-        stage: 0,
-        bandwidth_limit: None,
-        pause_position: None,
-        supports_resume,
-        server_task_recreate_count: 0,
-        batch_id: non_empty_optional(batch_id),
-        batch_name: non_empty_optional(batch_name),
-        batch_root_id: non_empty_optional(batch_root_id),
-        batch_created_at,
-        batch_estimated_total,
-    };
+    let file_path = cfms_service::files::download_paths::prepare_named_file(
+        &download_root(&app_handle)?,
+        &filename,
+    )?;
+    let identity = cfms_service::rpc::SessionIdentity::capture(&state.inner).await?;
+    let raw = cfms_service::rpc::action_once(
+        &state.inner,
+        &identity,
+        "core.document.get",
+        serde_json::json!({"document_id": document_id}),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut task = cfms_service::transfers::download_task::from_response(
+        &raw,
+        document_id.clone(),
+        file_path,
+    )?;
+    task.batch_id = non_empty_optional(batch_id);
+    task.batch_name = non_empty_optional(batch_name);
+    task.batch_root_id = non_empty_optional(batch_root_id);
+    task.batch_created_at = batch_created_at;
+    task.batch_estimated_total = batch_estimated_total;
+    let task_id = task.task_id.clone();
+    let display_filename = task.filename.clone();
+    let guard = state.inner.auth_update.lock().await;
+    identity.ensure_current_locked(&state.inner, &guard).await?;
 
     // Persist the download task so the download queue service picks it up.
     state
@@ -204,47 +204,6 @@ pub async fn get_document(
     }))
 }
 
-fn download_display_filename(path_or_name: &str) -> String {
-    path_or_name
-        .split(['/', '\\'])
-        .rfind(|part| !part.is_empty())
-        .unwrap_or(path_or_name)
-        .to_string()
-}
-
-fn format_download_task_request_error(error: cfms_core::Error) -> String {
-    match error {
-        cfms_core::Error::Server {
-            code,
-            message,
-            scope,
-            limit,
-            retry_after_seconds,
-            task_status,
-            retryable,
-        } => {
-            let mut data = serde_json::Map::new();
-            if let Some(scope) = scope {
-                data.insert("scope".into(), scope.into());
-            }
-            if let Some(limit) = limit {
-                data.insert("limit".into(), limit.into());
-            }
-            if let Some(seconds) = retry_after_seconds {
-                data.insert("retry_after_seconds".into(), seconds.into());
-            }
-            if let Some(task_status) = task_status {
-                data.insert("task_status".into(), task_status.into());
-            }
-            if let Some(retryable) = retryable {
-                data.insert("retryable".into(), retryable.into());
-            }
-            format_server_error_parts(code, &message, &serde_json::Value::Object(data))
-        }
-        error => error.to_string(),
-    }
-}
-
 /// Create a subdirectory under the local download root.
 #[tauri::command]
 pub async fn ensure_download_subdirectory(
@@ -252,31 +211,10 @@ pub async fn ensure_download_subdirectory(
     relative_path: String,
 ) -> Result<String, String> {
     let download_root = download_root(&app_handle)?;
-    let directory_path = resolve_download_subdirectory(download_root, &relative_path)?;
-    std::fs::create_dir_all(&directory_path)
-        .map_err(|e| format!("Failed to create download directory: {e}"))?;
+    let directory_path =
+        cfms_service::files::download_paths::prepare_directory(&download_root, &relative_path)?;
 
     Ok(directory_path.to_string_lossy().into_owned())
-}
-
-fn resolve_download_subdirectory(
-    mut root: std::path::PathBuf,
-    relative_path: &str,
-) -> Result<std::path::PathBuf, String> {
-    for raw_part in relative_path.split(['/', '\\']) {
-        let part = raw_part.trim();
-        if part.is_empty() || part == "." {
-            continue;
-        }
-
-        if part == ".." || part.contains(':') || part.contains('\0') {
-            return Err("Invalid download directory path".to_string());
-        }
-
-        root.push(part);
-    }
-
-    Ok(root)
 }
 
 // ---------------------------------------------------------------------------

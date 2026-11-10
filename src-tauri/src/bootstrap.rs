@@ -97,6 +97,21 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     let mut service_manager = ServiceManager::new();
 
     if !reset_recovery_mode {
+        let workflows = Arc::clone(&state);
+        service_manager.register("client_workflows", move |mut shutdown| async move {
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(250)) => {
+                        if workflows.app_lock.tick() { let _ = workflows.event_tx.send(cfms_core::ServiceEvent::AppLockChanged); }
+                    }
+                    _ = shutdown.changed() => break,
+                }
+            }
+            workflows.download_batches.stop_all();
+            workflows.access_batches.stop_all();
+            workflows.download_batches.wait_all_stopped().await;
+            workflows.access_batches.wait_all_stopped().await;
+        });
         let s1 = Arc::clone(&state);
         service_manager.register("token_refresh", move |rx| {
             let s = Arc::clone(&s1);

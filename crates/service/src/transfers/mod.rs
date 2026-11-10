@@ -1,4 +1,4 @@
-//! Upload path, discovery and retry rules shared by native adapters.
+//! Transfer queues, discovery, path policies and retry rules shared by native adapters.
 
 pub mod download_queue;
 pub mod retry;
@@ -71,3 +71,6 @@ pub fn collect_directory_entries(
     });
     Ok(entries)
 }
+pub mod download_batches;
+
+pub mod download_task;

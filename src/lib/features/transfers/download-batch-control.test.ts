@@ -1,31 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { beginDownloadBatch, finishDownloadBatch, stopDownloadBatchAndWait, waitForDownloadBatchResume, pauseActiveDownloadBatches } from '$lib/features/transfers/download-batch-control';
-
-afterEach(() => vi.useRealTimers());
-
-describe('stopping download batch producers', () => {
-  it('waits for in-flight queueing to finish before acknowledging a stop', async () => {
-    const controller = beginDownloadBatch({ batchId: 'batch', batchName: 'Folder', batchCreatedAt: 1 });
-    let stopped = false;
-    const waiting = stopDownloadBatchAndWait('batch').then(() => { stopped = true; });
-    expect(controller.signal.aborted).toBe(true);
-    await Promise.resolve();
-    expect(stopped).toBe(false);
-    finishDownloadBatch(controller);
-    await waiting;
-    expect(stopped).toBe(true);
+import { get } from 'svelte/store';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDownloadBatches } from '$lib/api';
+import { downloadBatchSnapshots, refreshDownloadBatches, resetDownloadBatches } from './download-batch-control';
+import { deferred } from '../../../test/deferred';
+vi.mock('$lib/api', () => ({ getDownloadBatches: vi.fn() }));
+beforeEach(() => resetDownloadBatches());
+describe('native producer snapshots', () => {
+  it('does not publish a late snapshot after the session is cleared', async () => {
+    const response = deferred<Awaited<ReturnType<typeof getDownloadBatches>>>();
+    vi.mocked(getDownloadBatches).mockReturnValueOnce(response.promise);
+    const refreshing = refreshDownloadBatches();
+    resetDownloadBatches();
+    response.resolve([{ batchId: 'old', batchName: 'Folder', batchRootId: null, batchCreatedAt: 1, phase: 'collecting', paused: false, discovered: 0, queued: 0, failed: 0, rateLimited: 0, rateLimitWaiting: false }]);
+    await refreshing;
+    expect(get(downloadBatchSnapshots)).toEqual([]);
   });
-
-  it('aborts paused discovery and preserves a timeout as a failure', async () => {
-    vi.useFakeTimers();
-    const controller = beginDownloadBatch({ batchId: 'batch', batchName: 'Folder', batchCreatedAt: 1 });
-    pauseActiveDownloadBatches('batch');
-    const paused = waitForDownloadBatchResume(controller.signal);
-    const stopped = stopDownloadBatchAndWait('batch');
-    const pausedAssertion = expect(paused).rejects.toMatchObject({ name: 'AbortError' });
-    const timeoutAssertion = expect(stopped).rejects.toThrow('10 seconds');
-    await vi.advanceTimersByTimeAsync(10_000);
-    await Promise.all([pausedAssertion, timeoutAssertion]);
-    finishDownloadBatch(controller);
+  it('exposes only active producers from the native snapshot', async () => {
+    const batch = { batchId: 'a', batchName: 'Folder', batchRootId: null, batchCreatedAt: 1, phase: 'queueing' as const, paused: false, discovered: 3, queued: 2, failed: 0, rateLimited: 0, rateLimitWaiting: false };
+    vi.mocked(getDownloadBatches).mockResolvedValueOnce([batch, { ...batch, batchId: 'b', finished: true }]);
+    await refreshDownloadBatches();
+    expect(get(downloadBatchSnapshots)).toEqual([batch]);
   });
 });

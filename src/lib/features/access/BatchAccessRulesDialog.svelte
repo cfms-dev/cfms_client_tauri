@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getAccessRules, listDirectoryPage, setAccessRules } from '$lib/api';
+  import { getAccessRules } from '$lib/api';
   import { ACCESS_OPERATIONS, cloneAccessRules, validateAccessRules, type AccessRulesRecord } from '$lib/features/access/access-rules';
   import {
     BatchAccessRulesController, batchRulesTargetKey,
@@ -64,7 +64,6 @@
   let templateRequest = 0;
   let editRevision = 0;
   let generation = 0;
-  let cooldownUntil = 0;
   let refreshedSuccesses = 0;
   const unconfirmedKeys = new Set<string>();
   let controller = createController();
@@ -141,11 +140,10 @@
   function createController() {
     const round = generation;
     return new BatchAccessRulesController(roots, {
-      fetchPage: listDirectoryPage, setRules: setAccessRules, guard: () => checkGuard(),
-      initialRetryAt: cooldownUntil, resolveFailure,
+      guard: () => checkGuard(),
+      resolveFailure,
       onChange: (next) => {
         if (disposed || round !== generation) return;
-        cooldownUntil = Math.max(cooldownUntil, next.retryAt);
         for (const item of next.results) {
           const key = batchRulesTargetKey(item.target);
           if (item.status === 'unconfirmed') unconfirmedKeys.add(key);
@@ -248,6 +246,8 @@
       await controller.discover(draftRules, draftInherit, draftRecursive);
       if (disposed || round !== generation) return;
       await afterScan();
+    } catch (error) {
+      if (!disposed && round === generation) { templateError = formatUserFacingError(error); stage = 'edit'; }
     } finally {
       if (!disposed && round === generation) preparing = false;
     }
@@ -272,6 +272,8 @@
       if (resume) await controller.resumeScan();
       else await controller.discover(draftRules, draftInherit, draftRecursive);
       if (!disposed && round === generation) await afterScan();
+    } catch (error) {
+      if (!disposed && round === generation) { templateError = formatUserFacingError(error); stage = 'edit'; }
     } finally {
       if (!disposed && round === generation) preparing = false;
     }
@@ -296,7 +298,8 @@
     if (busy || refreshing || guardIssue) return;
     stage = 'results';
     const round = generation;
-    await action();
+    try { await action(); }
+    catch (error) { if (!disposed && round === generation) refreshError = formatUserFacingError(error); return; }
     if (disposed || round !== generation) return;
     if (counts.success > refreshedSuccesses) await refreshDirectory();
     if (!disposed && round === generation) finishSuccessfulRun();

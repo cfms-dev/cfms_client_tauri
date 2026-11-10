@@ -1,6 +1,11 @@
 //! File listing and node-lookup contracts, independent of the native shell.
 
+pub mod access_batches;
+pub mod download_paths;
+pub mod node_path;
 pub mod shortcuts;
+#[cfg(test)]
+mod workflow_tests;
 
 use cfms_core::{CursorPage, ListDirectoryResponse, NodeLookupResponse};
 use serde::{Deserialize, Serialize};

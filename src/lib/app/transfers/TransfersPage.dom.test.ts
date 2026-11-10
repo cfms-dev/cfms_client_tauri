@@ -77,7 +77,7 @@ vi.mock('$lib/features/transfers/download-batch-control', () => ({
       return () => undefined;
     },
   },
-  pauseActiveDownloadBatches: vi.fn(),
+  refreshDownloadBatches: vi.fn().mockResolvedValue(undefined),
   resumeActiveDownloadBatches: vi.fn(),
   stopActiveDownloadBatch: vi.fn(),
   stopDownloadBatchAndWait: vi.fn().mockResolvedValue(undefined),

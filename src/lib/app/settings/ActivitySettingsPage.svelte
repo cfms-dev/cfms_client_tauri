@@ -3,7 +3,7 @@
   import { _ as t } from 'svelte-i18n';
   import {
     loadUserPreference,
-    saveUserPreference,
+    updateUserPreferences,
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
@@ -43,13 +43,7 @@
     recordRecentVisits = enabled;
     error = null;
     void autoSave.run(async () => {
-      const next: UserPreference = {
-        ...(preferences as UserPreference),
-        record_recent_visits: enabled,
-        recent_visits: enabled ? (preferences as UserPreference).recent_visits.slice(0, 10) : [],
-      };
-      await saveUserPreference(next);
-      preferences = next;
+      preferences = await updateUserPreferences({ record_recent_visits: enabled });
     });
   }
 

@@ -15,6 +15,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod app_lock;
 pub mod authentication;
 pub mod connection;
 pub mod db;
@@ -27,5 +28,7 @@ pub mod sensitive;
 
 pub mod session;
 pub mod state;
+#[cfg(test)]
+mod test_rpc;
 pub mod transfers;
 pub mod user_preferences;

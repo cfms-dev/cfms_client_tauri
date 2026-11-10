@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import { getCurrentWindow } from '$lib/shared/platform/native-window';
 import { platform, type Platform } from '$lib/shared/platform/native-os';
-import { loadUserPreference, saveUserPreference, setAndroidContentProtected } from '$lib/api';
+import { loadUserPreference, updateUserPreferences, setAndroidContentProtected } from '$lib/api';
 import type { UserPreference } from '$lib/api';
 
 const DEFAULT_SCREENSHOT_PROTECTION = true;
@@ -48,18 +48,7 @@ class ScreenProtectionStoreImpl {
       throw new Error('Screenshot protection preferences are not initialized for this user.');
     }
 
-    const preferences = await loadUserPreference();
-    if (this.scopeKey !== scopeKey) {
-      throw new Error('The active user changed while loading screenshot protection preferences.');
-    }
-    const next: UserPreference = {
-      ...preferences,
-      privacy: {
-        version: PRIVACY_PREFERENCE_VERSION,
-        screenshot_protection_enabled: enabled,
-      },
-    };
-    await saveUserPreference(next);
+    await updateUserPreferences({ privacy: { version: PRIVACY_PREFERENCE_VERSION, screenshot_protection_enabled: enabled } });
     if (this.scopeKey !== scopeKey) return;
     this.userEnabled = enabled;
     this.initialized = true;

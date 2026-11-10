@@ -6,6 +6,12 @@ import type { DownloadTaskDto } from './transfers';
 // ---------------------------------------------------------------------------
 
 export type ServiceEvent =
+  | { event: 'DownloadBatchesChanged' }
+  | { event: 'AccessBatchChanged'; data: { id: string } }
+  | { event: 'AppLockChanged' }
+  | { event: 'AppLockAttemptsExceeded' }
+  | { event: 'UserPreferencesChanged' }
+  | { event: 'DownloadBatchFinished'; data: { queued: number; failed: number; rate_limited: number; stopped: boolean } }
   | { event: "DownloadProgress"; data: { task_id: string; phase: string; progress: number; message: string; current_bytes: number; total_bytes: number } }
   | { event: "DownloadTaskUpdated"; data: { task: DownloadTaskDto } }
   | { event: "DownloadTaskReplaced"; data: { old_task_id: string; task: DownloadTaskDto } }

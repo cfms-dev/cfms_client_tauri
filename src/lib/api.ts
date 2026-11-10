@@ -18,3 +18,6 @@ export * from './api/server-errors';
 export * from './api/local-data';
 export * from './api/developer';
 export * from './api/schedules';
+
+export * from './api/access-batches';
+export * from './api/app-lock';

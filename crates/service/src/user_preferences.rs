@@ -25,6 +25,8 @@ pub fn exists(app_data: &Path, server_hash: &str, username: &str) -> bool {
 /// Delete the persisted preference file for a user, if one exists.
 pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
     let path = file_path(app_data, server_hash, username);
+    let lock = preference_lock(&path);
+    let _guard = lock.lock().unwrap();
     if !path.exists() {
         return Ok(());
     }
@@ -91,6 +93,18 @@ pub fn save(
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
     preferences: &UserPreference,
 ) -> Result<()> {
+    let lock = preference_lock(&file_path(app_data, server_hash, username));
+    let _guard = lock.lock().unwrap();
+    save_unlocked(app_data, server_hash, username, dek, preferences)
+}
+
+fn save_unlocked(
+    app_data: &Path,
+    server_hash: &str,
+    username: &str,
+    dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
+    preferences: &UserPreference,
+) -> Result<()> {
     let path = file_path(app_data, server_hash, username);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
@@ -112,17 +126,281 @@ pub fn save(
     let bytes = cfms_crypto::encrypt_config(&plaintext, dek)
         .map_err(|e| cfms_core::Error::Other(format!("Failed to encrypt preference file: {e}")))?;
 
-    std::fs::write(&path, bytes).map_err(|e| {
+    use std::io::Write;
+    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
+    file.write_all(&bytes)?;
+    file.as_file().sync_all()?;
+    file.persist(&path).map_err(|e| {
         cfms_core::Error::Other(format!(
             "Failed to write preference file {}: {e}",
             path.display()
         ))
-    })
+    })?;
+    Ok(())
+}
+
+fn preference_lock(path: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {
+    use std::sync::{Arc, Mutex, OnceLock};
+    static LOCKS: OnceLock<Mutex<std::collections::HashMap<PathBuf, Arc<Mutex<()>>>>> =
+        OnceLock::new();
+    LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap()
+        .entry(path.to_path_buf())
+        .or_default()
+        .clone()
+}
+
+/// Hold the same scope lock across the complete read/modify/encrypt/replace operation.
+pub fn update(
+    app_data: &Path,
+    server_hash: &str,
+    username: &str,
+    dek: &[u8; cfms_core::constants::KEY_LEN],
+    mutate: impl FnOnce(&mut UserPreference) -> std::result::Result<(), String>,
+) -> std::result::Result<UserPreference, String> {
+    let lock = preference_lock(&file_path(app_data, server_hash, username));
+    let _guard = lock.lock().unwrap();
+    let mut pref = load(app_data, server_hash, username, Some(dek)).map_err(|e| e.to_string())?;
+    mutate(&mut pref)?;
+    pref.task_concurrency = pref.task_concurrency.normalized();
+    pref.transfer = pref.transfer.normalized();
+    save_unlocked(app_data, server_hash, username, Some(dek), &pref).map_err(|e| e.to_string())?;
+    Ok(pref)
+}
+
+#[derive(Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreferencePatch {
+    pub appearance: Option<cfms_core::AppearancePreference>,
+    pub record_recent_visits: Option<bool>,
+    pub use_external_storage: Option<bool>,
+    pub external_storage_path: Option<String>,
+    pub root_back_button_behavior: Option<String>,
+    pub privacy: Option<PrivacyPatch>,
+    pub task_concurrency: Option<cfms_core::TaskConcurrencyPreference>,
+    pub transfer: Option<cfms_core::TransferPreference>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrivacyPatch {
+    pub version: u8,
+    pub screenshot_protection_enabled: bool,
+}
+
+impl PreferencePatch {
+    pub fn apply(self, pref: &mut UserPreference) -> std::result::Result<(), String> {
+        if let Some(value) = self.appearance {
+            pref.appearance = value;
+        }
+        if let Some(value) = self.record_recent_visits {
+            pref.record_recent_visits = value;
+            if !value {
+                pref.recent_visits.clear();
+            }
+        }
+        if let Some(value) = self.use_external_storage {
+            pref.use_external_storage = value;
+        }
+        if let Some(value) = self.external_storage_path {
+            pref.external_storage_path = value.trim().into();
+        }
+        if let Some(value) = self.root_back_button_behavior {
+            if !["exit", "background"].contains(&value.as_str()) {
+                return Err("Invalid root back-button behavior".into());
+            }
+            pref.root_back_button_behavior = Some(value);
+        }
+        if let Some(value) = self.privacy {
+            if value.version != 1 {
+                return Err("Invalid privacy preference version".into());
+            }
+            pref.privacy = cfms_core::PrivacyPreference {
+                version: 1,
+                screenshot_protection_enabled: value.screenshot_protection_enabled,
+            };
+        }
+        if let Some(value) = self.task_concurrency {
+            pref.task_concurrency = value.normalized();
+        }
+        if let Some(value) = self.transfer {
+            pref.transfer = value.normalized();
+        }
+        Ok(())
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case")]
+pub enum FilePreferenceMutation {
+    Visit {
+        record: cfms_core::types::RecentFileRecord,
+    },
+    RemoveVisit {
+        record: cfms_core::types::RecentFileRecord,
+    },
+    ClearVisits,
+    ImportVisits {
+        records: Vec<cfms_core::types::RecentFileRecord>,
+    },
+    Favorite {
+        record: cfms_core::types::RecentFileRecord,
+        favorite: bool,
+    },
+    ClearFavorites,
+}
+
+impl FilePreferenceMutation {
+    pub fn apply(self, pref: &mut UserPreference, now_ms: u64) -> std::result::Result<(), String> {
+        fn validate(
+            record: &cfms_core::types::RecentFileRecord,
+        ) -> std::result::Result<(), String> {
+            if !["document", "directory"].contains(&record.object_type.as_str())
+                || record.id.is_empty()
+            {
+                return Err("Invalid file preference record".into());
+            }
+            Ok(())
+        }
+        match self {
+            Self::Visit { mut record } => {
+                validate(&record)?;
+                if pref.record_recent_visits {
+                    record.visited_at = now_ms;
+                    if record.parent_id.as_deref() == Some("/") {
+                        record.parent_id = None;
+                    }
+                    pref.recent_visits.retain(|item| {
+                        item.object_type != record.object_type || item.id != record.id
+                    });
+                    pref.recent_visits.insert(0, record);
+                    pref.recent_visits.truncate(10);
+                }
+            }
+            Self::RemoveVisit { record } => pref
+                .recent_visits
+                .retain(|item| item.object_type != record.object_type || item.id != record.id),
+            Self::ClearVisits => pref.recent_visits.clear(),
+            Self::ImportVisits { mut records } => {
+                for record in &records {
+                    validate(record)?;
+                }
+                if pref.record_recent_visits && pref.recent_visits.is_empty() {
+                    records.sort_by_key(|record| std::cmp::Reverse(record.visited_at));
+                    let mut seen = std::collections::HashSet::new();
+                    records.retain(|record| {
+                        seen.insert((record.object_type.clone(), record.id.clone()))
+                    });
+                    records.truncate(10);
+                    pref.recent_visits = records;
+                }
+            }
+            Self::Favorite { record, favorite } => {
+                validate(&record)?;
+                let target = if record.object_type == "directory" {
+                    &mut pref.favourites.directories
+                } else {
+                    &mut pref.favourites.files
+                };
+                if favorite {
+                    target.insert(record.id, record.name);
+                } else {
+                    target.remove(&record.id);
+                }
+            }
+            Self::ClearFavorites => pref.favourites = Default::default(),
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn concurrent_domain_updates_preserve_unrelated_fields() {
+        let temp = tempfile::tempdir().unwrap();
+        std::thread::scope(|scope| {
+            for i in 0..12 {
+                let root = temp.path();
+                scope.spawn(move || {
+                    update(root, "server", "alice", &[7; 32], |pref| {
+                        pref.favourites.files.insert(i.to_string(), "name".into());
+                        Ok(())
+                    })
+                    .unwrap();
+                });
+            }
+        });
+        assert_eq!(
+            load(temp.path(), "server", "alice", Some(&[7; 32]))
+                .unwrap()
+                .favourites
+                .files
+                .len(),
+            12
+        );
+    }
+
+    #[test]
+    fn rejected_update_does_not_replace_existing_preferences() {
+        let temp = tempfile::tempdir().unwrap();
+        save(
+            temp.path(),
+            "s",
+            "u",
+            Some(&[7; 32]),
+            &UserPreference::default(),
+        )
+        .unwrap();
+        let before = std::fs::read(file_path(temp.path(), "s", "u")).unwrap();
+        assert!(
+            update(temp.path(), "s", "u", &[7; 32], |pref| {
+                pref.record_recent_visits = true;
+                Err("rejected".into())
+            })
+            .is_err()
+        );
+        assert_eq!(
+            std::fs::read(file_path(temp.path(), "s", "u")).unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn visits_are_deduplicated_bounded_and_disabled_by_policy() {
+        let mut pref = UserPreference {
+            record_recent_visits: true,
+            ..Default::default()
+        };
+        for i in 0..15 {
+            let record = cfms_core::types::RecentFileRecord {
+                object_type: "document".into(),
+                id: (i % 12).to_string(),
+                name: "name".into(),
+                parent_id: None,
+                visited_at: 0,
+            };
+            FilePreferenceMutation::Visit { record }
+                .apply(&mut pref, i)
+                .unwrap();
+        }
+        assert_eq!(pref.recent_visits.len(), 10);
+        assert_eq!(pref.recent_visits[0].visited_at, 14);
+        PreferencePatch {
+            record_recent_visits: Some(false),
+            ..Default::default()
+        }
+        .apply(&mut pref)
+        .unwrap();
+        assert!(pref.recent_visits.is_empty());
+        assert!(
+            serde_json::from_value::<PreferencePatch>(serde_json::json!({"app_lock": {}})).is_err()
+        );
+    }
 
     const SERVER_HASH: &str = "server";
     const USERNAME: &str = "alice";

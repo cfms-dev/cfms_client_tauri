@@ -4,6 +4,9 @@ import { fileShortcutValidationStore } from './shortcut-state.svelte';
 
 export function handleFileEvent(event: ServiceEvent): void {
   switch (event.event) {
+      case 'UserPreferencesChanged':
+        window.dispatchEvent(new CustomEvent('cfms:favorites-changed'));
+        break;
       case "FavoritesValidationComplete": {
         const { invalid_count } = event.data;
         fileShortcutValidationStore.apply(event.data);

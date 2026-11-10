@@ -2,7 +2,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings } from './types/connection';
 import type { FileEntry } from './types/files';
-import { loadUserPreference, saveUserPreference } from './preferences';
+import { loadUserPreference, updateUserPreferences } from './preferences';
 
 export type RootBackButtonBehavior = 'background' | 'exit';
 
@@ -42,9 +42,7 @@ export async function getRootBackButtonBehavior(): Promise<RootBackButtonBehavio
 
 /** Persist the configured behavior for pressing Android back on a root page. */
 export async function setRootBackButtonBehavior(behavior: RootBackButtonBehavior): Promise<void> {
-  const preferences = await loadUserPreference();
-  await saveUserPreference({
-    ...preferences,
+  await updateUserPreferences({
     root_back_button_behavior: behavior,
   });
 }

@@ -1,3 +1,5 @@
+import { refreshDownloadBatches, resetDownloadBatches } from '$lib/features/transfers/download-batch-control';
+import { appLockStore } from '$lib/features/settings/app-lock.svelte';
 /** Application-owned native subscriptions; business handlers own state updates. */
 import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
 import type { ServiceEvent, UploadTaskDto, TransferDirection } from '$lib/api/types';
@@ -16,6 +18,7 @@ export function initEventListeners(): Promise<void> {
   async function install() {
     const registrations = [
       () => listen<ServiceEvent>('cfms:event', ({ payload }) => {
+        if (payload.event === 'AppLockChanged') void appLockStore.refresh().catch(() => {});
         handleTransferEvent(payload);
         handleConnectionEvent(payload);
         handleAuthenticationEvent(payload);
@@ -30,7 +33,7 @@ export function initEventListeners(): Promise<void> {
       subscriptions.push(unlisten);
     }
   }
-  initialization = install().catch((error) => {
+  initialization = install().then(() => { if (current === generation) void refreshDownloadBatches().catch(() => {}); }).catch((error) => {
     if (current === generation) stopEventListeners();
     throw error;
   });
@@ -38,6 +41,7 @@ export function initEventListeners(): Promise<void> {
 }
 
 export function stopEventListeners(): void {
+  resetDownloadBatches();
   generation += 1;
   for (const unlisten of subscriptions) unlisten();
   subscriptions = [];

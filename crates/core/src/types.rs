@@ -306,6 +306,19 @@ pub struct UploadTaskDto {
 #[serde(tag = "event", content = "data")]
 #[allow(clippy::large_enum_variant)] // Event payloads cross the serialized service boundary as values.
 pub enum ServiceEvent {
+    DownloadBatchesChanged,
+    AccessBatchChanged {
+        id: String,
+    },
+    AppLockChanged,
+    AppLockAttemptsExceeded,
+    UserPreferencesChanged,
+    DownloadBatchFinished {
+        queued: u32,
+        failed: u32,
+        rate_limited: u32,
+        stopped: bool,
+    },
     ConnectionSecurityChanged {
         connection_id: u64,
         status: crate::RevocationStatus,
@@ -324,20 +337,32 @@ pub enum ServiceEvent {
         total_bytes: u64,
     },
     /// A download task snapshot has changed.
-    DownloadTaskUpdated { task: DownloadTaskDto },
+    DownloadTaskUpdated {
+        task: DownloadTaskDto,
+    },
     /// A stale server-side task was replaced while preserving the logical download.
     DownloadTaskReplaced {
         old_task_id: String,
         task: DownloadTaskDto,
     },
     /// A download has completed successfully.
-    DownloadCompleted { task_id: String, file_path: String },
+    DownloadCompleted {
+        task_id: String,
+        file_path: String,
+    },
     /// A download has failed.
-    DownloadFailed { task_id: String, error: String },
+    DownloadFailed {
+        task_id: String,
+        error: String,
+    },
     /// A download was paused by the user.
-    DownloadPaused { task_id: String },
+    DownloadPaused {
+        task_id: String,
+    },
     /// A download was cancelled.
-    DownloadCancelled { task_id: String },
+    DownloadCancelled {
+        task_id: String,
+    },
     /// Server lockdown status changed.
     Lockdown {
         status: bool,
@@ -349,7 +374,9 @@ pub enum ServiceEvent {
         status: crate::RevocationStatus,
     },
     /// The primary connection could not be restored automatically.
-    ConnectionLost { error: String },
+    ConnectionLost {
+        error: String,
+    },
     /// The authentication token has expired.
     TokenExpired,
     /// A favorites/recent validation cycle completed.
@@ -361,7 +388,9 @@ pub enum ServiceEvent {
         access_denied_directories: Vec<String>,
     },
     /// The number of active (non-terminal, badge-eligible) download tasks changed.
-    ActiveCountChanged { count: u32 },
+    ActiveCountChanged {
+        count: u32,
+    },
 }
 
 // ---------------------------------------------------------------------------

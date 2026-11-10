@@ -1,3 +1,4 @@
+import { refreshDownloadBatches, resetDownloadBatches } from './download-batch-control';
 import type { ServiceEvent } from '$lib/api/types';
 import { eventLog } from '$lib/features/diagnostics/event-log.svelte';
 import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
@@ -8,6 +9,20 @@ import { uploadStore } from './upload-state.svelte';
 
 export function handleTransferEvent(event: ServiceEvent): void {
   switch (event.event) {
+      case 'DownloadBatchFinished': {
+        const { queued, failed, stopped, rate_limited: rateLimited } = event.data;
+        if (stopped) notificationStore.info(translate('files.batchDownloadStopped'));
+        else if (failed && rateLimited > 0) notificationStore.error(rateLimited < failed
+          ? translate('files.batchDownloadRateLimitedMixed', { rateLimited, other: failed - rateLimited })
+          : translate('files.batchDownloadRateLimited', { count: rateLimited }));
+        else if (failed) notificationStore.error(translate('files.batchDownloadPartialFailed', { count: failed }));
+        else if (queued) notificationStore.success(translate('files.batchDownloadQueued', { count: queued }));
+        break;
+      }
+      case 'DownloadBatchesChanged':
+        void refreshDownloadBatches().catch(() => resetDownloadBatches());
+        break;
+
       case "DownloadProgress": {
         const { task_id, phase, progress, message, current_bytes, total_bytes } = event.data;
         downloadStore.updateProgress(task_id, phase, progress, message, current_bytes, total_bytes);

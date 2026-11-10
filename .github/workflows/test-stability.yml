@@ -29,7 +29,7 @@ jobs:
           node-version: 24
       - uses: pnpm/action-setup@v6
         with:
-          version: 12.4.2
+          version: 12.19.0
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec svelte-kit sync
       - name: Shuffle seed 42

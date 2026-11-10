@@ -1,9 +1,10 @@
 import type { DownloadTaskDto, DownloadTaskStatus } from "$lib/api/types";
+import { resetDownloadBatches } from './download-batch-control';
 import { TransferSpeedTracker } from "$lib/features/transfers/transfer-speed";
 
 class DownloadStoreImpl {
   private removed = new Set<string>();
-  clear() { this.tasks = new Map(); this.speeds = new Map(); this.removed.clear(); this.activeBadgeCount = 0; }
+  clear() { resetDownloadBatches(); this.tasks = new Map(); this.speeds = new Map(); this.removed.clear(); this.activeBadgeCount = 0; }
   tasks = $state<Map<string, DownloadTaskDto>>(new Map());
   speeds = $state<Map<string, number>>(new Map());
   private speedTracker = new TransferSpeedTracker();

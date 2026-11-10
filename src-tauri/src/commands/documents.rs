@@ -15,7 +15,6 @@ use super::transfer_helpers::download_root;
 use super::transfer_helpers::non_empty_optional;
 use super::transfer_helpers::prepare_upload_directory_source;
 use super::transfer_helpers::prepare_upload_source;
-use super::transfer_helpers::unix_now;
 use super::transfer_helpers::upload_interruption_message;
 use super::transfer_helpers::upload_local_file;
 use super::transfer_helpers::wait_for_upload_resume;
@@ -32,8 +31,6 @@ use super::upload_tasks::emit_upload_snapshot;
 use crate::AndroidUploadFileImporter;
 use crate::AppHandleState;
 use cfms_core::CursorPage;
-use cfms_core::DownloadTaskDto;
-use cfms_core::DownloadTaskStatus;
 use cfms_core::ServiceEvent;
 use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
 use cfms_service::files::split_search_page;
@@ -340,6 +337,7 @@ pub async fn set_access_rules(
     access_rules: serde_json::Value,
     inherit_parent: bool,
 ) -> Result<bool, String> {
+    cfms_service::files::access_batches::validate_rules(&access_rules)?;
     match object_type.as_str() {
         "document" => {
             server_action_bool(
@@ -408,71 +406,42 @@ pub async fn get_revision(
     filename: String,
     is_current: Option<bool>,
 ) -> Result<serde_json::Value, String> {
-    let (conn, username, token) = get_connection_auth(&state).await?;
-
-    let resp = send_action_request(
-        &conn,
-        "core.document.revision.get",
-        serde_json::json!({ "id": revision_id.clone() }),
-        &username,
-        &token,
-    )
-    .await?;
-
-    if resp.code != 200 {
-        return Err(format_server_response_error(&resp));
-    }
-
-    let task_data = resp
-        .data
-        .get("task_data")
-        .ok_or_else(|| "Server response missing task_data".to_string())?;
-    let task_id = task_data["task_id"]
-        .as_str()
-        .ok_or_else(|| "Server response missing task_id".to_string())?
-        .to_string();
-    let supports_resume = task_data["supports_resume"].as_bool().unwrap_or(false);
-
+    let filename = cfms_service::files::download_paths::sanitize_name(&filename);
     let local_filename = if is_current.unwrap_or(false) {
         filename
     } else {
-        format!("rev{revision_id}_{filename}")
+        format!(
+            "rev{}_{}",
+            cfms_service::files::download_paths::sanitize_name(&revision_id),
+            filename
+        )
     };
-    let download_root = download_root(&app_handle)?;
-    std::fs::create_dir_all(&download_root)
-        .map_err(|e| format!("Failed to create download directory: {e}"))?;
-    let file_path = download_root.join(&local_filename);
-
-    let task = DownloadTaskDto {
-        task_id: task_id.clone(),
-        file_id: revision_id.clone(),
-        filename: local_filename.clone(),
-        file_path: file_path.to_string_lossy().into_owned(),
-        status: DownloadTaskStatus::Pending,
-        progress: 0.0,
-        current_bytes: 0,
-        total_bytes: 0,
-        message: None,
-        error: None,
-        failure_kind: None,
-        created_at: unix_now(),
-        started_at: None,
-        completed_at: None,
-        priority: 0,
-        retry_count: 0,
-        max_retries: 3,
-        scheduled_time: None,
-        stage: 0,
-        bandwidth_limit: None,
-        pause_position: None,
-        supports_resume,
-        server_task_recreate_count: 0,
-        batch_id: None,
-        batch_name: None,
-        batch_root_id: None,
-        batch_created_at: None,
-        batch_estimated_total: None,
-    };
+    let file_path = cfms_service::files::download_paths::prepare_file(
+        &download_root(&app_handle)?,
+        &local_filename,
+    )?;
+    let local_filename = file_path
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let identity = cfms_service::rpc::SessionIdentity::capture(&state.inner).await?;
+    let raw = cfms_service::rpc::action_once(
+        &state.inner,
+        &identity,
+        "core.document.revision.get",
+        serde_json::json!({"id": revision_id}),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let task = cfms_service::transfers::download_task::from_response(
+        &raw,
+        revision_id.clone(),
+        file_path,
+    )?;
+    let task_id = task.task_id.clone();
+    let guard = state.inner.auth_update.lock().await;
+    identity.ensure_current_locked(&state.inner, &guard).await?;
 
     state
         .tasks

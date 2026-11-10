@@ -770,6 +770,7 @@ dependencies = [
  "cfms-transfer",
  "cfms-transport",
  "ed25519-dalek",
+ "futures-util",
  "hex",
  "ignore",
  "p256",
@@ -778,6 +779,7 @@ dependencies = [
  "rand 0.10.3",
  "rsa",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -786,6 +788,7 @@ dependencies = [
  "ssh-key",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "tracing",
  "zeroize",
 ]

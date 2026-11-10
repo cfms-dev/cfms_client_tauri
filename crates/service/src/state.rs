@@ -35,6 +35,9 @@ pub struct AppState {
     /// Invalidates in-flight authentication responses when the session is cleared.
     pub auth_generation: AtomicU64,
     pub auth_update: Mutex<()>,
+    pub download_batches: crate::transfers::download_batches::DownloadBatchRegistry,
+    pub access_batches: crate::files::access_batches::Registry,
+    pub app_lock: crate::app_lock::Runtime,
     /// Display name.
     pub nickname: RwLock<Option<String>>,
     /// Server-assigned permission strings.
@@ -149,6 +152,9 @@ impl AppState {
             escalation: RwLock::new(None),
             auth_generation: AtomicU64::new(0),
             auth_update: Mutex::new(()),
+            download_batches: Default::default(),
+            access_batches: Default::default(),
+            app_lock: Default::default(),
             nickname: RwLock::new(None),
             permissions: RwLock::new(Vec::new()),
             groups: RwLock::new(Vec::new()),
@@ -212,7 +218,15 @@ impl AppState {
     /// Queue-specific persistence contexts are cleared by the Tauri shell,
     /// which owns those queues.
     pub async fn clear_auth(&self) {
-        let _update = self.auth_update.lock().await;
+        let update = self.auth_update.lock().await;
+        self.clear_auth_locked(&update).await;
+    }
+
+    /// Native adapters may extend this transaction to their owned queues.
+    pub async fn clear_auth_locked(&self, _update: &tokio::sync::MutexGuard<'_, ()>) {
+        self.download_batches.stop_all();
+        self.access_batches.stop_all();
+        self.app_lock.reset();
         self.auth_generation
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut username = self.username.write().await;

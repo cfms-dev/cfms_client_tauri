@@ -7,14 +7,14 @@ import TaskSettingsPage from '$lib/app/settings/TasksSettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   loadUserPreference: vi.fn(),
-  saveUserPreference: vi.fn(),
+  updateUserPreferences: vi.fn(),
   configureConcurrency: vi.fn(),
   notifyError: vi.fn(),
 }));
 
 vi.mock('$lib/api', () => ({
   loadUserPreference: mocks.loadUserPreference,
-  saveUserPreference: mocks.saveUserPreference,
+  updateUserPreferences: mocks.updateUserPreferences,
 }));
 vi.mock('$lib/features/transfers/upload-state.svelte', () => ({
   uploadStore: { configureConcurrency: mocks.configureConcurrency }
@@ -45,7 +45,7 @@ const preference: UserPreference = {
 
 beforeEach(() => {
   mocks.loadUserPreference.mockResolvedValue(structuredClone(preference));
-  mocks.saveUserPreference.mockResolvedValue(undefined);
+  mocks.updateUserPreferences.mockImplementation(async patch => ({ ...structuredClone(preference), ...patch }));
 });
 
 afterEach(() => {
@@ -81,7 +81,7 @@ describe('task settings', () => {
     await fireEvent.change(chunkSelect, { target: { value: String(64 * 1024) } });
 
     await waitFor(() => {
-      expect(mocks.saveUserPreference).toHaveBeenCalledWith(
+      expect(mocks.updateUserPreferences).toHaveBeenCalledWith(
         expect.objectContaining({
           task_concurrency: { max_downloads: 3, max_uploads: 4 },
           transfer: { max_download_chunk_size: 64 * 1024 },
@@ -97,7 +97,7 @@ describe('task settings', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'common.reset' }));
 
     await waitFor(() => {
-      expect(mocks.saveUserPreference).toHaveBeenCalledWith(
+      expect(mocks.updateUserPreferences).toHaveBeenCalledWith(
         expect.objectContaining({
           task_concurrency: { max_downloads: 3, max_uploads: 3 },
           transfer: { max_download_chunk_size: 64 * 1024 },

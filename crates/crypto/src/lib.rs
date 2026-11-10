@@ -21,6 +21,7 @@ pub mod aead;
 pub mod config;
 pub mod dek;
 pub mod kdf;
+pub mod pin;
 
 // Re-exports for convenience.
 pub use aead::{open as aead_open, seal as aead_seal};
