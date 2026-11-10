@@ -1,3 +1,4 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
@@ -46,26 +47,9 @@ class TestResizeObserver {
   }
 }
 
-Object.defineProperty(globalThis, 'ResizeObserver', {
-  configurable: true,
-  value: TestResizeObserver,
-});
+beforeEach(() => vi.stubGlobal('ResizeObserver', TestResizeObserver));
 
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => {
-    const animation = {
-      cancel: vi.fn(),
-      currentTime: 0,
-      effect: {},
-      finished: Promise.resolve(),
-      onfinish: null as (() => void) | null,
-      playState: 'finished',
-    };
-    queueMicrotask(() => animation.onfinish?.());
-    return animation;
-  },
-});
+beforeEach(stubInstantAnimations);
 
 beforeEach(() => {
   locale.set('en');

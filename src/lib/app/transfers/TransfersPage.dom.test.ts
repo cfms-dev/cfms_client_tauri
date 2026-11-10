@@ -1,7 +1,8 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
 import type { DownloadTaskDto } from '$lib/api';
 import TasksPage from '$lib/app/transfers/TransfersPage.svelte';
@@ -101,26 +102,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-const originalAnimate = Element.prototype.animate;
-
-beforeAll(() => {
-  Element.prototype.animate = vi.fn(() => {
-    const animation = {
-      cancel: vi.fn(), commitStyles: vi.fn(), currentTime: 0, effect: null,
-      finished: Promise.resolve(), finish: vi.fn(), id: '', oncancel: null,
-      onfinish: null, onremove: null, pending: false, persist: vi.fn(),
-      play: vi.fn(), playbackRate: 1, playState: 'finished', ready: Promise.resolve(),
-      remove: vi.fn(), replaceState: 'active', reverse: vi.fn(), startTime: 0,
-      timeline: null, updatePlaybackRate: vi.fn(),
-    } as unknown as Animation;
-    queueMicrotask(() => animation.onfinish?.(new Event('finish') as AnimationPlaybackEvent));
-    return animation;
-  });
-});
-
-afterAll(() => {
-  Element.prototype.animate = originalAnimate;
-});
+beforeEach(stubInstantAnimations);
 
 beforeEach(() => {
   mocks.getDocumentInfo.mockResolvedValue({ title: 'Report.pdf' });

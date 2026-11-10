@@ -32,18 +32,18 @@ jobs:
     name: Generate changelog entry
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - uses: pnpm/action-setup@v6
         with:
-          version: 11.11.0
+          version: 12.4.2
 
       - name: Generate changelog entry
         run: |

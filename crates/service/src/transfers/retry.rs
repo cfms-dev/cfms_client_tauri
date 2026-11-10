@@ -59,6 +59,16 @@ pub fn is_transient_error(error: &cfms_core::Error) -> bool {
 /// Attempts are one-based. Without a server hint, attempts 1, 2, and 3 use
 /// bases of 1, 2, and 4 seconds, randomized within the upper half of the base.
 pub fn retry_delay(attempt: usize, retry_after_seconds: Option<u64>) -> Duration {
+    retry_delay_with(attempt, retry_after_seconds, |window| {
+        rand::rng().random_range(window)
+    })
+}
+
+fn retry_delay_with(
+    attempt: usize,
+    retry_after_seconds: Option<u64>,
+    sample: impl FnOnce(std::ops::RangeInclusive<u64>) -> u64,
+) -> Duration {
     if let Some(seconds) = retry_after_seconds.filter(|seconds| *seconds > 0) {
         return Duration::from_secs(seconds);
     }
@@ -66,7 +76,7 @@ pub fn retry_delay(attempt: usize, retry_after_seconds: Option<u64>) -> Duration
     let base_seconds = (1u64 << attempt.saturating_sub(1).min(5)).min(MAX_BACKOFF_SECONDS);
     let base_millis = base_seconds * 1_000;
     let floor = (base_millis / 2).max(1);
-    let jittered = rand::rng().random_range(floor..=base_millis);
+    let jittered = sample(floor..=base_millis);
     Duration::from_millis(jittered)
 }
 
@@ -76,17 +86,42 @@ mod tests {
 
     #[test]
     fn server_delay_takes_priority() {
-        assert_eq!(retry_delay(3, Some(17)), Duration::from_secs(17));
+        assert_eq!(
+            retry_delay_with(3, Some(17), |_| panic!(
+                "server hint must bypass randomness"
+            )),
+            Duration::from_secs(17)
+        );
     }
 
     #[test]
     fn fallback_delay_stays_inside_equal_jitter_window() {
-        for attempt in 1..=3 {
-            let delay = retry_delay(attempt, None);
-            let base = Duration::from_secs(1 << (attempt - 1));
-            assert!(delay >= base / 2);
-            assert!(delay <= base);
+        for (attempt, floor, ceiling) in [
+            (0, 500, 1000),
+            (1, 500, 1000),
+            (2, 1000, 2000),
+            (3, 2000, 4000),
+            (5, 8000, 16000),
+            (6, 15000, 30000),
+            (usize::MAX, 15000, 30000),
+        ] {
+            for upper in [false, true] {
+                let expected = if upper { ceiling } else { floor };
+                let delay = retry_delay_with(attempt, None, |window| {
+                    assert_eq!(window, floor..=ceiling, "attempt {attempt}");
+                    expected
+                });
+                assert_eq!(delay, Duration::from_millis(expected));
+            }
         }
+    }
+
+    #[test]
+    fn zero_server_delay_uses_the_fallback_window() {
+        assert_eq!(
+            retry_delay_with(2, Some(0), |window| *window.start()),
+            Duration::from_secs(1)
+        );
     }
 
     #[test]

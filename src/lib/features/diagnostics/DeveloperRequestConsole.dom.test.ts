@@ -1,3 +1,4 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import '$lib/shared/i18n';
@@ -22,20 +23,7 @@ vi.mock('$lib/shared/platform/platform', () => ({
   isMobilePlatform: () => false,
 }));
 
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => {
-    const animation = {
-      cancel: vi.fn(),
-      currentTime: 0,
-      effect: {},
-      onfinish: null as (() => void) | null,
-      playState: 'finished',
-    };
-    queueMicrotask(() => animation.onfinish?.());
-    return animation;
-  },
-});
+beforeEach(stubInstantAnimations);
 
 beforeEach(() => {
   locale.set('en');

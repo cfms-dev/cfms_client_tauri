@@ -1,3 +1,4 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
@@ -18,10 +19,7 @@ vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string)
 const status = { username: 'alice', user_id: 'aabbccdd-0000-4000-8000-000000000001', nickname: 'Alice', has_token: true, token_exp: 2e9, permissions: [], groups: [] };
 const emptyPolicy = { escalation: { revision: 0, chains: [] } };
 
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => ({ cancel() {}, currentTime: 0, effect: {}, finished: Promise.resolve() }),
-});
+beforeEach(stubInstantAnimations);
 
 beforeEach(() => {
   authStore.apply(status);

@@ -1,3 +1,4 @@
+import { replaceProperty } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
@@ -176,7 +177,7 @@ describe('FileTable marquee activation', () => {
 
   it('reserves dragging from the item name for item movement', async () => {
     const { nameCell, viewport, setPointerCapture, onDragSelection, onMarqueeSelection } = renderTable();
-    Object.defineProperty(document, 'elementFromPoint', {
+    replaceProperty(document, 'elementFromPoint', {
       configurable: true,
       value: () => nameCell,
     });
@@ -209,7 +210,7 @@ describe('FileTable marquee activation', () => {
       [],
       { selectedFolderIds: new Set(['folder-1']) },
     );
-    Object.defineProperty(document, 'elementFromPoint', {
+    replaceProperty(document, 'elementFromPoint', {
       configurable: true,
       value: () => typeCell,
     });
@@ -237,7 +238,7 @@ describe('FileTable marquee activation', () => {
 });
 
 function pointAt(target: Element) {
-  Object.defineProperty(document, 'elementFromPoint', {
+  replaceProperty(document, 'elementFromPoint', {
     configurable: true,
     value: () => target,
   });
@@ -360,7 +361,7 @@ describe('FileTable item movement', () => {
       return callbacks.length;
     });
     const hitTest = vi.fn(() => targetRow);
-    Object.defineProperty(document, 'elementFromPoint', {
+    replaceProperty(document, 'elementFromPoint', {
       configurable: true,
       value: hitTest,
     });

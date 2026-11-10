@@ -1,7 +1,8 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DocumentIdDownloadDialog from '$lib/features/transfers/DocumentIdDownloadDialog.svelte';
 
 vi.mock('svelte-i18n', () => ({
@@ -17,26 +18,7 @@ vi.mock('$lib/shared/motion/transitions', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 
-const originalAnimate = Element.prototype.animate;
-
-beforeAll(() => {
-  Element.prototype.animate = vi.fn(() => {
-    const animation = {
-      cancel: vi.fn(), commitStyles: vi.fn(), currentTime: 0, effect: null,
-      finished: Promise.resolve(), finish: vi.fn(), id: '', oncancel: null,
-      onfinish: null, onremove: null, pending: false, persist: vi.fn(),
-      play: vi.fn(), playbackRate: 1, playState: 'finished', ready: Promise.resolve(),
-      remove: vi.fn(), replaceState: 'active', reverse: vi.fn(), startTime: 0,
-      timeline: null, updatePlaybackRate: vi.fn(),
-    } as unknown as Animation;
-    queueMicrotask(() => animation.onfinish?.(new Event('finish') as AnimationPlaybackEvent));
-    return animation;
-  });
-});
-
-afterAll(() => {
-  Element.prototype.animate = originalAnimate;
-});
+beforeEach(stubInstantAnimations);
 
 afterEach(() => cleanup());
 

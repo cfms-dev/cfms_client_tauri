@@ -8,7 +8,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 import LoginPage from '$lib/app/authentication/LoginPage.svelte';
 
 const mocks = vi.hoisted(() => ({ login: vi.fn(), keyLogin: vi.fn(), pick: vi.fn(), release: vi.fn(), clear: vi.fn(), cancel: vi.fn(), prepare: vi.fn(), unlock: vi.fn(), discard: vi.fn(), setup: vi.fn(), goto: vi.fn(), server: vi.fn(), preferences: vi.fn(), tasks: vi.fn(), loadAppearance: vi.fn() }));
-vi.hoisted(() => { Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) }); });
 vi.mock('$lib/api', async (original) => ({
   ...await original<typeof import('$lib/api')>(), login: mocks.login, loginWithPublicKey: mocks.keyLogin,
   pickAuthPrivateKey: mocks.pick, releaseAuthPrivateKey: mocks.release, clearAuthSession: mocks.clear,

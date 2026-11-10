@@ -1,3 +1,4 @@
+import { replaceProperty } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
@@ -58,10 +59,15 @@ function completeWizardExit() {
 }
 
 beforeEach(() => {
+  // lottie-web probes canvas support when its module is resolved, even though
+  // these workflow tests replace the player. SVG compatibility has its own suite.
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    fillStyle: '', fillRect: vi.fn(),
+  } as unknown as CanvasRenderingContext2D);
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'false';
   document.documentElement.dataset.theme = 'dark';
-  Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  replaceProperty(document, 'hidden', { configurable: true, value: false });
   lottieMocks.listeners.clear();
   lottieMocks.loadAnimation.mockClear();
   lottieMocks.animation.destroy.mockClear();
@@ -71,8 +77,11 @@ beforeEach(() => {
   vi.mocked(loadAnimationData).mockClear();
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  // A dismissed scene can still have its dynamic player import in flight.
+  // Let it observe disposal before restoring its environment probes.
+  await vi.dynamicImportSettled();
   delete document.documentElement.dataset.reduceMotion;
   delete document.documentElement.dataset.theme;
 });
@@ -205,18 +214,18 @@ describe('LottieScene', () => {
     await waitFor(() => expect(lottieMocks.loadAnimation).toHaveBeenCalledTimes(1));
     lottieMocks.listeners.get('DOMLoaded')?.();
 
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    replaceProperty(document, 'hidden', { configurable: true, value: true });
     document.dispatchEvent(new Event('visibilitychange'));
     expect(lottieMocks.animation.pause).toHaveBeenCalledTimes(1);
 
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    replaceProperty(document, 'hidden', { configurable: true, value: false });
     document.dispatchEvent(new Event('visibilitychange'));
     expect(lottieMocks.animation.play).toHaveBeenCalledTimes(1);
 
     lottieMocks.listeners.get('complete')?.();
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    replaceProperty(document, 'hidden', { configurable: true, value: true });
     document.dispatchEvent(new Event('visibilitychange'));
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    replaceProperty(document, 'hidden', { configurable: true, value: false });
     document.dispatchEvent(new Event('visibilitychange'));
     expect(lottieMocks.animation.play).toHaveBeenCalledTimes(1);
 

@@ -67,16 +67,9 @@ mod tests {
     }
 
     #[test]
-    fn key_is_zeroized_on_drop() {
-        let salt = generate_salt();
-        let key_ptr;
-        {
-            let key = derive_kek(b"test", &salt);
-            key_ptr = &*key as *const [u8; KEY_LEN];
-            // Key is still alive here
-        }
-        // After drop, accessing the memory is UB in C/Rust, but we can
-        // at least verify the struct compiles and runs without panic.
-        let _ = key_ptr; // silence unused warning
+    fn derivation_returns_a_zeroizing_key() {
+        // Compile-time API contract; zeroize owns and tests the Drop guarantee.
+        // The compatibility vector above separately verifies the derived bytes.
+        let _: fn(&[u8], &[u8; SALT_LEN]) -> Zeroizing<[u8; KEY_LEN]> = derive_kek;
     }
 }

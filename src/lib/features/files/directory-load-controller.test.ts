@@ -1,19 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ListDirectoryPageResponse } from '$lib/api';
+import { directoryPage } from '../../../test/directory-fixtures';
 import {
   DirectoryLoadController,
   DirectoryRequestTimeoutError,
 } from '$lib/features/files/directory-load-controller';
 
 function page(id: string, nextCursor: string | null): ListDirectoryPageResponse {
-  return {
-    folders: [],
+  return directoryPage({
     documents: [{ id, title: id, size: 1, last_modified: 1 }],
-    parent_id: null,
-    page_size: 128,
     next_cursor: nextCursor,
     has_more: nextCursor !== null,
-  };
+  });
 }
 
 describe('DirectoryLoadController', () => {

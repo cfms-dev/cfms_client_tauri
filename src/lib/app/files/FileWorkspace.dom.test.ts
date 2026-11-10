@@ -1,5 +1,5 @@
 import '$lib/shared/i18n';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,9 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
 import { fileManagerNavigationStore } from '$lib/features/files/file-manager-navigation';
 import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
 import FilesPage from '$lib/app/files/FileWorkspace.svelte';
+import { deferred } from '../../../test/deferred';
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
+import { directoryPage } from '../../../test/directory-fixtures';
 
 const mocks = vi.hoisted(() => ({
   listDirectoryPage: vi.fn(), listDirectory: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
@@ -18,13 +21,6 @@ const mocks = vi.hoisted(() => ({
   events: new Map<string, (event: { payload: unknown }) => void>(),
   drop: null as ((event: { payload: unknown }) => void) | null,
 }));
-vi.hoisted(() => {
-  window.matchMedia = vi.fn((media: string) => ({
-    matches: false, media, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(() => true),
-  }));
-  Element.prototype.getAnimations = () => [];
-});
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
 vi.mock('$app/state', () => ({ page: { url: new URL('https://example.test/home/files') } }));
 vi.mock('@tauri-apps/api/event', () => ({
@@ -47,33 +43,32 @@ vi.mock('$lib/api', async (original) => ({
 }));
 
 function page(names: string[], cursor: string | null = null): ListDirectoryPageResponse {
-  return {
-    folders: [], documents: names.map((id, index) => ({ id, title: `${id}.txt`, size: index + 1, last_modified: 1 })),
-    parent_id: null, page_size: 128, next_cursor: cursor, has_more: cursor !== null,
-  };
+  return directoryPage({
+    documents: names.map((id, index) => ({ id, title: `${id}.txt`, size: index + 1, last_modified: 1 })),
+    next_cursor: cursor, has_more: cursor !== null,
+  });
 }
 
 function deferredPage() {
-  let resolve!: (value: ListDirectoryPageResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<ListDirectoryPageResponse>((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
+  return deferred<ListDirectoryPageResponse>();
 }
 
 async function openFiles() {
   const result = render(FilesPage);
-  await screen.findByText('alpha.txt');
+  await vi.waitFor(() => screen.getByText('alpha.txt'));
   await tick();
   return result;
 }
 
 async function uploadCompleted() {
+  vi.useFakeTimers();
   mocks.events.get('cfms:upload-task')!({ payload: { status: 'completed', target_parent_id: null } });
-  await new Promise((resolve) => setTimeout(resolve, 280));
+  await vi.advanceTimersByTimeAsync(250);
   await tick();
 }
 
 beforeEach(() => {
+  stubInstantAnimations();
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'true';
   authStore.apply({ user_id: 'self', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 1_900_000_000, permissions: [], groups: [] });
@@ -108,7 +103,7 @@ describe('upload confirmation', () => {
     render(SnackBarHost);
     if (source.endsWith('drop')) mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/new'] } });
     else await fireEvent.click(screen.getByRole('button', { name: source === 'file-picker' ? 'Upload files' : 'Upload folder' }));
-    await waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
     await tick();
     expect(notificationStore.entries).toHaveLength(0);
     expect(container.querySelector('.upload-queued-notice')).toBeNull();
@@ -124,11 +119,11 @@ describe('upload confirmation', () => {
     render(SnackBarHost);
     if (source === 'drop') mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two'] } });
     else await fireEvent.click(screen.getByRole('button', { name: 'Upload files' }));
-    await waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
-    await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(1));
     expect(notificationStore.entries[0].text).toContain('Added 2 uploads');
     expect(container.querySelector('.upload-queued-notice')).toBeNull();
-    await fireEvent.click(await screen.findByRole('button', { name: 'View transfers' }));
+    await fireEvent.click(await vi.waitFor(() => screen.getByRole('button', { name: 'View transfers' })));
     expect(mocks.goto).toHaveBeenCalledExactlyOnceWith('/home/tasks?tab=uploads');
     expect(notificationStore.entries).toHaveLength(0);
   });
@@ -137,7 +132,7 @@ describe('upload confirmation', () => {
     vi.spyOn(uploadStore, 'addBatch').mockResolvedValue({ tasks: [], failed: [{ id: 'new', error: 'offline' }] });
     await openFiles();
     mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/new'] } });
-    await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(1));
     expect(notificationStore.entries[0].type).toBe('error');
     expect(notificationStore.entries[0].text).toContain('offline');
     expect(notificationStore.entries[0].action).toBeUndefined();
@@ -149,7 +144,7 @@ describe('upload confirmation', () => {
     });
     await openFiles();
     mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two'] } });
-    await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(1));
     expect(notificationStore.entries[0].type).toBe('error');
     expect(notificationStore.entries[0].text).toContain('offline');
   });
@@ -160,7 +155,7 @@ describe('upload confirmation', () => {
     });
     await openFiles();
     mocks.drop!({ payload: { type: 'drop', paths: ['C:/uploads/one', 'C:/uploads/two', 'C:/uploads/three'] } });
-    await waitFor(() => expect(notificationStore.entries).toHaveLength(2));
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(2));
     expect(notificationStore.entries.find((entry) => entry.type === 'success')).toMatchObject({
       text: 'Added 2 uploads. Manage them in Transfers.', action: { label: 'View transfers' },
     });
@@ -178,10 +173,10 @@ describe('background directory updates', () => {
     await uploadCompleted();
     expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(2);
     foreground.resolve(page(['beta']));
-    await waitFor(() => expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(3));
     await fireEvent.click(container.querySelector('[data-sort-item]')!);
     background.resolve(page(['alpha', 'gamma', 'beta']));
-    await screen.findByText('gamma.txt');
+    await vi.waitFor(() => screen.getByText('gamma.txt'));
     const names = [...container.querySelectorAll('[data-file-drag-handle]')].map((element) => element.textContent);
     expect(names).toEqual(['gamma.txt', 'beta.txt', 'alpha.txt']);
   });
@@ -203,17 +198,17 @@ describe('background directory updates', () => {
     expect(viewport.scrollTop).toBe(40);
     expect(screen.queryByText('Loading directory…')).toBeNull();
     first.resolve(page(['alpha', 'gamma'], 'next'));
-    await waitFor(() => expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(3));
     expect(screen.queryByText('gamma.txt')).toBeNull();
     last.resolve(page(['delta']));
-    await screen.findByText('gamma.txt');
+    await vi.waitFor(() => screen.getByText('gamma.txt'));
     expect(screen.queryByText('beta.txt')).toBeNull();
     expect(alpha.getAttribute('aria-pressed')).toBe('true');
     expect(document.activeElement).toBe(alpha);
     expect(screen.getByText('alpha.txt').closest('[data-file-row-index]')).toBe(alpha);
     mocks.listDirectoryPage.mockResolvedValueOnce(page(['gamma']));
     await uploadCompleted();
-    await waitFor(() => expect(screen.queryByText('alpha.txt')).toBeNull());
+    await vi.waitFor(() => expect(screen.queryByText('alpha.txt')).toBeNull());
     expect(container.querySelector('[data-file-row-index][aria-pressed="true"]')).toBeNull();
     expect(container.querySelector('[data-file-row-index][tabindex="0"]')).toBeTruthy();
   });
@@ -222,7 +217,7 @@ describe('background directory updates', () => {
     await openFiles();
     mocks.listDirectoryPage.mockRejectedValueOnce(new Error('offline'));
     await uploadCompleted();
-    await waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(1));
     expect(screen.getByText('alpha.txt')).toBeTruthy();
     expect(notificationStore.entries[0]).toMatchObject({ type: 'warning', action: { label: 'Retry' } });
     const pending = deferredPage();
@@ -231,7 +226,7 @@ describe('background directory updates', () => {
     await tick();
     expect(screen.getByText('alpha.txt')).toBeTruthy();
     pending.resolve(page(['retry']));
-    await screen.findByText('retry.txt');
+    await vi.waitFor(() => screen.getByText('retry.txt'));
     expect(notificationStore.entries).toHaveLength(0);
   });
 
@@ -245,7 +240,7 @@ describe('background directory updates', () => {
     expect(screen.queryByText('alpha.txt')).toBeNull();
     expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(3);
     explicit.resolve(page(['explicit']));
-    await screen.findByText('explicit.txt');
+    await vi.waitFor(() => screen.getByText('explicit.txt'));
     background.resolve(page(['stale']));
     await tick();
     await tick();
@@ -262,7 +257,7 @@ describe('background directory updates', () => {
     mocks.listDirectoryPage.mockReturnValueOnce(background.promise).mockResolvedValueOnce(page(['child']));
     await uploadCompleted();
     await fireEvent.doubleClick(screen.getByText('Child'));
-    await screen.findByText('child.txt');
+    await vi.waitFor(() => screen.getByText('child.txt'));
     background.resolve(page(['stale']));
     await tick();
     await tick();
@@ -280,12 +275,13 @@ describe('background directory updates', () => {
     expect(notificationStore.entries).toHaveLength(1);
     mocks.listDirectoryPage.mockResolvedValueOnce(page(['child']));
     await fireEvent.doubleClick(screen.getByText('Child'));
-    await screen.findByText('child.txt');
+    await vi.waitFor(() => screen.getByText('child.txt'));
     expect(notificationStore.entries).toHaveLength(0);
     const pending = deferredPage();
     mocks.listDirectoryPage.mockReturnValueOnce(pending.promise);
+    vi.useFakeTimers();
     mocks.events.get('cfms:upload-task')!({ payload: { status: 'completed', target_parent_id: 'folder' } });
-    await new Promise((resolve) => setTimeout(resolve, 280));
+    await vi.advanceTimersByTimeAsync(250);
     unmount();
     pending.reject(new Error('late error'));
     await tick();
@@ -297,7 +293,7 @@ describe('background directory updates', () => {
     await openFiles();
     mocks.listDirectoryPage.mockRejectedValueOnce(new Error('Access denied: permission revoked'));
     await uploadCompleted();
-    await waitFor(() => expect(screen.queryByText('alpha.txt')).toBeNull());
+    await vi.waitFor(() => expect(screen.queryByText('alpha.txt')).toBeNull());
     expect(screen.getByText('You do not currently have permission to view the contents of this directory.')).toBeTruthy();
     expect(notificationStore.entries).toHaveLength(0);
   });

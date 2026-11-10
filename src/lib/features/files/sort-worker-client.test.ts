@@ -65,6 +65,7 @@ describe('createProgressiveDirectorySorter fallback', () => {
   });
 
   it('switches to the mirrored main-thread state when the worker stops responding', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.useFakeTimers();
     vi.stubGlobal('Worker', SilentWorker as unknown as typeof Worker);
     const snapshots: ProgressiveSortSnapshot[] = [];
@@ -81,6 +82,10 @@ describe('createProgressiveDirectorySorter fallback', () => {
     expect(snapshots.map((snapshot) => snapshot.loadedCount)).toEqual([128, 256]);
     expect(SilentWorker.instances[0].terminate).toHaveBeenCalledOnce();
     expect(onError).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledExactlyOnceWith(
+      'Progressive file sorter stopped responding; using the main thread.',
+      expect.objectContaining({ message: 'Progressive file sorter response timed out.' }),
+    );
     sorter.dispose();
   });
 });

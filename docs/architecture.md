@@ -1,75 +1,124 @@
-# 模块组织与依赖约定
+# Architecture and Dependency Conventions
 
-## 前端
+## Frontend Architecture
 
-| 位置 | 职责 | 依赖约定 |
-| --- | --- | --- |
-| `src/routes` | SvelteKit 路由、框架配置及薄适配组件 | 调用应用组合或业务公开模块 |
-| `src/lib/app` | 应用壳、导航、启动、原生订阅生命周期，以及跨业务页面和工作流 | 组合 features、api、shared；不被基础层或业务层反向引用 |
-| `src/lib/features/<业务>` | 业务组件、状态、规则和可复用控制器 | 调用 api/shared；跨业务仅使用对方的根模块，且不能形成循环 |
-| `src/lib/api` | 具名 IPC、原生响应适配和按业务分组的 wire DTO | 只依赖基础能力，不引用应用或业务实现 |
-| `src/lib/shared` | Fluent UI、主题、动效、翻译、格式化、通知与平台能力 | 不包含账户、文件操作或管理流程；不依赖 app/features |
+### Layer Responsibilities and Dependency Boundaries
 
-业务目录包括 authentication、connection、files、transfers、access、administration、schedules、settings、updates、diagnostics。每个目录根部的导出模块是可被其他业务使用的公开入口；子目录用于内部实现。例如认证策略编辑器的内部组件不能由管理业务直接导入，管理业务应使用 `AuthenticationManagement.svelte`。
+| Layer | Path | Core Responsibilities | Allowed Dependencies |
+| --- | --- | --- | --- |
+| **Routes** | `src/routes` | SvelteKit routing, framework configuration, and thin route adapter components. | `src/lib/app`, public root exports of `features`. |
+| **Application** | `src/lib/app` | App shell, navigation, bootstrap lifecycle, native subscription management, and cross-domain orchestration workflows. | `features` (public exports), `api`, `shared`. Must not be referenced by lower layers or domain modules. |
+| **Features** | `src/lib/features/<domain>` | Domain-specific UI, local state, business rules, and reusable controllers. | `api`, `shared`, public root exports of sibling features. No circular dependencies across domains. |
+| **API** | `src/lib/api` | Named IPC invocations, native response adapters, and domain-partitioned wire DTOs. | Platform primitives and utilities only. Must not reference `app` or `features`. |
+| **Shared** | `src/lib/shared` | Fluent UI components, theming, motion, internationalization, formatting, notifications, and platform bridge adapters. | Self-contained utilities. Must not contain business domain flows (auth, file operations, admin); must not reference `app` or `features`. |
 
-页面放在 `app/<业务>`，因为它们组合多个业务。文件、登录和管理页面分别将视图与实例级响应式工作流放在相邻的 `.svelte`、`.svelte.ts` 文件；工作流通过访问器暴露状态，视图绑定始终指向该实例，避免解构响应式值导致失去更新。目录发现、限流重试、下载排队等可独立复用的规则继续放在 transfers 中，不需要依附页面。
+### Domain Partitioning and Public Surface
 
-状态按所有者存放：认证、连接、上传、下载、文件快捷方式各有自己的状态模块；通知与界面尺寸属于 shared。账户状态清理继续清理当前账户的传输视图，保持既有会话隔离语义。不存在全局业务状态聚合文件。
+Domain directories are partitioned under `src/lib/features`:
 
-`app/events.ts` 负责原生监听器的安装、失败清理和释放，各业务的 `events.ts` 负责解释载荷并更新自己的状态。多次初始化共用同一次安装；释放后才完成的监听安装会立即取消。共享 UI 需要应用导航时使用导航上下文或回调，不导入应用路由实现。
+* `authentication`
+* `connection`
+* `files`
+* `transfers`
+* `access`
+* `administration`
+* `schedules`
+* `settings`
+* `updates`
+* `diagnostics`
 
-`api.ts` 与 `api/types.ts` 是保留的 IPC 和 DTO 入口，具体实现按业务分组。新增 IPC 写入对应的 api 模块，类型放入 `api/types/<业务>.ts`；不要把业务状态或 UI 组件放进这些入口。平台事件、文件选择、窗口、进程和生物识别通过 `shared/platform/native-*` 适配入口调用，`invoke` 留在 api。
+Each domain exposes a public entrypoint via its root export (`index.ts` or root `.svelte` components). Subdirectories are strictly internal implementation details. Cross-domain imports must target root entrypoints only (e.g., the `administration` feature must consume `AuthenticationManagement.svelte` instead of private sub-components from `features/authentication/components/editor/*`).
 
-## Rust
+### View Orchestration and State Encapsulation
+
+* **Composite Views:** Cross-domain screens reside in `src/lib/app/<domain>` to coordinate multiple underlying features.
+* **Workflow Co-location:** Major pages (such as Files, Login, and Administration) co-locate `.svelte` view templates with adjacent `.svelte.ts` instance-level reactive workflows. Workflows expose state through explicit accessors; UI bindings target the workflow instance directly to prevent reactivity loss caused by premature destructuring.
+* **Independent Business Rules:** Headless rules—including directory discovery, rate limiting, retry policies, and download queuing—remain encapsulated in `features/transfers` independent of UI lifecycle.
+* **State Ownership:** State modules are strictly segregated by owner (`authentication`, `connection`, `upload`, `download`, and `shortcuts`). UI notifications and viewport metrics reside in `shared`. Clearing account state resets user-scoped transfer views to preserve session boundary semantics. A single monolithic global store is strictly prohibited.
+* **Native Event Subscriptions:** `app/events.ts` orchestrates the registration, failure cleanup, and teardown of native event listeners. Individual domain `events.ts` modules interpret payloads and mutate their respective state. Shared UI components requiring navigation must rely on context or callbacks rather than importing concrete routing instances.
+* **IPC Invocations:** `api.ts` and `api/types.ts` serve as entrypoints, with implementations organized by domain. Concrete invoke calls reside under `api/`, while platform-specific operations (file pickers, window controls, process handling, biometrics) are abstracted behind `shared/platform/native-*`.
+
+## Native Backend (Rust)
 
 ```mermaid
 flowchart TD
-    tauri["src-tauri：原生应用与 IPC"] --> service["cfms-service：业务服务"]
-    service --> transfer["cfms-transfer：加密文件传输"]
+    tauri["src-tauri (Native App & IPC)"] --> service["cfms-service (Business Services)"]
+    service --> transfer["cfms-transfer (Encrypted Transfers)"]
     transfer --> crypto["cfms-crypto"]
     transfer --> transport["cfms-transport"]
-    crypto --> core["cfms-core：协议与基础类型"]
+    crypto --> core["cfms-core (Protocols & Types)"]
     transport --> core
     service --> core
+
 ```
 
-允许直接依赖图中更底层的 crate；crypto 与 transport 彼此独立。core 不依赖其他内部 crate；Tauri 及其插件只能由原生应用引用。现有五个库 crate 的划分保持不变。
+### Crate Hierarchy and Boundaries
 
-- 原生 `lib.rs` 装配插件和应用；`bootstrap.rs` 构建运行状态、窗口及后台服务；`app_state.rs` 保存原生应用状态。
-- `commands/registry.rs` 显式注册 IPC，各命令模块使用普通 `mod` 和具名导入。源码不能通过 `include!` 共享作用域；构建期生成的 CA 清单仍可使用 `include!`。
-- 命令 DTO 按连接、移动端、更新和传输组织。私有辅助项仅在确有调用方时开放至父模块；原生命令保持薄适配职责。
-- service 的 authentication、connection、files、transfers 按业务归组；runtime 管理后台任务生命周期；rpc 负责敏感请求编码、流交换和泛型响应解析；session 输出不包含令牌或密钥的会话快照。
-- RPC 错误保留失败阶段，由原生适配层转换为原有 IPC 错误文本和 `CFMS_ERROR_DATA`。后台服务继续使用结构化错误分类，避免因整理代码改变重试语义。
-- OS 密钥存储、原生路径选择、Android 插件、窗口及 Tauri 事件发送留在原生层。目录分页转换、上传路径规则、重试规则等不依赖 Tauri 的逻辑放在 service。
+Dependencies flow downward strictly along the graph hierarchy:
 
-## 修改与验证
+* `cfms-crypto` and `cfms-transport` are mutually independent.
+* `cfms-core` provides primitives and wire protocol definitions without referencing any internal workspace crates.
+* Tauri dependencies and plugins are isolated exclusively within `src-tauri`.
+* The division across the five internal library crates remains fixed.
 
-新增功能先确定业务所有者，再添加组件、状态和测试。跨业务流程放在 app，通用基础能力放在 shared；不要通过新的全局 stores、helpers 或聚合入口掩盖依赖。
+### Native Subsystem Responsibilities
 
-`pnpm check:architecture` 检查真实 TS/Svelte 导入、重导出、动态导入、类型导入、测试 mock 和 Worker URL，并校验：
+* **`src-tauri`:**
+* `lib.rs` registers plugins and initializes the application container.
+* `bootstrap.rs` configures runtime state, window lifecycles, and background services.
+* `app_state.rs` maintains managed runtime state.
+* `commands/registry.rs` performs explicit IPC registration using standard modules and named imports. Scope sharing via `include!` in application source is prohibited (except for build-time generated certificate authorities).
+* Handles platform-specific features: OS credential stores, native file dialogs, Android plugin bindings, window management, and Tauri event emission.
 
-- 本地引用可解析，基础层与业务层不反向依赖应用层。
-- 跨业务调用不深入私有目录，文件依赖和业务依赖均无循环。
-- 原生 SDK 调用位于适配入口，IPC 调用、命令声明与注册对应。
-- Cargo 元数据中的内部依赖符合分层，包含测试依赖和平台条件依赖。
 
-常规验收命令：
+* **`cfms-service`:**
+* Segregates business engines by domain: `authentication`, `connection`, `files`, and `transfers`.
+* `runtime` oversees background task lifecycles and structured cancellation tokens.
+* `rpc` manages transport encryption, frame streaming, and generic response decoding.
+* `session` returns sanitized session snapshots, explicitly excluding raw tokens, passphrases, or master secrets.
+* Enforces domain logic independent of GUI runtimes: pagination mapping, upload path validation, and retry policies.
+
+
+* **Error Handling:**
+* Background services categorize failures using structured, strongly typed error enums to maintain deterministic retry policies.
+* RPC errors retain execution-stage context, which the native adapter layer maps onto standardized IPC error strings and `CFMS_ERROR_DATA` structures.
+
+
+## Architecture Verification
+
+### Layering Rules
+
+1. New functionality must identify its owning domain before introducing components, state, or test suites.
+2. Cross-domain coordination belongs in `app`; universal presentation and system abstractions belong in `shared`. Monolithic shared state registries are forbidden.
+3. IPC commands, server wire protocols, schema formats, and on-disk data structures remain stable across internal module reorganizations.
+
+### Automated Checks
+
+Run `pnpm check:architecture` to validate:
+
+* Module resolutions across TypeScript and Svelte files, preventing cycles across files and business domains.
+* Enforcement of clean layer boundaries: `shared` and `features` must not reference `app`.
+* Cross-domain boundaries: modules cannot import private files inside sibling feature folders.
+* Parity between IPC frontend call sites, command declarations, and Rust command registrations.
+* Cargo workspace dependency graphs, including conditional compilation flags and test target dependencies.
+
+### Standard Verification Suite
 
 ```powershell
+# Frontend verification
 pnpm check
 pnpm test
-pnpm test:architecture
-pnpm test:i18n-unused
-pnpm test:focus-styles
+pnpm test:shuffle
+pnpm test:scripts
+pnpm test:python
 pnpm i18n:unused
 pnpm build
+
+# Rust workspace verification
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
 cargo test --workspace --no-default-features --locked -- --test-threads=4
+
 ```
 
-Rust 检查关闭默认的 `custom-protocol` 特性，使用已配置的 `devUrl`，无需先生成前端 `build` 目录。发布构建继续使用默认特性并嵌入前端资源。
-
-生成脚本会读取主题和图标源文件，它们不是死代码；检查资源使用还必须覆盖动态翻译键、Worker、IPC、事件、条件编译和历史数据迁移。发布说明动画位于 `features/updates/release-highlights/animations`，生成脚本与测试使用同一位置。未经确认 TUN 模式，不运行 Gradle 验证。
-
-本次整理不改变 IPC 命令、服务器协议、持久化字段或用户数据。已有历史迁移仍保留；内部路径已统一迁移，没有针对重构中间状态的兼容转发层。
+> **Note:** During local development and CI check stages, Rust workspace checks run with default features disabled (`--no-default-features`) to bypass the bundled `custom-protocol` requirement and target the local `devUrl`, eliminating the need for a pre-built frontend distribution. Release pipelines re-enable default features to embed frontend assets.

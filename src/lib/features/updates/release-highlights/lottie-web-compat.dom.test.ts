@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import type { AnimationItem } from 'lottie-web';
 import administrationDark from '$lib/features/updates/release-highlights/animations/v0.43/account-administration.dark.json';
 import administrationLight from '$lib/features/updates/release-highlights/animations/v0.43/account-administration.light.json';
 import documentDownloadDark from '$lib/features/updates/release-highlights/animations/v0.43/document-download.dark.json';
@@ -39,20 +40,13 @@ const permissionManagementThemes = [
   ['dark', permissionManagementDark],
 ] as const;
 
-let restoreCanvas: (() => void) | undefined;
-
-beforeAll(() => {
-  const getContext = vi
+beforeEach(() => {
+  vi
     .spyOn(HTMLCanvasElement.prototype, 'getContext')
     .mockReturnValue({
       fillStyle: '',
       fillRect: vi.fn(),
     } as unknown as CanvasRenderingContext2D);
-  restoreCanvas = () => getContext.mockRestore();
-});
-
-afterAll(() => {
-  restoreCanvas?.();
 });
 
 describe('document ID download lottie-web compatibility', () => {
@@ -63,7 +57,9 @@ describe('document ID download lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -71,15 +67,16 @@ describe('document ID download lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
 
       const renderFrame = (frame: number) => {
-        animation.goToAndStop(frame, true);
+        player.goToAndStop(frame, true);
         const renderedSvg = host.firstElementChild?.cloneNode(true) as SVGElement;
         renderedSvg
           .querySelectorAll<SVGElement>('[style*="display: none"]')
@@ -103,8 +100,6 @@ describe('document ID download lottie-web compatibility', () => {
       expect(resolvedFrame).not.toEqual(verifiedFrame);
       expect(loopFrame).toEqual(completedFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });
@@ -117,7 +112,9 @@ describe('server diagnostics lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -125,9 +122,10 @@ describe('server diagnostics lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
@@ -142,8 +140,6 @@ describe('server diagnostics lottie-web compatibility', () => {
       expect(scanFrame).not.toEqual(openingFrame);
       expect(revealFrame).not.toEqual(scanFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });
@@ -156,7 +152,9 @@ describe('account administration lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -164,15 +162,16 @@ describe('account administration lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
 
       const renderFrame = (frame: number) => {
-        animation.goToAndStop(frame, true);
+        player.goToAndStop(frame, true);
         const renderedSvg = host.firstElementChild?.cloneNode(true) as SVGElement;
         renderedSvg
           .querySelectorAll<SVGElement>('[style*="display: none"]')
@@ -192,8 +191,6 @@ describe('account administration lottie-web compatibility', () => {
       expect(confirmationFrame).not.toEqual(dialogFrame);
       expect(loopFrame).toEqual(completedFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });
@@ -206,7 +203,9 @@ describe('flexible workspace lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -214,15 +213,16 @@ describe('flexible workspace lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
 
       const renderFrame = (frame: number) => {
-        animation.goToAndStop(frame, true);
+        player.goToAndStop(frame, true);
         const renderedSvg = host.firstElementChild?.cloneNode(true) as SVGElement;
         renderedSvg
           .querySelectorAll<SVGElement>('[style*="display: none"]')
@@ -242,8 +242,6 @@ describe('flexible workspace lottie-web compatibility', () => {
       expect(maximizeFrame).not.toEqual(windowFrame);
       expect(loopFrame).toEqual(completedFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });
@@ -256,7 +254,9 @@ describe('full-screen feature tour lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -264,15 +264,16 @@ describe('full-screen feature tour lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
 
       const renderFrame = (frame: number) => {
-        animation.goToAndStop(frame, true);
+        player.goToAndStop(frame, true);
         return host.innerHTML;
       };
       const windowFrame = renderFrame(0);
@@ -286,8 +287,6 @@ describe('full-screen feature tour lottie-web compatibility', () => {
       expect(completedFrame).not.toEqual(expansionFrame);
       expect(reducedMotionFrame).toEqual(completedFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });
@@ -300,7 +299,9 @@ describe('permission rule workspace lottie-web compatibility', () => {
         await import('lottie-web/build/player/lottie_light');
       const host = document.createElement('div');
       document.body.append(host);
-      const animation = lottie.loadAnimation({
+      let animation: AnimationItem | undefined;
+      onTestFinished(() => { animation?.destroy(); host.remove(); });
+      animation = lottie.loadAnimation({
         container: host,
         renderer: 'svg',
         loop: false,
@@ -308,15 +309,16 @@ describe('permission rule workspace lottie-web compatibility', () => {
         animationData: structuredClone(data),
       });
 
+      const player = animation;
       await new Promise<void>((resolve, reject) => {
-        animation.addEventListener('DOMLoaded', resolve);
-        animation.addEventListener('data_failed', () =>
+        player.addEventListener('DOMLoaded', resolve);
+        player.addEventListener('data_failed', () =>
           reject(new Error('Lottie rejected the animation data')),
         );
       });
 
       const renderFrame = (frame: number) => {
-        animation.goToAndStop(frame, true);
+        player.goToAndStop(frame, true);
         return host.innerHTML;
       };
       const openingFrame = renderFrame(0);
@@ -332,8 +334,6 @@ describe('permission rule workspace lottie-web compatibility', () => {
       expect(completedFrame).not.toEqual(editedFrame);
       expect(reducedMotionFrame).toEqual(completedFrame);
 
-      animation.destroy();
-      host.remove();
     },
   );
 });

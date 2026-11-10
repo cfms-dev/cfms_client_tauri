@@ -1,3 +1,4 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
@@ -25,15 +26,7 @@ vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
 const rangeRect = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect');
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => {
-    const animation = { cancel: vi.fn(), currentTime: 0, effect: {}, finished: Promise.resolve(),
-      onfinish: null as (() => void) | null, playState: 'finished' };
-    queueMicrotask(() => animation.onfinish?.());
-    return animation;
-  },
-});
+beforeEach(stubInstantAnimations);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

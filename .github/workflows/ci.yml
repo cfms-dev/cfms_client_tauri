@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -52,17 +52,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       
       - uses: pnpm/action-setup@v6
         with:
-          version: 11.11.0
+          version: 12.4.2
 
       - run: pnpm install --frozen-lockfile
 
@@ -80,16 +80,17 @@ jobs:
       - name: Frontend behavior tests
         run: pnpm test
 
-      - name: Architecture rule tests
-        run: pnpm test:architecture
+      - name: Frontend order independence (fixed seed)
+        run: pnpm test:shuffle
 
-      - name: Translation usage and checker tests
-        run: |
-          pnpm i18n:unused
-          pnpm test:i18n-unused
+      - name: Script behavior tests
+        run: pnpm test:scripts
 
-      - name: Focus-ring contract tests
-        run: pnpm test:focus-styles
+      - name: Python validator tests
+        run: pnpm test:python
+
+      - name: Translation usage
+        run: pnpm i18n:unused
 
       - name: Production build
         run: pnpm build

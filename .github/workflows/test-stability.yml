@@ -1,0 +1,88 @@
+name: Test stability
+
+on:
+  schedule:
+    - cron: '0 19 * * 1' # Tuesday 03:00 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend stability (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.4.2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec svelte-kit sync
+      - name: Shuffle seed 42
+        run: pnpm test:shuffle
+      - name: Shuffle seed 235034
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run --sequence.shuffle --sequence.seed=235034
+      - name: Shuffle seed 197025
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run --sequence.shuffle --sequence.seed=197025
+      - name: Shuffle with a varying seed
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          seed="$(node -p 'Date.now()')"
+          reproduce="pnpm exec vitest run --sequence.shuffle --sequence.seed=$seed"
+          {
+            printf '### Frontend varying-seed check\n\n'
+            printf -- '- Platform: `%s`\n' "$RUNNER_OS"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Seed: `%s`\n' "$seed"
+            printf '\nReproduce on the same platform and commit:\n\n```sh\n%s\n```\n' "$reproduce"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          pnpm exec vitest run --sequence.shuffle --sequence.seed="$seed"
+      - name: Repeat each critical async scenario independently 20 times
+        if: ${{ !cancelled() }}
+        run: pnpm test:stability
+      - name: Node and Python script tests
+        if: ${{ !cancelled() }}
+        run: |
+          pnpm test:scripts
+          pnpm test:python
+
+  rust:
+    name: Rust stability (${{ matrix.os }}, ${{ matrix.threads }} threads)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        threads: [1, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - name: Install native build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Workspace tests
+        run: cargo test --workspace --no-default-features --locked -- --test-threads=${{ matrix.threads }}

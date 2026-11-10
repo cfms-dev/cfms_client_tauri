@@ -25,10 +25,7 @@ fn temp_dir() -> tempfile::TempDir {
 }
 
 fn make_task(id: &str, status: DownloadTaskStatus) -> DownloadTaskDto {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = 1_800_000_000_i64;
     DownloadTaskDto {
         task_id: id.into(),
         file_id: format!("file_{id}"),
@@ -301,10 +298,7 @@ fn all_task_fields_roundtrip() {
     let dir = temp_dir();
     let dek = new_dek();
 
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = 1_800_000_000_i64;
 
     let task = DownloadTaskDto {
         task_id: "full-test".into(),
@@ -384,57 +378,6 @@ fn all_task_fields_roundtrip() {
 }
 
 #[test]
-fn failed_task_can_be_retried_from_queue() {
-    let queue = download_queue::QueueState::new();
-    let mut task = make_task("retry-me", DownloadTaskStatus::Failed);
-    task.progress = 0.75;
-    task.current_bytes = 768;
-    task.error = Some("network interrupted".into());
-    task.message = Some("failed".into());
-    task.started_at = Some(123);
-    task.completed_at = Some(456);
-    task.retry_count = 4;
-    task.scheduled_time = Some(789);
-    task.pause_position = Some(512);
-    task.failure_kind = Some(DownloadFailureKind::ServerTaskUnclaimable);
-
-    queue.insert(&task).expect("insert failed task");
-
-    let retried = download_queue::retry_failed_task(&queue, "retry-me").expect("retry task");
-    assert!(retried);
-
-    let retried_task = queue.get("retry-me").expect("task should remain queued");
-    assert_eq!(retried_task.status, DownloadTaskStatus::Pending);
-    assert_eq!(retried_task.progress, 0.0);
-    assert_eq!(retried_task.current_bytes, 0);
-    assert!(retried_task.error.is_none());
-    assert!(retried_task.failure_kind.is_none());
-    assert!(retried_task.message.is_none());
-    assert!(retried_task.started_at.is_none());
-    assert!(retried_task.completed_at.is_none());
-    assert_eq!(retried_task.retry_count, 0);
-    assert!(retried_task.scheduled_time.is_none());
-    assert!(retried_task.pause_position.is_none());
-}
-
-#[test]
-fn retry_ignores_non_failed_task() {
-    let queue = download_queue::QueueState::new();
-    let task = make_task("already-done", DownloadTaskStatus::Completed);
-    queue.insert(&task).expect("insert completed task");
-
-    let retried = download_queue::retry_failed_task(&queue, "already-done").expect("retry task");
-    assert!(!retried);
-    assert_eq!(
-        queue
-            .get("already-done")
-            .expect("task should remain")
-            .status,
-        DownloadTaskStatus::Completed
-    );
-}
-
-#[test]
 fn removing_download_history_keeps_files_and_reports_nonterminal_items() {
     let dir = temp_dir();
     let output = dir.path().join("finished.bin");
@@ -458,48 +401,4 @@ fn removing_download_history_keeps_files_and_reports_nonterminal_items() {
     );
     assert!(queue.get("finished").is_none());
     assert!(queue.get("active").is_some());
-}
-
-#[test]
-fn transient_failure_schedules_backoff_and_preserves_checkpoint() {
-    let queue = download_queue::QueueState::new();
-    let mut task = make_task("weak-network", DownloadTaskStatus::Downloading);
-    task.current_bytes = 128 * 1024;
-    queue.insert(&task).unwrap();
-    let before = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-
-    let status = queue
-        .retry_or_fail("weak-network", "connection dropped", None)
-        .unwrap();
-    let scheduled = queue.get("weak-network").unwrap();
-
-    assert_eq!(status, DownloadTaskStatus::Scheduled);
-    assert_eq!(scheduled.pause_position, Some(128 * 1024));
-    assert_eq!(scheduled.retry_count, 1);
-    assert!(scheduled.scheduled_time.unwrap() > before);
-    assert!(scheduled.scheduled_time.unwrap() <= before + 2);
-}
-
-#[test]
-fn server_retry_after_overrides_exponential_delay() {
-    let queue = download_queue::QueueState::new();
-    queue
-        .insert(&make_task("rate-limited", DownloadTaskStatus::Downloading))
-        .unwrap();
-    let before = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-
-    queue
-        .retry_or_fail("rate-limited", "server rejected request (429)", Some(45))
-        .unwrap();
-
-    assert_eq!(
-        queue.get("rate-limited").unwrap().scheduled_time,
-        Some(before + 45)
-    );
 }

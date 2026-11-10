@@ -7,15 +7,16 @@ import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
 import { chromeStore } from "$lib/shared/ui/chrome-state.svelte.ts";
 import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
+import { stubInstantAnimations, stubMatchMedia } from '../../../test/dom-fixtures';
 
-vi.hoisted(() => {
-  window.matchMedia = vi.fn().mockImplementation((media: string) => ({
-    matches: false, media, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-  }));
-  Element.prototype.getAnimations = () => [];
-});
+vi.mock('$lib/shared/motion/transitions', () => ({
+  snackbarMotion: () => ({ duration: 0 }),
+  snackbarReflow: () => ({ duration: 0 }),
+}));
 
 beforeEach(() => {
+  stubMatchMedia();
+  stubInstantAnimations();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-25T00:00:00Z'));
   locale.set('en');
@@ -52,7 +53,7 @@ describe('shared floating notifications', () => {
     await fireEvent.click(action);
     expect(onClick).toHaveBeenCalledOnce();
     expect(screen.queryByText('Uploads queued')).toBeNull();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(notificationStore.entries).toHaveLength(0);
   });
 
   it('preserves an existing grouped action and replaces it when a new action is supplied', async () => {
@@ -94,7 +95,7 @@ describe('shared floating notifications', () => {
     expect(screen.queryByText('Brief')).toBeNull();
     await advance(30000);
     expect(screen.getByText('Persistent')).toBeTruthy();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(notificationStore.entries.map((entry) => entry.text)).toEqual(['Persistent']);
   });
 
   it('pauses overlapping hover and focus, then resumes only the remaining time', async () => {
@@ -214,8 +215,8 @@ describe('shared floating notifications', () => {
     expect(bar.value).toBe(100);
   });
 
-  it('never flashes completed short tasks and clears pending work on unmount', async () => {
-    const { unmount } = render(SnackBarHost);
+  it('never flashes a task completed before the display delay', async () => {
+    render(SnackBarHost);
     floatingProgressStore.upsert('quick', 'Quick task', '', 0, 0);
     await tick();
     await advance(999);
@@ -223,12 +224,27 @@ describe('shared floating notifications', () => {
     await tick();
     await advance(1);
     expect(screen.queryByText('Quick task')).toBeNull();
+    await advance(7000);
+    expect(screen.queryByText('Quick task')).toBeNull();
+  });
+
+  it('cancels its notification and progress timers on unmount without late updates', async () => {
+    const { unmount } = render(SnackBarHost);
+    const schedule = vi.spyOn(window, 'setTimeout');
+    const cancel = vi.spyOn(window, 'clearTimeout');
+    const remove = vi.spyOn(notificationStore, 'remove');
     notificationStore.info('Timed');
     floatingProgressStore.upsert('pending', 'Pending task', '', 0, 0);
     await tick();
-    expect(vi.getTimerCount()).toBe(2);
+    // Observe this host's two business timers, not Svelte/Fluent's global timers.
+    const ownedTimers = schedule.mock.calls.flatMap((call, index) =>
+      call[1] === 1000 || call[1] === 7000 ? [schedule.mock.results[index].value] : []);
+    expect(ownedTimers).toHaveLength(2);
     unmount();
-    expect(vi.getTimerCount()).toBe(0);
+    for (const timer of ownedTimers) expect(cancel).toHaveBeenCalledWith(timer);
+    await advance(8000);
+    expect(remove).not.toHaveBeenCalled();
+    expect(notificationStore.entries.map((entry) => entry.text)).toEqual(['Timed']);
     expect(document.querySelector('.snackbar-host')).toBeNull();
     expect(chromeStore.snackbarStackHeight).toBe(0);
   });

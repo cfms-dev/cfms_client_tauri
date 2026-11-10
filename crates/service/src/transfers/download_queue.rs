@@ -434,6 +434,23 @@ impl QueueState {
         error: &str,
         retry_after_seconds: Option<u64>,
     ) -> Result<DownloadTaskStatus> {
+        self.retry_or_fail_at(
+            task_id,
+            error,
+            retry_after_seconds,
+            unix_now(),
+            crate::transfers::retry::retry_delay,
+        )
+    }
+
+    fn retry_or_fail_at(
+        &self,
+        task_id: &str,
+        error: &str,
+        retry_after_seconds: Option<u64>,
+        now: i64,
+        retry_delay: impl FnOnce(usize, Option<u64>) -> Duration,
+    ) -> Result<DownloadTaskStatus> {
         let status = {
             let mut map = self.tasks.lock().unwrap();
             let Some(t) = map.get_mut(task_id) else {
@@ -450,17 +467,14 @@ impl QueueState {
                 t.status = DownloadTaskStatus::Failed;
                 t.error = Some(error.to_string());
                 t.failure_kind = None;
-                t.completed_at = Some(unix_now());
+                t.completed_at = Some(now);
                 DownloadTaskStatus::Failed
             } else {
-                let delay = crate::transfers::retry::retry_delay(
-                    t.retry_count as usize,
-                    retry_after_seconds,
-                )
-                .as_secs()
-                .max(1);
+                let delay = retry_delay(t.retry_count as usize, retry_after_seconds)
+                    .as_secs()
+                    .max(1);
                 t.status = DownloadTaskStatus::Scheduled;
-                t.scheduled_time = Some(unix_now().saturating_add(delay as i64));
+                t.scheduled_time = Some(now.saturating_add(delay as i64));
                 t.pause_position = Some(t.current_bytes);
                 t.error = Some(error.to_string());
                 t.failure_kind = None;
@@ -1716,6 +1730,139 @@ fn unix_now() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failed_task_can_be_retried_from_queue() {
+        let queue = QueueState::new();
+        let mut task = task("retry-me", DownloadTaskStatus::Failed);
+        task.progress = 0.75;
+        task.current_bytes = 768;
+        task.error = Some("network interrupted".into());
+        task.message = Some("failed".into());
+        task.started_at = Some(123);
+        task.completed_at = Some(456);
+        task.retry_count = 4;
+        task.scheduled_time = Some(789);
+        task.pause_position = Some(512);
+        task.failure_kind = Some(DownloadFailureKind::ServerTaskUnclaimable);
+
+        queue.insert(&task).expect("insert failed task");
+
+        let retried = retry_failed_task(&queue, "retry-me").expect("retry task");
+        assert!(retried);
+
+        let retried_task = queue.get("retry-me").expect("task should remain queued");
+        assert_eq!(retried_task.status, DownloadTaskStatus::Pending);
+        assert_eq!(retried_task.progress, 0.0);
+        assert_eq!(retried_task.current_bytes, 0);
+        assert!(retried_task.error.is_none());
+        assert!(retried_task.failure_kind.is_none());
+        assert!(retried_task.message.is_none());
+        assert!(retried_task.started_at.is_none());
+        assert!(retried_task.completed_at.is_none());
+        assert_eq!(retried_task.retry_count, 0);
+        assert!(retried_task.scheduled_time.is_none());
+        assert!(retried_task.pause_position.is_none());
+    }
+
+    #[test]
+    fn retry_ignores_non_failed_task() {
+        let queue = QueueState::new();
+        let task = task("already-done", DownloadTaskStatus::Completed);
+        queue.insert(&task).expect("insert completed task");
+
+        let retried = retry_failed_task(&queue, "already-done").expect("retry task");
+        assert!(!retried);
+        assert_eq!(
+            queue
+                .get("already-done")
+                .expect("task should remain")
+                .status,
+            DownloadTaskStatus::Completed
+        );
+    }
+
+    #[test]
+    fn transient_failure_schedules_backoff_and_preserves_checkpoint() {
+        let queue = QueueState::new();
+        let mut downloading = task("weak-network", DownloadTaskStatus::Downloading);
+        downloading.current_bytes = 128 * 1024;
+        queue.insert(&downloading).unwrap();
+        let status = queue
+            .retry_or_fail_at(
+                "weak-network",
+                "connection dropped",
+                None,
+                1000,
+                |attempt, hint| {
+                    assert_eq!((attempt, hint), (1, None));
+                    Duration::from_millis(750)
+                },
+            )
+            .unwrap();
+        let scheduled = queue.get("weak-network").unwrap();
+        assert_eq!(status, DownloadTaskStatus::Scheduled);
+        assert_eq!(scheduled.pause_position, Some(128 * 1024));
+        assert_eq!(scheduled.retry_count, 1);
+        assert_eq!(scheduled.scheduled_time, Some(1001));
+    }
+
+    #[test]
+    fn server_retry_after_overrides_exponential_delay() {
+        let queue = QueueState::new();
+        queue
+            .insert(&task("rate-limited", DownloadTaskStatus::Downloading))
+            .unwrap();
+        queue
+            .retry_or_fail_at(
+                "rate-limited",
+                "server rejected request (429)",
+                Some(45),
+                1000,
+                crate::transfers::retry::retry_delay,
+            )
+            .unwrap();
+        assert_eq!(
+            queue.get("rate-limited").unwrap().scheduled_time,
+            Some(1045)
+        );
+    }
+
+    #[test]
+    fn exhausted_retries_finish_at_the_supplied_time_without_sampling_a_delay() {
+        let queue = QueueState::new();
+        let mut downloading = task("exhausted", DownloadTaskStatus::Downloading);
+        downloading.max_retries = 0;
+        queue.insert(&downloading).unwrap();
+        assert_eq!(
+            queue
+                .retry_or_fail_at("exhausted", "offline", None, 1000, |_, _| panic!(
+                    "no retry remains"
+                ))
+                .unwrap(),
+            DownloadTaskStatus::Failed
+        );
+        let failed = queue.get("exhausted").unwrap();
+        assert_eq!(failed.completed_at, Some(1000));
+        assert_eq!(failed.error.as_deref(), Some("offline"));
+    }
+
+    #[test]
+    fn retry_preserves_paused_and_cancelled_tasks() {
+        for status in [DownloadTaskStatus::Paused, DownloadTaskStatus::Cancelled] {
+            let queue = QueueState::new();
+            queue.insert(&task("stopped", status)).unwrap();
+            assert_eq!(
+                queue
+                    .retry_or_fail_at("stopped", "offline", None, 1000, |_, _| panic!(
+                        "stopped task must not retry"
+                    ))
+                    .unwrap(),
+                status
+            );
+            assert_eq!(queue.get("stopped").unwrap().retry_count, 0);
+        }
+    }
 
     #[test]
     fn stopping_a_batch_closes_admission_for_in_flight_producer_requests() {

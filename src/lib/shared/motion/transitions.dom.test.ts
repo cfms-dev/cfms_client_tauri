@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { snackbarMotion, snackbarReflow } from '$lib/shared/motion/transitions';
 
-vi.hoisted(() => {
-  window.matchMedia = vi.fn().mockImplementation((media: string) => ({
-    matches: false, media, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-  }));
-});
 
 afterEach(() => { delete document.documentElement.dataset.reduceMotion; });
 

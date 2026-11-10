@@ -10,7 +10,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 import WorkspaceLayout from '$lib/app/WorkspaceShell.svelte';
 
 const mocks = vi.hoisted(() => ({ goto: vi.fn() }));
-vi.hoisted(() => { vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} })); });
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
 vi.mock('$app/stores', () => ({ page: writable({ url: new URL('https://example.test/home/files') }) }));
 vi.mock('$lib/shared/platform/platform', () => ({ supportsKeyboardShortcuts: () => false, isMobilePlatform: () => false }));

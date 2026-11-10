@@ -1,7 +1,8 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { parseLocalDateTimeInput } from '$lib/features/access/permission-entries';
 import PermissionEntriesDialog from '$lib/features/access/PermissionEntriesDialog.svelte';
 
@@ -26,16 +27,7 @@ vi.mock('$lib/shared/motion/transitions', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => ({
-    cancel: vi.fn(),
-    currentTime: 0,
-    effect: {},
-    onfinish: null,
-    playState: 'finished',
-  }),
-});
+beforeEach(stubInstantAnimations);
 
 afterEach(() => {
   cleanup();

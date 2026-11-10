@@ -9,6 +9,23 @@ members = [
 ]
 resolver = "2"
 
+# Keep production KDF parameters in tests while optimizing their hot path.
+# The rest of the workspace retains the normal debuggable test profile.
+[profile.test.package.cfms-crypto]
+opt-level = 2
+
+[profile.test.package.pbkdf2]
+opt-level = 2
+
+[profile.test.package.sha2]
+opt-level = 2
+
+[profile.test.package.hmac]
+opt-level = 2
+
+[profile.test.package.digest]
+opt-level = 2
+
 [workspace.package]
 version = "0.58.0"
 edition = "2024"

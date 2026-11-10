@@ -1,3 +1,4 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +22,7 @@ vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
 vi.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,AA==' }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
-Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: () => ({ cancel: vi.fn(), currentTime: 0, effect: {}, onfinish: null, playState: 'finished' }) });
+beforeEach(stubInstantAnimations);
 
 const userId = 'aabbccdd-0000-4000-8000-000000000001';
 const inventory = (escalation: AuthPolicy = { revision: 0, chains: [] }) => ({

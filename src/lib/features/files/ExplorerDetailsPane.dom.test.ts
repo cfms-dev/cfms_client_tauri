@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ExplorerDetailsPane from '$lib/features/files/ExplorerDetailsPane.svelte';
 
 vi.mock('$lib/shared/appearance', () => ({
@@ -26,10 +26,7 @@ class TestResizeObserver {
   }
 }
 
-Object.defineProperty(globalThis, 'ResizeObserver', {
-  configurable: true,
-  value: TestResizeObserver,
-});
+beforeEach(() => vi.stubGlobal('ResizeObserver', TestResizeObserver));
 
 afterEach(() => {
   cleanup();

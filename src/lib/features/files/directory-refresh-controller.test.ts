@@ -1,19 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ListDirectoryPageResponse } from '$lib/api';
 import { DirectoryRefreshController } from '$lib/features/files/directory-refresh-controller';
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-}
+import { deferred } from '../../../test/deferred';
+import { directoryPage } from '../../../test/directory-fixtures';
 
 function page(id: string, cursor: string | null = null): ListDirectoryPageResponse {
-  return {
-    folders: [], documents: [{ id, title: id, size: 1, last_modified: 1 }],
-    parent_id: 'parent', page_size: 128, next_cursor: cursor, has_more: cursor !== null,
-  };
+  return directoryPage({
+    documents: [{ id, title: id, size: 1, last_modified: 1 }],
+    parent_id: 'parent', next_cursor: cursor, has_more: cursor !== null,
+  });
 }
 
 afterEach(() => vi.useRealTimers());

@@ -1,13 +1,11 @@
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { afterEach, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
 
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
-Object.defineProperty(Element.prototype, 'animate', {
-  configurable: true,
-  value: () => ({ cancel: vi.fn(), currentTime: 0, effect: {}, onfinish: null, playState: 'finished' }),
-});
+beforeEach(stubInstantAnimations);
 afterEach(cleanup);
 
 const items = [{ id: 'sysop' }, { id: 'user' }, { id: 'auditor' }];
