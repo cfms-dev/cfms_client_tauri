@@ -38,10 +38,11 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        # Disable Tauri's custom-protocol feature so Rust checks do not require frontend assets.
+        run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
 
       - name: Workspace tests
-        run: cargo test --workspace --locked -- --test-threads=4
+        run: cargo test --workspace --no-default-features --locked -- --test-threads=4
 
   # ---------------------------------------------------------------------------
   # Frontend — type-check & build

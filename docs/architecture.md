@@ -64,9 +64,11 @@ pnpm test:focus-styles
 pnpm i18n:unused
 pnpm build
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked -- --test-threads=4
+cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
+cargo test --workspace --no-default-features --locked -- --test-threads=4
 ```
+
+Rust 检查关闭默认的 `custom-protocol` 特性，使用已配置的 `devUrl`，无需先生成前端 `build` 目录。发布构建继续使用默认特性并嵌入前端资源。
 
 生成脚本会读取主题和图标源文件，它们不是死代码；检查资源使用还必须覆盖动态翻译键、Worker、IPC、事件、条件编译和历史数据迁移。发布说明动画位于 `features/updates/release-highlights/animations`，生成脚本与测试使用同一位置。未经确认 TUN 模式，不运行 Gradle 验证。
 
