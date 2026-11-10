@@ -198,7 +198,7 @@ pub struct UploadAdmission {
 
 /// One scheduler pass, shared by production and deterministic lifecycle tests.
 pub fn admit_uploads(
-    queue: &cfms_service::services::upload_queue::UploadQueueState,
+    queue: &cfms_service::transfers::upload_queue::UploadQueueState,
     registry: &ActiveUploadRegistry,
     limit: usize,
 ) -> Vec<UploadAdmission> {
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn sixty_seven_uploads_drain_at_three_slots_without_any_ui_callback() {
         use cfms_core::UploadTaskStatus as Status;
-        let queue = cfms_service::services::upload_queue::UploadQueueState::new();
+        let queue = cfms_service::transfers::upload_queue::UploadQueueState::new();
         queue
             .insert_many(
                 (0..67)
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn a_parked_upload_is_re_admitted_without_creating_a_second_worker() {
         use cfms_core::UploadTaskStatus as Status;
-        let queue = cfms_service::services::upload_queue::UploadQueueState::new();
+        let queue = cfms_service::transfers::upload_queue::UploadQueueState::new();
         for id in ["a", "b", "c"] {
             queue.insert(queued(id), serde_json::Value::Null).unwrap();
         }
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn cancelling_a_batch_prevents_queued_members_from_starting() {
-        let queue = cfms_service::services::upload_queue::UploadQueueState::new();
+        let queue = cfms_service::transfers::upload_queue::UploadQueueState::new();
         let ids: Vec<_> = (0..67).map(|i| format!("file-{i}")).collect();
         queue
             .insert_many(

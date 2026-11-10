@@ -1,3 +1,11 @@
+use super::transfer_types::BatchActionFailure;
+use super::transfer_types::BatchActionResult;
+use crate::AppHandleState;
+use cfms_core::DownloadTaskDto;
+use cfms_core::DownloadTaskStatus;
+use cfms_core::ServiceEvent;
+use cfms_service::transfers::download_queue;
+
 // Download queue commands
 // ---------------------------------------------------------------------------
 
@@ -86,7 +94,10 @@ pub async fn retry_download(
     retry_download_task(&state, task_id).await
 }
 
-async fn retry_download_task(state: &AppHandleState, task_id: String) -> Result<bool, String> {
+pub(super) async fn retry_download_task(
+    state: &AppHandleState,
+    task_id: String,
+) -> Result<bool, String> {
     if state.tasks.get(&task_id).is_some_and(|task| {
         task.status == DownloadTaskStatus::Failed
             && task.failure_kind == Some(cfms_core::DownloadFailureKind::ServerTaskUnclaimable)
@@ -201,8 +212,10 @@ pub async fn remove_download_records(
     let (succeeded, failed) = state.tasks.remove_terminal(&ids);
     Ok(BatchActionResult {
         succeeded,
-        failed: failed.into_iter()
-            .map(|(id, error)| BatchActionFailure { id, error }).collect(),
+        failed: failed
+            .into_iter()
+            .map(|(id, error)| BatchActionFailure { id, error })
+            .collect(),
     })
 }
 
@@ -217,11 +230,17 @@ pub async fn delete_downloaded_files(
     let mut candidates = Vec::with_capacity(ids.len());
     for (id, task) in ids.into_iter().zip(tasks) {
         let Some(task) = task else {
-            failed.push(BatchActionFailure { id, error: "Task not found".into() });
+            failed.push(BatchActionFailure {
+                id,
+                error: "Task not found".into(),
+            });
             continue;
         };
         if task.status != DownloadTaskStatus::Completed {
-            failed.push(BatchActionFailure { id, error: "Only completed downloads have an output file".into() });
+            failed.push(BatchActionFailure {
+                id,
+                error: "Only completed downloads have an output file".into(),
+            });
             continue;
         }
         candidates.push((id, std::path::PathBuf::from(task.file_path)));
@@ -235,7 +254,10 @@ pub async fn delete_downloaded_files(
             .map(|(id, path)| match std::fs::remove_file(path) {
                 Ok(()) => Ok(id),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(id),
-                Err(error) => Err(BatchActionFailure { id, error: error.to_string() }),
+                Err(error) => Err(BatchActionFailure {
+                    id,
+                    error: error.to_string(),
+                }),
             })
             .collect::<Vec<_>>()
     })
@@ -251,7 +273,10 @@ pub async fn delete_downloaded_files(
     }
     if let Err(error) = state.tasks.mark_files_deleted(&succeeded) {
         for id in succeeded.drain(..) {
-            failed.push(BatchActionFailure { id, error: error.to_string() });
+            failed.push(BatchActionFailure {
+                id,
+                error: error.to_string(),
+            });
         }
     }
     Ok(BatchActionResult { succeeded, failed })

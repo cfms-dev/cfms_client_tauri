@@ -1,6 +1,7 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings, FileEntry } from './types';
+import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings } from './types/connection';
+import type { FileEntry } from './types/files';
 import { loadUserPreference, saveUserPreference } from './preferences';
 
 export type RootBackButtonBehavior = 'background' | 'exit';

@@ -1,3 +1,11 @@
+use super::mobile_types::AndroidPasskeyAssertion;
+use super::mobile_types::AndroidPasskeyAvailability;
+use super::mobile_types::AndroidPasskeyRegistration;
+#[cfg(target_os = "android")]
+use crate::AndroidPasskey;
+#[cfg(target_os = "android")]
+use tauri::Runtime;
+
 #[cfg(target_os = "android")]
 #[tauri::command]
 pub async fn android_passkey_availability<R: Runtime>(

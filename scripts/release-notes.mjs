@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const changelogPath = "src/lib/changelog/CHANGELOG.md";
+const changelogPath = "src/lib/features/updates/changelog/CHANGELOG.md";
 const tauriConfigPath = "src-tauri/tauri.conf.json";
 
 const semverPattern =

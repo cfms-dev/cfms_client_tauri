@@ -1,3 +1,11 @@
+use super::server_actions::server_action_bool;
+use super::session::get_connection_auth;
+use super::shared_helpers::format_transport_error;
+use super::shared_helpers::send_action_request;
+use super::transfer_helpers::create_transfer_connection;
+use crate::AppHandleState;
+use tauri::Manager;
+
 // Avatar commands (mirrors reference/src/include/util/avatar.py)
 // ---------------------------------------------------------------------------
 

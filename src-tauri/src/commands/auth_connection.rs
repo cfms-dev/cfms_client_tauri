@@ -1,4 +1,37 @@
-async fn apply_successful_login_response(
+use super::connection_config::ConnectionSettingsDto;
+use super::connection_config::remember_successful_connection;
+#[cfg(target_os = "android")]
+use super::mobile::exit_app_after_launcher_transition;
+use super::preference_keys::cache_current_preference_key;
+use super::session::clear_auth_state;
+use super::session::clear_connection_state;
+use super::session::close_primary_connection;
+use super::session::get_connection_auth;
+use super::settings::ensure_writable_ca_dir;
+use super::shared_helpers::decrypt_preference_dek;
+use super::shared_helpers::extract_preference_dek_content;
+use super::shared_helpers::format_server_error_parts;
+use super::shared_helpers::format_server_response_error;
+use super::shared_helpers::format_transport_error;
+use super::shared_helpers::remember_server_preference_dek;
+use super::shared_helpers::rewrap_and_upload_preference_dek;
+use super::shared_helpers::send_action_request;
+use super::shared_helpers::upload_and_select_preference_dek;
+use super::transfer_helpers::unix_now;
+use crate::AppHandleState;
+use crate::UploadInterruption;
+use cfms_core::ServerInfo;
+use cfms_service::authentication::ESCALATED;
+use cfms_service::authentication::GENERAL;
+use cfms_service::authentication::IssuedToken;
+use cfms_service::authentication::POST_AUTH;
+use cfms_service::session::build_auth_status;
+use cfms_service::session::build_server_state;
+use rand::RngExt;
+use tauri::Manager;
+use tauri::Runtime;
+
+pub(super) async fn apply_successful_login_response(
     state: &AppHandleState,
     username: &str,
     data: &mut serde_json::Value,
@@ -178,24 +211,23 @@ async fn change_password_and_rewrap_preferences(
     )
     .await?;
     if response.code != 200 {
-        if prepared {
-            if let Err(error) = upload_and_select_preference_dek(
+        if prepared
+            && let Err(error) = upload_and_select_preference_dek(
                 conn,
                 original_envelope.as_deref().unwrap(),
                 username,
                 token,
             )
             .await
-            {
-                return Err(format_server_error_parts(
-                    response.code,
-                    &format!(
-                        "{}; additionally failed to restore the previous preference DEK: {error}",
-                        response.message,
-                    ),
-                    &response.data,
-                ));
-            }
+        {
+            return Err(format_server_error_parts(
+                response.code,
+                &format!(
+                    "{}; additionally failed to restore the previous preference DEK: {error}",
+                    response.message,
+                ),
+                &response.data,
+            ));
         }
         return Err(format_server_response_error(&response));
     }
@@ -289,8 +321,13 @@ mod password_change_protocol_tests {
                         if *action == "core.user.key.upload" {
                             let content = request["data"]["content"].as_str().unwrap();
                             if index == 0 {
-                                let decoded =
-                                    cfms_crypto::dek::decrypt_dek(content, "new-password").unwrap();
+                                let content = content.to_owned();
+                                let decoded = tokio::task::spawn_blocking(move || {
+                                    cfms_crypto::dek::decrypt_dek(&content, "new-password")
+                                })
+                                .await
+                                .unwrap()
+                                .unwrap();
                                 assert_eq!(*decoded, *expected_key);
                             } else {
                                 assert_eq!(content, expected_original);
@@ -314,8 +351,11 @@ mod password_change_protocol_tests {
             cfms_transport::Connection::connect(&format!("ws://{address}"), tls, None, true)
                 .await
                 .unwrap();
+        // A round trip performs the production one-million-iteration KDF twice.
+        // Debug builds need a CPU budget independent of the transport timeout.
+        const PASSWORD_REWRAP_TEST_BUDGET: std::time::Duration = std::time::Duration::from_secs(60);
         let result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
+            PASSWORD_REWRAP_TEST_BUDGET,
             change_password_and_rewrap_preferences(
                 &connection,
                 "alice",
@@ -694,7 +734,7 @@ pub async fn connect(
     }
 
     // --- Store connection state ---
-    cfms_service::services::connection::watch_security(&state.inner, &conn);
+    cfms_service::connection::watch_security(&state.inner, &conn);
     {
         let mut c = state.inner.conn.write().await;
         *c = Some(conn);
@@ -810,138 +850,6 @@ mod loopback_url_tests {
         assert!(!is_loopback_wss_url("wss://192.0.2.1:5104"));
         assert!(!is_loopback_wss_url("ws://127.0.0.1:5104"));
         assert!(!is_loopback_wss_url("not a URL"));
-    }
-}
-
-fn trimmed_path(value: &str) -> Option<std::path::PathBuf> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(std::path::PathBuf::from(trimmed))
-    }
-}
-
-fn system_proxy_setting() -> Option<String> {
-    env_proxy_setting().or_else(platform_system_proxy_setting)
-}
-
-fn env_proxy_setting() -> Option<String> {
-    [
-        "CFMS_PROXY",
-        "ALL_PROXY",
-        "all_proxy",
-        "HTTPS_PROXY",
-        "https_proxy",
-    ]
-    .iter()
-    .find_map(|key| std::env::var(key).ok())
-    .map(|value| value.trim().to_string())
-    .filter(|value| !value.is_empty())
-}
-
-#[cfg(windows)]
-fn platform_system_proxy_setting() -> Option<String> {
-    use winreg::RegKey;
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
-
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let internet_settings = hkcu
-        .open_subkey_with_flags(
-            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
-            KEY_READ,
-        )
-        .ok()?;
-    let enabled = internet_settings
-        .get_value::<u32, _>("ProxyEnable")
-        .unwrap_or(0);
-    if enabled == 0 {
-        return None;
-    }
-
-    internet_settings
-        .get_value::<String, _>("ProxyServer")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-
-#[cfg(not(windows))]
-fn platform_system_proxy_setting() -> Option<String> {
-    None
-}
-
-fn normalize_proxy_url(
-    raw: &str,
-    default_scheme: &str,
-    context: &str,
-) -> Result<Option<url::Url>, String> {
-    let selected = select_proxy_rule(raw, &["socks", "https", "http"])
-        .unwrap_or_else(|| raw.trim().to_string());
-    let trimmed = selected.trim().trim_end_matches('/');
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-
-    let proxy_url = if trimmed.contains("://") {
-        url::Url::parse(trimmed).map_err(|e| format!("Invalid proxy URL for {context}: {e}"))?
-    } else {
-        let scheme = proxy_rule_scheme(raw).unwrap_or(default_scheme);
-        url::Url::parse(&format!("{scheme}://{trimmed}"))
-            .map_err(|e| format!("Invalid proxy URL for {context}: {e}"))?
-    };
-
-    match proxy_url.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => {
-            if proxy_url.host_str().is_none() {
-                return Err(format!("Proxy URL for {context} must include a host."));
-            }
-            if proxy_url.port_or_known_default().is_none() {
-                return Err(format!(
-                    "Proxy URL for {context} must include a port, e.g. socks5h://127.0.0.1:1080.",
-                ));
-            }
-            Ok(Some(proxy_url))
-        }
-        _ => Err(format!(
-            "Only HTTP, HTTPS and SOCKS proxy URLs are supported for {context}.",
-        )),
-    }
-}
-
-fn select_proxy_rule(raw: &str, preferred_keys: &[&str]) -> Option<String> {
-    if !raw.contains('=') {
-        return None;
-    }
-
-    let entries = raw
-        .split(';')
-        .filter_map(|entry| {
-            let (key, value) = entry.split_once('=')?;
-            let key = key.trim().to_ascii_lowercase();
-            let value = value.trim();
-            (!key.is_empty() && !value.is_empty()).then(|| (key, value.to_string()))
-        })
-        .collect::<Vec<_>>();
-
-    preferred_keys.iter().find_map(|preferred| {
-        entries
-            .iter()
-            .find(|(key, _)| key == preferred)
-            .map(|(_, value)| value.clone())
-    })
-}
-
-fn proxy_rule_scheme(raw: &str) -> Option<&'static str> {
-    if !raw.contains('=') {
-        return None;
-    }
-    if select_proxy_rule(raw, &["socks"]).is_some() {
-        Some("socks5h")
-    } else if select_proxy_rule(raw, &["https", "http"]).is_some() {
-        Some("http")
-    } else {
-        None
     }
 }
 

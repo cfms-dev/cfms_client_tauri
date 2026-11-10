@@ -1,11 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type {
-  CursorPage,
-  Schedule,
-  ScheduleCreateInput,
-  ScheduledTaskType,
-  ScheduleUpdateInput,
-} from './types';
+import type { CursorPage } from './types/common';
+import type { Schedule, ScheduleCreateInput, ScheduledTaskType, ScheduleUpdateInput } from './types/schedules';
 
 export function listScheduledTaskTypes(): Promise<ScheduledTaskType[]> {
   return invoke('list_scheduled_task_types');

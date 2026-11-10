@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { DeletedItemsResponse } from './types';
+import type { DeletedItemsResponse } from './types/files';
 
 export async function listDeletedItems(
   folderId = "/",

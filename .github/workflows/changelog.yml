@@ -60,7 +60,7 @@ jobs:
           pnpm app:changelog -- "${ARGS[@]}"
 
       - name: Show changelog diff
-        run: git diff -- src/lib/changelog/CHANGELOG.md
+        run: git diff -- src/lib/features/updates/changelog/CHANGELOG.md
 
       - name: Upload generated entry
         uses: actions/upload-artifact@v7
@@ -72,13 +72,13 @@ jobs:
       - name: Commit changelog update
         if: ${{ inputs.commit_changes }}
         run: |
-          if git diff --quiet -- src/lib/changelog/CHANGELOG.md; then
+          if git diff --quiet -- src/lib/features/updates/changelog/CHANGELOG.md; then
             echo "No changelog changes to commit."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/lib/changelog/CHANGELOG.md
+          git add src/lib/features/updates/changelog/CHANGELOG.md
           git commit -m "docs: update changelog for ${{ inputs.version }}"
           git push origin "HEAD:${{ inputs.target_branch }}"

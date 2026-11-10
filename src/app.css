@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
-@import "./lib/fluent/theme.css";
-@import "./lib/fluent/aliases.css";
-@import "./lib/fluent/hosts.css";
-@import "./lib/fluent/surfaces.css";
+@import "$lib/shared/fluent/theme.css";
+@import "$lib/shared/fluent/aliases.css";
+@import "$lib/shared/fluent/hosts.css";
+@import "$lib/shared/fluent/surfaces.css";
 
 html[data-theme="dark"] { color-scheme: dark; }
 html[data-theme="light"] { color-scheme: light; }

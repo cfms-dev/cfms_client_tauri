@@ -1,3 +1,25 @@
+use super::server_actions::server_action_json;
+use super::shared_helpers::format_server_error_parts;
+use super::transfer_helpers::download_root;
+use super::transfer_helpers::non_empty_optional;
+use super::transfer_helpers::unix_now;
+use crate::AppHandleState;
+use cfms_core::CursorPage;
+use cfms_core::DownloadTaskDto;
+use cfms_core::DownloadTaskStatus;
+use cfms_core::FileEntry;
+use cfms_core::ListDirectoryResponse;
+use cfms_core::NodeLookupResponse;
+use cfms_core::ServiceEvent;
+use cfms_service::files::ListDirectoryPageDto;
+use cfms_service::files::directory_page_size;
+use cfms_service::files::parse_listing_page_dto;
+use cfms_service::files::supports_node_lookup;
+use cfms_service::files::validate_node_lookup_response;
+use cfms_service::files::{ListingCursorPage, SERVER_CURSOR_PAGE_SIZE, merge_listing_response};
+use cfms_service::transfers::download_queue;
+use tauri::Manager;
+
 // File scanning
 // ---------------------------------------------------------------------------
 
@@ -85,80 +107,6 @@ pub async fn resolve_node_path(
     let response: NodeLookupResponse = serde_json::from_value(raw)
         .map_err(|error| format!("Invalid node_lookup response: {error}"))?;
     validate_node_lookup_response(response)
-}
-
-fn supports_node_lookup(extension_flags: &[String]) -> bool {
-    extension_flags.iter().any(|flag| flag == "node_lookup")
-}
-
-fn validate_node_lookup_response(
-    response: NodeLookupResponse,
-) -> Result<NodeLookupResponse, String> {
-    if response.node_ids.first().map(String::as_str) != Some("/") {
-        return Err("Invalid node_lookup response: node_ids must start with the root ID".to_string());
-    }
-    if response.node_ids.iter().any(|node_id| node_id.is_empty()) {
-        return Err("Invalid node_lookup response: node_ids must not contain empty IDs".to_string());
-    }
-    Ok(response)
-}
-
-#[cfg(test)]
-mod node_lookup_response_tests {
-    use super::{supports_node_lookup, validate_node_lookup_response};
-    use cfms_core::NodeLookupResponse;
-
-    #[test]
-    fn accepts_rooted_non_empty_node_id_chains() {
-        let response = NodeLookupResponse {
-            node_ids: vec!["/".into(), "projects".into()],
-        };
-        assert_eq!(
-            validate_node_lookup_response(response).unwrap().node_ids,
-            ["/", "projects"]
-        );
-    }
-
-    #[test]
-    fn requires_the_exact_node_lookup_extension_flag() {
-        assert!(supports_node_lookup(&["node_lookup".into()]));
-        assert!(!supports_node_lookup(&["node-lookup".into(), "documents".into()]));
-    }
-
-    #[test]
-    fn rejects_missing_root_and_empty_ids() {
-        let missing_root = NodeLookupResponse {
-            node_ids: vec!["projects".into()],
-        };
-        assert!(validate_node_lookup_response(missing_root).is_err());
-
-        let empty_id = NodeLookupResponse {
-            node_ids: vec!["/".into(), "".into()],
-        };
-        assert!(validate_node_lookup_response(empty_id).is_err());
-    }
-}
-
-fn directory_page_size(page_size: Option<u32>) -> u32 {
-    page_size
-        .unwrap_or(SERVER_CURSOR_PAGE_SIZE)
-        .clamp(1, SERVER_CURSOR_PAGE_SIZE)
-}
-
-fn parse_listing_page_dto(raw: serde_json::Value) -> Result<ListDirectoryPageDto, String> {
-    let page: ListingCursorPage = serde_json::from_value(raw)
-        .map_err(|e| format!("Invalid list_directory page response: {e}"))?;
-    if !(1..=SERVER_CURSOR_PAGE_SIZE).contains(&page.page_size) {
-        return Err(format!(
-            "Invalid list_directory page response: page_size must be between 1 and {SERVER_CURSOR_PAGE_SIZE}"
-        ));
-    }
-    if page.has_more && page.next_cursor.is_none() {
-        return Err(
-            "Invalid list_directory page response: has_more requires next_cursor".to_string(),
-        );
-    }
-    Ok(split_listing_page_dto(page))
 }
 
 /// Request a document download from the CFMS server.
@@ -332,3 +280,73 @@ fn resolve_download_subdirectory(
 }
 
 // ---------------------------------------------------------------------------
+
+pub(super) async fn fetch_all_listing_pages(
+    state: &AppHandleState,
+    action: &str,
+    mut data: serde_json::Value,
+) -> Result<ListDirectoryResponse, String> {
+    let mut combined = ListDirectoryResponse {
+        folders: Vec::new(),
+        documents: Vec::new(),
+        parent_id: None,
+    };
+    let mut cursor: Option<String> = None;
+
+    loop {
+        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
+        data["cursor"] = cursor
+            .as_ref()
+            .map(|value| serde_json::Value::String(value.clone()))
+            .unwrap_or(serde_json::Value::Null);
+
+        let page: ListingCursorPage =
+            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
+                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+        let has_more = page.has_more;
+        cursor = page.next_cursor.clone();
+        merge_listing_response(&mut combined, page);
+
+        if !has_more {
+            break;
+        }
+        if cursor.is_none() {
+            return Err(format!("{action} reported more pages without next_cursor"));
+        }
+    }
+
+    Ok(combined)
+}
+
+pub(super) async fn fetch_all_cursor_items(
+    state: &AppHandleState,
+    action: &str,
+    mut data: serde_json::Value,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut items = Vec::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
+        data["cursor"] = cursor
+            .as_ref()
+            .map(|value| serde_json::Value::String(value.clone()))
+            .unwrap_or(serde_json::Value::Null);
+
+        let page: CursorPage<serde_json::Value> =
+            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
+                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+        let has_more = page.has_more;
+        cursor = page.next_cursor.clone();
+        items.extend(page.items);
+
+        if !has_more {
+            break;
+        }
+        if cursor.is_none() {
+            return Err(format!("{action} reported more pages without next_cursor"));
+        }
+    }
+
+    Ok(items)
+}

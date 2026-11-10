@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-focus-ring-contract.mjs && pnpm check:fluent",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-focus-ring-contract.mjs && pnpm check:fluent && pnpm check:architecture",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
     "tauri": "tauri",
@@ -23,7 +23,9 @@
     "app:changelog:check": "node scripts/release-notes.mjs check",
     "app:release-notes": "node scripts/release-notes.mjs export",
     "assets:fluent": "node scripts/generate-fluent-theme.mjs && node scripts/generate-fluent-icons.mjs",
-    "check:fluent": "node scripts/generate-fluent-theme.mjs --check && node scripts/generate-fluent-icons.mjs --check"
+    "check:fluent": "node scripts/generate-fluent-theme.mjs --check && node scripts/generate-fluent-icons.mjs --check",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "test:architecture": "node --test scripts/check-architecture.test.mjs"
   },
   "license": "Apache-2.0",
   "dependencies": {

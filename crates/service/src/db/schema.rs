@@ -2,7 +2,7 @@
 //!
 //! The SQLite database only stores `user_settings` (key-value pairs).
 //! Download task metadata is persisted in per-user encrypted JSON files
-//! (see [`crate::services::task_persistence`]).
+//! (see [`crate::transfers::task_persistence`]).
 
 /// Current schema version.  Increment this when adding new DDL.
 pub const CURRENT_VERSION: u32 = 3;

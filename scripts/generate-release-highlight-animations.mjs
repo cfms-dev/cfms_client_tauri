@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outputDirectory = path.join(root, 'src', 'lib', 'release-highlights', 'animations', 'v0.43');
+const outputDirectory = path.join(root, 'src', 'lib', 'features', 'updates', 'release-highlights', 'animations', 'v0.43');
 const FRAME_RATE = 30;
 const END_FRAME = 120;
 const WIDTH = 960;

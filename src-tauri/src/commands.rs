@@ -1,74 +1,39 @@
-//! Tauri IPC commands — the boundary between the frontend Webview and the
-//! Rust backend.
+//! IPC adapters grouped by business capability.
 //!
-//! All commands delegate to [`cfms_service`] types through the Tauri managed
-//! state ([`AppHandleState`](super::AppHandleState)).
-//!
-//! # Security
-//!
-//! No file I/O or network requests happen in the Webview.  Every sensitive
-//! operation goes through these commands, which run on the Rust side.
+//! Commands declare their dependencies explicitly. Business rules that do not
+//! need Tauri live in `cfms-service`; platform effects stay in this crate.
 
-use cfms_core::constants;
-use cfms_core::{
-    AppearancePreference, CursorPage, DownloadTaskDto, DownloadTaskStatus, FileEntry,
-    ListDirectoryResponse, NodeLookupResponse, ServerDiagnostics, ServerInfo, ServiceEvent,
-    ServiceStatusInfo, UserPreference,
-};
-use cfms_crypto::dek;
-use cfms_service::services::download_queue;
-use rand::RngExt;
-use serde::{Deserialize, Serialize};
-#[cfg(target_os = "android")]
-use std::io::Write;
+pub(crate) mod admin;
+pub(crate) mod auth_connection;
+pub(crate) mod authentication;
+pub(crate) mod avatars;
+pub(crate) mod browsing;
+pub(crate) mod connection_config;
+pub(crate) mod connection_types;
+pub(crate) mod developer;
+pub(crate) mod documents;
+pub(crate) mod downloads;
+mod github_api;
+pub(crate) mod github_credentials;
+pub(crate) mod health;
+pub(crate) mod local_data_reset;
+pub(crate) mod mobile;
+pub(crate) mod mobile_types;
+pub(crate) mod passkeys;
+pub(crate) mod preference_keys;
+pub(crate) mod preferences;
+pub(crate) mod public_key_auth;
+pub(crate) mod schedules;
+pub(crate) mod settings;
+mod shared_helpers;
+pub(crate) mod task_reload;
+mod transfer_helpers;
+pub(crate) mod transfer_types;
+pub(crate) mod update_types;
+pub(crate) mod updates;
+pub(crate) mod upload_tasks;
 
-use tauri::{Emitter, Manager, Runtime, ipc::Channel};
-#[cfg(not(target_os = "android"))]
-use tauri_plugin_updater::UpdaterExt;
+pub(crate) mod registry;
 
-#[cfg(target_os = "android")]
-use crate::AndroidUploadFileImporter;
-#[cfg(target_os = "android")]
-use crate::{
-    AndroidApkInstaller, AndroidAppLifecycle, AndroidFileOpener, AndroidPasskey,
-    AndroidSecureScreen, AndroidUpdateNotification,
-};
-use crate::{AppHandleState, UploadInterruption};
-
-const UPDATE_RELEASES_API: &str =
-    "https://api.github.com/repos/cfms-dev/cfms_client_tauri/releases";
-const UPDATE_USER_AGENT: &str = "cfms-client-tauri-updater";
-const UPDATE_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
-const UPDATE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-const UPDATE_CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
-const CA_CERT_API_URL: &str = "https://api.github.com/repos/cfms-dev/ca/contents/";
-const CA_MANIFEST_FILENAME: &str = ".manifest.json";
-const MAX_RECENT_CONNECTION_ADDRESSES: usize = 5;
-
-include!(concat!(env!("OUT_DIR"), "/bundled_ca.rs"));
-
-include!("commands/types.rs");
-include!("commands/health.rs");
-include!("commands/passkeys.rs");
-include!("commands/mobile.rs");
-include!("commands/github_api.rs");
-include!("commands/github_credentials.rs");
-include!("commands/updates.rs");
-include!("commands/downloads.rs");
-include!("commands/upload_tasks.rs");
-include!("commands/documents.rs");
-include!("commands/admin.rs");
-include!("commands/schedules.rs");
-include!("commands/browsing.rs");
-include!("commands/settings.rs");
-include!("commands/developer.rs");
-include!("commands/auth_connection.rs");
-include!("commands/authentication.rs");
-include!("commands/public_key_auth.rs");
-include!("commands/preference_keys.rs");
-include!("commands/avatars.rs");
-include!("commands/preferences.rs");
-include!("commands/task_reload.rs");
-include!("commands/transfer_helpers.rs");
-include!("commands/shared_helpers.rs");
-include!("commands/local_data_reset.rs");
+mod server_actions;
+mod session;

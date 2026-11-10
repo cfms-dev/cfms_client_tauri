@@ -1,3 +1,12 @@
+use super::browsing::fetch_all_cursor_items;
+use super::server_actions::server_action_bool;
+use super::server_actions::server_action_json;
+use super::transfer_helpers::non_empty_optional;
+use crate::AppHandleState;
+use cfms_core::CursorPage;
+use cfms_core::ServerDiagnostics;
+use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
+
 // Administration / management operations
 // ---------------------------------------------------------------------------
 
@@ -34,8 +43,7 @@ fn current_user_nickname_update(
     username: &str,
     nickname: Option<&str>,
 ) -> Option<String> {
-    (current_id == Some(user_id))
-        .then(|| nickname.unwrap_or(username).to_string())
+    (current_id == Some(user_id)).then(|| nickname.unwrap_or(username).to_string())
 }
 
 #[tauri::command]
@@ -53,7 +61,10 @@ pub async fn list_users(
             serde_json::json!({ "offset": offset, "count": SERVER_CURSOR_PAGE_SIZE }),
         )
         .await?;
-        total = page.get("total").and_then(|value| value.as_u64()).unwrap_or(total as u64) as u32;
+        total = page
+            .get("total")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(total as u64) as u32;
         let page_users = page
             .get("users")
             .and_then(|value| value.as_array())
@@ -62,7 +73,11 @@ pub async fn list_users(
         let count = page_users.len() as u32;
         users.extend(page_users);
 
-        if !page.get("has_more").and_then(|value| value.as_bool()).unwrap_or(false) {
+        if !page
+            .get("has_more")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
             break;
         }
         if count == 0 {
@@ -534,7 +549,10 @@ mod operation_reason_tests {
 
     #[test]
     fn maps_an_empty_or_missing_reason_to_explicit_null() {
-        assert_eq!(operation_reason_value(Some(String::new())), serde_json::Value::Null);
+        assert_eq!(
+            operation_reason_value(Some(String::new())),
+            serde_json::Value::Null
+        );
         assert_eq!(operation_reason_value(None), serde_json::Value::Null);
     }
 }
@@ -554,7 +572,10 @@ pub async fn list_groups(
             serde_json::json!({ "offset": offset, "count": SERVER_CURSOR_PAGE_SIZE }),
         )
         .await?;
-        total = page.get("total").and_then(|value| value.as_u64()).unwrap_or(total as u64) as u32;
+        total = page
+            .get("total")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(total as u64) as u32;
         let page_groups = page
             .get("groups")
             .and_then(|value| value.as_array())
@@ -563,7 +584,11 @@ pub async fn list_groups(
         let count = page_groups.len() as u32;
         groups.extend(page_groups);
 
-        if !page.get("has_more").and_then(|value| value.as_bool()).unwrap_or(false) {
+        if !page
+            .get("has_more")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
             break;
         }
         if count == 0 {
@@ -687,7 +712,8 @@ pub async fn view_audit_logs(
 pub async fn server_diagnostics(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<ServerDiagnostics, String> {
-    let raw = server_action_json(&state, "core.server.diagnostics.get", serde_json::json!({})).await?;
+    let raw =
+        server_action_json(&state, "core.server.diagnostics.get", serde_json::json!({})).await?;
     let diagnostics: ServerDiagnostics = serde_json::from_value(raw)
         .map_err(|e| format!("Invalid server diagnostics response: {e}"))?;
     if diagnostics.schema_version != 1 {
@@ -718,7 +744,10 @@ pub async fn list_user_keys(
         }
 
         let page = server_action_json(&state, "core.user.key.list", data).await?;
-        total = page.get("total").and_then(|value| value.as_u64()).unwrap_or(total as u64) as u32;
+        total = page
+            .get("total")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(total as u64) as u32;
         let page_keys = page
             .get("keys")
             .and_then(|value| value.as_array())
@@ -727,7 +756,11 @@ pub async fn list_user_keys(
         let count = page_keys.len() as u32;
         keys.extend(page_keys);
 
-        if !page.get("has_more").and_then(|value| value.as_bool()).unwrap_or(false) {
+        if !page
+            .get("has_more")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
             break;
         }
         if count == 0 {
@@ -759,7 +792,12 @@ pub async fn delete_user_key(
     state: tauri::State<'_, AppHandleState>,
     id: String,
 ) -> Result<bool, String> {
-    server_action_bool(&state, "core.user.key.delete", serde_json::json!({ "id": id })).await
+    server_action_bool(
+        &state,
+        "core.user.key.delete",
+        serde_json::json!({ "id": id }),
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------

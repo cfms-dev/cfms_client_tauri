@@ -1,6 +1,8 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType, BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, SelectedUploadDirectory, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType, UploadConflictStrategy, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types';
+import type { AccessEntry, AccessEntityType, AccessType } from './types/access';
+import type { BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, SelectedUploadDirectory, UploadConflictStrategy, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types/transfers';
+import type { ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
 
 export interface DownloadBatchMetadata {
   batchId: string;

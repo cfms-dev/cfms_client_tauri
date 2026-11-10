@@ -1,7 +1,18 @@
+use super::settings::CA_CERT_API_URL;
+use super::updates::UPDATE_CHECK_TIMEOUT;
+use super::updates::UPDATE_RELEASES_API;
+use super::updates::UPDATE_USER_AGENT;
+#[cfg(test)]
+use super::updates::update_api_http_client;
+#[cfg(test)]
+use super::updates::update_http_client;
+#[cfg(target_os = "android")]
+use std::io::Write;
+
 // Authenticated requests are limited to these two public GitHub REST endpoints.
 // Asset and certificate downloads use separate clients without this header.
 #[derive(Clone, Copy)]
-enum GithubApiEndpoint {
+pub(super) enum GithubApiEndpoint {
     UpdateReleases,
     CaCertificates,
 }
@@ -112,7 +123,7 @@ fn github_api_response_error(
             .filter(|seconds| *seconds > 0)
             .map(std::time::Duration::from_secs)
             .or_else(|| {
-                (headers.get("x-ratelimit-remaining")? == "0").then(|| ())?;
+                (headers.get("x-ratelimit-remaining")? == "0").then_some(())?;
                 let reset = headers
                     .get("x-ratelimit-reset")?
                     .to_str()
@@ -215,7 +226,7 @@ async fn github_api_get_with_token(
     }
 }
 
-async fn github_api_get(
+pub(super) async fn github_api_get(
     client: &reqwest::Client,
     endpoint: GithubApiEndpoint,
     credentials: &crate::github_credentials::GithubCredentialState,
@@ -242,7 +253,7 @@ mod github_api_tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    static TEST_COOLDOWN_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    static TEST_COOLDOWN_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     async fn serve_responses(responses: &[&str]) -> (String, tokio::task::JoinHandle<Vec<String>>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -350,9 +361,9 @@ mod github_api_tests {
         ));
     }
 
-    #[test]
-    fn old_credential_cooldown_does_not_block_replacement() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn old_credential_cooldown_does_not_block_replacement() {
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         start_github_api_cooldown(3, std::time::Duration::from_secs(42));
         assert!(github_api_cooldown_remaining(3).is_some());
@@ -360,9 +371,9 @@ mod github_api_tests {
         clear_github_api_cooldown();
     }
 
-    #[test]
-    fn shorter_later_rate_limit_does_not_shorten_wait() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+    #[tokio::test]
+    async fn shorter_later_rate_limit_does_not_shorten_wait() {
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         start_github_api_cooldown(7, std::time::Duration::from_secs(120));
         start_github_api_cooldown(7, std::time::Duration::from_secs(5));
@@ -374,7 +385,7 @@ mod github_api_tests {
 
     #[tokio::test]
     async fn rejected_token_retries_anonymously_once_and_marks_it() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         let (url, server) = serve_responses(&[
             "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -404,7 +415,7 @@ mod github_api_tests {
 
     #[tokio::test]
     async fn rejected_token_stays_disabled_when_anonymous_retry_fails() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         let (url, server) = serve_responses(&[
             "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -431,7 +442,7 @@ mod github_api_tests {
 
     #[tokio::test]
     async fn rate_limit_stops_without_anonymous_retry() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         let (url, server) = serve_responses(&[
             "HTTP/1.1 403 Forbidden\r\nRetry-After: 42\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -461,7 +472,7 @@ mod github_api_tests {
 
     #[tokio::test]
     async fn api_redirect_does_not_forward_the_token() {
-        let _guard = TEST_COOLDOWN_LOCK.lock().unwrap();
+        let _guard = TEST_COOLDOWN_LOCK.lock().await;
         clear_github_api_cooldown();
         let (url, server) = serve_responses(&[
             "HTTP/1.1 302 Found\r\nLocation: https://example.invalid/capture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",

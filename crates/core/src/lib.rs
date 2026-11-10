@@ -1,9 +1,8 @@
 //! CFMS Core — shared foundation types, constants, and error handling.
 //!
-//! This crate has **zero** external dependencies beyond `thiserror` (for the
-//! error enum) and `serde` (for data types that cross crate/process
-//! boundaries).  It is the single source of truth for protocol constants and
-//! the unified [`Error`] type.
+//! Shared protocol records, constants, error categories, revocation evidence,
+//! and deterministic cache-key hashing. This foundation never depends on the
+//! native shell or the service, transfer, transport, and crypto crates.
 
 #![forbid(unsafe_code)]
 

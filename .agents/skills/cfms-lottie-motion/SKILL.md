@@ -1,6 +1,6 @@
 ---
 name: cfms-lottie-motion
-description: Review, create, or repair CFMS release-highlight Lottie animations, especially timing, easing, choreography, geometry bounds, loop seams, reduced-motion end states, light/dark parity, and lottie-web versus Skottie compatibility. Use for files under src/lib/release-highlights/animations or renderer behavior in LottieScene.svelte. Do not use for unrelated CSS or Svelte motion.
+description: Review, create, or repair CFMS release-highlight Lottie animations, especially timing, easing, choreography, geometry bounds, loop seams, reduced-motion end states, light/dark parity, and lottie-web versus Skottie compatibility. Use for files under src/lib/features/updates/release-highlights/animations or renderer behavior in LottieScene.svelte. Do not use for unrelated CSS or Svelte motion.
 ---
 
 # CFMS Lottie Motion
@@ -64,7 +64,7 @@ node .agents/skills/cfms-lottie-motion/scripts/check-lottie.mjs --loop --pair <l
 Then verify all of the following:
 
 1. Render frame 0, at least two semantic midpoints, and `op - 1` with the actual `lottie-web` package. Assert that the generated SVG changes between animated frames. A test that only mocks `loadAnimation` cannot detect frozen keyframes.
-2. Run the relevant release-highlight tests, including `src/lib/release-highlights/lottie-web-compat.test.ts` when applicable.
+2. Run the relevant release-highlight tests, including `src/lib/features/updates/release-highlights/lottie-web-compat.test.ts` when applicable.
 3. Inspect the same pinned frames in the official Skottie player. Confirm important geometry stays inside its intended container and the first/last frames are visually identical for loops.
 4. Run `pnpm check` and the focused Vitest files.
 5. If a temporary development server is needed, follow the repository instructions and stop it before finishing.

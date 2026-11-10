@@ -1,13 +1,13 @@
 //! Integration tests for the download task persistence layer.
 //!
 //! Tests the JSON file-based encrypted storage used by
-//! `cfms_service::services::task_persistence`.
+//! `cfms_service::transfers::task_persistence`.
 
 use std::collections::HashMap;
 
 use cfms_core::{DownloadFailureKind, DownloadTaskDto, DownloadTaskStatus};
 use cfms_crypto::{decrypt_config, generate_dek, is_encrypted};
-use cfms_service::services::{download_queue, task_persistence};
+use cfms_service::transfers::{download_queue, task_persistence};
 
 // Type alias matching the JSON shape.
 type TasksJson = HashMap<String, serde_json::Value>;

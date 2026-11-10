@@ -51,8 +51,8 @@ Preserve the established English and Simplified Chinese terminology and the appl
 ## Evidence on Hand
 
 - `README.md` documents the product purpose, supported workflows, deployment assumptions, architecture, security model, and operational guidance.
-- `src/lib/i18n/messages/en.ts` and `src/lib/i18n/messages/zh-CN.ts` contain the real bilingual product copy and terminology.
-- `src/routes/` and `src/lib/components/` contain implemented connection, authentication, file-management, transfer, administration, privacy, settings, and recovery workflows.
+- `src/lib/shared/i18n/messages/en.ts` and `src/lib/shared/i18n/messages/zh-CN.ts` contain the real bilingual product copy and terminology.
+- `src/lib/app/`, `src/lib/features/`, and the thin `src/routes/` adapters contain implemented connection, authentication, file-management, transfer, administration, privacy, settings, and recovery workflows.
 - `src-tauri/` and `crates/` contain the implemented native shell, service, transport, transfer, and cryptographic boundaries.
 - `static/` and `src-tauri/icons/` contain the current application icons, fonts, and bundled visual assets.
 - No testimonials, customer logos, deployment counts, performance benchmarks, or other marketing proof are established in the repository; future work must not fabricate them.

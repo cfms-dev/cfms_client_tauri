@@ -1,6 +1,9 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, PermissionEntry, ServerDiagnostics, TwoFactorStatus, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget, UserKeyDetails, UserKeyMetadata } from './types';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget } from './types/administration';
+import type { PermissionEntry } from './types/access';
+import type { ServerDiagnostics } from './types/diagnostics';
+import type { TwoFactorStatus, UserKeyDetails, UserKeyMetadata } from './types/authentication';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserResponse = Omit<

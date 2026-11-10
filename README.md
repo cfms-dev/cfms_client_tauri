@@ -20,6 +20,8 @@
 
 ## Getting started
 
+See [the architecture guide](docs/architecture.md) for module ownership, dependency rules, and refactoring checks.
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 24 (the version used by CI; local environments should meet the dependency runtime requirements at minimum)

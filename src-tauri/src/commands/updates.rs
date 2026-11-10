@@ -1,3 +1,42 @@
+#[cfg(not(target_os = "android"))]
+use tauri_plugin_updater::UpdaterExt;
+
+use super::connection_config::ConnectionSettingsDto;
+use super::github_api::GithubApiEndpoint;
+use super::github_api::github_api_get;
+use super::update_types::AppUpdateDownloadEvent;
+use super::update_types::AppUpdateMetadata;
+#[cfg(target_os = "android")]
+use super::update_types::AssetDigest;
+#[cfg(target_os = "android")]
+use super::update_types::AssetDigestKind;
+use super::update_types::GithubAssetDto;
+use super::update_types::GithubReleaseDto;
+#[cfg(target_os = "android")]
+use super::update_types::MobileAppUpdate;
+use super::update_types::UpdateChannel;
+#[cfg(target_os = "android")]
+use crate::AndroidApkInstaller;
+#[cfg(target_os = "android")]
+use crate::AndroidFileOpener;
+use crate::AppHandleState;
+use cfms_core::ServiceEvent;
+#[cfg(target_os = "android")]
+use std::io::Write;
+use tauri::Manager;
+use tauri::ipc::Channel;
+
+pub(super) const UPDATE_CHECK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
+
+const UPDATE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+const UPDATE_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+pub(super) const UPDATE_USER_AGENT: &str = "cfms-client-tauri-updater";
+
+pub(super) const UPDATE_RELEASES_API: &str =
+    "https://api.github.com/repos/cfms-dev/cfms_client_tauri/releases";
+
 // Application updater
 // ---------------------------------------------------------------------------
 
@@ -646,16 +685,20 @@ async fn find_update_release(
     Ok(candidates.into_iter().map(|(_, release)| release).next())
 }
 
-fn updater_proxy_url(state: &tauri::State<'_, AppHandleState>) -> Result<Option<url::Url>, String> {
+pub(super) fn updater_proxy_url(
+    state: &tauri::State<'_, AppHandleState>,
+) -> Result<Option<url::Url>, String> {
     let settings = ConnectionSettingsDto::load(&state.settings);
     settings.updater_proxy_url()
 }
 
-fn update_http_client(proxy_url: Option<&url::Url>) -> Result<reqwest::Client, String> {
+pub(super) fn update_http_client(proxy_url: Option<&url::Url>) -> Result<reqwest::Client, String> {
     build_update_http_client(proxy_url, false)
 }
 
-fn update_api_http_client(proxy_url: Option<&url::Url>) -> Result<reqwest::Client, String> {
+pub(super) fn update_api_http_client(
+    proxy_url: Option<&url::Url>,
+) -> Result<reqwest::Client, String> {
     build_update_http_client(proxy_url, true)
 }
 
@@ -681,7 +724,7 @@ fn build_update_http_client(
         .map_err(|e| format!("Failed to initialize updater HTTP client: {e}"))
 }
 
-fn update_http_client_builder() -> reqwest::ClientBuilder {
+pub(super) fn update_http_client_builder() -> reqwest::ClientBuilder {
     #[cfg(target_os = "android")]
     {
         // reqwest 0.13's default rustls verifier delegates to Android and must

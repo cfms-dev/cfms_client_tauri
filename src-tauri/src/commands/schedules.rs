@@ -1,3 +1,8 @@
+use super::server_actions::server_action_bool;
+use super::server_actions::server_action_json;
+use crate::AppHandleState;
+use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
+
 // Core protocol 27 durable schedule management.
 
 #[tauri::command]
@@ -41,7 +46,8 @@ pub async fn get_schedule(
     state: tauri::State<'_, AppHandleState>,
     id: String,
 ) -> Result<cfms_core::Schedule, String> {
-    let raw = server_action_json(&state, "core.schedule.get", serde_json::json!({ "id": id })).await?;
+    let raw =
+        server_action_json(&state, "core.schedule.get", serde_json::json!({ "id": id })).await?;
     serde_json::from_value(raw).map_err(|error| format!("Invalid schedule response: {error}"))
 }
 

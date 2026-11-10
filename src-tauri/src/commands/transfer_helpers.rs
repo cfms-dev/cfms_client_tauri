@@ -1,33 +1,26 @@
-/// Convenience helper: extract (connection, username, token) from app state.
-async fn get_connection_auth(
-    state: &AppHandleState,
-) -> Result<
-    (
-        cfms_transport::Connection,
-        String,
-        cfms_service::sensitive::SecretString,
-    ),
-    String,
-> {
-    let conn = cfms_service::services::connection::ensure_connected(
-        &state.inner,
-        cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS,
-        false,
-    )
-    .await
-    .map_err(|e| format!("Not connected to a server: {e}"))?;
-    let username = state
-        .inner
-        .username
-        .read()
-        .await
-        .clone()
-        .ok_or_else(|| "Not logged in".to_string())?;
-    let token = state.inner.request_token().await.ok_or("Not logged in")?;
-    Ok((conn, username, token))
-}
+use super::session::get_connection_auth;
+use super::shared_helpers::format_server_response_error;
+use super::shared_helpers::format_transport_error;
+use super::shared_helpers::send_action_request;
+#[cfg(target_os = "android")]
+use super::transfer_types::AndroidImportedUploadPath;
+use super::transfer_types::PreparedUploadSource;
+use super::transfer_types::UploadConflictStrategy;
+use super::transfer_types::UploadFileResult;
+use super::transfer_types::UploadProgressEvent;
+use super::upload_tasks::emit_upload_snapshot;
+#[cfg(target_os = "android")]
+use crate::AndroidUploadFileImporter;
+use crate::AppHandleState;
+use crate::UploadInterruption;
+use cfms_service::transfers::MAX_UPLOAD_RETRIES;
+use cfms_service::transfers::suffixed_upload_name;
+use cfms_service::transfers::upload_retry_delay;
+use tauri::Emitter;
+use tauri::Manager;
+use tauri::Runtime;
 
-fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+pub(super) fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     Ok(app_handle
         .path()
         .resolve("downloads", tauri::path::BaseDirectory::Download)
@@ -39,7 +32,7 @@ fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, St
         }))
 }
 
-async fn create_transfer_connection(
+pub(super) async fn create_transfer_connection(
     state: &cfms_service::state::AppState,
 ) -> cfms_core::Result<cfms_transport::Connection> {
     let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
@@ -76,13 +69,13 @@ async fn create_transfer_connection(
     cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await
 }
 
-struct UploadTransferSession {
-    conn: Option<cfms_transport::Connection>,
-    directory_progress: Option<(u64, u64)>,
+pub(super) struct UploadTransferSession {
+    pub(super) conn: Option<cfms_transport::Connection>,
+    pub(super) directory_progress: Option<(u64, u64)>,
 }
 
 impl UploadTransferSession {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             conn: None,
             directory_progress: None,
@@ -119,7 +112,7 @@ impl UploadTransferSession {
         }
     }
 
-    async fn close(&mut self) {
+    pub(super) async fn close(&mut self) {
         if let Some(conn) = self.conn.take() {
             tauri::async_runtime::spawn(async move {
                 let _ = tokio::time::timeout(std::time::Duration::from_secs(5), conn.close()).await;
@@ -138,23 +131,7 @@ impl Drop for UploadTransferSession {
     }
 }
 
-const MAX_UPLOAD_RETRIES: u32 = cfms_service::services::retry::MAX_BACKGROUND_RETRIES as u32;
-
-fn upload_retry_delay(error: &cfms_core::Error, attempt: u32) -> Option<std::time::Duration> {
-    if attempt >= MAX_UPLOAD_RETRIES {
-        return None;
-    }
-
-    if !cfms_service::services::retry::is_transient_error(error) {
-        return None;
-    }
-    Some(cfms_service::services::retry::retry_delay(
-        attempt as usize + 1,
-        cfms_service::services::retry::error_retry_after_seconds(error),
-    ))
-}
-
-async fn wait_for_upload_resume<R: Runtime>(
+pub(super) async fn wait_for_upload_resume<R: Runtime>(
     app: &tauri::AppHandle<R>,
     id: &str,
     control: &mut tokio::sync::watch::Receiver<Option<UploadInterruption>>,
@@ -173,11 +150,11 @@ async fn wait_for_upload_resume<R: Runtime>(
     }
 }
 
-struct CreateServerDirectoryResult {
-    id: String,
+pub(super) struct CreateServerDirectoryResult {
+    pub(super) id: String,
 }
 
-async fn create_server_directory(
+pub(super) async fn create_server_directory(
     state: &AppHandleState,
     parent_id: Option<String>,
     name: String,
@@ -219,7 +196,7 @@ async fn create_server_directory(
     Ok(CreateServerDirectoryResult { id })
 }
 
-fn clean_optional_upload_name(name: Option<String>) -> Option<String> {
+pub(super) fn clean_optional_upload_name(name: Option<String>) -> Option<String> {
     name.and_then(|value| {
         let cleaned = value
             .chars()
@@ -240,7 +217,7 @@ fn clean_optional_upload_name(name: Option<String>) -> Option<String> {
 }
 
 #[cfg(target_os = "android")]
-fn prepare_upload_source<R: Runtime>(
+pub(super) fn prepare_upload_source<R: Runtime>(
     app_handle: &tauri::AppHandle<R>,
     file_path: String,
 ) -> Result<PreparedUploadSource, String> {
@@ -274,7 +251,7 @@ fn prepare_upload_source<R: Runtime>(
 }
 
 #[cfg(not(target_os = "android"))]
-fn prepare_upload_source<R: Runtime>(
+pub(super) fn prepare_upload_source<R: Runtime>(
     _app_handle: &tauri::AppHandle<R>,
     file_path: String,
 ) -> Result<PreparedUploadSource, String> {
@@ -291,7 +268,7 @@ fn prepare_upload_source<R: Runtime>(
 }
 
 #[cfg(target_os = "android")]
-fn prepare_upload_directory_source<R: Runtime>(
+pub(super) fn prepare_upload_directory_source<R: Runtime>(
     app_handle: &tauri::AppHandle<R>,
     directory_path: String,
 ) -> Result<PreparedUploadSource, String> {
@@ -325,7 +302,7 @@ fn prepare_upload_directory_source<R: Runtime>(
 }
 
 #[cfg(not(target_os = "android"))]
-fn prepare_upload_directory_source<R: Runtime>(
+pub(super) fn prepare_upload_directory_source<R: Runtime>(
     _app_handle: &tauri::AppHandle<R>,
     directory_path: String,
 ) -> Result<PreparedUploadSource, String> {
@@ -341,7 +318,7 @@ fn prepare_upload_directory_source<R: Runtime>(
     })
 }
 
-async fn upload_local_file<R: Runtime>(
+pub(super) async fn upload_local_file<R: Runtime>(
     app_handle: &tauri::AppHandle<R>,
     state: &AppHandleState,
     parent_id: Option<String>,
@@ -728,7 +705,7 @@ async fn upload_local_file<R: Runtime>(
     })
 }
 
-fn upload_interruption_message(reason: UploadInterruption) -> &'static str {
+pub(super) fn upload_interruption_message(reason: UploadInterruption) -> &'static str {
     match reason {
         UploadInterruption::Paused => "Upload paused",
         UploadInterruption::Cancelled => "Upload cancelled",
@@ -826,459 +803,7 @@ fn extract_task_id(data: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "Server response missing task_id".to_string())
 }
 
-fn collect_directory_entries(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
-    let mut entries = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-
-    while let Some(path) = stack.pop() {
-        let children = std::fs::read_dir(&path)
-            .map_err(|e| format!("Failed to read directory {}: {e}", path.display()))?;
-        for child in children {
-            let child = child.map_err(|e| format!("Failed to read directory entry: {e}"))?;
-            let child_path = child.path();
-            if child_path.is_dir() {
-                stack.push(child_path.clone());
-            }
-            entries.push(child_path);
-        }
-    }
-
-    entries.sort_by(|a, b| {
-        let a_depth = a.components().count();
-        let b_depth = b.components().count();
-        a_depth.cmp(&b_depth).then_with(|| a.cmp(b))
-    });
-    Ok(entries)
-}
-
-async fn server_action_json(
-    state: &AppHandleState,
-    action: &str,
-    data: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let resp = server_action_response(state, action, data).await?;
-    if resp.code != 200 {
-        return Err(format_server_response_error(&resp));
-    }
-
-    Ok(resp.data)
-}
-
-/// Send an authenticated server action while preserving the complete response
-/// envelope. Unlike `server_action_json`, non-200 responses are returned to the
-/// caller so developer tooling can inspect the server's structured result.
-async fn server_action_response(
-    state: &AppHandleState,
-    action: &str,
-    data: serde_json::Value,
-) -> Result<cfms_core::Response, String> {
-    let expected_identity = capture_server_action_identity(&state.inner).await?;
-    let mut last_error = None;
-    for attempt in 1..=cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS {
-        let (conn, username, token) = get_connection_auth(state).await?;
-        ensure_server_action_identity(&state.inner, &expected_identity, &username).await?;
-        match send_action_request(&conn, action, data.clone(), &username, &token).await {
-            Ok(resp) => return Ok(resp),
-            Err(error) if is_transient_connection_error(&error) => {
-                tracing::warn!(
-                    "Request {action} failed on attempt {attempt}; reconnecting: {error}",
-                );
-                last_error = Some(error);
-                cfms_service::services::connection::ensure_connected(
-                    &state.inner,
-                    cfms_service::services::connection::DEFAULT_RECONNECT_ATTEMPTS,
-                    true,
-                )
-                .await?;
-            }
-            Err(error) => return Err(error),
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| format!("{action} failed after reconnect attempts")))
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct ServerActionIdentity {
-    server_address: Option<String>,
-    username: String,
-}
-
-async fn capture_server_action_identity(
-    state: &cfms_service::state::AppState,
-) -> Result<ServerActionIdentity, String> {
-    let server_address = state.server_address.read().await.clone();
-    let username = state
-        .username
-        .read()
-        .await
-        .clone()
-        .ok_or_else(|| "Not logged in".to_string())?;
-    Ok(ServerActionIdentity {
-        server_address,
-        username,
-    })
-}
-
-async fn ensure_server_action_identity(
-    state: &cfms_service::state::AppState,
-    expected: &ServerActionIdentity,
-    username: &str,
-) -> Result<(), String> {
-    let current = ServerActionIdentity {
-        server_address: state.server_address.read().await.clone(),
-        username: username.to_string(),
-    };
-    validate_server_action_identity(expected, &current)
-}
-
-fn validate_server_action_identity(
-    expected: &ServerActionIdentity,
-    current: &ServerActionIdentity,
-) -> Result<(), String> {
-    if current == expected {
-        return Ok(());
-    }
-    Err("Request cancelled because the active server or account changed".to_string())
-}
-
-async fn server_action_bool(
-    state: &AppHandleState,
-    action: &str,
-    data: serde_json::Value,
-) -> Result<bool, String> {
-    server_action_json(state, action, data).await?;
-    Ok(true)
-}
-
-fn suffixed_upload_name(name: &str, suffix: usize) -> String {
-    let path = std::path::Path::new(name);
-    let extension = path.extension().and_then(|value| value.to_str());
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or(name);
-    match extension {
-        Some(extension) if !stem.is_empty() => format!("{stem} ({suffix}).{extension}"),
-        _ => format!("{name} ({suffix})"),
-    }
-}
-
-fn relative_upload_path(path: &std::path::Path) -> String {
-    path.components()
-        .filter_map(|component| match component {
-            std::path::Component::Normal(value) => Some(value.to_string_lossy().into_owned()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
-    let mut folders = Vec::new();
-    let mut documents = Vec::new();
-
-    for item in page.items {
-        match item {
-            cfms_core::ServerListingItem::Directory(folder) => folders.push(folder),
-            cfms_core::ServerListingItem::Document(document) => documents.push(document),
-        }
-    }
-
-    ListDirectoryResponse {
-        folders,
-        documents,
-        parent_id: page.parent_id,
-    }
-}
-
-fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
-    let page_size = page.page_size;
-    let next_cursor = page.next_cursor.clone();
-    let has_more = page.has_more;
-    let split = split_listing_page(page);
-
-    ListDirectoryPageDto {
-        folders: split.folders,
-        documents: split.documents,
-        parent_id: split.parent_id,
-        page_size,
-        next_cursor,
-        has_more,
-    }
-}
-
-fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingCursorPage) {
-    target.parent_id = page.parent_id.clone();
-    let split = split_listing_page(page);
-    target.folders.extend(split.folders);
-    target.documents.extend(split.documents);
-}
-
-async fn fetch_all_listing_pages(
-    state: &AppHandleState,
-    action: &str,
-    mut data: serde_json::Value,
-) -> Result<ListDirectoryResponse, String> {
-    let mut combined = ListDirectoryResponse {
-        folders: Vec::new(),
-        documents: Vec::new(),
-        parent_id: None,
-    };
-    let mut cursor: Option<String> = None;
-
-    loop {
-        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
-        data["cursor"] = cursor
-            .as_ref()
-            .map(|value| serde_json::Value::String(value.clone()))
-            .unwrap_or(serde_json::Value::Null);
-
-        let page: ListingCursorPage =
-            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
-                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
-        let has_more = page.has_more;
-        cursor = page.next_cursor.clone();
-        merge_listing_response(&mut combined, page);
-
-        if !has_more {
-            break;
-        }
-        if cursor.is_none() {
-            return Err(format!("{action} reported more pages without next_cursor"));
-        }
-    }
-
-    Ok(combined)
-}
-
-async fn fetch_all_cursor_items(
-    state: &AppHandleState,
-    action: &str,
-    mut data: serde_json::Value,
-) -> Result<Vec<serde_json::Value>, String> {
-    let mut items = Vec::new();
-    let mut cursor: Option<String> = None;
-
-    loop {
-        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
-        data["cursor"] = cursor
-            .as_ref()
-            .map(|value| serde_json::Value::String(value.clone()))
-            .unwrap_or(serde_json::Value::Null);
-
-        let page: CursorPage<serde_json::Value> =
-            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
-                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
-        let has_more = page.has_more;
-        cursor = page.next_cursor.clone();
-        items.extend(page.items);
-
-        if !has_more {
-            break;
-        }
-        if cursor.is_none() {
-            return Err(format!("{action} reported more pages without next_cursor"));
-        }
-    }
-
-    Ok(items)
-}
-
-fn split_search_page(mut page: CursorPage<serde_json::Value>) -> serde_json::Value {
-    let mut documents = Vec::new();
-    let mut directories = Vec::new();
-
-    for item in page.items.drain(..) {
-        match item.get("type").and_then(|value| value.as_str()) {
-            Some("directory") => directories.push(item),
-            Some("document") => documents.push(item),
-            _ => {}
-        }
-    }
-
-    serde_json::json!({
-        "documents": documents,
-        "directories": directories,
-        "page_size": page.page_size,
-        "next_cursor": page.next_cursor,
-        "has_more": page.has_more,
-    })
-}
-
-#[cfg(test)]
-mod protocol_v15_tests {
-    use super::*;
-
-    #[test]
-    fn split_listing_page_maps_v15_items_to_legacy_response() {
-        let page: ListingCursorPage = serde_json::from_str(
-            r#"{
-                "items": [
-                    { "type": "directory", "id": "dir", "name": "Folder", "created_time": 1.0 },
-                    { "type": "document", "id": "doc", "title": "File", "name": "File", "size": 5, "last_modified": 2.0 }
-                ],
-                "page_size": 128,
-                "next_cursor": null,
-                "has_more": false,
-                "parent_id": "/"
-            }"#,
-        )
-        .unwrap();
-
-        let split = split_listing_page(page);
-
-        assert_eq!(split.folders.len(), 1);
-        assert_eq!(split.folders[0].name, "Folder");
-        assert_eq!(split.documents.len(), 1);
-        assert_eq!(split.documents[0].title, "File");
-        assert_eq!(split.parent_id.as_deref(), Some("/"));
-    }
-
-    #[test]
-    fn split_listing_page_dto_preserves_cursor_metadata() {
-        let page: ListingCursorPage = serde_json::from_str(
-            r#"{
-                "items": [
-                    { "type": "directory", "id": "dir", "name": "Folder", "created_time": 1.0 },
-                    { "type": "document", "id": "doc", "title": "File", "size": 5, "last_modified": 2.0 }
-                ],
-                "page_size": 128,
-                "next_cursor": "next-page",
-                "has_more": true,
-                "parent_id": "parent"
-            }"#,
-        )
-        .unwrap();
-
-        let split = split_listing_page_dto(page);
-
-        assert_eq!(split.folders.len(), 1);
-        assert_eq!(split.documents.len(), 1);
-        assert_eq!(split.parent_id.as_deref(), Some("parent"));
-        assert_eq!(split.page_size, 128);
-        assert_eq!(split.next_cursor.as_deref(), Some("next-page"));
-        assert!(split.has_more);
-    }
-
-    #[test]
-    fn directory_page_size_is_clamped_to_protocol_limits() {
-        assert_eq!(directory_page_size(None), SERVER_CURSOR_PAGE_SIZE);
-        assert_eq!(directory_page_size(Some(0)), 1);
-        assert_eq!(directory_page_size(Some(32)), 32);
-        assert_eq!(directory_page_size(Some(10_000)), SERVER_CURSOR_PAGE_SIZE);
-    }
-
-    #[test]
-    fn invalid_listing_page_returns_a_descriptive_error() {
-        let error = parse_listing_page_dto(serde_json::json!({ "has_more": false }))
-            .expect_err("missing page fields must fail");
-
-        assert!(error.starts_with("Invalid list_directory page response:"));
-    }
-
-    #[test]
-    fn split_search_page_preserves_cursor_metadata() {
-        let page: CursorPage<serde_json::Value> = serde_json::from_str(
-            r#"{
-                "items": [
-                    { "type": "directory", "id": "dir", "name": "Folder" },
-                    { "type": "document", "id": "doc", "name": "File", "size": 5 }
-                ],
-                "page_size": 64,
-                "next_cursor": "cursor",
-                "has_more": true
-            }"#,
-        )
-        .unwrap();
-
-        let split = split_search_page(page);
-
-        assert_eq!(split["directories"].as_array().unwrap().len(), 1);
-        assert_eq!(split["documents"].as_array().unwrap().len(), 1);
-        assert_eq!(split["page_size"], 64);
-        assert_eq!(split["next_cursor"], "cursor");
-        assert_eq!(split["has_more"], true);
-    }
-
-    #[test]
-    fn keep_both_suffix_preserves_file_extension() {
-        assert_eq!(suffixed_upload_name("report.pdf", 2), "report (2).pdf");
-        assert_eq!(suffixed_upload_name("README", 1), "README (1)");
-    }
-
-    #[test]
-    fn relative_upload_paths_use_protocol_separators() {
-        let path = std::path::Path::new("nested")
-            .join("reports")
-            .join("summary.txt");
-        assert_eq!(relative_upload_path(&path), "nested/reports/summary.txt");
-    }
-}
-
-async fn clear_auth_state(state: &AppHandleState) {
-    state.public_keys.cancel();
-    state.inner.clear_auth().await;
-    state.tasks.clear();
-    state
-        .active_uploads
-        .interrupt_all(UploadInterruption::Cancelled);
-    state.upload_tasks.clear();
-}
-
-async fn close_primary_connection(state: &AppHandleState) {
-    let conn = {
-        let mut c = state.inner.conn.write().await;
-        c.take()
-    };
-
-    if let Some(conn) = conn {
-        tokio::spawn(async move { conn.close().await });
-    }
-}
-
-async fn clear_connection_state(state: &AppHandleState) {
-    {
-        let mut addr = state.inner.server_address.write().await;
-        *addr = None;
-    }
-    {
-        let mut name = state.inner.server_name.write().await;
-        *name = None;
-    }
-    {
-        let mut pv = state.inner.server_protocol_version.write().await;
-        *pv = None;
-    }
-    state.inner.server_extension_flags.write().await.clear();
-    state
-        .inner
-        .app_lockdown
-        .store(false, std::sync::atomic::Ordering::SeqCst);
-    *state.inner.lockdown_reason.write().await = None;
-    {
-        let mut ca = state.inner.ca_dir.write().await;
-        *ca = None;
-    }
-    {
-        let mut force_ipv4 = state.inner.force_ipv4.write().await;
-        *force_ipv4 = false;
-    }
-    {
-        let mut proxy = state.inner.proxy_addr.write().await;
-        *proxy = None;
-    }
-    {
-        let mut cert = state.inner.client_cert_path.write().await;
-        *cert = None;
-    }
-    {
-        let mut key = state.inner.client_key_path.write().await;
-        *key = None;
-    }
-}
-
-fn non_empty_optional(value: Option<String>) -> Option<String> {
+pub(super) fn non_empty_optional(value: Option<String>) -> Option<String> {
     value.and_then(|v| {
         let trimmed = v.trim().to_string();
         if trimmed.is_empty() {
@@ -1289,91 +814,8 @@ fn non_empty_optional(value: Option<String>) -> Option<String> {
     })
 }
 
-/// Build a JSON auth-status payload (auth fields only — no server state).
-async fn build_auth_status(inner: &cfms_service::state::AppState) -> serde_json::Value {
-    let pending = inner.pending_auth.read().await.as_ref().map(|p| {
-        (
-            p.username.clone(),
-            p.issued.claims.purpose,
-            p.methods.clone(),
-        )
-    });
-    let username = inner
-        .username
-        .read()
-        .await
-        .clone()
-        .or_else(|| pending.as_ref().map(|p| p.0.clone()));
-    let nickname = inner.nickname.read().await.clone();
-    let has_token = inner.token.read().await.is_some();
-    let token_exp = *inner.token_exp.read().await;
-    let escalation_exp = inner
-        .escalation
-        .read()
-        .await
-        .as_ref()
-        .filter(|issued| issued.claims.exp > cfms_service::authentication::unix_now())
-        .map(|issued| issued.claims.exp);
-    let permissions = inner.permissions.read().await.clone();
-    let groups = inner.groups.read().await.clone();
-    let has_server_preference_dek = inner.server_preference_dek.read().await.is_some();
-    let has_preference_dek = inner.dek.read().await.is_some();
-
-    let mut status = serde_json::json!({
-        "username": username,
-        "user_id": inner.user_id.read().await.clone(),
-        "nickname": nickname,
-        "has_token": has_token,
-        "token_exp": token_exp,
-        "escalation_exp": escalation_exp,
-        "permissions": permissions,
-        "groups": groups,
-        "avatar_path": inner.avatar_path.read().await.clone(),
-        "has_server_preference_dek": has_server_preference_dek,
-        "has_preference_dek": has_preference_dek,
-    });
-
-    if let Some(pending) = pending.as_ref().filter(|p| p.1 == AUTH) {
-        status["requires_2fa"] = serde_json::Value::Bool(true);
-        status["authentication_methods"] = serde_json::json!(pending.2);
-    }
-
-    status
-}
-
-/// Build a JSON server-state payload (connection fields only — no auth data).
-async fn build_server_state(inner: &cfms_service::state::AppState) -> serde_json::Value {
-    let (security, connected) = {
-        let connection = inner.conn.read().await;
-        (
-            connection
-                .as_ref()
-                .map(|conn| (conn.id(), conn.revocation_status())),
-            connection.as_ref().is_some_and(|conn| !conn.is_closed()),
-        )
-    };
-    let server_address = inner.server_address.read().await.clone();
-    let server_name = inner.server_name.read().await.clone();
-    let protocol_version = inner.server_protocol_version.read().await;
-    let extension_flags = inner.server_extension_flags.read().await.clone();
-    let lockdown = inner.app_lockdown.load(std::sync::atomic::Ordering::SeqCst);
-    let lockdown_reason = inner.lockdown_reason.read().await.clone();
-
-    serde_json::json!({
-        "connected": connected,
-        "connection_id": security.as_ref().map(|(id, _)| id),
-        "revocation": security.map(|(_, status)| status),
-        "server_address": server_address,
-        "server_name": server_name,
-        "protocol_version": *protocol_version,
-        "lockdown": lockdown,
-        "lockdown_reason": lockdown_reason,
-        "extension_flags": extension_flags,
-    })
-}
-
 /// Current Unix timestamp in seconds.
-fn unix_now() -> i64 {
+pub(super) fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

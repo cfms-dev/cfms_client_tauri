@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const outputDirectory = path.resolve(
-  'src/lib/release-highlights/animations/v0.46',
+  'src/lib/features/updates/release-highlights/animations/v0.46',
 );
 
 const themes = {

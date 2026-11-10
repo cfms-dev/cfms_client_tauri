@@ -7,7 +7,9 @@ export type WindowBackdropMode = 'mica' | 'solid';
 export function setWindowBackdrop(theme: 'light' | 'dark', enabled: boolean, solidColor: [number, number, number]): Promise<WindowBackdropMode> {
   return invoke('set_window_backdrop', { theme, enabled, solidColor });
 }
-import type { AndroidPasskeyAssertion, AndroidPasskeyAvailability, AndroidPasskeyRegistration, FileShortcutValidationResult, ServiceStatusInfo } from './types';
+import type { AndroidPasskeyAssertion, AndroidPasskeyAvailability, AndroidPasskeyRegistration } from './types/mobile';
+import type { FileShortcutValidationResult } from './types/files';
+import type { ServiceStatusInfo } from './types/diagnostics';
 
 /** Ping the Rust backend. */
 export async function ping(): Promise<string> {

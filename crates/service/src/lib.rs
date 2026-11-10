@@ -7,20 +7,25 @@
 //!
 //! - [`state`] — shared in-memory application state (auth, DEK, lockdown).
 //! - [`db`] — persistent SQLite storage for download tasks and user settings.
-//! - [`service`] — service manager for spawning and shutting down background
-//!   Tokio tasks.
-//! - [`services`] — individual background service implementations:
-//!   token refresh, favorites validation, lockdown monitor, download queue.
+//! - [`runtime`] — lifecycle management for background Tokio tasks.
+//! - [`authentication`], [`connection`], [`files`], [`transfers`] — business services.
+//! - [`rpc`] — authenticated request encoding and typed response decoding.
+//! - [`session`] — frontend-safe session snapshots, without tokens or keys.
 //! - [`scan`] — parallel local filesystem scanner using the `ignore` crate.
 
 #![forbid(unsafe_code)]
 
 pub mod authentication;
+pub mod connection;
 pub mod db;
+pub mod files;
 pub mod public_key_auth;
+pub mod rpc;
+pub mod runtime;
 pub mod scan;
 pub mod sensitive;
-pub mod service;
-pub mod services;
+
+pub mod session;
 pub mod state;
+pub mod transfers;
 pub mod user_preferences;

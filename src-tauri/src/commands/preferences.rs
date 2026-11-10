@@ -1,3 +1,15 @@
+use super::preference_keys::cache_current_preference_key;
+use super::preference_keys::restore_cached_preference_key;
+use super::session::get_connection_auth;
+use super::shared_helpers::DekSetupStatus;
+use super::shared_helpers::ensure_preference_dek;
+use super::shared_helpers::setup_preference_dek_for_loading;
+use crate::AppHandleState;
+use crate::UploadInterruption;
+use cfms_core::AppearancePreference;
+use cfms_core::UserPreference;
+use tauri::Runtime;
+
 // User preference commands (mirrors reference/src/include/util/userpref.py)
 // ---------------------------------------------------------------------------
 
@@ -32,7 +44,9 @@ pub async fn load_user_preference(
         let d = state.inner.dek.read().await;
         d.clone()
     }
-    .ok_or_else(|| "Preference DEK is unavailable; user preferences cannot be loaded".to_string())?;
+    .ok_or_else(|| {
+        "Preference DEK is unavailable; user preferences cannot be loaded".to_string()
+    })?;
 
     let app_data_dir = state.app_data_dir.clone();
     let mut pref = tokio::task::spawn_blocking(move || {
@@ -113,7 +127,10 @@ pub async fn setup_preference_dek<R: Runtime>(
 ) -> Result<serde_json::Value, String> {
     let current_password = zeroize::Zeroizing::new(current_password);
     let _update = state.inner.auth_update.lock().await;
-    if restore_cached_preference_key(&app, &state).await.unwrap_or(false) {
+    if restore_cached_preference_key(&app, &state)
+        .await
+        .unwrap_or(false)
+    {
         return Ok(serde_json::json!({"status":"ready"}));
     }
     let (conn, username, token) = get_connection_auth(&state).await?;
@@ -126,7 +143,7 @@ pub async fn setup_preference_dek<R: Runtime>(
 
     let has_local_encrypted_state =
         cfms_service::user_preferences::exists(&state.app_data_dir, &server_hash, &username)
-            || cfms_service::services::task_persistence::exists(
+            || cfms_service::transfers::task_persistence::exists(
                 &state.app_data_dir,
                 &server_hash,
                 &username,
@@ -148,7 +165,9 @@ pub async fn setup_preference_dek<R: Runtime>(
         DekSetupStatus::ResetRequired => "reset_required",
     };
 
-    if status == "ready" { let _ = cache_current_preference_key(&app, &state).await; }
+    if status == "ready" {
+        let _ = cache_current_preference_key(&app, &state).await;
+    }
     Ok(serde_json::json!({ "status": status }))
 }
 
@@ -216,30 +235,35 @@ pub async fn reset_preference_dek<R: Runtime>(
     .await?;
 
     tokio::task::spawn_blocking(move || {
-            cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
-                .and_then(|_| {
-                    cfms_service::services::task_persistence::discard(
+        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
+            .and_then(|_| {
+                cfms_service::transfers::task_persistence::discard(
                     &app_data_dir,
                     &server_hash,
                     &username,
-                    )
-                })
-                .and_then(|_| {
-                    cfms_service::services::upload_task_persistence::discard(
-                        &app_data_dir,
-                        &server_hash,
-                        &username,
-                    )
-                })
+                )
+            })
+            .and_then(|_| {
+                cfms_service::transfers::upload_task_persistence::discard(
+                    &app_data_dir,
+                    &server_hash,
+                    &username,
+                )
+            })
             .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Preference DEK reset cleanup task failed: {e}"))??;
 
     state.tasks.clear();
-    state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
+    state
+        .active_uploads
+        .interrupt_all(UploadInterruption::Cancelled);
     state.upload_tasks.clear();
-    state.inner.preference_dek_local_only.store(false, std::sync::atomic::Ordering::SeqCst);
+    state
+        .inner
+        .preference_dek_local_only
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     let _ = cache_current_preference_key(&app, &state).await;
     Ok(())
 }
@@ -277,13 +301,8 @@ pub async fn load_appearance_preference(
     let app_data_dir = state.app_data_dir.clone();
 
     tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::load(
-            &app_data_dir,
-            &server_hash,
-            &username,
-            Some(&*dek),
-        )
-        .map(|preferences| preferences.appearance)
+        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, Some(&*dek))
+            .map(|preferences| preferences.appearance)
     })
     .await
     .map_err(|e| format!("Appearance preference load task failed: {e}"))?
@@ -341,15 +360,9 @@ async fn appearance_user_scope(
         .await
         .clone()
         .ok_or_else(|| "Authenticated appearance preference has no server address".to_string())?;
-    let dek = state
-        .inner
-        .dek
-        .read()
-        .await
-        .clone()
-        .ok_or_else(|| {
-            "Authenticated appearance preference requires the user preference DEK".to_string()
-        })?;
+    let dek = state.inner.dek.read().await.clone().ok_or_else(|| {
+        "Authenticated appearance preference requires the user preference DEK".to_string()
+    })?;
 
     Ok(Some((
         cfms_core::get_server_hash(&server_address),

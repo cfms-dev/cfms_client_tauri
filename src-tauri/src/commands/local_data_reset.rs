@@ -1,3 +1,12 @@
+use tauri::Manager;
+
+use super::session::clear_auth_state;
+use super::session::clear_connection_state;
+use super::session::close_primary_connection;
+use crate::AppHandleState;
+use crate::UploadInterruption;
+use tauri::Runtime;
+
 // Device-local data reset
 // ---------------------------------------------------------------------------
 
@@ -44,8 +53,10 @@ pub async fn reset_local_data<R: Runtime>(
             let vault = app.state::<crate::preference_keys::PreferenceKeys>();
             let _guard = vault.operation.lock().unwrap();
             crate::preference_keys::clear(&app)
-        }).await.map_err(|_| crate::secure_store::UNAVAILABLE.to_string())
-            .and_then(|result| result)
+        })
+        .await
+        .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())
+        .and_then(|result| result)
     };
     if let Err(error) = preference_cleanup {
         crate::local_data_reset::cancel_scheduled_reset(reset.marker_path());

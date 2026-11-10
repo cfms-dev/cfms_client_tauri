@@ -9,6 +9,8 @@ const outputDirectory = path.join(
   root,
   'src',
   'lib',
+  'features',
+  'updates',
   'release-highlights',
   'animations',
   'v0.45',

@@ -1,5 +1,8 @@
 //! Protocol authentication tokens. Claims are decoded for local lifecycle/display;
 //! only the server can verify their signature and authorize requests.
+
+pub mod token_refresh;
+
 use base64ct::{Base64UrlUnpadded, Encoding};
 use serde::Deserialize;
 

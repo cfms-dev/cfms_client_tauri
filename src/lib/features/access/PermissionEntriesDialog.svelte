@@ -1,0 +1,644 @@
+<script lang="ts">
+  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import { onMount, tick, untrack } from 'svelte';
+  import { _ as t } from 'svelte-i18n';
+  import { InvalidAdminResponseError, type PermissionEntry } from '$lib/api';
+  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+  import {
+    countPermissionEntryChanges,
+    createImmediatePermissionEntry,
+    permissionEntryChangeKind,
+    permissionEntryState,
+    permissionEntrySuggestions,
+    validatePermissionEntry,
+    type PermissionEntriesEditorData,
+    type PermissionEntryFilter,
+  } from '$lib/features/access/permission-entries';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '$lib/shared/ui/Icon.svelte';
+  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
+  import PermissionEntryEditor from '$lib/features/access/PermissionEntryEditor.svelte';
+  import PermissionEntryList from '$lib/features/access/PermissionEntryList.svelte';
+  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+
+  type StartMode = 'immediate' | 'specified';
+  type EndMode = 'never' | 'specified';
+
+  interface EditableEntry {
+    key: string;
+    entry: PermissionEntry;
+    initial: PermissionEntry | null;
+    deleted: boolean;
+    startMode: StartMode;
+    endMode: EndMode;
+  }
+
+  let {
+    title,
+    description,
+    entries = [],
+    effectivePermissions = [],
+    inheritedPermissions,
+    onRefresh,
+    onSave,
+    onClose,
+  }: {
+    title: string;
+    description: string;
+    entries?: PermissionEntry[] | null;
+    effectivePermissions?: string[] | null;
+    inheritedPermissions?: string[] | null;
+    onRefresh?: () => Promise<PermissionEntriesEditorData>;
+    onSave: (entries: PermissionEntry[]) => Promise<void>;
+    onClose: () => void;
+  } = $props();
+
+  let nextKey = 0;
+
+  function trackedEntries(source: PermissionEntry[] | null | undefined): EditableEntry[] {
+    return (Array.isArray(source) ? source : []).map((entry) => {
+      const snapshot = { ...entry };
+      return {
+        key: `permission-entry-${nextKey++}`,
+        entry: { ...snapshot },
+        initial: snapshot,
+        deleted: false,
+        startMode: 'specified',
+        endMode: entry.end_time === null ? 'never' : 'specified',
+      };
+    });
+  }
+
+  function invalidEditorDataMessage(
+    sourceEntries: unknown,
+    sourceEffectivePermissions: unknown,
+    sourceInheritedPermissions: unknown,
+  ): string | null {
+    if (!Array.isArray(sourceEntries)) {
+      return 'Invalid permission data: entries must be an array.';
+    }
+    if (!Array.isArray(sourceEffectivePermissions)) {
+      return 'Invalid permission data: effectivePermissions must be an array.';
+    }
+    if (sourceInheritedPermissions !== undefined && !Array.isArray(sourceInheritedPermissions)) {
+      return 'Invalid permission data: inheritedPermissions must be an array when provided.';
+    }
+    return null;
+  }
+
+  const initialDataError = untrack(() => invalidEditorDataMessage(
+    entries,
+    effectivePermissions,
+    inheritedPermissions,
+  ));
+  const initialEntries = untrack(() => trackedEntries(initialDataError ? [] : entries));
+  let localEntries = $state<EditableEntry[]>(initialEntries);
+  let localEffectivePermissions = $state<string[]>(
+    untrack(() => Array.isArray(effectivePermissions) ? [...effectivePermissions] : []),
+  );
+  let localInheritedPermissions = $state<string[] | undefined>(
+    untrack(() => Array.isArray(inheritedPermissions) ? [...inheritedPermissions] : undefined),
+  );
+  let selectedKey = $state<string | null>(initialEntries[0]?.key ?? null);
+  let query = $state('');
+  let filter = $state<PermissionEntryFilter>('all');
+  let loading = $state(false);
+  let saving = $state(false);
+  let dataInvalid = $state(initialDataError !== null);
+  let error = $state<string | null>(
+    initialDataError ? $t('manage.permissionDataInvalid') : null,
+  );
+  let nowSeconds = $state(Date.now() / 1000);
+  let editorComponent: {
+    focusPermissionName: () => void;
+    focusUndo: () => void;
+  } | undefined = $state();
+
+  const rows = $derived(localEntries.map((row) => {
+    const change = permissionEntryChangeKind(row.entry, row.initial, row.deleted);
+    return {
+      key: row.key,
+      entry: row.entry,
+      state: permissionEntryState(row.entry, nowSeconds),
+      change,
+      valid: validatePermissionEntry(row.entry).valid,
+    };
+  }));
+
+  const selectedRow = $derived(localEntries.find((row) => row.key === selectedKey) ?? null);
+  const selectedChange = $derived(selectedRow
+    ? permissionEntryChangeKind(selectedRow.entry, selectedRow.initial, selectedRow.deleted)
+    : 'unchanged');
+  const selectedEditorRow = $derived(selectedRow ? {
+    key: selectedRow.key,
+    entry: selectedRow.entry,
+    change: selectedChange,
+    startMode: selectedRow.startMode,
+    endMode: selectedRow.endMode,
+  } : null);
+  const selectedValidation = $derived(selectedRow && !selectedRow.deleted
+    ? validatePermissionEntry(selectedRow.entry)
+    : null);
+  const changeCounts = $derived(countPermissionEntryChanges(rows.map((row) => row.change)));
+  const dirty = $derived(changeCounts.total > 0);
+  const hasInvalidEntries = $derived(rows.some((row) => row.change !== 'deleted' && !row.valid));
+  const suggestions = $derived(permissionEntrySuggestions(
+    localEntries.filter((row) => !row.deleted).map((row) => row.entry),
+    localEffectivePermissions,
+    localInheritedPermissions,
+  ));
+  const filterCounts = $derived<Record<PermissionEntryFilter, number>>({
+    all: rows.length,
+    active: rows.filter((row) => row.change !== 'deleted' && row.state === 'active').length,
+    scheduled: rows.filter((row) => row.change !== 'deleted' && row.state === 'scheduled').length,
+    expired: rows.filter((row) => row.change !== 'deleted' && row.state === 'expired').length,
+    changed: rows.filter((row) => row.change !== 'unchanged').length,
+  });
+
+  onMount(() => {
+    if (onRefresh) void refresh(false);
+    const interval = window.setInterval(() => {
+      nowSeconds = Date.now() / 1000;
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  });
+
+  function replaceEditorData(data: PermissionEntriesEditorData) {
+    const invalidData = invalidEditorDataMessage(
+      data?.entries,
+      data?.effectivePermissions,
+      data?.inheritedPermissions,
+    );
+    if (invalidData) throw new InvalidAdminResponseError(invalidData);
+
+    const nextEntries = trackedEntries(data.entries);
+    localEntries = nextEntries;
+    localEffectivePermissions = [...data.effectivePermissions];
+    localInheritedPermissions = data.inheritedPermissions
+      ? [...data.inheritedPermissions]
+      : undefined;
+    selectedKey = nextEntries[0]?.key ?? null;
+    query = '';
+    filter = 'all';
+  }
+
+  async function startCreating() {
+    if (dataInvalid || saving) return;
+    const entry = createImmediatePermissionEntry('', Date.now() / 1000);
+    const row: EditableEntry = {
+      key: `permission-entry-${nextKey++}`,
+      entry,
+      initial: null,
+      deleted: false,
+      startMode: 'immediate',
+      endMode: 'never',
+    };
+    localEntries = [...localEntries, row];
+    selectedKey = row.key;
+    query = '';
+    filter = 'all';
+    error = null;
+    await tick();
+    editorComponent?.focusPermissionName();
+  }
+
+  async function selectEntry(key: string, revealEditor = false) {
+    selectedKey = key;
+    error = null;
+    if (
+      !revealEditor
+      || typeof window.matchMedia !== 'function'
+      || !window.matchMedia('(max-width: 719px)').matches
+    ) return;
+    await tick();
+    const editor = document.querySelector<HTMLElement>('.entry-editor-pane');
+    if (typeof editor?.scrollIntoView !== 'function') return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    editor.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  function reconcileVisibleSelection(visibleKeys: string[]) {
+    if (selectedKey !== null && visibleKeys.includes(selectedKey)) return;
+    selectedKey = visibleKeys[0] ?? null;
+  }
+
+  function patchSelected(patch: Partial<PermissionEntry>) {
+    if (!selectedKey || dataInvalid || saving) return;
+    localEntries = localEntries.map((row) => row.key === selectedKey
+      ? { ...row, entry: { ...row.entry, ...patch } }
+      : row);
+  }
+
+  function setStartMode(mode: StartMode) {
+    if (!selectedKey || dataInvalid || saving) return;
+    localEntries = localEntries.map((row) => {
+      if (row.key !== selectedKey) return row;
+      const startTime = mode === 'immediate'
+        ? Math.floor(Date.now() / 1000)
+        : Number.isFinite(row.entry.start_time)
+          ? row.entry.start_time
+          : Math.floor(Date.now() / 1000);
+      return {
+        ...row,
+        startMode: mode,
+        entry: { ...row.entry, start_time: startTime },
+      };
+    });
+  }
+
+  function setEndMode(mode: EndMode) {
+    if (!selectedKey || dataInvalid || saving) return;
+    localEntries = localEntries.map((row) => {
+      if (row.key !== selectedKey) return row;
+      const endTime = mode === 'never'
+        ? null
+        : row.entry.end_time !== null && Number.isFinite(row.entry.end_time)
+          ? row.entry.end_time
+          : (Number.isFinite(row.entry.start_time) ? row.entry.start_time : Date.now() / 1000) + 86_400;
+      return {
+        ...row,
+        endMode: mode,
+        entry: { ...row.entry, end_time: endTime },
+      };
+    });
+  }
+
+  async function deleteEntry(key: string) {
+    if (dataInvalid || saving) return;
+    const index = localEntries.findIndex((row) => row.key === key);
+    if (index < 0) return;
+    const row = localEntries[index];
+
+    if (row.initial === null) {
+      const nextRows = localEntries.filter((item) => item.key !== key);
+      localEntries = nextRows;
+      if (selectedKey === key) {
+        selectedKey = nextRows[Math.min(index, nextRows.length - 1)]?.key ?? null;
+        await tick();
+        if (selectedKey) document.getElementById(`permission-entry-select-${selectedKey}`)?.focus();
+      }
+      return;
+    }
+
+    localEntries = localEntries.map((item) => item.key === key ? { ...item, deleted: true } : item);
+    selectedKey = key;
+    await tick();
+    editorComponent?.focusUndo();
+  }
+
+  async function undoEntryChange(key: string) {
+    if (dataInvalid || saving) return;
+    localEntries = localEntries.map((row) => {
+      if (row.key !== key) return row;
+      if (row.deleted) return { ...row, deleted: false };
+      if (row.initial === null) return row;
+      return {
+        ...row,
+        entry: { ...row.initial },
+        startMode: 'specified',
+        endMode: row.initial.end_time === null ? 'never' : 'specified',
+      };
+    });
+    selectedKey = key;
+    await tick();
+    editorComponent?.focusPermissionName();
+  }
+
+  async function confirmDiscard(action: 'close' | 'refresh'): Promise<boolean> {
+    if (!dirty) return true;
+    return dialogStore.confirm({
+      title: $t('manage.discardPermissionChangesTitle'),
+      message: $t(action === 'refresh'
+        ? 'manage.discardPermissionChangesRefreshMessage'
+        : 'manage.discardPermissionChangesCloseMessage'),
+      confirmLabel: $t('manage.discardPermissionChangesAction'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
+  }
+
+  async function requestClose() {
+    if (saving || !(await confirmDiscard('close'))) return;
+    onClose();
+  }
+
+  async function refresh(askToDiscard = true) {
+    if (!onRefresh || loading || saving) return;
+    if (askToDiscard && !(await confirmDiscard('refresh'))) return;
+
+    loading = true;
+    error = null;
+    try {
+      replaceEditorData(await onRefresh());
+      dataInvalid = false;
+    } catch (refreshError) {
+      if (refreshError instanceof InvalidAdminResponseError) dataInvalid = true;
+      error = refreshError instanceof InvalidAdminResponseError
+        ? $t('manage.permissionDataInvalid')
+        : formatUserFacingError(refreshError);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function save() {
+    if (!dirty || hasInvalidEntries || dataInvalid || loading || saving) return;
+    saving = true;
+    error = null;
+    try {
+      await onSave(localEntries
+        .filter((row) => !row.deleted)
+        .map(({ entry }) => ({
+          permission: entry.permission.trim(),
+          granted: entry.granted,
+          start_time: entry.start_time,
+          end_time: entry.end_time,
+        })));
+    } catch (saveError) {
+      error = formatUserFacingError(saveError);
+    } finally {
+      saving = false;
+    }
+  }
+</script>
+
+<ModalFrame
+  {title}
+  maxWidth="max-w-5xl"
+  resizable
+  maximizable
+  initialMaximized
+  minWidth={620}
+  minHeight={560}
+  closeLabel={$t('common.close')}
+  dismissible={!saving}
+  onClose={() => { void requestClose(); }}
+>
+  <div class="permission-workspace">
+    <header class="permission-overview">
+      <span class="permission-overview-icon">
+        <Icon name="adminPanelSettings" size="21px" />
+      </span>
+      <div class="permission-overview-copy">
+        <p>{description}</p>
+        <div class="replacement-notice">
+          <span class="cfms-icon-text__icon"><Icon name="info" size="15px" /></span>
+          <span>{$t('manage.permissionReplacementNotice')}</span>
+        </div>
+      </div>
+      {#if onRefresh}
+        <FluentButton data-fluent-owner="lib-components-permission-entries-dialog"
+          type="button"
+          aria-label={$t('common.refresh')}
+          title={$t('common.refresh')}
+          disabled={loading || saving}
+          onclick={() => { void refresh(); }}
+          appearance="subtle"
+          class="refresh-button"
+          iconOnly
+        >
+          <Icon name="refresh" size="18px" />
+        </FluentButton>
+      {/if}
+    </header>
+
+    {#if error}
+      <div class="workspace-error" role="alert">
+        <span class="cfms-icon-text__icon" style="--cfms-icon-line-height: 16px"><Icon name="errorFilled" size="17px" /></span>
+        <p>{error}</p>
+      </div>
+    {/if}
+
+    <div class="permission-main" class:loading>
+      <PermissionEntryList
+        {rows}
+        {selectedKey}
+        {query}
+        {filter}
+        {filterCounts}
+        disabled={saving || loading || dataInvalid}
+        onQueryChange={(value) => (query = value)}
+        onFilterChange={(value) => (filter = value)}
+        onSelect={selectEntry}
+        onVisibleKeysChange={reconcileVisibleSelection}
+        onAdd={() => { void startCreating(); }}
+        onDelete={(key) => { void deleteEntry(key); }}
+        onUndo={(key) => { void undoEntryChange(key); }}
+      />
+      <PermissionEntryEditor
+        bind:this={editorComponent}
+        row={selectedEditorRow}
+        validation={selectedValidation}
+        {suggestions}
+        disabled={saving || loading || dataInvalid}
+        onPatch={patchSelected}
+        onStartModeChange={setStartMode}
+        onEndModeChange={setEndMode}
+        onDelete={() => { if (selectedKey) void deleteEntry(selectedKey); }}
+        onUndo={() => { if (selectedKey) void undoEntryChange(selectedKey); }}
+      />
+      {#if loading}
+        <div class="loading-overlay" aria-live="polite">
+          <ProgressRing size={20} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+          <span>{$t('common.loadingEllipsis')}</span>
+        </div>
+      {/if}
+    </div>
+
+    <footer class="permission-footer">
+      <div class="change-summary" aria-live="polite">
+        {#if dirty}
+          <span class="dirty-indicator"></span>
+          <strong>{$t('manage.permissionUnsavedChanges')}</strong>
+          <span>{$t('manage.permissionChangeSummary', {
+            values: {
+              added: changeCounts.added,
+              modified: changeCounts.modified,
+              deleted: changeCounts.deleted,
+            },
+          })}</span>
+        {:else}
+          <Icon name="checkCircle" size="16px" />
+          <span>{$t('manage.permissionNoUnsavedChanges')}</span>
+        {/if}
+        {#if hasInvalidEntries}
+          <span class="footer-validation">
+            <Icon name="errorFilled" size="14px" />
+            {$t('manage.permissionResolveErrorsBeforeSave')}
+          </span>
+        {/if}
+      </div>
+      <div class="footer-actions">
+        <DialogActionButton disabled={saving} onclick={() => { void requestClose(); }}>
+          {$t('common.cancel')}
+        </DialogActionButton>
+        <DialogActionButton
+          variant="primary"
+          disabled={!dirty || hasInvalidEntries || dataInvalid || loading || saving}
+          onclick={save}
+        >
+          {#if saving}
+            <ProgressRing size={16} strokeWidth={2.4} label={$t('common.saving')} />
+            {$t('common.saving')}
+          {:else}
+            <Icon name="done" size="16px" />
+            {$t('manage.saveAllPermissionChanges')}
+          {/if}
+        </DialogActionButton>
+      </div>
+    </footer>
+  </div>
+</ModalFrame>
+
+<style>
+  .permission-workspace {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    height: min(82vh, 48rem);
+    min-height: 34rem;
+    flex-direction: column;
+    color: var(--color-md3-on-surface);
+  }
+
+  .permission-overview {
+    display: grid;
+    flex: none;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+    padding: 0.85rem 1.15rem 0.7rem;
+  }
+
+  .permission-overview-icon {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border-radius: var(--explorer-radius-medium, 8px);
+    color: var(--color-md3-primary-emphasis);
+    background: var(--color-md3-primary-container);
+  }
+
+  .permission-overview-copy > p {
+    max-width: 72ch;
+    margin: 0;
+    color: var(--color-md3-on-surface-variant);
+    font: 400 12px/16px var(--font-md3-sans);
+  }
+
+  .replacement-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    margin-top: 0.2rem;
+    color: var(--color-md3-on-surface-variant);
+    font: 400 12px/16px var(--font-md3-sans);
+  }
+
+  :global(.refresh-button[data-fluent-owner="lib-components-permission-entries-dialog"]) {
+    display: grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    border-radius: var(--borderRadiusMedium);
+    color: var(--color-md3-on-surface-variant);
+    transition: color 100ms ease, background-color 100ms ease, transform 120ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  :global(.refresh-button[data-fluent-owner="lib-components-permission-entries-dialog"]:hover:not(:is(:disabled, [disabled]))) { color: var(--color-md3-on-surface); background: var(--color-md3-surface-container-high); }
+  :global(.refresh-button[data-fluent-owner="lib-components-permission-entries-dialog"]:active:not(:is(:disabled, [disabled]))) { transform: none; }
+
+  .workspace-error {
+    display: flex;
+    flex: none;
+    align-items: flex-start;
+    gap: 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-md3-error) 30%, transparent);
+    padding: 0.6rem 1.15rem;
+    color: var(--color-md3-on-error-container);
+    background: var(--color-md3-error-container);
+  }
+
+  .workspace-error p { min-width: 0; margin: 0; overflow-wrap: anywhere; font: 400 12px/16px var(--font-md3-sans); }
+
+  .permission-main {
+    position: relative;
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: minmax(18rem, 2fr) minmax(22rem, 3fr);
+    overflow: hidden;
+  }
+
+  .permission-main.loading > :global(section) { opacity: 0.55; }
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--color-md3-on-surface-variant);
+    background: color-mix(in srgb, var(--color-md3-surface-container) 72%, transparent);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    font: 500 12px/16px var(--font-md3-sans);
+  }
+
+  .permission-footer {
+    display: flex;
+    min-height: 3.75rem;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-top: 1px solid var(--color-md3-outline);
+    padding: 0.65rem 1rem;
+    background: color-mix(in srgb, var(--color-md3-surface-container-high) 45%, transparent);
+  }
+
+  .change-summary {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-md3-on-surface-variant);
+    font: 400 12px/16px var(--font-md3-sans);
+  }
+
+  .change-summary strong { color: var(--color-md3-on-surface); font-weight: 600; }
+  .dirty-indicator { width: 0.5rem; height: 0.5rem; flex: none; border-radius: 9999px; background: var(--color-md3-primary); box-shadow: 0 1px 4px color-mix(in srgb, var(--color-md3-primary) 42%, transparent); }
+
+  .footer-validation { display: inline-flex; align-items: center; gap: 4px; color: var(--color-md3-error); font-weight: 500; }
+  .footer-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+
+  :global(.cfms-button[data-fluent-owner="lib-components-permission-entries-dialog"]:is(:disabled, [disabled])) { cursor: not-allowed; opacity: 0.45; }
+
+  @media (max-width: 719px) {
+    .permission-workspace { height: min(88vh, 54rem); min-height: 0; }
+    .permission-main { display: block; width: 100%; max-width: 100%; overflow-x: hidden; overflow-y: auto; }
+    .permission-overview { padding-inline: 0.9rem; }
+    .permission-overview-icon { display: none; }
+    .permission-overview { grid-template-columns: minmax(0, 1fr) auto; }
+    .permission-footer { align-items: flex-end; }
+    .change-summary { display: grid; gap: 4px; }
+  }
+
+  @media (max-width: 480px) {
+    .permission-footer { align-items: stretch; flex-direction: column; }
+    .footer-actions { justify-content: flex-end; }
+  }
+
+  @media (pointer: coarse) {
+    :global(.refresh-button[data-fluent-owner="lib-components-permission-entries-dialog"]) { width: 2.75rem; height: 2.75rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.refresh-button[data-fluent-owner="lib-components-permission-entries-dialog"]) { transition: none; }
+  }
+</style>

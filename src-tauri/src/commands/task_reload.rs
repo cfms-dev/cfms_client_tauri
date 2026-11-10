@@ -1,3 +1,6 @@
+use crate::AppHandleState;
+use crate::UploadInterruption;
+
 // Download task reload (mirrors reference/src/include/classes/services/download.py)
 // ---------------------------------------------------------------------------
 

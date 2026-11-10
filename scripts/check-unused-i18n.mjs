@@ -6,8 +6,8 @@ import ts from 'typescript';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const FRONTEND_CATALOGS = [
-  { locale: 'en', path: 'src/lib/i18n/messages/en.ts', exportName: 'en' },
-  { locale: 'zh-CN', path: 'src/lib/i18n/messages/zh-CN.ts', exportName: 'zh_CN' },
+  { locale: 'en', path: 'src/lib/shared/i18n/messages/en.ts', exportName: 'en' },
+  { locale: 'zh-CN', path: 'src/lib/shared/i18n/messages/zh-CN.ts', exportName: 'zh_CN' },
 ];
 
 const BACKEND_CATALOGS = [

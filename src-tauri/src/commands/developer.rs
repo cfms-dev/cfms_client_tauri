@@ -1,3 +1,10 @@
+#[cfg(test)]
+use super::server_actions::ServerActionIdentity;
+use super::server_actions::server_action_response;
+#[cfg(test)]
+use super::server_actions::validate_server_action_identity;
+use crate::AppHandleState;
+
 // Hidden desktop developer request console.
 
 fn normalize_developer_action(action: String) -> Result<String, String> {
@@ -22,7 +29,9 @@ pub async fn send_developer_request(
 
 #[cfg(test)]
 mod developer_request_tests {
-    use super::{ServerActionIdentity, normalize_developer_action, validate_server_action_identity};
+    use super::{
+        ServerActionIdentity, normalize_developer_action, validate_server_action_identity,
+    };
 
     #[test]
     fn trims_and_accepts_arbitrary_business_names() {

@@ -1,3 +1,10 @@
+use super::session::get_connection_auth;
+use super::shared_helpers::decrypt_preference_dek;
+use crate::AppHandleState;
+use crate::UploadInterruption;
+use tauri::Manager;
+use tauri::Runtime;
+
 fn local_encrypted_paths(
     state: &AppHandleState,
     server_hash: &str,
@@ -5,12 +12,12 @@ fn local_encrypted_paths(
 ) -> Vec<std::path::PathBuf> {
     vec![
         cfms_service::user_preferences::file_path(&state.app_data_dir, server_hash, username),
-        cfms_service::services::task_persistence::file_path(
+        cfms_service::transfers::task_persistence::file_path(
             &state.app_data_dir,
             server_hash,
             username,
         ),
-        cfms_service::services::upload_task_persistence::file_path(
+        cfms_service::transfers::upload_task_persistence::file_path(
             &state.app_data_dir,
             server_hash,
             username,
@@ -160,10 +167,14 @@ fn discard_local_encrypted_data(
 ) -> Result<(), String> {
     cfms_service::user_preferences::discard(app_data, server_hash, username)
         .and_then(|_| {
-            cfms_service::services::task_persistence::discard(app_data, server_hash, username)
+            cfms_service::transfers::task_persistence::discard(app_data, server_hash, username)
         })
         .and_then(|_| {
-            cfms_service::services::upload_task_persistence::discard(app_data, server_hash, username)
+            cfms_service::transfers::upload_task_persistence::discard(
+                app_data,
+                server_hash,
+                username,
+            )
         })
         .map_err(|_| "publicKey.discardFailed".into())
 }
@@ -212,7 +223,9 @@ pub async fn discard_locked_preference_data<R: Runtime>(
     .await
     .map_err(|_| "publicKey.discardFailed")??;
     state.tasks.clear();
-    state.active_uploads.interrupt_all(UploadInterruption::Cancelled);
+    state
+        .active_uploads
+        .interrupt_all(UploadInterruption::Cancelled);
     state.upload_tasks.clear();
     *state.inner.dek.write().await = Some(key);
     state
@@ -222,7 +235,7 @@ pub async fn discard_locked_preference_data<R: Runtime>(
     Ok(())
 }
 
-async fn cache_current_preference_key<R: Runtime>(
+pub(super) async fn cache_current_preference_key<R: Runtime>(
     app: &tauri::AppHandle<R>,
     state: &AppHandleState,
 ) -> Result<(), String> {
@@ -265,7 +278,7 @@ async fn cache_current_preference_key<R: Runtime>(
     .map_err(|_| "publicKey.storageUnavailable")?
 }
 
-async fn restore_cached_preference_key<R: Runtime>(
+pub(super) async fn restore_cached_preference_key<R: Runtime>(
     app: &tauri::AppHandle<R>,
     state: &AppHandleState,
 ) -> Result<bool, String> {
@@ -319,8 +332,12 @@ mod preference_migration_tests {
         let paths_for = |server: &str, user: &str| {
             vec![
                 cfms_service::user_preferences::file_path(root.path(), server, user),
-                cfms_service::services::task_persistence::file_path(root.path(), server, user),
-                cfms_service::services::upload_task_persistence::file_path(root.path(), server, user),
+                cfms_service::transfers::task_persistence::file_path(root.path(), server, user),
+                cfms_service::transfers::upload_task_persistence::file_path(
+                    root.path(),
+                    server,
+                    user,
+                ),
             ]
         };
         let target = paths_for("server-a", "alice");

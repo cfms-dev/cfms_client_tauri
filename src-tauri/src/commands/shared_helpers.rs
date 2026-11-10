@@ -1,3 +1,6 @@
+use cfms_core::constants;
+use cfms_crypto::dek;
+
 // DEK setup helpers
 // ---------------------------------------------------------------------------
 
@@ -5,7 +8,7 @@
 ///
 /// Creates a short-lived stream, sends the JSON payload, reads the response,
 /// and closes the stream with a conclusion frame.
-async fn send_action_request(
+pub(super) async fn send_action_request(
     conn: &cfms_transport::Connection,
     action: &str,
     data: serde_json::Value,
@@ -15,61 +18,31 @@ async fn send_action_request(
     send_typed_action_request(conn, action, data, username, token).await
 }
 
-async fn send_typed_action_request<T>(
+async fn send_typed_action_request<T: serde::de::DeserializeOwned>(
     conn: &cfms_transport::Connection,
     action: &str,
     data: serde_json::Value,
     username: &str,
     token: &str,
-) -> Result<cfms_core::Response<T>, String>
-where
-    T: serde::de::DeserializeOwned,
-{
-    let random_bytes: [u8; 16] = rand::rng().random();
-    let nonce = hex::encode(random_bytes);
-
-    let request_bytes = cfms_service::sensitive::encode_action_request(
-        action,
-        data,
-        username,
-        token,
-        unix_now(),
-        &nonce,
-    )
-    .map_err(|e| format!("Failed to encode {action} request: {e}"))?;
-
-    let mut stream = conn
-        .create_stream()
+) -> Result<cfms_core::Response<T>, String> {
+    use cfms_service::rpc::RpcError;
+    cfms_service::rpc::send_typed_action_request(conn, action, data, username, token)
         .await
-        .map_err(|e| format!("Failed to create stream for {action}: {e}"))?;
-
-    stream
-        .send_sensitive(conn, request_bytes.into_zeroizing())
-        .await
-        .map_err(|e| format!("Failed to send {action} request: {e}"))?;
-
-    let response_bytes = match stream.recv().await {
-        Some(response) => response,
-        None => {
-            if let Some(close) = conn.close_info()
-                && close.code == 1013
-            {
-                return Err(format_server_error_parts(
-                    503,
-                    &close.reason,
-                    &serde_json::json!({ "close_code": close.code }),
-                ));
-            }
-            return Err(format!("Connection closed before {action} response"));
-        }
-    };
-
-    let response_bytes = zeroize::Zeroizing::new(response_bytes);
-    serde_json::from_slice::<cfms_core::Response<T>>(&response_bytes)
-        .map_err(|e| format!("Invalid {action} response: {e}"))
+        .map_err(|error| match error {
+            RpcError::Encode(error) => format!("Failed to encode {action} request: {error}"),
+            RpcError::Open(error) => format!("Failed to create stream for {action}: {error}"),
+            RpcError::Send(error) => format!("Failed to send {action} request: {error}"),
+            RpcError::Closed(Some(close)) if close.code == 1013 => format_server_error_parts(
+                503,
+                &close.reason,
+                &serde_json::json!({"close_code": close.code}),
+            ),
+            RpcError::Closed(_) => format!("Connection closed before {action} response"),
+            RpcError::Decode(error) => format!("Invalid {action} response: {error}"),
+        })
 }
 
-async fn remember_server_preference_dek(
+pub(super) async fn remember_server_preference_dek(
     inner: &cfms_service::state::AppState,
     encrypted_dek: Option<String>,
 ) {
@@ -80,11 +53,11 @@ async fn remember_server_preference_dek(
 /// Preserve the server status and structured response data across the Tauri
 /// string-error boundary so the frontend can route semantic states (such as
 /// lockdown) without displaying transport details to the user.
-fn format_server_response_error(response: &cfms_core::Response) -> String {
+pub(super) fn format_server_response_error(response: &cfms_core::Response) -> String {
     format_server_error_parts(response.code, &response.message, &response.data)
 }
 
-fn format_server_error_parts(
+pub(super) fn format_server_error_parts(
     code: impl std::fmt::Display,
     message: &str,
     data: &serde_json::Value,
@@ -98,7 +71,7 @@ fn format_server_error_parts(
     error
 }
 
-fn format_transport_error(error: &cfms_core::Error) -> String {
+pub(super) fn format_transport_error(error: &cfms_core::Error) -> String {
     match error {
         cfms_core::Error::CertificateRevoked(_) => "certificate_revoked".to_string(),
         cfms_core::Error::ConnectionRejected {
@@ -143,7 +116,7 @@ fn format_transport_error(error: &cfms_core::Error) -> String {
     }
 }
 
-fn is_transient_connection_error(error: &str) -> bool {
+pub(super) fn is_transient_connection_error(error: &str) -> bool {
     if error.contains("certificate_revoked") {
         return false;
     }
@@ -159,7 +132,7 @@ fn is_transient_connection_error(error: &str) -> bool {
         || lower.contains("no response")
 }
 
-async fn decrypt_preference_dek(
+pub(super) async fn decrypt_preference_dek(
     encrypted_dek: &str,
     password: &str,
 ) -> Result<zeroize::Zeroizing<[u8; constants::KEY_LEN]>, String> {
@@ -184,7 +157,7 @@ async fn encrypt_preference_dek(
     .map_err(|e| format!("DEK encryption task panicked: {e}"))?
 }
 
-async fn upload_and_select_preference_dek(
+pub(super) async fn upload_and_select_preference_dek(
     conn: &cfms_transport::Connection,
     encrypted_dek: &str,
     username: &str,
@@ -224,7 +197,7 @@ async fn upload_and_select_preference_dek(
     Ok(())
 }
 
-async fn rewrap_and_upload_preference_dek(
+pub(super) async fn rewrap_and_upload_preference_dek(
     conn: &cfms_transport::Connection,
     dek_bytes: cfms_service::sensitive::SecretKey,
     password: &str,
@@ -237,13 +210,15 @@ async fn rewrap_and_upload_preference_dek(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DekSetupStatus {
+pub(super) enum DekSetupStatus {
     Ready,
     ResetRequired,
     RecoveryRequired,
 }
 
-fn extract_preference_dek_content(login_data: &serde_json::Value) -> Result<Option<&str>, String> {
+pub(super) fn extract_preference_dek_content(
+    login_data: &serde_json::Value,
+) -> Result<Option<&str>, String> {
     match login_data.get("preference_dek") {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(preference_dek) => preference_dek
@@ -314,7 +289,7 @@ async fn setup_dek(
     Ok(DekSetupStatus::ResetRequired)
 }
 
-async fn setup_preference_dek_for_loading(
+pub(super) async fn setup_preference_dek_for_loading(
     inner: &cfms_service::state::AppState,
     password: &str,
     username: &str,
@@ -358,7 +333,7 @@ async fn setup_preference_dek_for_loading(
     }
 }
 
-async fn ensure_preference_dek(
+pub(super) async fn ensure_preference_dek(
     inner: &cfms_service::state::AppState,
     password: &str,
     username: &str,

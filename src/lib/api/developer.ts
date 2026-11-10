@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { JsonValue, ServerResponse } from './types';
+import type { JsonValue, ServerResponse } from './types/common';
 
 /** Send an arbitrary authenticated server action for the hidden developer console. */
 export async function sendDeveloperRequest(

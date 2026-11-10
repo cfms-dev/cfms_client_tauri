@@ -1,4 +1,4 @@
-import { operationalPalette, type ColorPalette } from '../lib/fluent/palettes';
+import { operationalPalette, type ColorPalette } from '$lib/shared/fluent/palettes';
 
 /** Deliberately different colors, never registered or offered to users. */
 export const testPalette: ColorPalette = {
