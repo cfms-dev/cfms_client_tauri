@@ -4,6 +4,36 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.59.0
+**Released on:** 2026-11-11
+
+**Title:** CRL Validation
+
+### Fixed
+- Set theme = null to follow system preferences
+- Add conditional compilation for Mica variant in BackdropMode
+- Disable default features for Rust checks to avoid frontend asset requirements
+- Remove unused ConnectionSecurity component and related styles
+- Update placeholder text for action input in DeveloperRequestConsole
+
+### Improved
+- Implement download batch processing and app lock functionality in Rust
+- Make tests adhere to the FIRST principles
+- Re-organize code structure and update references
+
+### Added
+- Update control height tokens for notched fields and enhance layout consistency
+- Implement CRL validation tests, enhance connection security UI, and document CRL handling
+- Implement outside click cancellation for address editing and update help text
+
+### Maintenance
+- Bump tauri-plugin-dialog from 2.8.3 to 2.8.4 (#43)
+
+### Changed
+- Merge pull request #44 from cfms-dev/dependabot/cargo/rusqlite-0.41.1
+
+--- 
+
 ## v0.58.0
 **Released on:** 2026-11-01
 
