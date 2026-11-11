@@ -491,17 +491,18 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       </div>
     </div>
     {:else if showPublicUtilityClose}
-      <button
-        type="button"
-        class="explorer-command-button explorer-public-utility-close"
+      <FluentButton
+        appearance="subtle"
+        iconOnly
+        data-fluent-owner="workspace-public-utility-close"
+        class="explorer-public-utility-close"
         title={$t('connect.returnToConnection')}
         aria-label={$t('connect.returnToConnection')}
         aria-keyshortcuts="Escape"
         onclick={closePublicUtility}
       >
-        <Icon name="connect" size="18px" />
-        <span>{$t('connect.returnToConnection')}</span>
-      </button>
+        <Icon name="close" size="20px" />
+      </FluentButton>
     {/if}
   </header>
 
@@ -625,16 +626,10 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   .explorer-topbar :global(.explorer-mobile-menu) { display: none; width: 34px; padding: 0; }
   .explorer-route-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--explorer-text); font-family: var(--font-md3-sans); font-size: 0.9rem; font-weight: 600; }
   .explorer-topbar-actions { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 0.4rem; }
-  .explorer-public-utility-close {
+  .explorer-topbar :global(.explorer-public-utility-close) {
     grid-column: 3;
     justify-self: end;
-    width: auto;
     margin-left: auto;
-    gap: 0.4rem;
-    padding-inline: 0.55rem 0.7rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
   }
   .explorer-account-wrap { position: relative; }
   .explorer-account-wrap::after { position: absolute; top: 100%; right: 0; left: 0; height: 0.45rem; content: ''; }
@@ -745,7 +740,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 
   @media (max-width: 800px) {
     .explorer-topbar { grid-template-columns: minmax(0, 1fr) auto; }
-    .explorer-topbar-actions, .explorer-public-utility-close { grid-column: 2; grid-row: 1; }
+    .explorer-topbar-actions, .explorer-topbar :global(.explorer-public-utility-close) { grid-column: 2; grid-row: 1; }
   }
 
   @media (max-width: 540px) {
@@ -753,14 +748,11 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     .explorer-account-trigger > strong { display: none; }
     .explorer-account-trigger { padding-inline: 0.45rem; }
     .explorer-route-title { font-size: 0.82rem; }
-    .explorer-public-utility-close span { display: none; }
-    .explorer-public-utility-close { width: 34px; padding-inline: 0; }
   }
 
   @media (pointer: coarse) {
     .explorer-account-trigger,
     .explorer-account-menu button,
-    .explorer-public-utility-close,
     .explorer-topbar-actions :global(button) { min-height: 44px; min-width: 44px; }
     .explorer-topbar :global(.explorer-mobile-menu) { min-width: 44px; min-height: 44px; }
   }

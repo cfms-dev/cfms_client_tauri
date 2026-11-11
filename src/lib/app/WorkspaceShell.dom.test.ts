@@ -67,6 +67,12 @@ it.each(['/home/settings', '/home/about'])('returns from public %s to connection
   serverStateStore.clear();
   (page as unknown as Writable<{ url: URL }>).set({ url: new URL(path, 'https://example.test') });
   render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
-  await fireEvent.click(screen.getByRole('button', { name: 'Return to connection' }));
+  const close = screen.getByRole('button', { name: 'Return to connection' });
+  expect(close.hasAttribute('icon-only')).toBe(true);
+  expect(close.querySelector('[data-icon="close"]')).toBeTruthy();
+  expect(close.textContent?.trim()).toBe('');
+  expect(close.getAttribute('title')).toBe('Return to connection');
+  expect(close.getAttribute('aria-keyshortcuts')).toBe('Escape');
+  await fireEvent.click(close);
   expect(mocks.goto).toHaveBeenCalledWith('/connect');
 });

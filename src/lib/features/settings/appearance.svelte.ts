@@ -121,6 +121,9 @@ class AppearanceStore {
     root.dataset.reduceMotion = String(reduceMotion);
     root.style.colorScheme = this.resolvedColorScheme;
     const scheme = this.resolvedColorScheme;
+    // Keep the native preference separate: forcing the resolved scheme also
+    // overrides WebView2's prefers-color-scheme and prevents system following.
+    const nativeTheme = this.preference.color_scheme === 'system' ? null : this.preference.color_scheme;
     const revision = ++this.appearanceRevision;
     void import('$lib/shared/fluent/runtime').then(({ applyFluentTheme }) => {
       if (revision === this.appearanceRevision) applyFluentTheme({ paletteId: DEFAULT_PALETTE_ID, mode: scheme, reduceMotion });
@@ -133,7 +136,8 @@ class AppearanceStore {
     );
     this.nativeAppearanceUpdate = this.nativeAppearanceUpdate.then(async () => {
       if (revision !== this.appearanceRevision) return;
-      await getCurrentWindow().setTheme(scheme);
+      await getCurrentWindow().setTheme(nativeTheme);
+      if (revision !== this.appearanceRevision) return;
       const mode = await setWindowBackdrop(scheme, enabled, solidColor);
       if (revision === this.appearanceRevision) root.dataset.windowBackdrop = mode;
     }).catch(() => {
