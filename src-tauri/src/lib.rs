@@ -21,6 +21,8 @@ mod secure_store;
 mod window_backdrop;
 
 #[cfg(target_os = "android")]
+use tauri::Manager;
+#[cfg(target_os = "android")]
 use tauri::Runtime;
 
 mod upload_runtime;

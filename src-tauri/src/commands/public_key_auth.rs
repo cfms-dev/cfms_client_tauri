@@ -7,6 +7,8 @@ use cfms_service::authentication::AUTH;
 use cfms_service::authentication::GENERAL;
 #[cfg(target_os = "android")]
 use serde::Deserialize;
+#[cfg(target_os = "android")]
+use tauri::Manager;
 use tauri::Runtime;
 use tauri::ipc::Channel;
 

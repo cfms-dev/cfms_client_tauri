@@ -38,6 +38,8 @@ use cfms_service::transfers::collect_directory_entries;
 use cfms_service::transfers::relative_upload_path;
 use cfms_service::transfers::upload_retry_delay;
 use tauri::Emitter;
+#[cfg(target_os = "android")]
+use tauri::Manager;
 use tauri::Runtime;
 use tauri::ipc::Channel;
 

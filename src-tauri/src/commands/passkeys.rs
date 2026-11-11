@@ -4,6 +4,8 @@ use super::mobile_types::AndroidPasskeyRegistration;
 #[cfg(target_os = "android")]
 use crate::AndroidPasskey;
 #[cfg(target_os = "android")]
+use tauri::Manager;
+#[cfg(target_os = "android")]
 use tauri::Runtime;
 
 #[cfg(target_os = "android")]

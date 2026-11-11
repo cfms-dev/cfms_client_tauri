@@ -6,8 +6,6 @@ use super::updates::UPDATE_USER_AGENT;
 use super::updates::update_api_http_client;
 #[cfg(test)]
 use super::updates::update_http_client;
-#[cfg(target_os = "android")]
-use std::io::Write;
 
 // Authenticated requests are limited to these two public GitHub REST endpoints.
 // Asset and certificate downloads use separate clients without this header.
