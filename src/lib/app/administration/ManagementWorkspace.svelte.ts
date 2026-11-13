@@ -1,3 +1,4 @@
+import { defaultAuditFilters, normalizeAuditActions, normalizeAuditFilters, type AuditActionFilters } from '$lib/features/administration/audit-filters';
 import { canAccessAdministration } from '$lib/features/administration/permissions';
 import { _ as t } from 'svelte-i18n';
 import { onDestroy, onMount, tick, untrack } from 'svelte';
@@ -124,7 +125,9 @@ export function createManagementWorkspace() {
 
   let auditPageIndex = $state(0);
 
-  let auditFilters = $state<string[]>([]);
+  let auditFilters = $state<AuditActionFilters>(defaultAuditFilters());
+
+  let auditLoadFailed = $state(false);
 
   let auditKnownActions = $state<string[]>([]);
 
@@ -638,46 +641,46 @@ export function createManagementWorkspace() {
     }
   }
 
-  function normalizeAuditActions(actions: readonly string[]) {
-    return [...new Set(actions.map((action) => action.trim()).filter(Boolean))]
-      .sort((left, right) => left.localeCompare(right));
-  }
-
-  async function applyAuditFilters(filters: string[]) {
-    const nextFilters = normalizeAuditActions(filters);
+  async function applyAuditFilters(filters: AuditActionFilters) {
+    const nextFilters = normalizeAuditFilters(filters);
     if (JSON.stringify(nextFilters) === JSON.stringify(auditFilters)) return;
-
     auditFilters = nextFilters;
-    auditKnownActions = normalizeAuditActions([...auditKnownActions, ...nextFilters]);
+    auditKnownActions = normalizeAuditActions([...auditKnownActions, ...nextFilters.include, ...nextFilters.exclude]);
     await loadAuditLogPage(null, 'reset', nextFilters);
   }
 
-  async function removeAuditFilter(action: string) {
-    await applyAuditFilters(auditFilters.filter((candidate) => candidate !== action));
+  async function removeAuditFilter(side: keyof AuditActionFilters, action: string) {
+    await applyAuditFilters({ ...auditFilters, [side]: auditFilters[side].filter((candidate) => candidate !== action) });
+  }
+
+  async function restoreAuditDefaults() {
+    await applyAuditFilters(defaultAuditFilters());
   }
 
   async function loadAuditLogPage(
     cursor: string | null,
     direction: 'reset' | 'next' | 'previous' = 'reset',
-    filters: readonly string[] = auditFilters,
+    filters: AuditActionFilters = auditFilters,
   ) {
     if (!canViewLogs) return;
     resetUserPreviews();
-    const requestFilters = normalizeAuditActions(filters);
+    const requestFilters = normalizeAuditFilters(filters);
     if (direction === 'reset') {
       auditCursorStack = [cursor];
       auditPageIndex = 0;
       auditNextCursor = null;
     }
     loadingLogs = true;
+    auditLoadFailed = false;
     error = null;
     try {
-      const data = await viewAuditLogs(cursor, auditPageSize, requestFilters);
+      const data = await viewAuditLogs(cursor, auditPageSize, requestFilters.include, requestFilters.exclude);
       auditEntries = data.entries;
       auditNextCursor = data.next_cursor;
       auditKnownActions = normalizeAuditActions([
         ...auditKnownActions,
-        ...requestFilters,
+        ...requestFilters.include,
+        ...requestFilters.exclude,
         ...data.entries.map((entry) => entry.action),
       ]);
       if (direction === 'next') {
@@ -688,6 +691,7 @@ export function createManagementWorkspace() {
       }
     } catch (err) {
       error = formatError(err);
+      auditLoadFailed = true;
       auditEntries = [];
       auditNextCursor = null;
     } finally {
@@ -1184,6 +1188,9 @@ export function createManagementWorkspace() {
     get auditDisplayRange() { return auditDisplayRange; },
     get auditEntries() { return auditEntries; },
     set auditEntries(value) { auditEntries = value; },
+    get auditLoadFailed() { return auditLoadFailed; },
+    get hasAuditFilters() { return auditFilters.include.length + auditFilters.exclude.length > 0; },
+    get auditFiltersAreDefault() { return JSON.stringify(auditFilters) === JSON.stringify(defaultAuditFilters()); },
     get auditFilters() { return auditFilters; },
     set auditFilters(value) { auditFilters = value; },
     get auditKnownActions() { return auditKnownActions; },
@@ -1270,6 +1277,7 @@ export function createManagementWorkspace() {
     refreshActiveUserGroups,
     refreshActiveUserPermissions,
     removeAuditFilter,
+    restoreAuditDefaults,
     saveActiveBlockUser,
     saveActiveGroupPermissions,
     saveActiveResetPassword,

@@ -852,6 +852,7 @@ pub async fn view_audit_logs(
     cursor: Option<String>,
     page_size: Option<u32>,
     filters: Option<Vec<String>>,
+    exclude_filters: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let raw = server_action_json(
         &state,
@@ -860,6 +861,7 @@ pub async fn view_audit_logs(
             "cursor": cursor,
             "page_size": page_size.unwrap_or(SERVER_CURSOR_PAGE_SIZE).clamp(1, SERVER_CURSOR_PAGE_SIZE),
             "filters": filters.unwrap_or_default(),
+            "exclude_filters": exclude_filters.unwrap_or_default(),
         }),
     )
     .await?;

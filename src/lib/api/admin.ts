@@ -324,11 +324,13 @@ export async function viewAuditLogs(
   cursor: string | null = null,
   pageSize = 128,
   filters: string[] = [],
+  excludeFilters: string[] = [],
 ): Promise<AuditLogsResponse> {
   const data = await invoke<Partial<AuditLogsResponse>>("view_audit_logs", {
     cursor,
     pageSize,
     filters,
+    excludeFilters,
   });
   return {
     entries: data.entries ?? [],

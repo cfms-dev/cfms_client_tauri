@@ -168,7 +168,7 @@ describe('admin API', () => {
   it('passes exact audit action filters through Tauri IPC and normalizes page defaults', async () => {
     invokeMock.mockResolvedValue({ entries: [{ id: 'audit-1', action: 'login' }] });
 
-    await expect(viewAuditLogs('cursor-1', 50, ['login', 'extension_action'])).resolves.toMatchObject({
+    await expect(viewAuditLogs('cursor-1', 50, ['login', 'extension_action'], ['core.audit.entry.list'])).resolves.toMatchObject({
       entries: [{ id: 'audit-1', action: 'login' }],
       page_size: 50,
       next_cursor: null,
@@ -178,6 +178,14 @@ describe('admin API', () => {
       cursor: 'cursor-1',
       pageSize: 50,
       filters: ['login', 'extension_action'],
+      excludeFilters: ['core.audit.entry.list'],
+    });
+    await viewAuditLogs();
+    expect(invokeMock).toHaveBeenLastCalledWith('view_audit_logs', {
+      cursor: null,
+      pageSize: 128,
+      filters: [],
+      excludeFilters: [],
     });
   });
 

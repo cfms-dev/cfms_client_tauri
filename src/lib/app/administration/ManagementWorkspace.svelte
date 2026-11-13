@@ -25,6 +25,7 @@
   import { createManagementWorkspace } from './ManagementWorkspace.svelte.ts';
   const outlinedId = $props.id();
   const workspace = createManagementWorkspace();
+  const auditFilterSides = ['include', 'exclude'] as const;
 </script>
 
 <div class="workspace-page space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]" class:workspace-page--settings={workspace.isAdmin && workspace.activeTab === 'settings'}>
@@ -308,7 +309,7 @@
           <div class="flex items-center gap-2">
             <AuditLogFilter
               availableActions={workspace.auditKnownActions}
-              selectedActions={workspace.auditFilters}
+              filters={workspace.auditFilters}
               disabled={!workspace.canViewLogs || workspace.loadingLogs}
               onApply={workspace.applyAuditFilters}
             />
@@ -349,37 +350,41 @@
           </div>
         </div>
 
-        {#if workspace.canViewLogs && workspace.auditFilters.length > 0}
+        {#if workspace.canViewLogs}
           <div class="audit-active-filters" aria-label={$t('manage.auditActiveFilters')}>
-            <span class="audit-active-filters__label">
-              <Icon name="filterList" size="16px" />
-              {$t('manage.auditFilteringBy')}
-            </span>
-            <div class="audit-filter-chips">
-              {#each workspace.auditFilters as action (action)}
-                <span class="audit-filter-chip">
-                  <code>{action}</code>
-                  <FluentButton data-fluent-owner="routes-home-manage-page"
-                    type="button"
-                    aria-label={$t('manage.auditFilterRemove', { values: { action } })}
-                    disabled={workspace.loadingLogs}
-                    onclick={() => workspace.removeAuditFilter(action)}
-                    appearance="subtle"
-                    iconOnly
-                  >
-                    <Icon name="close" size="14px" />
-                  </FluentButton>
+            {#each auditFilterSides as side}
+              {#if workspace.auditFilters[side].length > 0}
+                <div class="audit-filter-group" role="group" aria-label={$t(side === 'include' ? 'manage.auditInclude' : 'manage.auditExclude')}>
+                <span class="audit-active-filters__label">
+                  <Icon name="filterList" size="16px" />
+                  {$t(side === 'include' ? 'manage.auditInclude' : 'manage.auditExclude')}
                 </span>
-              {/each}
-            </div>
-            <FluentButton data-fluent-owner="routes-home-manage-page"
-              type="button"
-              disabled={workspace.loadingLogs}
-              onclick={() => workspace.applyAuditFilters([])}
-              appearance="subtle"
-              class="audit-filter-clear"
-            >
-              {$t('manage.auditFilterClearAll')}
+                <div class="audit-filter-chips">
+                  {#each workspace.auditFilters[side] as action (action)}
+                    <span class="audit-filter-chip">
+                      <code>{action}</code>
+                      <FluentButton data-fluent-owner="routes-home-manage-page" type="button"
+                        aria-label={$t(side === 'include' ? 'manage.auditFilterRemoveInclude' : 'manage.auditFilterRemoveExclude', { values: { action } })}
+                        disabled={workspace.loadingLogs} onclick={() => workspace.removeAuditFilter(side, action)}
+                        appearance="subtle" iconOnly>
+                        <Icon name="close" size="14px" />
+                      </FluentButton>
+                    </span>
+                  {/each}
+                </div>
+                </div>
+              {/if}
+            {/each}
+            {#if workspace.hasAuditFilters}
+              <FluentButton data-fluent-owner="routes-home-manage-page" type="button" disabled={workspace.loadingLogs}
+                onclick={() => workspace.applyAuditFilters({ include: [], exclude: [] })} appearance="subtle" class="audit-filter-clear">
+                {$t('manage.auditFilterClearAll')}
+              </FluentButton>
+            {/if}
+            <FluentButton data-fluent-owner="routes-home-manage-page" type="button"
+              disabled={workspace.loadingLogs || workspace.auditFiltersAreDefault}
+              onclick={workspace.restoreAuditDefaults} appearance="subtle">
+              {$t('manage.auditFilterRestoreDefaults')}
             </FluentButton>
           </div>
         {/if}
@@ -390,14 +395,22 @@
           </p>
         {:else if workspace.loadingLogs}
           {@render LoadingRow()}
+        {:else if workspace.auditLoadFailed}
+          <div class="audit-filter-empty" role="alert">
+            <p>{$t('manage.auditLoadFailed')}</p>
+            <FluentButton data-fluent-owner="routes-home-manage-page" type="button" appearance="subtle"
+              onclick={() => workspace.loadAuditLogPage(null, 'reset')}>
+              {$t('common.retry')}
+            </FluentButton>
+          </div>
         {:else if workspace.auditEntries.length === 0}
-          {#if workspace.auditFilters.length > 0}
+          {#if workspace.hasAuditFilters}
             <div class="audit-filter-empty">
               <span class="audit-filter-empty__icon"><Icon name="filterList" size="22px" /></span>
               <p>{$t('manage.noAuditLogsMatchingFilters')}</p>
               <FluentButton data-fluent-owner="routes-home-manage-page"
                 type="button"
-                onclick={() => workspace.applyAuditFilters([])}
+                onclick={() => workspace.applyAuditFilters({ include: [], exclude: [] })}
                 appearance="subtle"
               >
                 {$t('manage.auditFilterClearAll')}
@@ -880,6 +893,15 @@
     color: var(--color-md3-on-surface-variant);
     font-size: 12px;
     font-weight: 600;
+  }
+
+  .audit-filter-group {
+    display: flex;
+    flex: 1 1 24rem;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 8px;
   }
 
   .audit-filter-chips {

@@ -1,6 +1,7 @@
 # Protocol 30 client adaptation
 
-The client accepts protocol 30 only. The reference contract is the local
+This document describes the protocol 30 implementation. The client now accepts
+protocol 31 only; see [protocol 31](protocol-31.md). The reference contract is the local
 `cfms_on_websocket` implementation investigated at commit `1262924`.
 
 ## Account names and permissions

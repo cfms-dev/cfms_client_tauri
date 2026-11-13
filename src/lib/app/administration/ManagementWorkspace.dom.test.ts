@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   listServerSettings: vi.fn(),
   getServerSettings: vi.fn(),
 }));
+const defaultExclusions = ['core.audit.entry.list', 'core.setting.get'];
 const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
 vi.mock('$lib/api', async (importOriginal) => ({
@@ -77,7 +78,7 @@ function auditPage(entries: ReturnType<typeof auditEntry>[], nextCursor: string 
 async function openAuditLogs() {
   render(ManagePage);
   await fireEvent.click(screen.getByRole('tab', { name: 'Logs' }));
-  await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledWith(null, 128, []));
+  await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledWith(null, 128, [], defaultExclusions));
 }
 
 beforeEach(() => {
@@ -385,6 +386,40 @@ describe('management account context menu', () => {
 });
 
 describe('management audit logs', () => {
+  it('shows defaults, preserves clearing across tabs and refresh, and restores them explicitly', async () => {
+    mocks.viewAuditLogs.mockResolvedValue(auditPage([auditEntry('audit-1', 'login')]));
+    await openAuditLogs();
+    expect(screen.getByRole('button', { name: 'Remove excluded action core.audit.entry.list' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' }));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], ['core.audit.entry.list']));
+    await fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []));
+    await fireEvent.click(screen.getByRole('tab', { name: 'Accounts' }));
+    await fireEvent.click(screen.getByRole('tab', { name: 'Logs' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledTimes(5));
+    expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []);
+    await fireEvent.click(screen.getByRole('button', { name: 'Restore defaults' }));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], defaultExclusions));
+    cleanup();
+    await openAuditLogs();
+    expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], defaultExclusions);
+  });
+
+  it('keeps applied filters on load failure and retries without showing an empty-result message', async () => {
+    mocks.viewAuditLogs.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(auditPage([]));
+    await openAuditLogs();
+    expect(await screen.findByText('Could not load audit logs. Your filters have been kept. Try again.')).toBeTruthy();
+    expect(screen.queryByText('No audit logs match the current filters.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledTimes(2));
+    expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], defaultExclusions);
+    expect(await screen.findByText('No audit logs match the current filters.')).toBeTruthy();
+  });
+
   it('keeps user IDs compact on click while log IDs still expand', async () => {
     const first = auditEntry('audit-record-1', 'login');
     const second = auditEntry('audit-record-2', 'login');
@@ -558,7 +593,7 @@ describe('management audit logs', () => {
       ]));
 
     await openAuditLogs();
-    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 active' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 included, 2 excluded' }));
     await fireEvent.click(screen.getByRole('option', { name: 'login' }));
     await fireEvent.click(screen.getByRole('option', { name: 'create_directory' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
@@ -566,6 +601,7 @@ describe('management audit logs', () => {
       null,
       128,
       ['create_directory', 'login'],
+      defaultExclusions,
     ));
 
     const nextButton = screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement;
@@ -575,6 +611,7 @@ describe('management audit logs', () => {
       'filtered-next',
       128,
       ['create_directory', 'login'],
+      defaultExclusions,
     ));
 
     const previousButton = screen.getByRole('button', { name: 'Previous' }) as HTMLButtonElement;
@@ -584,17 +621,19 @@ describe('management audit logs', () => {
       null,
       128,
       ['create_directory', 'login'],
+      defaultExclusions,
     ));
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Remove login filter' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove included action login' }));
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(
       null,
       128,
       ['create_directory'],
+      defaultExclusions,
     ));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, []));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []));
     expect(mocks.viewAuditLogs).toHaveBeenCalledTimes(6);
   });
 
@@ -605,17 +644,17 @@ describe('management audit logs', () => {
       .mockResolvedValueOnce(auditPage([auditEntry('audit-2', 'login')]));
 
     await openAuditLogs();
-    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 active' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 included, 2 excluded' }));
     const input = screen.getByLabelText('Search or enter an audit action');
     await fireEvent.input(input, { target: { value: 'unknown_extension_action' } });
     await fireEvent.keyDown(input, { key: 'Enter' });
     await fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
 
-    expect(await screen.findByText('No audit logs match the selected actions.')).toBeTruthy();
+    expect(await screen.findByText('No audit logs match the current filters.')).toBeTruthy();
     await fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' }).at(-1)!);
-    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, []));
+    await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []));
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 active' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 included, 0 excluded' }));
     expect(screen.getByRole('option', { name: 'login' })).toBeTruthy();
   });
 });

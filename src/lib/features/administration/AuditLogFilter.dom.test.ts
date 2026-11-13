@@ -30,7 +30,7 @@ describe('AuditLogFilter', () => {
     render(AuditLogFilter, {
       props: {
         availableActions: ['login', 'create_directory'],
-        selectedActions: [],
+        filters: { include: [], exclude: [] },
         onApply,
       },
     });
@@ -48,7 +48,7 @@ describe('AuditLogFilter', () => {
     expect(onApply).not.toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterApply' }));
-    await waitFor(() => expect(onApply).toHaveBeenCalledWith(['extension_action', 'login']));
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith({ include: ['extension_action', 'login'], exclude: [] }));
     expect(screen.queryByRole('dialog')).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
@@ -58,7 +58,7 @@ describe('AuditLogFilter', () => {
     render(AuditLogFilter, {
       props: {
         availableActions: ['login', 'diagnostics'],
-        selectedActions: ['login'],
+        filters: { include: ['login'], exclude: [] },
         onApply,
       },
     });
@@ -81,7 +81,7 @@ describe('AuditLogFilter', () => {
     const { rerender } = render(AuditLogFilter, {
       props: {
         availableActions: [],
-        selectedActions: [],
+        filters: { include: [], exclude: [] },
         onApply,
       },
     });
@@ -94,11 +94,11 @@ describe('AuditLogFilter', () => {
     await fireEvent.input(input, { target: { value: 'custom_action' } });
     await fireEvent.keyDown(input, { key: 'Enter' });
     await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterApply' }));
-    await waitFor(() => expect(onApply).toHaveBeenCalledWith(['custom_action']));
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith({ include: ['custom_action'], exclude: [] }));
 
     await rerender({
       availableActions: [],
-      selectedActions: [],
+      filters: { include: [], exclude: [] },
       disabled: true,
       onApply,
     });
@@ -112,7 +112,7 @@ describe('AuditLogFilter', () => {
     render(AuditLogFilter, {
       props: {
         availableActions: Array.from({ length: 40 }, (_, index) => `action_${index}`),
-        selectedActions: [],
+        filters: { include: [], exclude: [] },
         onApply: vi.fn(),
       },
     });
@@ -135,7 +135,7 @@ describe('AuditLogFilter', () => {
     expect(panel.style.left).toBe('300px');
     expect(panel.style.width).toBe('400px');
     expect(panel.style.maxHeight).toBe('376px');
-    expect(screen.getAllByRole('option')).toHaveLength(40);
+    expect(screen.getAllByRole('option')).toHaveLength(42);
   });
 
   it.each([
@@ -149,7 +149,7 @@ describe('AuditLogFilter', () => {
     vi.stubGlobal('innerWidth', viewportWidth);
     vi.stubGlobal('innerHeight', 900);
     render(AuditLogFilter, {
-      availableActions: ['login'], selectedActions: [], onApply: vi.fn(),
+      availableActions: ['login'], filters: { include: [], exclude: [] }, onApply: vi.fn(),
     });
     const trigger = screen.getByRole('button', { name: 'manage.auditFilterButton' });
     vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
@@ -169,7 +169,7 @@ describe('AuditLogFilter', () => {
     vi.stubGlobal('innerWidth', 800);
     vi.stubGlobal('innerHeight', 600);
     render(AuditLogFilter, {
-      availableActions: ['login'], selectedActions: [], onApply: vi.fn(),
+      availableActions: ['login'], filters: { include: [], exclude: [] }, onApply: vi.fn(),
     });
     const trigger = screen.getByRole('button', { name: 'manage.auditFilterButton' });
     const triggerBounds = vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
@@ -191,27 +191,53 @@ describe('AuditLogFilter', () => {
     expect(panel.classList.contains('filter-panel--above')).toBe(true);
   });
 
-  it('exposes a labelled reset icon that stages clearing without applying it', async () => {
+  it('moves actions between lists and applies both drafts together', async () => {
     const onApply = vi.fn();
-    render(AuditLogFilter, {
-      availableActions: ['login'], selectedActions: ['login'], onApply,
-    });
+    render(AuditLogFilter, { availableActions: ['login'], filters: { include: [], exclude: ['core.audit.entry.list', 'core.setting.get'] }, onApply });
     await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterButton' }));
-    const reset = screen.getByRole('button', { name: 'common.reset' });
-    expect(reset.hasAttribute('icon-only')).toBe(true);
-    expect(reset.getAttribute('title')).toBe('common.reset');
-    expect(reset.hasAttribute('disabled')).toBe(false);
-
-    await fireEvent.input(screen.getByLabelText('manage.auditFilterSearch'), {
-      target: { value: 'login' },
-    });
-    await fireEvent.click(reset);
-    expect(reset.hasAttribute('disabled')).toBe(true);
-    expect((screen.getByLabelText('manage.auditFilterSearch') as HTMLInputElement).value).toBe('');
-    expect(screen.getByRole('option', { name: 'login' }).getAttribute('aria-selected')).toBe('false');
+    await fireEvent.click(screen.getByRole('option', { name: 'core.setting.get' }));
+    await fireEvent.click(screen.getByRole('tab', { name: 'manage.auditExclude (1)' }));
+    expect(screen.getByRole('option', { name: 'core.setting.get' }).getAttribute('aria-selected')).toBe('false');
+    await fireEvent.click(screen.getByRole('option', { name: 'login' }));
+    await fireEvent.click(screen.getByRole('tab', { name: 'manage.auditInclude (1)' }));
+    expect(screen.getByRole('option', { name: 'core.setting.get' }).getAttribute('aria-selected')).toBe('true');
     expect(onApply).not.toHaveBeenCalled();
-
     await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterApply' }));
-    await waitFor(() => expect(onApply).toHaveBeenCalledWith([]));
+    expect(onApply).toHaveBeenCalledWith({ include: ['core.setting.get'], exclude: ['core.audit.entry.list', 'login'] });
+  });
+
+  it('stages clear and restore separately, and discards both drafts on cancel', async () => {
+    const onApply = vi.fn();
+    render(AuditLogFilter, { availableActions: [], filters: { include: [], exclude: ['core.audit.entry.list', 'core.setting.get'] }, onApply });
+    const trigger = screen.getByRole('button', { name: 'manage.auditFilterButton' });
+    await fireEvent.click(trigger);
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterClearAll' }));
+    expect(screen.getByRole('tab', { name: 'manage.auditExclude (0)' })).toBeTruthy();
+    expect(onApply).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterRestoreDefaults' }));
+    expect(screen.getByRole('tab', { name: 'manage.auditExclude (2)' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterClearAll' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
+    await fireEvent.click(trigger);
+    expect(screen.getByRole('tab', { name: 'manage.auditExclude (2)' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterClearAll' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterApply' }));
+    expect(onApply).toHaveBeenCalledWith({ include: [], exclude: [] });
+  });
+
+  it('supports keyboard tab navigation without toggling options', async () => {
+    render(AuditLogFilter, { availableActions: ['login'], filters: { include: [], exclude: [] }, onApply: vi.fn() });
+    await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterButton' }));
+    const tab = screen.getByRole('tab', { name: 'manage.auditInclude (0)' });
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    tab.focus();
+    await fireEvent.keyDown(tab, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'manage.auditExclude (0)' }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'manage.auditExclude (0)' }));
+    const input = screen.getByLabelText('manage.auditFilterSearch');
+    await fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(document.activeElement?.getAttribute('role')).toBe('option');
+    await fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(document.activeElement?.textContent).toContain('login');
   });
 });
