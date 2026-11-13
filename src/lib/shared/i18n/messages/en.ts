@@ -228,6 +228,7 @@ export const en = {
     reset: 'Reset',
     add: 'Add',
     save: 'Save',
+    ok: 'OK',
     cancel: 'Cancel',
     close: 'Close',
     maximizeDialog: 'Maximize dialog',
@@ -259,6 +260,11 @@ export const en = {
     tooManyRequestsRetry: 'Too many requests. Try again in {seconds} seconds.',
     serverBusy: 'The server is busy. Try again in a moment.',
     serverBusyRetry: 'The server is busy. Try again in {seconds} seconds.',
+  },
+  dialogs: {
+    confirmTitle: 'Confirm',
+    promptTitle: 'Input',
+    choiceTitle: 'Choose an action',
   },
   keyboard: {
     title: 'Keyboard shortcuts',

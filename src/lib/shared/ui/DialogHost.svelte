@@ -48,8 +48,13 @@
 </script>
 
 {#if dialogStore.current}
+  {@const title = dialogStore.current.title ?? (
+    dialogStore.current.kind === 'confirm' ? $t('dialogs.confirmTitle')
+      : dialogStore.current.kind === 'prompt' ? $t('dialogs.promptTitle')
+      : $t('dialogs.choiceTitle')
+  )}
   <ModalFrame
-    title={dialogStore.current.title}
+    {title}
     maxWidth={dialogStore.current.multiline ? 'max-w-2xl' : dialogStore.current.kind === 'choice' ? 'max-w-xl' : 'max-w-md'}
     closeLabel={$t('common.close')}
     onClose={close}
@@ -112,7 +117,7 @@
           </section>
         {/if}
 
-        <div class="choice-actions" aria-label={dialogStore.current.title}>
+        <div class="choice-actions" aria-label={title}>
           {#each dialogStore.current.choices as choice, index (choice.value)}
             <!-- svelte-ignore a11y_autofocus -->
             <button data-fluent-owner="lib-components-dialog-host"
@@ -163,14 +168,14 @@
         {/if}
         <div class={dialogStore.current.kind === 'choice' ? 'choice-footer-actions' : 'flex justify-end gap-2'}>
           <DialogActionButton onclick={close}>
-            {dialogStore.current.cancelLabel}
+            {dialogStore.current.cancelLabel ?? $t('common.cancel')}
           </DialogActionButton>
           {#if dialogStore.current.kind !== 'choice'}
             <DialogActionButton
               type="submit"
               variant={dialogStore.current.danger ? 'danger' : 'primary'}
             >
-              {dialogStore.current.confirmLabel}
+              {dialogStore.current.confirmLabel ?? $t('common.ok')}
             </DialogActionButton>
           {/if}
         </div>

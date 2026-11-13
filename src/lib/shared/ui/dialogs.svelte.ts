@@ -57,12 +57,12 @@ type DialogKind = "confirm" | "prompt" | "choice";
 export interface DialogRequest {
   id: number;
   kind: DialogKind;
-  title: string;
+  title?: string;
   message: string;
   defaultValue: string;
   placeholder: string;
-  confirmLabel: string;
-  cancelLabel: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   danger: boolean;
   multiline: boolean;
   maxLength?: number;
@@ -88,12 +88,12 @@ class DialogStoreImpl {
       this.enqueue({
         id: this.nextId++,
         kind: "confirm",
-        title: normalized.title ?? "Confirm",
+        title: normalized.title,
         message: normalized.message,
         defaultValue: "",
         placeholder: "",
-        confirmLabel: normalized.confirmLabel ?? "OK",
-        cancelLabel: normalized.cancelLabel ?? "Cancel",
+        confirmLabel: normalized.confirmLabel,
+        cancelLabel: normalized.cancelLabel,
         danger: normalized.danger ?? false,
         multiline: false,
         maxLength: undefined,
@@ -116,12 +116,12 @@ class DialogStoreImpl {
       this.enqueue({
         id: this.nextId++,
         kind: "prompt",
-        title: normalized.title ?? "Input",
+        title: normalized.title,
         message: normalized.message,
         defaultValue: normalized.defaultValue ?? defaultValue,
         placeholder: normalized.placeholder ?? "",
-        confirmLabel: normalized.confirmLabel ?? "OK",
-        cancelLabel: normalized.cancelLabel ?? "Cancel",
+        confirmLabel: normalized.confirmLabel,
+        cancelLabel: normalized.cancelLabel,
         danger: false,
         multiline: normalized.multiline ?? false,
         maxLength: normalized.maxLength,
@@ -147,12 +147,12 @@ class DialogStoreImpl {
       const request: DialogRequest = {
         id,
         kind: "choice",
-        title: options.title ?? "Choose an action",
+        title: options.title,
         message: options.message,
         defaultValue: "",
         placeholder: "",
         confirmLabel: "",
-        cancelLabel: options.cancelLabel ?? "Cancel",
+        cancelLabel: options.cancelLabel,
         danger: false,
         multiline: false,
         maxLength: undefined,

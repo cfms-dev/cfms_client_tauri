@@ -228,6 +228,7 @@ export const zh_CN = {
     reset: '重置',
     add: '添加',
     save: '保存',
+    ok: '确定',
     cancel: '取消',
     close: '关闭',
     maximizeDialog: '最大化对话框',
@@ -259,6 +260,11 @@ export const zh_CN = {
     tooManyRequestsRetry: '请求过于频繁，请在 {seconds} 秒后重试。',
     serverBusy: '服务器当前繁忙，请稍后重试。',
     serverBusyRetry: '服务器当前繁忙，请在 {seconds} 秒后重试。',
+  },
+  dialogs: {
+    confirmTitle: '确认',
+    promptTitle: '输入',
+    choiceTitle: '选择操作',
   },
   keyboard: {
     title: '键盘快捷键',
