@@ -8,7 +8,7 @@
   const warning = $derived(status?.state === 'unknown' || status?.state === 'skipped');
 </script>
 
-{#if status && (details || status.state !== 'checked')}
+{#if status && (details || (status.state !== 'checked' && status.state !== 'skipped'))}
   <div class="connection-security" class:warning class:revoked={status.state === 'revoked'} role="status" aria-live="polite">
     <Icon name={status.state === 'checked' ? 'checkCircle' : 'warning'} size="16px" />
     <div>

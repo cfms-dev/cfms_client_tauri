@@ -336,6 +336,7 @@ export const zh_CN = {
     serverAddressRequired: '请输入服务器地址。',
     serverAddressInvalid: '请输入有效主机；端口可省略（默认 443），显式端口范围为 1–65535（如 example.com、localhost:5104 或 [::1]）。',
     disableSsl: '禁用 SSL 验证（不安全）',
+    disableSslHint: '已禁用 SSL 验证，连接时将跳过证书吊销检查。',
     clientUpdateRequired: '需要更新客户端',
     serverVersionUnsupported: '不支持该服务器版本',
     clientUpdateMessage:

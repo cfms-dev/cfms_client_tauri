@@ -422,7 +422,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
             aria-hidden="true"
           ></span>
           <strong>{accountDisplayName}</strong>
-          {#if serverStateStore.revocation?.state === 'unknown' || serverStateStore.revocation?.state === 'skipped'}
+          {#if serverStateStore.revocation?.state === 'unknown'}
             <span role="img" aria-label={$t(`settings.connection.crlState.${serverStateStore.revocation.state}`)} title={$t(`settings.connection.crlState.${serverStateStore.revocation.state}`)} style="color: var(--colorStatusWarningForeground1)">
               <Icon name="warning" size="16px" />
             </span>

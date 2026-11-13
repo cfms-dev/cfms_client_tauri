@@ -47,9 +47,12 @@ IP addresses only; it does not authorize wildcard domains, arbitrary URLs or
 ports. Changing the list wakes active monitors and resets failed-fetch backoff.
 Only allow CA distribution hosts whose access to the local network you trust.
 
-The login screen and account menu show warnings; Connection settings show the
-full status, check time and CRL expiry. Events carry a connection ID so an old
-connection cannot overwrite a new connection's security status.
+The connection screen explains that revocation checking will be skipped when
+SSL verification is disabled with the switch. The login screen and account
+menu continue to warn when revocation status is unknown, but do not repeat
+skipped-check warnings. Connection settings retain the full actual status,
+including skipped checks, check time and CRL expiry. Events carry a connection
+ID so an old connection cannot overwrite a new connection's security status.
 
 Best effort checks can be bypassed by blocking CRL availability, and newly
 published revocations are subject to CA/CDN publication schedules and device

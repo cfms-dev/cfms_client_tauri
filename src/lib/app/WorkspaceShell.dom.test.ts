@@ -31,6 +31,19 @@ beforeEach(() => {
 afterEach(() => { cleanup(); authStore.clear(); serverStateStore.clear(); });
 afterAll(() => vi.unstubAllGlobals());
 
+it.each(['verification_disabled', 'plaintext'])('does not warn in the account entry for skipped %s checks', (reason) => {
+  serverStateStore.revocation = { state: 'skipped', reasons: [reason], checked_at: null, valid_until: null };
+  render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
+  expect(screen.queryByRole('img', { name: 'Certificate revocation checking was skipped' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Account menu' }).querySelector('[data-icon="warning"]')).toBeNull();
+});
+
+it('keeps the account entry warning when revocation status is unknown', () => {
+  serverStateStore.revocation = { state: 'unknown', reasons: ['download_failed'], checked_at: null, valid_until: null };
+  render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
+  expect(screen.getByRole('img', { name: 'Certificate revocation status could not be confirmed' })).toBeTruthy();
+});
+
 it('opens User account from the account menu for an ordinary user and closes the flyout', async () => {
   render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
   await fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));

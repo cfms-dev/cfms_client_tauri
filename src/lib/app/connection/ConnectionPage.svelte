@@ -404,15 +404,23 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       </div>
 
       <!-- TLS toggle -->
-      <div class="flex items-center gap-2.5 text-sm">
-        <MdSwitch
-          bind:checked={disableSsl}
-          disabled={busy}
-          ariaLabel={$t('connect.disableSsl')}
-        />
-        <span class="text-md3-on-surface-variant"
-          >{$t('connect.disableSsl')}</span
-        >
+      <div class="connection-security-option">
+        <div class="flex items-center gap-2.5 text-sm">
+          <MdSwitch
+            bind:checked={disableSsl}
+            disabled={busy}
+            ariaLabel={$t('connect.disableSsl')}
+          />
+          <span class="text-md3-on-surface-variant"
+            >{$t('connect.disableSsl')}</span
+          >
+        </div>
+        {#if disableSsl}
+          <div class="connection-security-notice" role="status" aria-live="polite">
+            <Icon name="warning" size="16px" tone="warning" />
+            <p>{$t('connect.disableSslHint')}</p>
+          </div>
+        {/if}
       </div>
 
       <!-- Protocol version mismatch -->
@@ -502,6 +510,35 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 </AuthScene>
 
 <style>
+  .connection-security-option {
+    display: grid;
+    gap: 8px;
+    min-inline-size: 0;
+  }
+
+  .connection-security-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 8px;
+    color: var(--colorStatusWarningForeground2);
+    background: var(--colorStatusWarningBackground1);
+    font: var(--fontSizeBase200)/var(--lineHeightBase200) var(--fontFamilyBase);
+    overflow-wrap: anywhere;
+  }
+
+  .connection-security-notice p { margin: 0; min-inline-size: 0; }
+
+  @media (forced-colors: active) {
+    .connection-security-notice {
+      background: Canvas;
+      color: CanvasText;
+      border-color: CanvasText;
+    }
+  }
+
   .connect-route-header {
     --connect-route-toolbar-width: 7.75rem;
 

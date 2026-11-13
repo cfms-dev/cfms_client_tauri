@@ -17,9 +17,15 @@ it('keeps an explicit warning for unknown status and translates its reason', () 
   expect(screen.queryByText('Certificate chain checked against current CRLs')).toBeNull();
 });
 
-it('does not present disabled verification as a successful check', () => {
-  serverStateStore.revocation = { state: 'skipped', reasons: ['verification_disabled'], checked_at: null, valid_until: null };
+it.each(['verification_disabled', 'plaintext'])('hides skipped %s checks outside details', (reason) => {
+  serverStateStore.revocation = { state: 'skipped', reasons: [reason], checked_at: null, valid_until: null };
   render(ConnectionSecurity);
+  expect(screen.queryByRole('status')).toBeNull();
+});
+
+it('retains the actual skipped result and reason in details', () => {
+  serverStateStore.revocation = { state: 'skipped', reasons: ['verification_disabled'], checked_at: null, valid_until: null };
+  render(ConnectionSecurity, { details: true });
   expect(screen.getByRole('status').textContent).toContain('skipped');
   expect(screen.getByRole('status').textContent).toContain('verification is disabled');
 });
