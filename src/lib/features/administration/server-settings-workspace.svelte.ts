@@ -19,9 +19,14 @@ interface NamespaceState {
 const translate = (key: string, values?: Record<string, string | number>) => get(t)(key, { values });
 const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
 
+// Keep esbuild's pure annotation outside effects removed by Svelte's server compiler.
+function createNamespaceEntries(): Record<string, NamespaceState> {
+  return Object.create(null);
+}
+
 export function createServerSettingsWorkspace() {
   let definitions = $state<ServerSettingDefinition[]>([]);
-  let entries = $state<Record<string, NamespaceState>>(Object.create(null));
+  let entries = $state<Record<string, NamespaceState>>(createNamespaceEntries());
   let selectedNamespaces = $state<string[]>([]);
   let search = $state('');
   let discovering = $state(false);
@@ -62,7 +67,7 @@ export function createServerSettingsWorkspace() {
     const readable = canRead;
     untrack(() => {
       generation += 1;
-      definitions = []; entries = Object.create(null); selectedNamespaces = []; search = '';
+      definitions = []; entries = createNamespaceEntries(); selectedNamespaces = []; search = '';
       discovering = false; discovered = false; saving = false; error = ''; message = '';
       if (activeScope && readable) void discover(activeScope);
     });
@@ -83,7 +88,7 @@ export function createServerSettingsWorkspace() {
   }
   async function discover(activeScope: string) {
     const batch = ++generation;
-    discovering = true; discovered = false; error = ''; message = ''; definitions = []; entries = Object.create(null);
+    discovering = true; discovered = false; error = ''; message = ''; definitions = []; entries = createNamespaceEntries();
     try {
       const result = await listServerSettings();
       if (!current(activeScope, batch)) return;
