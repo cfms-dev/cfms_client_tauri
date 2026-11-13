@@ -332,6 +332,12 @@ fn status_from_str(s: &str) -> DownloadTaskStatus {
     }
 }
 
+pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
+    serde_json::from_slice::<TasksJson>(bytes)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,10 +365,4 @@ mod tests {
         assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
         assert!(!path.exists());
     }
-}
-
-pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
-    serde_json::from_slice::<TasksJson>(bytes)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
 }

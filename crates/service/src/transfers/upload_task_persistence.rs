@@ -130,6 +130,12 @@ fn source_available(path: &str) -> bool {
     Path::new(path).exists()
 }
 
+pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
+    serde_json::from_slice::<UploadTasksJson>(bytes)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,10 +280,4 @@ mod tests {
                 .is_empty()
         );
     }
-}
-
-pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
-    serde_json::from_slice::<UploadTasksJson>(bytes)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
 }

@@ -23,10 +23,10 @@ pub(super) fn update_username_index(
     if old_path.is_file() {
         let _ = std::fs::remove_file(old_path);
     }
-    if let Some(avatar) = avatar {
-        if std::fs::create_dir_all(&index).is_ok() {
-            let _ = std::fs::copy(avatar, index.join(cfms_core::get_username_hash(new)));
-        }
+    if let Some(avatar) = avatar
+        && std::fs::create_dir_all(&index).is_ok()
+    {
+        let _ = std::fs::copy(avatar, index.join(cfms_core::get_username_hash(new)));
     }
 }
 
