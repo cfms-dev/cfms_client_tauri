@@ -165,11 +165,12 @@
     onReset={resetConnection}
   />
 
+  <ConnectionSecurity details />
+
   <div class="settings-section-list">
     <section class="settings-section space-y-3">
       <h2 class="text-sm font-semibold">{$t('settings.connection.crlTitle')}</h2>
       <p class="text-xs text-md3-on-surface-variant">{$t('settings.connection.crlHint')}</p>
-      <ConnectionSecurity details />
       <div role="group" aria-label={$t('settings.connection.crlAllowedHosts')} onfocusout={saveCrlHosts}>
         <FluentTextInput id="crl-allowed-hosts" label={$t('settings.connection.crlAllowedHosts')}
           value={crlHostsText} disabled={loading}

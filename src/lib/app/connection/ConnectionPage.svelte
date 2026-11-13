@@ -40,7 +40,8 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   import MdSwitch from "$lib/shared/ui/MdSwitch.svelte";
   import ProgressRing from "$lib/shared/ui/ProgressRing.svelte";
   import { openKeyboardShortcutHelp } from "$lib/shared/ui/keyboard";
-  import { menuScale } from "$lib/shared/motion/transitions";
+  import { inlineNotice, menuScale } from "$lib/shared/motion/transitions";
+  import ConnectionSecurityNotice from '$lib/features/connection/ConnectionSecurityNotice.svelte';
   import { isServerAddressValid, parseServerAddress } from "$lib/features/connection/server-address";
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 
@@ -416,9 +417,10 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
           >
         </div>
         {#if disableSsl}
-          <div class="connection-security-notice" role="status" aria-live="polite">
-            <Icon name="warning" size="16px" tone="warning" />
-            <p>{$t('connect.disableSslHint')}</p>
+          <div class="connection-security-reveal" transition:inlineNotice>
+            <ConnectionSecurityNotice title={$t('connect.disableSslTitle')}>
+              <p>{$t('connect.disableSslHint')}</p>
+            </ConnectionSecurityNotice>
           </div>
         {/if}
       </div>
@@ -512,31 +514,11 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 <style>
   .connection-security-option {
     display: grid;
-    gap: 8px;
     min-inline-size: 0;
   }
 
-  .connection-security-notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 12px;
-    border: 1px solid var(--colorNeutralStroke2);
-    border-radius: 8px;
-    color: var(--colorStatusWarningForeground2);
-    background: var(--colorStatusWarningBackground1);
-    font: var(--fontSizeBase200)/var(--lineHeightBase200) var(--fontFamilyBase);
-    overflow-wrap: anywhere;
-  }
-
-  .connection-security-notice p { margin: 0; min-inline-size: 0; }
-
-  @media (forced-colors: active) {
-    .connection-security-notice {
-      background: Canvas;
-      color: CanvasText;
-      border-color: CanvasText;
-    }
+  .connection-security-reveal {
+    padding-block-start: 8px;
   }
 
   .connect-route-header {

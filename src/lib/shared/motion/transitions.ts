@@ -2,7 +2,7 @@ import { spring } from "svelte/motion";
 import { flip } from "svelte/animate";
 import { cubicIn, cubicOut } from "svelte/easing";
 import type { AnimationConfig } from "svelte/animate";
-import type { TransitionConfig } from "svelte/transition";
+import { slide, type TransitionConfig } from "svelte/transition";
 import { isReducedMotionEnabled } from "$lib/shared/appearance";
 
 export interface FlyScaleParams {
@@ -37,6 +37,23 @@ const emphasized = (t: number): number => 1 - Math.pow(1 - t, 3);
 
 function instant(): TransitionConfig {
   return { duration: 0 };
+}
+
+export function inlineNotice(node: HTMLElement) {
+  // Keep one geometry snapshot for reversals, while resolving timing per direction.
+  let reveal: TransitionConfig | undefined;
+  const opacity = Number(getComputedStyle(node).opacity);
+
+  return ({ direction = 'in' }: { direction?: 'in' | 'out' } = {}): TransitionConfig => {
+    if (isReducedMotionEnabled()) return instant();
+    const layout = reveal ??= slide(node);
+    return {
+      ...layout,
+      duration: direction === 'out' ? 150 : 200,
+      easing: direction === 'out' ? cubicIn : cubicOut,
+      css: (t, u) => `${layout.css!(t, u)}; opacity: ${t * opacity};`,
+    };
+  };
 }
 
 export function flyScale(

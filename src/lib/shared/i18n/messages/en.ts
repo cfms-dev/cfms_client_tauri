@@ -365,6 +365,7 @@ export const en = {
     serverAddressInvalid: 'Enter a valid host. The port is optional (default 443); explicit ports must be from 1–65535 (such as example.com, localhost:5104, or [::1]).',
     disableSsl: 'Disable SSL verification (Insecure)',
     disableSslHint: 'SSL verification is disabled. Certificate revocation checking will be skipped when connecting.',
+    disableSslTitle: 'Certificate revocation checking will be skipped',
     clientUpdateRequired: 'Client update required',
     serverVersionUnsupported: 'Server version not supported',
     clientUpdateMessage:
