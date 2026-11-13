@@ -243,23 +243,25 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
         {#if !canChangeAvatar}<p class="avatar-hint">{$t('settings.account.avatarReadOnly')}</p>{/if}
       </div>
 
-      {#if canChangeUsername}
-        <FluentButton appearance="subtle" disabled={!serverStateStore.connected || authStore.postLoginPending} onclick={() => { showUsernameEditor = true; }}>{$t('protocol30.changeUsername')}</FluentButton>
-      {/if}
-      {#if !editingNickname && canChangeNickname}
-        <FluentButton data-fluent-owner="routes-home-settings-account-page"
-          type="button"
-          title={$t('settings.account.editNickname')}
-          aria-label={$t('settings.account.editNickname')}
-          disabled={!authStore.isLoggedIn || !authStore.username || !serverStateStore.connected}
-          onclick={() => void beginNicknameEdit()}
-          appearance="subtle"
-          class="action-button action-button--secondary identity-edit-button"
-        >
-          <Icon name="edit" size="18px" />
-          <span>{$t('settings.account.editNickname')}</span>
-        </FluentButton>
-      {/if}
+      <div class="identity-actions">
+        {#if canChangeUsername}
+          <FluentButton appearance="subtle" disabled={!serverStateStore.connected || authStore.postLoginPending} onclick={() => { showUsernameEditor = true; }}>{$t('protocol30.changeUsername')}</FluentButton>
+        {/if}
+        {#if !editingNickname && canChangeNickname}
+          <FluentButton data-fluent-owner="routes-home-settings-account-page"
+            type="button"
+            title={$t('settings.account.editNickname')}
+            aria-label={$t('settings.account.editNickname')}
+            disabled={!authStore.isLoggedIn || !authStore.username || !serverStateStore.connected}
+            onclick={() => void beginNicknameEdit()}
+            appearance="subtle"
+            class="action-button action-button--secondary identity-edit-button"
+          >
+            <Icon name="edit" size="18px" />
+            <span>{$t('settings.account.editNickname')}</span>
+          </FluentButton>
+        {/if}
+      </div>
     </div>
 
     {#if editingNickname}
@@ -397,7 +399,8 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   .profile-section { display: grid; gap: 16px; }
   .profile-section h2 { margin: 0; font: 600 16px/22px var(--fontFamilyBase); }
   .identity-summary { display: grid; min-width: 0; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding-block: 24px; }
-  .identity-avatar { position: relative; display: grid; border-radius: 50%; padding: 0; }
+  .identity-avatar { position: relative; display: grid; place-items: center; justify-self: start; inline-size: 64px; block-size: 64px; min-inline-size: 64px; border-radius: 50%; padding: 0; }
+  .identity-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; }
   .identity-avatar--editable { cursor: pointer; transition: background-color 140ms ease; }
   .identity-avatar--editable:hover { background: var(--colorSubtleBackgroundHover); }
   .identity-avatar--editable:disabled { cursor: not-allowed; opacity: 0.6; }
@@ -440,7 +443,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   @media (max-width: 640px) {
     .profile-fields, .nickname-editor { grid-template-columns: minmax(0, 1fr); }
     .identity-summary { grid-template-columns: auto minmax(0, 1fr); }
-    :global(.identity-edit-button[data-fluent-owner="routes-home-settings-account-page"]) { grid-column: 2; justify-self: start; }
+    .identity-actions { grid-column: 2; }
     .authentication-link { flex-wrap: wrap; }
     .profile-section, .authentication-link { padding-block: 20px; }
   }

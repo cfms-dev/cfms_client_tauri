@@ -249,6 +249,37 @@ pub async fn send_typed_action_request<T: serde::de::DeserializeOwned>(
     .await
 }
 
+/// Bounded read-only RPC. Cancellation retires its stream without closing the connection.
+pub async fn send_typed_action_request_with_timeout<T: serde::de::DeserializeOwned>(
+    conn: &cfms_transport::Connection,
+    action: &str,
+    data: serde_json::Value,
+    username: &str,
+    token: &str,
+    limit: std::time::Duration,
+) -> Result<cfms_core::Response<T>, RpcError> {
+    send_typed_action_request_guarded(
+        conn,
+        action,
+        data,
+        username,
+        token,
+        || async { Ok(()) },
+        Some(limit),
+    )
+    .await
+}
+
+struct RpcStreamRegistration<'a> {
+    conn: &'a cfms_transport::Connection,
+    id: u32,
+}
+impl Drop for RpcStreamRegistration<'_> {
+    fn drop(&mut self) {
+        self.conn.retire_stream(self.id);
+    }
+}
+
 async fn send_typed_action_request_guarded<T, F, Fut>(
     conn: &cfms_transport::Connection,
     action: &str,
@@ -269,6 +300,10 @@ where
         RpcError::Open,
     )
     .await?;
+    let _registration = RpcStreamRegistration {
+        conn,
+        id: stream.id,
+    };
     check()
         .await
         .map_err(|message| RpcError::Open(cfms_core::Error::Other(message)))?;
@@ -362,6 +397,51 @@ mod tests {
                 .unwrap()["ok"],
             true
         );
+    }
+
+    #[tokio::test]
+    async fn timed_out_read_ignores_late_response_and_preserves_the_connection() {
+        let gate = Arc::new(tokio::sync::Notify::new());
+        let peer = Peer::gated(|_| Some((200, json!({"ok": true}))), gate.clone()).await;
+        let conn = peer.state.conn.read().await.clone().unwrap();
+        let reader = conn.clone();
+        let read = tokio::spawn(async move {
+            send_typed_action_request_with_timeout::<serde_json::Value>(
+                &reader,
+                "core.setting.get",
+                json!({"namespace": "a"}),
+                "alice",
+                "test-token",
+                std::time::Duration::from_millis(30),
+            )
+            .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(5), peer.received.notified())
+            .await
+            .unwrap();
+        let result = read.await.unwrap();
+        assert!(matches!(result, Err(RpcError::Send(_))));
+        gate.notify_one();
+        // A late odd-ID response must not be offered as an inbound server stream.
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), conn.accept_stream())
+                .await
+                .is_err()
+        );
+        assert!(!conn.is_closed());
+        gate.notify_one();
+        let result = send_typed_action_request_with_timeout::<serde_json::Value>(
+            &conn,
+            "core.setting.get",
+            json!({"namespace": "b"}),
+            "alice",
+            "test-token",
+            std::time::Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.data["ok"], true);
+        assert_eq!(peer.requests.lock().unwrap().len(), 2);
     }
 
     #[tokio::test]

@@ -42,9 +42,18 @@ previews; known renames remove the old index without removing the account image.
 
 The management workspace exposes the server's setting metadata and JSON Schemas,
 with scalar form controls and JSON editing for composite or unsupported forms.
-The client saves only edited keys in one namespace with their read revisions.
-Defaults are staged like other edits. Server aggregate validation remains
-authoritative.
+Discovery returns all exposed definitions in one request. Values are read per
+namespace with at most four concurrent reads and a 30-second native deadline.
+Loaded settings become editable immediately; failed reads can be retried without
+replacing successful reads or drafts. Namespace multi-selection and text search
+only filter the displayed definitions, including those still loading.
+
+Drafts and revisions are isolated by namespace and option key. Save submits all
+edited keys, including hidden drafts, sequentially by namespace without waiting
+for unrelated reads. Successful namespaces are reconciled immediately; a failed
+write stops the batch and retains the remaining drafts. Cross-namespace writes
+are not atomic. Defaults are staged like other edits. Server aggregate validation
+remains authoritative.
 
 Writes are sent once. A lost response is unconfirmed and requires a fresh read.
 Revision conflicts preserve the draft and require review of current values;

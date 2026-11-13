@@ -103,10 +103,10 @@ export function createManagementWorkspace() {
   const METADATA_MIN_READABLE_WIDTH = 240;
 
   const tabs: ManageTab[] = [
+    { key: 'settings', labelKey: 'serverSettings.title', icon: 'appsSettings' },
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
     { key: 'groups', labelKey: 'manage.groups', icon: 'groups' },
     { key: 'security', labelKey: 'manage.security.title', icon: 'security' },
-    { key: 'settings', labelKey: 'serverSettings.title', icon: 'settings' },
     { key: 'logs', labelKey: 'manage.logs', icon: 'article' },
   ];
 
@@ -176,7 +176,11 @@ export function createManagementWorkspace() {
 
   let activeDialog = $state<ManageDialogState>(null);
 
-  let serverSettings = $state<{ canLeave: () => Promise<boolean>; refresh: () => Promise<void> }>();
+  let serverSettings = $state<{
+    canLeave: () => Promise<boolean>;
+    refresh: () => Promise<void>;
+    readonly refreshState: { readonly disabled: boolean; readonly busy: boolean };
+  }>();
 
   let authenticationManagement = $state<{ canLeave: () => Promise<boolean> }>();
 
@@ -311,7 +315,7 @@ export function createManagementWorkspace() {
   });
 
   onMount(() => {
-    if (isAdmin) { if (!canListUsers && authStore.permissions.some((p) => p === 'view_settings' || p === 'manage_settings')) activeTab = 'settings'; loadActiveTab(); }
+    if (isAdmin) { if (authStore.permissions.includes('view_settings')) activeTab = 'settings'; loadActiveTab(); }
     void document.fonts?.ready.then(() => updateIdentityColumnWidths());
   });
 
@@ -321,7 +325,7 @@ export function createManagementWorkspace() {
     group: () => translator.current('manage.title'),
     shortcuts: [{ key: 'F5' }, { key: 'r', primary: true }],
     scope: 'page',
-    enabled: () => isAdmin && busyKey === null,
+    enabled: () => isAdmin && !refreshDisabled(),
     handler: loadActiveTab,
   }));
 
@@ -415,6 +419,12 @@ export function createManagementWorkspace() {
       orientation: 'horizontal',
     });
     next?.click();
+  }
+
+  function refreshDisabled() {
+    return activeTab === 'settings'
+      ? serverSettings?.refreshState.disabled ?? true
+      : loadingUsers || loadingGroups || loadingLogs || busyKey !== null;
   }
 
   function loadActiveTab() {
@@ -1151,6 +1161,8 @@ export function createManagementWorkspace() {
 
     get serverSettings() { return serverSettings; },
     set serverSettings(value) { serverSettings = value; },
+    get refreshDisabled() { return refreshDisabled(); },
+    get refreshBusy() { return activeTab === 'settings' ? serverSettings?.refreshState.busy ?? false : loadingUsers || loadingGroups || loadingLogs; },
     canChangeUsername, canChangeNickname, handleSetUsername,
     get canReadSettings() { return authStore.permissions.includes('view_settings'); },
     get canWriteSettings() { return authStore.permissions.includes('manage_settings'); },

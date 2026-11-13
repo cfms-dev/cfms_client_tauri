@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   requestEscalation: vi.fn(),
   getManagedTwoFactorStatus: vi.fn(),
   disableManagedTwoFactor: vi.fn(),
+  listServerSettings: vi.fn(),
+  getServerSettings: vi.fn(),
 }));
 const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
@@ -36,6 +38,8 @@ vi.mock('$lib/api', async (importOriginal) => ({
   requestEscalation: mocks.requestEscalation,
   getManagedTwoFactorStatus: mocks.getManagedTwoFactorStatus,
   disableManagedTwoFactor: mocks.disableManagedTwoFactor,
+  listServerSettings: mocks.listServerSettings,
+  getServerSettings: mocks.getServerSettings,
 }));
 
 vi.mock('$lib/shared/motion/transitions', () => ({
@@ -91,6 +95,8 @@ beforeEach(() => {
   });
   mocks.viewAuditLogs.mockReset();
   mocks.listUsers.mockReset();
+  mocks.listServerSettings.mockReset().mockResolvedValue({ items: [] });
+  mocks.getServerSettings.mockReset();
   mocks.getUserInfo.mockReset().mockResolvedValue({
     user_id: 'aabbccdd-0000-4000-8000-000000000002', username: 'alice', nickname: 'Alice',
     status: 'active', permissions: [], effective_permissions: [], effective_own_permissions: [],
@@ -117,6 +123,60 @@ afterEach(() => {
   else Reflect.deleteProperty(navigator, 'clipboard');
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('management server settings navigation', () => {
+  it('orders server settings first with Apps Settings and opens it for readers', async () => {
+    authStore.permissions = ['view_settings', 'list_users'];
+    render(ManagePage);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Server settings', 'Accounts', 'Groups', 'Security', 'Logs']);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    expect(tabs[0].querySelector('[data-icon="appsSettings"]')).toBeTruthy();
+    await screen.findByText('This server exposes no settings.');
+    expect(mocks.listServerSettings).toHaveBeenCalledOnce();
+    expect(mocks.listUsers).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('button', { name: 'Refresh' })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Server settings' })).toBeNull();
+    mocks.listUsers.mockResolvedValue([]);
+    await fireEvent.click(tabs[1]);
+    await waitFor(() => expect(tabs[1].getAttribute('aria-selected')).toBe('true'));
+    expect(mocks.listUsers).toHaveBeenCalledOnce();
+  });
+
+  it.each([['list_users'], ['manage_settings']])('keeps Accounts as the default without read permission: %j', async (...permissions) => {
+    authStore.permissions = permissions;
+    mocks.listUsers.mockResolvedValue([]);
+    render(ManagePage);
+    expect(screen.getByRole('tab', { name: 'Accounts' }).getAttribute('aria-selected')).toBe('true');
+    expect(mocks.listServerSettings).not.toHaveBeenCalled();
+  });
+
+  it('uses the toolbar refresh state while loading and preserves drafts when refresh is cancelled', async () => {
+    authStore.permissions = ['view_settings', 'manage_settings'];
+    let finishRead!: (value: unknown) => void;
+    const snapshot = { namespace: 'policy', settings: { limit: { value: 4, revision: 1, updated_at: null } } };
+    mocks.listServerSettings.mockResolvedValue({ items: [{ namespace: 'policy', option_key: 'limit', title: 'Limit', description: '', owner: 'core', schema_version: 1, default: 8, value_schema: { type: 'integer' } }] });
+    mocks.getServerSettings.mockImplementationOnce(() => new Promise((resolve) => { finishRead = resolve; })).mockResolvedValue(snapshot);
+    render(ManagePage);
+    const refresh = screen.getByRole('button', { name: 'Refresh' });
+    await waitFor(() => expect(mocks.getServerSettings).toHaveBeenCalledOnce());
+    expect(refresh.hasAttribute('disabled')).toBe(true);
+    expect(refresh.getAttribute('aria-busy')).toBe('true');
+    finishRead(snapshot);
+    const input = await screen.findByRole('spinbutton', { name: 'Limit' });
+    await waitFor(() => expect(refresh.hasAttribute('disabled')).toBe(false));
+    expect(refresh.getAttribute('aria-busy')).toBe('false');
+    await fireEvent.input(input, { target: { value: '9' } });
+    const confirmation = vi.spyOn(dialogStore, 'confirm').mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await fireEvent.click(refresh);
+    await waitFor(() => expect(confirmation).toHaveBeenCalledOnce());
+    expect((input as HTMLInputElement).value).toBe('9');
+    expect(mocks.getServerSettings).toHaveBeenCalledOnce();
+    await fireEvent.click(refresh);
+    await waitFor(() => expect(mocks.getServerSettings).toHaveBeenCalledTimes(2));
+    expect((await screen.findByRole('spinbutton', { name: 'Limit' }) as HTMLInputElement).value).toBe('4');
+  });
 });
 
 describe('management account context menu', () => {

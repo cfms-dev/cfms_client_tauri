@@ -132,7 +132,7 @@ describe('AuditLogFilter', () => {
     await fireEvent.click(trigger);
     const panel = screen.getByRole('dialog') as HTMLElement;
     expect(panel.classList.contains('filter-panel--above')).toBe(true);
-    expect(panel.style.left).toBe('-320px');
+    expect(panel.style.left).toBe('300px');
     expect(panel.style.width).toBe('400px');
     expect(panel.style.maxHeight).toBe('376px');
     expect(screen.getAllByRole('option')).toHaveLength(40);
@@ -159,7 +159,7 @@ describe('AuditLogFilter', () => {
 
     await fireEvent.click(trigger);
     const panel = screen.getByRole('dialog');
-    const panelLeft = triggerLeft + parseFloat(panel.style.left);
+    const panelLeft = parseFloat(panel.style.left);
     expect(parseFloat(panel.style.width)).toBe(expectedWidth);
     expect(panelLeft).toBeGreaterThanOrEqual(16);
     expect(panelLeft + expectedWidth).toBeLessThanOrEqual(viewportWidth - 16);
@@ -187,7 +187,7 @@ describe('AuditLogFilter', () => {
     await fireEvent(window, new Event('resize'));
     const panel = screen.getByRole('dialog');
     expect(panel.style.width).toBe('288px');
-    expect(panel.style.left).toBe('-208px');
+    expect(panel.style.left).toBe('16px');
     expect(panel.classList.contains('filter-panel--above')).toBe(true);
   });
 

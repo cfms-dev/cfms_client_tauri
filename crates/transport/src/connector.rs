@@ -379,6 +379,11 @@ impl Connection {
         rx.recv().await
     }
 
+    /// Release a completed or cancelled client RPC's local stream registration.
+    pub fn retire_stream(&self, id: u32) {
+        self.streams.remove(&id);
+    }
+
     /// Return whether the WebSocket has closed or the dispatch loop has ended.
     pub fn is_closed(&self) -> bool {
         self.closed.load(Ordering::SeqCst)
@@ -482,6 +487,11 @@ impl Connection {
                     // If this is a new stream (not yet in the map), it's
                     // server-initiated.
                     if !streams.contains_key(&header.id) {
+                        // Odd IDs belong to client requests. A late response to a
+                        // retired RPC must not become a new inbound stream.
+                        if header.id % 2 == 1 {
+                            continue;
+                        }
                         let (tx, stream) = Stream::new(header.id, STREAM_BUFFER);
                         streams.insert(header.id, tx);
 

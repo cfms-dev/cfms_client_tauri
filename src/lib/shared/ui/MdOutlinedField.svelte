@@ -144,20 +144,20 @@
   .cfms-field--error .cfms-field__label,
   .cfms-field:has(:global([aria-invalid="true"])) .cfms-field__label { color: var(--colorStatusDangerForeground1); }
   .cfms-field--disabled,
-  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, fluent-text-input[disabled]))) {
+  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, select:disabled, fluent-text-input[disabled]))) {
     --cfms-outline-color: var(--colorNeutralStrokeDisabled);
   }
   .cfms-field--disabled .cfms-field__label,
-  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, fluent-text-input[disabled]))) .cfms-field__label {
+  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, select:disabled, fluent-text-input[disabled]))) .cfms-field__label {
     color: var(--colorNeutralForegroundDisabled);
     cursor: default;
   }
   .cfms-field--disabled .cfms-field__outline,
-  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, fluent-text-input[disabled]))) .cfms-field__outline {
+  .cfms-field:has(:global(:is(input:disabled, textarea:disabled, select:disabled, fluent-text-input[disabled]))) .cfms-field__outline {
     border-color: var(--colorNeutralStrokeDisabled);
   }
   @media (pointer: coarse) {
-    .cfms-field__content :global(:is(input, textarea)) { font-size: 16px; }
+    .cfms-field__content :global(:is(input, textarea, select)) { font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .cfms-field__label, .cfms-field__outline { transition: none; }

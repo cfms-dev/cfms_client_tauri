@@ -503,6 +503,12 @@ import svg500 from '@fluentui/svg-icons/icons/broom_20_regular.svg?raw';
 import svg501 from '@fluentui/svg-icons/icons/broom_20_filled.svg?raw';
 import svg502 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_regular.svg?raw';
 import svg503 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_filled.svg?raw';
+import svg504 from '@fluentui/svg-icons/icons/apps_settings_20_regular.svg?raw';
+import svg505 from '@fluentui/svg-icons/icons/apps_settings_20_filled.svg?raw';
+import svg506 from '@fluentui/svg-icons/icons/tag_reset_24_regular.svg?raw';
+import svg507 from '@fluentui/svg-icons/icons/tag_reset_24_filled.svg?raw';
+import svg508 from '@fluentui/svg-icons/icons/tag_reset_20_regular.svg?raw';
+import svg509 from '@fluentui/svg-icons/icons/tag_reset_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -666,4 +672,6 @@ export const ICON_VARIANTS = {
   clearTransferRecords: { regular: svg498, filled: svg499, small: svg500, smallFilled: svg501 },
   stopAndClearTransfers: { regular: svg502, filled: svg503, small: svg502, smallFilled: svg503 },
   cancelledTransfer: { regular: svg256, filled: svg257, small: svg258, smallFilled: svg259 },
+  appsSettings: { regular: svg504, filled: svg505, small: svg504, smallFilled: svg505 },
+  tagReset: { regular: svg506, filled: svg507, small: svg508, smallFilled: svg509 },
 } as const;

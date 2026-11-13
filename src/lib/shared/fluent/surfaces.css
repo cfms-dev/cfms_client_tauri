@@ -134,7 +134,7 @@
 /* The wrapper owns the visible border box, density and focus. Call sites only
  * reserve horizontal space for icons/counters; labels overhang the top border. */
 @layer base {
-  :where(.cfms-field__content input[data-focus-ring="delegated"], .cfms-field__content textarea[data-focus-ring="delegated"]) {
+  :where(.cfms-field__content :is(input, textarea, select)[data-focus-ring="delegated"]) {
     box-sizing: border-box;
     inline-size: 100%;
     min-inline-size: 0;
@@ -144,11 +144,11 @@
     font: 400 14px/20px var(--fontFamilyBase);
   }
 }
-:root .cfms-field__content input[data-focus-ring="delegated"] {
+:root .cfms-field__content :is(input, select)[data-focus-ring="delegated"] {
   block-size: calc(var(--cfms-control-height) - 2px);
   padding-block: 0;
 }
-:root .cfms-field__content :is(input, textarea)[data-focus-ring="delegated"],
+:root .cfms-field__content :is(input, textarea, select)[data-focus-ring="delegated"],
 :root .cfms-field__content [data-outlined-content] {
   border: 0;
   border-radius: inherit;
@@ -158,10 +158,48 @@
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-:root .cfms-field__content :is(input, textarea)[data-focus-ring="delegated"]:disabled {
+:root .cfms-field__content :is(input, textarea, select)[data-focus-ring="delegated"]:disabled {
   color: var(--colorNeutralForegroundDisabled);
 }
 .cfms-field__input > :is(div, span[data-outlined-content]) { flex: 1; min-inline-size: 0; }
+
+/* Keep the select native, including its keyboard behavior and popup. The
+ * decorative Fluent chevron overlays its hit area without intercepting clicks. */
+:root select.cfms-native-field {
+  color-scheme: inherit;
+}
+:root select.cfms-native-field option,
+:root select.cfms-native-field optgroup {
+  color: var(--colorNeutralForeground1);
+  background: var(--colorNeutralBackground1);
+  font: inherit;
+}
+.cfms-field__input:has(> select.cfms-native-field[data-focus-ring="delegated"]) {
+  position: relative;
+}
+:root .cfms-field__input > select.cfms-native-field[data-focus-ring="delegated"] {
+  appearance: none;
+  padding-inline: 12px 40px;
+}
+.cfms-field__input:has(> select.cfms-native-field[data-focus-ring="delegated"])::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 12px;
+  inset-block-start: calc(50% - 8px);
+  inline-size: 16px;
+  block-size: 16px;
+  pointer-events: none;
+  background: var(--colorNeutralForeground2);
+  mask: url('@fluentui/svg-icons/icons/chevron_down_16_regular.svg') center / contain no-repeat;
+}
+.cfms-field__input:has(> select.cfms-native-field:disabled)::after {
+  background: var(--colorNeutralForegroundDisabled);
+}
+@media (forced-colors: active) {
+  .cfms-field__input:has(> select.cfms-native-field[data-focus-ring="delegated"])::after { background: ButtonText; }
+  .cfms-field__input:has(> select.cfms-native-field:disabled)::after { background: GrayText; }
+  :root select.cfms-native-field option, :root select.cfms-native-field optgroup { color: FieldText; background: Field; }
+}
 
 /* Keep native picker actions at the input's inline end. Theme color-scheme
  * supplies the icon colors, including dark and forced-color environments. */
@@ -181,7 +219,7 @@
 :root input.cfms-native-field:is([type="date"], [type="time"], [type="datetime-local"]):not(:disabled)::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
-.cfms-field:has(input:disabled, textarea:disabled, fluent-text-input[disabled]) > .cfms-field__content::before,
+.cfms-field:has(input:disabled, textarea:disabled, select:disabled, fluent-text-input[disabled]) > .cfms-field__content::before,
 .cfms-field--disabled > .cfms-field__content::before { background: var(--colorNeutralBackgroundDisabled); }
 
 /* Only the paint layer filters the backdrop: fixed descendants keep the

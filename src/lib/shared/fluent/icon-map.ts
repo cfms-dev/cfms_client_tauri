@@ -147,4 +147,6 @@ export const ICON_MAP = {
   "clearTransferRecords": "broom",
   "stopAndClearTransfers": "text_bullet_list_dismiss",
   "cancelledTransfer": "dismiss_circle",
+  "appsSettings": "apps_settings",
+  "tagReset": "tag_reset",
 } as const;

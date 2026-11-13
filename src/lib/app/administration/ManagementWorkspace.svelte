@@ -39,14 +39,19 @@
       <FluentButton data-fluent-owner="routes-home-manage-page"
         title={$t('common.refresh')}
         onclick={workspace.loadActiveTab}
-        disabled={workspace.loadingUsers || workspace.loadingGroups || workspace.loadingLogs || workspace.busyKey !== null}
+        disabled={workspace.refreshDisabled}
+        aria-busy={workspace.refreshBusy}
         type="button"
         appearance="subtle"
         class="p-2 rounded text-md3-on-surface-variant\n               hover:bg-md3-surface-container-high transition-colors disabled:opacity-50"
         iconOnly
         aria-label={$t('common.refresh')}
       >
-        <Icon name="refresh" size="20px" />
+        {#if workspace.refreshBusy}
+          <ProgressRing size={20} label={$t('common.loading')} />
+        {:else}
+          <Icon name="refresh" size="20px" />
+        {/if}
       </FluentButton>
     {/if}
   </div>
