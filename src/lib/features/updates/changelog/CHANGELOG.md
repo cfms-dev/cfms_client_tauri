@@ -4,6 +4,24 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.60.0
+**Released on:** 2026-11-13
+
+**Title:** Adjust display position and layout of connection security notice
+
+### Added
+- Adjust display position and layout of connection security notice
+- Enhance server settings UI and notification handling
+- Add server settings filter messages in English and Chinese
+- Adjust the display position of  certificate revocation checking and SSL verification warnings
+- Implement server settings management with CRUD operations
+
+### Fixed
+- Add a workaround to avoid `__PURE__` warnings
+- Add Manager usage across multiple modules
+
+--- 
+
 ## v0.59.0
 **Released on:** 2026-11-11
 
