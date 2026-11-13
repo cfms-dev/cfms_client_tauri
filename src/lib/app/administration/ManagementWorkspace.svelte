@@ -27,7 +27,7 @@
   const workspace = createManagementWorkspace();
 </script>
 
-<div class="workspace-page space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]">
+<div class="workspace-page space-y-4 p-[clamp(1rem,3.75vw,1.5rem)]" class:workspace-page--settings={workspace.isAdmin && workspace.activeTab === 'settings'}>
   <div bind:this={workspace.identityMeasureHost} class="identity-measure-host" aria-hidden="true"></div>
 
   <div class="flex flex-wrap items-center justify-between gap-3">
@@ -85,6 +85,7 @@
 
     <div
       class="management-content"
+      class:management-content--settings={workspace.activeTab === 'settings'}
       class:management-content--contained={workspace.activeTab !== 'security' && workspace.activeTab !== 'settings'}
       class:management-content--audit={workspace.activeTab === 'logs'}
     >
@@ -760,6 +761,20 @@
 {/snippet}
 
 <style>
+  .workspace-page--settings {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    padding-bottom: 0;
+  }
+
+  .workspace-page--settings > * { flex-shrink: 0; }
+  .workspace-page--settings > [role="tablist"] { max-width: 100%; }
+  .workspace-page--settings > .management-content--settings { flex: 1; min-height: 0; }
+  .management-content--settings { display: flex; flex-direction: column; }
+
   .management-content--contained {
     overflow: hidden;
     border: 1px solid var(--color-md3-outline);

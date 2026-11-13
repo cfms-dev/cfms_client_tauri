@@ -5,6 +5,7 @@ import { listServerSettings, getServerSettings, updateServerSettings, getServerS
 import { authStore } from '$lib/features/authentication/auth-state.svelte';
 import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte';
+import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
 import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 import { parseSetting, settingChanges } from './server-settings';
 
@@ -33,7 +34,6 @@ export function createServerSettingsWorkspace() {
   let discovered = $state(false);
   let saving = $state(false);
   let error = $state('');
-  let message = $state('');
   let slow = $state(false);
   let generation = 0;
 
@@ -68,14 +68,15 @@ export function createServerSettingsWorkspace() {
     untrack(() => {
       generation += 1;
       definitions = []; entries = createNamespaceEntries(); selectedNamespaces = []; search = '';
-      discovering = false; discovered = false; saving = false; error = ''; message = '';
+      discovering = false; discovered = false; saving = false; error = '';
       if (activeScope && readable) void discover(activeScope);
     });
     return () => { generation += 1; };
   });
 
   $effect(() => {
-    if (!reading) { slow = false; return; }
+    if (!scope || !canRead || !reading) { slow = false; return; }
+    slow = false;
     const timer = setTimeout(() => { slow = true; }, 5000);
     return () => clearTimeout(timer);
   });
@@ -88,7 +89,7 @@ export function createServerSettingsWorkspace() {
   }
   async function discover(activeScope: string) {
     const batch = ++generation;
-    discovering = true; discovered = false; error = ''; message = ''; definitions = []; entries = createNamespaceEntries();
+    discovering = true; discovered = false; error = ''; definitions = []; entries = createNamespaceEntries();
     try {
       const result = await listServerSettings();
       if (!current(activeScope, batch)) return;
@@ -152,7 +153,7 @@ export function createServerSettingsWorkspace() {
     const activeScope = scope; const batch = generation;
     const submissions = namespaces.map((ns) => ({ ns, changes: settingChanges(definitions.filter((item) => item.namespace === ns), entries[ns].snapshot, entries[ns].draft) }))
       .filter(({ changes }) => Object.keys(changes).length);
-    saving = true; error = ''; message = '';
+    saving = true; error = '';
     let savedCount = 0;
     let activeNamespace = '';
     try {
@@ -171,7 +172,7 @@ export function createServerSettingsWorkspace() {
           void getServerState().then((state) => { if (current(activeScope, batch)) serverStateStore.apply(state); }).catch(() => { /* Next workspace refresh reconciles the name. */ });
         }
       }
-      if (current(activeScope, batch)) message = translate('serverSettings.saved');
+      if (current(activeScope, batch)) notificationStore.success(translate('serverSettings.saved'));
     } catch (err) {
       if (!current(activeScope, batch)) return;
       const code = serverErrorStatus(err);
@@ -179,7 +180,7 @@ export function createServerSettingsWorkspace() {
       entry.needsReload = code === 409 || code === 404 || String(err).includes('CFMS_REQUEST_UNCONFIRMED');
       const reason = translate(code === 409 ? 'serverSettings.conflict' : code === 400 ? 'serverSettings.invalid' : code === 404 ? 'serverSettings.unavailable' : code === 403 ? 'serverSettings.denied' : entry.needsReload ? 'protocol30.unconfirmed' : 'serverSettings.failed');
       error = `${activeNamespace}: ${reason}`;
-      if (savedCount) message = translate('serverSettings.partiallySaved', { count: savedCount });
+      if (savedCount) notificationStore.warning(translate('serverSettings.partiallySaved', { count: savedCount }));
       if (code === 403) {
         try { if (authStore.userId) await getUserInfo({ userId: authStore.userId }); const status = await getAuthStatus(); if (current(activeScope, batch)) authStore.apply(status); } catch { /* Keep the denial visible. */ }
       }
@@ -195,7 +196,7 @@ export function createServerSettingsWorkspace() {
     get reading() { return reading; }, get slow() { return slow; }, get loadedCount() { return loadedCount; },
     get failedNamespaces() { return failedNamespaces; }, get saving() { return saving; },
     get canRead() { return canRead; }, get canWrite() { return canWrite; }, get scope() { return scope; },
-    get error() { return error; }, get message() { return message; },
+    get error() { return error; },
     get dirtyCount() { return dirtyDefinitions.length; }, get invalid() { return invalid; },
     get saveDisabled() { return saveDisabled; }, refreshState, retry, refresh, canLeave, save,
   };

@@ -169,7 +169,7 @@ import { notificationStore, type NotificationEntry } from "$lib/shared/notificat
   }
 </script>
 
-<div bind:this={hostEl} use:portal class="snackbar-host">
+<div bind:this={hostEl} use:portal class="snackbar-host" style:--snackbar-bottom-inset={`${chromeStore.snackbarBottomInset}px`}>
   {#each stackEntries as item (item.key)}
     <div class="snackbar-slot" animate:snackbarReflow>
       {#if item.kind === 'progress'}
@@ -246,16 +246,17 @@ import { notificationStore, type NotificationEntry } from "$lib/shared/notificat
 <style>
   .snackbar-host {
     --snackbar-gap: 16px;
+    --snackbar-bottom: max(calc(var(--snackbar-gap) + var(--safe-area-bottom, 0px)), calc(var(--snackbar-bottom-inset) + 16px));
     position: fixed;
     z-index: 80;
     left: calc(var(--snackbar-gap) + var(--safe-area-left, 0px));
     right: calc(var(--snackbar-gap) + var(--safe-area-right, 0px));
-    bottom: calc(var(--snackbar-gap) + var(--safe-area-bottom, 0px));
+    bottom: var(--snackbar-bottom);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    max-height: calc(100dvh - 2 * var(--snackbar-gap) - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px));
+    max-height: max(0px, calc(100dvh - var(--snackbar-bottom) - var(--snackbar-gap) - var(--safe-area-top, 0px)));
     overflow-y: auto;
     overscroll-behavior: contain;
     pointer-events: none;

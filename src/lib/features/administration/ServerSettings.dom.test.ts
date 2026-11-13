@@ -3,15 +3,25 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ServerSettings from './ServerSettings.svelte';
 import { authStore } from '$lib/features/authentication/auth-state.svelte';
 import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
+import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
+import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte';
+import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
+import { chromeStore } from '$lib/shared/ui/chrome-state.svelte';
+import { tick } from 'svelte';
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), update: vi.fn(), confirm: vi.fn() }));
 vi.mock('$lib/api', async (original) => ({ ...await original<typeof import('$lib/api')>(), listServerSettings: mocks.list, getServerSettings: mocks.get, updateServerSettings: mocks.update }));
 vi.mock('$app/navigation', () => ({ beforeNavigate: vi.fn(), goto: vi.fn() }));
 vi.mock('$lib/shared/ui/dialogs.svelte', () => ({ dialogStore: { confirm: mocks.confirm } }));
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }), snackbarMotion: () => ({ duration: 0 }), snackbarReflow: () => ({ duration: 0 }) }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (translate: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 
 beforeEach(() => {
+  stubInstantAnimations();
+  notificationStore.clear();
+  floatingProgressStore.clear();
+  render(SnackBarHost);
   authStore.apply({ user_id: 'uuid', username: 'alice', nickname: null, has_token: true, token_exp: 2e9, permissions: ['view_settings', 'manage_settings'], groups: [] });
   serverStateStore.updateConnection(true, 'server', false);
   mocks.list.mockResolvedValue({ items: [{ namespace: 'policy', option_key: 'limit', title: 'Limit', description: 'Maximum allowed', owner: 'core', schema_version: 1, default: 8, value_schema: { type: 'integer', minimum: 1 } }] });
@@ -19,7 +29,7 @@ beforeEach(() => {
   mocks.update.mockResolvedValue({ namespace: 'policy', settings: { limit: { value: 5, revision: 4, updated_at: 1 } } });
   mocks.confirm.mockResolvedValue(false);
 });
-afterEach(() => { cleanup(); authStore.clear(); serverStateStore.clear(); vi.resetAllMocks(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); notificationStore.clear(); floatingProgressStore.clear(); authStore.clear(); serverStateStore.clear(); vi.resetAllMocks(); vi.useRealTimers(); });
 
 it('saves only the edited value and its revision', async () => {
   render(ServerSettings);
@@ -28,6 +38,8 @@ it('saves only the edited value and its revision', async () => {
   await fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
   await waitFor(() => expect(mocks.update).toHaveBeenCalledExactlyOnceWith('policy', { limit: { value: 5, expected_revision: 3 } }));
   await screen.findByText('serverSettings.saved');
+  expect(document.querySelector('.server-settings')?.textContent).not.toContain('serverSettings.saved');
+  expect(notificationStore.entries.at(0)).toMatchObject({ type: 'success', timeoutMs: 7000 });
   expect((screen.getByRole('button', { name: 'common.save' }) as HTMLButtonElement).disabled).toBe(true);
 });
 it('preserves a conflicting draft and confirms before discarding it to refresh', async () => {
@@ -148,6 +160,164 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+it('keeps the save bar outside scrolling content during discovery and when no settings exist', async () => {
+  const discovery = deferred<{ items: [] }>();
+  mocks.list.mockReturnValueOnce(discovery.promise);
+  const { container } = render(ServerSettings);
+  const footer = container.querySelector('footer')!;
+  expect(footer).toBeTruthy();
+  expect(footer.parentElement?.classList.contains('server-settings')).toBe(true);
+  expect(container.querySelector('.settings-scroll')?.contains(footer)).toBe(false);
+  expect(screen.getByRole('button', { name: 'common.save' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.queryByText('serverSettings.incompleteLoading')).toBeNull();
+  discovery.resolve({ items: [] });
+  await screen.findByText('serverSettings.empty');
+  expect(container.querySelector('footer')).toBe(footer);
+});
+
+it('delays a single loading snackbar across discovery and reads, then removes it without a completion toast', async () => {
+  vi.useFakeTimers();
+  const discovery = deferred<{ items: ReturnType<typeof definition>[] }>();
+  const a = deferred<ReturnType<typeof values>>();
+  const b = deferred<ReturnType<typeof values>>();
+  mocks.list.mockReturnValueOnce(discovery.promise);
+  mocks.get.mockImplementation((ns) => ns === 'a' ? a.promise : b.promise);
+  const { container } = render(ServerSettings);
+  await vi.advanceTimersByTimeAsync(0);
+  const initial = floatingProgressStore.entries[0];
+  expect(initial).toMatchObject({ text: 'serverSettings.discovering', current: 0, total: 0 });
+  await vi.advanceTimersByTimeAsync(999);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  discovery.resolve({ items: ['a', 'b'].map(definition) });
+  await vi.advanceTimersByTimeAsync(1);
+  expect(floatingProgressStore.entries).toHaveLength(1);
+  expect(floatingProgressStore.entries[0]).toMatchObject({ id: initial.id, createdAt: initial.createdAt, current: 0, total: 2 });
+  expect(document.querySelector('.snackbar-progress')?.textContent).toContain('serverSettings.loadProgress');
+  expect(container.textContent).not.toContain('serverSettings.loadProgress');
+  a.resolve(values('a'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries[0]).toMatchObject({ id: initial.id, createdAt: initial.createdAt, current: 1, total: 2 });
+  b.resolve(values('b'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  expect(notificationStore.entries).toHaveLength(0);
+});
+
+it('never flashes loading feedback for a read completed within one second', async () => {
+  vi.useFakeTimers();
+  const read = deferred<ReturnType<typeof values>>();
+  mocks.get.mockReturnValueOnce(read.promise);
+  render(ServerSettings);
+  await vi.advanceTimersByTimeAsync(500);
+  read.resolve(values('policy'));
+  await vi.advanceTimersByTimeAsync(500);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+});
+
+it('removes progress on partial failure and starts a fresh delayed notification for retry', async () => {
+  vi.useFakeTimers();
+  const failed = deferred<ReturnType<typeof values>>();
+  const retry = deferred<ReturnType<typeof values>>();
+  mocks.list.mockResolvedValue({ items: ['a', 'b'].map(definition) });
+  mocks.get.mockImplementation((ns) => ns === 'a' ? Promise.resolve(values(ns)) : failed.promise);
+  render(ServerSettings);
+  await vi.advanceTimersByTimeAsync(1000);
+  const initial = floatingProgressStore.entries[0];
+  failed.reject('offline');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  expect(screen.getByText('serverSettings.someReadsFailed')).toBeTruthy();
+  mocks.get.mockReturnValueOnce(retry.promise);
+  await fireEvent.click(screen.getByRole('button', { name: 'serverSettings.retryNamespace' }));
+  expect(floatingProgressStore.entries[0]).toMatchObject({ id: initial.id, current: 1, total: 2 });
+  expect(floatingProgressStore.entries[0].createdAt).toBeGreaterThan(initial.createdAt);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(document.querySelector('.snackbar-progress')).toBeTruthy();
+  retry.resolve(values('b'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  expect(screen.queryByText('serverSettings.someReadsFailed')).toBeNull();
+  expect(mocks.get.mock.calls.map(([ns]) => ns)).toEqual(['a', 'b', 'b']);
+});
+
+it.each(['unmount', 'disconnect', 'permission'] as const)('cleans up active progress on %s and ignores late responses', async (reason) => {
+  vi.useFakeTimers();
+  const read = deferred<ReturnType<typeof values>>();
+  mocks.get.mockReturnValueOnce(read.promise);
+  const view = render(ServerSettings);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(document.querySelector('.snackbar-progress')).toBeTruthy();
+  if (reason === 'unmount') view.unmount();
+  else if (reason === 'disconnect') serverStateStore.clear();
+  else authStore.permissions = [];
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  read.resolve(values('policy'));
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  expect(notificationStore.entries).toHaveLength(0);
+});
+
+it('restarts loading feedback and slow guidance when the account changes', async () => {
+  vi.useFakeTimers();
+  const previous = deferred<ReturnType<typeof values>>();
+  const next = deferred<ReturnType<typeof values>>();
+  mocks.get.mockReturnValueOnce(previous.promise).mockReturnValueOnce(next.promise);
+  render(ServerSettings);
+  await vi.advanceTimersByTimeAsync(5000);
+  const initial = floatingProgressStore.entries[0];
+  expect(initial.text).toContain('serverSettings.slowLoading');
+  authStore.userId = 'next-account';
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(1);
+  expect(floatingProgressStore.entries[0].createdAt).toBeGreaterThan(initial.createdAt);
+  expect(floatingProgressStore.entries[0].text).not.toContain('serverSettings.slowLoading');
+  expect(document.querySelector('.snackbar-progress')).toBeNull();
+  previous.resolve(values('policy', 99));
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(floatingProgressStore.entries[0].current).toBe(0);
+  next.resolve(values('policy', 6));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(floatingProgressStore.entries).toHaveLength(0);
+  expect((screen.getByRole('spinbutton', { name: 'Limit' }) as HTMLInputElement).value).toBe('6');
+});
+
+it('updates snackbar clearance as the save bar moves or resizes and restores it on exit', async () => {
+  let resize!: ResizeObserverCallback;
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(private callback: ResizeObserverCallback) {}
+    observe(node: Element) { if (node.tagName === 'FOOTER') resize = this.callback; }
+    disconnect = disconnect;
+  });
+  let top = 640;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this.tagName === 'FOOTER' ? new DOMRect(0, top, 700, 80) : new DOMRect();
+  });
+  const view = render(ServerSettings);
+  await screen.findByRole('spinbutton', { name: 'Limit' });
+  expect(chromeStore.snackbarBottomInset).toBe(window.innerHeight - top);
+  top = 600;
+  resize([], {} as ResizeObserver);
+  await tick();
+  expect(chromeStore.snackbarBottomInset).toBe(window.innerHeight - top);
+  const host = document.querySelector('.snackbar-host') as HTMLElement;
+  expect(host.style.getPropertyValue('--snackbar-bottom-inset')).toBe(`${window.innerHeight - top}px`);
+  top = 500;
+  window.dispatchEvent(new Event('resize'));
+  await tick();
+  expect(chromeStore.snackbarBottomInset).toBe(window.innerHeight - top);
+  view.unmount();
+  expect(disconnect).toHaveBeenCalled();
+  expect(chromeStore.snackbarBottomInset).toBe(0);
+  await tick();
+  expect(host.style.getPropertyValue('--snackbar-bottom-inset')).toBe('0px');
+});
+
 it('lets a ready namespace save while another is loading and preserves later edits', async () => {
   const pending = deferred<ReturnType<typeof values>>();
   mocks.list.mockResolvedValue({ items: [definition('b'), definition('a')] });
@@ -265,6 +435,7 @@ it('reports partial save success, stops subsequent writes and retains remaining 
   }
   await fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
   await screen.findByText('serverSettings.partiallySaved');
+  expect(notificationStore.entries.at(0)?.type).toBe('warning');
   expect(screen.getByRole('alert').textContent).toContain('b: serverSettings.conflict');
   expect(mocks.update.mock.calls.map(([ns]) => ns)).toEqual(['a', 'b']);
   expect((screen.getByRole('spinbutton', { name: 'Limit b' }) as HTMLInputElement).value).toBe('5');
@@ -291,7 +462,8 @@ it('reveals slow-loading guidance after five seconds without hiding ready contro
   expect(screen.getByRole('spinbutton', { name: 'Limit a' })).toBeTruthy();
   expect(screen.queryByText('serverSettings.slowLoading')).toBeNull();
   await vi.advanceTimersByTimeAsync(5000);
-  expect(screen.getByText('serverSettings.slowLoading')).toBeTruthy();
+  expect(document.querySelector('.snackbar-progress')?.textContent).toContain('serverSettings.slowLoading');
+  expect(document.querySelector('.server-settings')?.textContent).not.toContain('serverSettings.slowLoading');
   expect((screen.getByRole('spinbutton', { name: 'Limit a' }) as HTMLInputElement).disabled).toBe(false);
 });
 
