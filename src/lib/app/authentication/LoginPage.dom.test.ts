@@ -50,6 +50,21 @@ async function publicKeyForm() {
   return screen.getByRole('button', { name: 'Login' }).closest('form')!;
 }
 describe('dual-method sign-in', () => {
+  it('preserves protocol 30 username whitespace in password and public-key requests', async () => {
+    mocks.login.mockRejectedValueOnce('Server returned 401: rejected');
+    mocks.keyLogin.mockRejectedValueOnce('Server returned 401: rejected');
+    render(LoginPage);
+    await fireEvent.input(usernameControl(), { target: { value: ' Alice ' } });
+    await fireEvent.input(screen.getByLabelText('Password', { selector: 'input' }), { target: { value: 'secret' } });
+    await fireEvent.submit(screen.getByRole('button', { name: 'Login' }).closest('form')!);
+    await waitFor(() => expect(mocks.login).toHaveBeenCalledWith(' Alice ', 'secret'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Sign-in options' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Public key' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Choose private key/ }));
+    await screen.findByText('id_ed25519');
+    await fireEvent.submit(screen.getByRole('button', { name: 'Login' }).closest('form')!);
+    await waitFor(() => expect(mocks.keyLogin).toHaveBeenCalledWith(' Alice ', 'key-1', '', expect.any(Function)));
+  });
   it('starts with collapsed options and toggles the icon buttons without changing the selected method', async () => {
     render(LoginPage);
     const toggle = screen.getByRole('button', { name: 'Sign-in options' });

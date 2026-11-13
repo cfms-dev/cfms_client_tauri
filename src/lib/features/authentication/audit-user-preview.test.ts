@@ -20,7 +20,7 @@ describe('page-owned user preview cache', () => {
     await expect(cache.info('alice-id')).resolves.toBe(user);
     expect(getUserInfo).toHaveBeenCalledExactlyOnceWith({ userId: 'alice-id' });
     await Promise.all([cache.avatar(user), cache.avatar(user)]);
-    expect(downloadAvatar).toHaveBeenCalledExactlyOnceWith({ task_id: 'task' }, 'alice');
+    expect(downloadAvatar).toHaveBeenCalledExactlyOnceWith({ task_id: 'task' }, 'alice-id', 'alice');
     cache.clear();
     await cache.info('alice-id');
     expect(getUserInfo).toHaveBeenCalledTimes(2);

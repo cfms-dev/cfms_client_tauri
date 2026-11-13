@@ -1,7 +1,7 @@
 export interface DeveloperConsoleAccessState {
   connected: boolean;
   isLoggedIn: boolean;
-  username: string | null;
+  userId: string | null;
   postLoginPending: boolean;
   locked: boolean;
   serverAddress: string | null;
@@ -10,12 +10,12 @@ export interface DeveloperConsoleAccessState {
 export function canOpenDeveloperConsole(state: DeveloperConsoleAccessState): boolean {
   return state.connected
     && state.isLoggedIn
-    && Boolean(state.username)
+    && Boolean(state.userId)
     && !state.postLoginPending
     && !state.locked;
 }
 
 export function developerConsoleIdentityKey(state: DeveloperConsoleAccessState): string {
   if (!canOpenDeveloperConsole(state)) return '';
-  return `${state.serverAddress ?? 'local'}:${state.username ?? ''}`;
+  return `${state.serverAddress ?? 'local'}:${state.userId ?? ''}`;
 }

@@ -104,7 +104,7 @@ describe('ReleaseHighlightsWizard', () => {
 
   it('shows permission-aware slides and supports direct progress navigation', async () => {
     render(ReleaseHighlightsWizard, {
-      props: { presentation: presentation(['diagnostics', 'manage_system']), onDismiss: vi.fn() },
+      props: { presentation: presentation(['diagnostics', 'list_users']), onDismiss: vi.fn() },
     });
 
     await fireEvent.click(screen.getByRole('button', { name: 'View feature 4' }));

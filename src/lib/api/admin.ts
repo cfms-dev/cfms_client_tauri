@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget } from './types/administration';
 import type { PermissionEntry } from './types/access';
 import type { ServerDiagnostics } from './types/diagnostics';
-import type { TwoFactorStatus, UserKeyDetails, UserKeyMetadata } from './types/authentication';
+import type { AuthStatus, TwoFactorStatus, UserKeyDetails, UserKeyMetadata } from './types/authentication';
 
 /** Raw status is the integer value of the server's UserStatus enum. */
 type ManagedUserResponse = Omit<
@@ -126,11 +126,15 @@ export async function createUser(
   return invoke("create_user", { username, password, nickname });
 }
 
-export async function renameUser(
+export async function setUserNickname(
   userId: string,
   nickname: string | null,
 ): Promise<boolean> {
-  return invoke("rename_user", { userId, nickname });
+  return invoke("set_user_nickname", { userId, nickname });
+}
+
+export function setUserUsername(userId: string, username: string): Promise<AuthStatus> {
+  return invoke('set_user_username', { userId, username });
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {

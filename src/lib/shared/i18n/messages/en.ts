@@ -1,4 +1,34 @@
 export const en = {
+  protocol30: {
+    "changeUsername": "Change username",
+    "usernameHint": "Use 1–64 characters. Spaces and letter case are preserved. Future sign-ins use the new username. Your account ID and current session stay the same.",
+    "usernameRejected": "The username was rejected. Check its length and whether another account already uses it.",
+    "unconfirmed": "The result could not be confirmed. Refresh to check the server before trying again."
+},
+  serverSettings: {
+    "title": "Server settings",
+    "description": "Manage live server options by namespace. Changes in one namespace are saved together.",
+    "namespace": "Namespace",
+    "search": "Search settings",
+    "readRequired": "The view_settings permission is required to discover and read server settings.",
+    "disconnected": "Connect and sign in to view server settings.",
+    "readOnly": "Read-only access. The manage_settings permission is required to save changes.",
+    "empty": "This server exposes no settings.",
+    "noMatches": "No matching settings in this namespace.",
+    "revision": "Revision {revision}",
+    "restoreDefault": "Use default",
+    "unsaved": "Unsaved changes",
+    "upToDate": "No pending changes",
+    "saved": "Server settings saved.",
+    "conflict": "These settings changed on the server. Your draft is preserved. Refresh and review the latest values before saving again.",
+    "invalid": "The server rejected the values or their combination. Check the settings and try again.",
+    "valueInvalid": "Enter a valid value matching this setting’s type and constraints.",
+    "unavailable": "A setting is no longer available. Refresh to reload the server’s settings.",
+    "failed": "Could not save server settings. Your draft is preserved.",
+    "denied": "The server denied this operation. Check your settings permissions.",
+    "leaveChanges": "Discard unsaved server settings changes?"
+},
+
   publicKey: {
     signInOptions: "Sign-in options",
     passwordOption: "Password",

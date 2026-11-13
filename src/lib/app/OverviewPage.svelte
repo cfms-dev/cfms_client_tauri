@@ -114,7 +114,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   function currentFilePreferenceScope(): FilePreferenceScope {
     return {
       serverAddress: serverStateStore.remoteAddress,
-      username: authStore.username,
+      userId: authStore.userId,
     };
   }
 </script>

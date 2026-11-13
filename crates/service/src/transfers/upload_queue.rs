@@ -17,7 +17,7 @@ use crate::transfers::upload_task_persistence::{self, UploadTaskRecord};
 struct PersistContext {
     dir: PathBuf,
     server_hash: String,
-    username: String,
+    user_id: String,
     dek: Option<SecretKey>,
 }
 
@@ -39,11 +39,11 @@ impl UploadQueueState {
         &self,
         app_data: &std::path::Path,
         server_hash: &str,
-        username: &str,
+        user_id: &str,
         dek: Option<&[u8; KEY_LEN]>,
     ) -> Result<usize> {
         self.clear();
-        let loaded = upload_task_persistence::load(app_data, server_hash, username, dek)?;
+        let loaded = upload_task_persistence::load(app_data, server_hash, user_id, dek)?;
         self.sequence.fetch_max(
             loaded
                 .iter()
@@ -56,7 +56,7 @@ impl UploadQueueState {
         *self.persist_ctx.lock().unwrap() = Some(PersistContext {
             dir: app_data.to_path_buf(),
             server_hash: server_hash.to_string(),
-            username: username.to_string(),
+            user_id: user_id.to_string(),
             dek: dek.map(|value| zeroize::Zeroizing::new(*value)),
         });
         *self.records.lock().unwrap() = loaded
@@ -104,7 +104,7 @@ impl UploadQueueState {
             upload_task_persistence::save(
                 &ctx.dir,
                 &ctx.server_hash,
-                &ctx.username,
+                &ctx.user_id,
                 ctx.dek.as_deref(),
                 &staged.values().cloned().collect::<Vec<_>>(),
             )?;
@@ -437,7 +437,7 @@ impl UploadQueueState {
         if let Err(error) = upload_task_persistence::save(
             &ctx.dir,
             &ctx.server_hash,
-            &ctx.username,
+            &ctx.user_id,
             ctx.dek.as_deref(),
             &records,
         ) {

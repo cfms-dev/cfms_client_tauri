@@ -16,14 +16,12 @@ pub struct UploadTaskRecord {
 
 type UploadTasksJson = HashMap<String, UploadTaskRecord>;
 
-pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf {
-    app_data
-        .join("upload_tasks")
-        .join(format!("{server_hash}_{username}.json"))
+pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
+    crate::account_storage::file_path(app_data, "upload_tasks", server_hash, user_id)
 }
 
-pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
-    let path = file_path(app_data, server_hash, username);
+pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> {
+    let path = file_path(app_data, server_hash, user_id);
     if !path.exists() {
         return Ok(());
     }
@@ -38,10 +36,10 @@ pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()>
 pub fn load(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; KEY_LEN]>,
 ) -> Result<Vec<UploadTaskRecord>> {
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
     if !path.exists() {
         return Ok(Vec::new());
     }
@@ -92,7 +90,7 @@ pub fn load(
 pub fn save(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; KEY_LEN]>,
     records: &[UploadTaskRecord],
 ) -> Result<()> {
@@ -108,7 +106,7 @@ pub fn save(
         cfms_core::Error::Other(format!("Failed to serialize upload tasks: {error}"))
     })?);
     let encrypted = cfms_crypto::encrypt_config(&plaintext, dek)?;
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| {
             cfms_core::Error::Other(format!("Failed to create upload task directory: {error}"))
@@ -276,4 +274,10 @@ mod tests {
                 .is_empty()
         );
     }
+}
+
+pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
+    serde_json::from_slice::<UploadTasksJson>(bytes)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }

@@ -13,7 +13,7 @@ import {
   listGroups,
   listUsers,
   manageUserStatus,
-  renameUser,
+  setUserNickname,
   setLockdown,
   unlockAuthLockouts,
   updateUserBlock,
@@ -209,8 +209,8 @@ describe('admin API', () => {
   ] as const)('passes nickname value %j to the rename command', async (nickname, expected) => {
     invokeMock.mockResolvedValue(true);
 
-    await expect(renameUser('alice', nickname)).resolves.toBe(true);
-    expect(invokeMock).toHaveBeenCalledWith('rename_user', {
+    await expect(setUserNickname('alice', nickname)).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('set_user_nickname', {
       userId: 'alice',
       nickname: expected,
     });

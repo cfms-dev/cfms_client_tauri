@@ -242,7 +242,7 @@ mod password_change_protocol_tests {
     use tokio_tungstenite::tungstenite::Message;
 
     #[tokio::test]
-    async fn handshake_uses_protocol_twenty_nine_action_without_authentication() {
+    async fn handshake_uses_protocol_thirty_action_without_authentication() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -259,7 +259,7 @@ mod password_change_protocol_tests {
                 id: header.id, kind: FrameKind::Conclusion,
             }, &serde_json::to_vec(&serde_json::json!({
                 "code":200, "message":"", "timestamp":0.0,
-                "data":{"server_name":"protocol-29", "protocol_version":29, "lockdown":false, "lockdown_reason":null, "extension_flags":[]},
+                "data":{"server_name":"protocol-30", "protocol_version":30, "lockdown":false, "lockdown_reason":null, "extension_flags":[]},
             })).unwrap()).into())).await.unwrap();
         });
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -275,7 +275,7 @@ mod password_change_protocol_tests {
         .await
         .unwrap()
         .unwrap();
-        assert_eq!(info.protocol_version, 29);
+        assert_eq!(info.protocol_version, 30);
         server.await.unwrap();
         connection.close().await;
     }

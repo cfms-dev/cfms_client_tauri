@@ -405,7 +405,7 @@ mod tests {
             revision: 0,
             identity: SessionIdentity {
                 server: "s".into(),
-                username: "u".into(),
+                user_id: "u".into(),
                 generation: 1,
             },
             settings: Settings::default(),
@@ -451,7 +451,7 @@ mod tests {
         let runtime = Runtime::default();
         let identity = SessionIdentity {
             server: "s".into(),
-            username: "u".into(),
+            user_id: "u".into(),
             generation: 1,
         };
         runtime.initialize(
@@ -487,7 +487,7 @@ mod tests {
             revision: 0,
             identity: SessionIdentity {
                 server: "s".into(),
-                username: "u".into(),
+                user_id: "u".into(),
                 generation: 1,
             },
             settings: Settings {

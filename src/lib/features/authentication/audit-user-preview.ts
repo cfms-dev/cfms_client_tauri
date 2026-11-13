@@ -30,7 +30,7 @@ export function createAuditUserPreviewCache() {
         try {
           const task = await getUserAvatar(info.user_id);
           if (!task || started !== generation) return null;
-          return await downloadAvatar(task, info.username);
+          return await downloadAvatar(task, info.user_id, info.username);
         } catch {
           // Avatar access and transfer failures do not hide the user's details.
           return null;

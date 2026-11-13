@@ -9,7 +9,7 @@ import type { ManagedUserInfo } from '$lib/api';
 import AccountSettingsPage from '$lib/app/settings/AccountSettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
-  renameUser: vi.fn(),
+  setUserNickname: vi.fn(),
   getAuthStatus: vi.fn(),
   getTwoFactorStatus: vi.fn(),
   goto: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock('$lib/api', async (importOriginal) => ({
   disableTwoFactor: vi.fn(),
   getAuthStatus: mocks.getAuthStatus,
   getTwoFactorStatus: mocks.getTwoFactorStatus,
-  renameUser: mocks.renameUser,
+  setUserNickname: mocks.setUserNickname,
   serverErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
   setupTwoFactor: vi.fn(),
   validateTwoFactor: vi.fn(),
@@ -56,7 +56,7 @@ const authStatus = {
   nickname: 'Alice',
   has_token: true,
   token_exp: 1_900_000_000,
-  permissions: [],
+  permissions: ['set_nickname'],
   groups: [],
 };
 
@@ -84,7 +84,7 @@ beforeEach(() => {
     configured: false,
     backup_codes_count: 0,
   });
-  mocks.renameUser.mockResolvedValue(true);
+  mocks.setUserNickname.mockResolvedValue(true);
   mocks.getUserInfo.mockReset().mockResolvedValue(profile);
   mocks.listDirectory.mockReset().mockResolvedValue({ folders: [], documents: [], parent_id: null });
 });
@@ -120,7 +120,7 @@ describe('account nickname settings', () => {
     await fireEvent.submit(input.closest('form')!);
 
     await waitFor(() => {
-      expect(mocks.renameUser).toHaveBeenCalledWith(authStatus.user_id, 'New Name');
+      expect(mocks.setUserNickname).toHaveBeenCalledWith(authStatus.user_id, 'New Name');
       expect(authStore.displayName).toBe('New Name');
     });
     expect(screen.getByText('New Name')).toBeTruthy();
@@ -137,7 +137,7 @@ describe('account nickname settings', () => {
     await fireEvent.input(input, { target: { value: '   ' } });
     await fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
 
-    await waitFor(() => expect(mocks.renameUser).toHaveBeenCalledWith(authStatus.user_id, null));
+    await waitFor(() => expect(mocks.setUserNickname).toHaveBeenCalledWith(authStatus.user_id, null));
     expect(authStore.displayName).toBe('alice');
   });
 
@@ -148,14 +148,14 @@ describe('account nickname settings', () => {
     await fireEvent.input(input, { target: { value: '界'.repeat(256) } });
     expect(screen.getByText('settings.account.nicknameTooLong')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'common.save' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(mocks.renameUser).not.toHaveBeenCalled();
+    expect(mocks.setUserNickname).not.toHaveBeenCalled();
 
     await fireEvent.keyDown(input, { key: 'Escape' });
     expect(screen.queryByRole('textbox', { name: 'settings.account.nicknameLabel' })).toBeNull();
   });
 
   it('keeps the editor open and preserves state when the server rejects the update', async () => {
-    mocks.renameUser.mockRejectedValue(new Error('Server returned 403: denied'));
+    mocks.setUserNickname.mockRejectedValue(new Error('Server returned 403: denied'));
     render(AccountSettingsPage);
     const input = await openNicknameEditor();
 
@@ -176,7 +176,7 @@ describe('account nickname settings', () => {
 
   it('disables unchanged values and ignores duplicate submissions while saving', async () => {
     let finishRename: ((value: boolean) => void) | undefined;
-    mocks.renameUser.mockImplementation(() => new Promise<boolean>((resolve) => {
+    mocks.setUserNickname.mockImplementation(() => new Promise<boolean>((resolve) => {
       finishRename = resolve;
     }));
     render(AccountSettingsPage);
@@ -188,7 +188,7 @@ describe('account nickname settings', () => {
     await fireEvent.click(saveButton);
     await fireEvent.click(saveButton);
 
-    expect(mocks.renameUser).toHaveBeenCalledTimes(1);
+    expect(mocks.setUserNickname).toHaveBeenCalledTimes(1);
     expect(saveButton.disabled).toBe(true);
 
     finishRename?.(true);
@@ -208,7 +208,7 @@ describe('personal account information', () => {
       expect(screen.getByText('staff')).toBeTruthy();
       expect(screen.queryByText('wss://files.example')).toBeNull();
       expect(screen.getByText('settings.account.notProvided')).toBeTruthy();
-      expect(authStore.permissions).toEqual([]);
+      expect(authStore.permissions).toEqual(authStatus.permissions);
       expect(authStore.groups).toEqual([]);
       await fireEvent.click(screen.getByRole('button', { name: 'manage.copyUserId' }));
       expect(writeText).toHaveBeenCalledWith(profile.user_id);
@@ -309,7 +309,7 @@ describe('personal account information', () => {
     const view = render(AccountSettingsPage);
     view.unmount();
     pending.resolve(profile);
-    expect(authStore.permissions).toEqual([]);
+    expect(authStore.permissions).toEqual(authStatus.permissions);
     expect(notificationStore.entries).toEqual([]);
   });
 

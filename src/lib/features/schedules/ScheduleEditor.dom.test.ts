@@ -33,7 +33,7 @@ function taskType(
   return {
     name,
     contract_version: 1,
-    required_permission: 'manage_system',
+    required_permission: 'apply_lockdown',
     payload_schema: payloadSchema,
     max_attempts: 3,
   };
@@ -82,7 +82,7 @@ describe('ScheduleEditor payload modes', () => {
 
     expect(screen.queryByText('Contract v1')).toBeNull();
     expect(screen.queryByText('3 max attempts')).toBeNull();
-    expect(screen.queryByText('manage_system')).toBeNull();
+    expect(screen.queryByText('apply_lockdown')).toBeNull();
     expect(screen.queryByText(/Full client-side contract validation/)).toBeNull();
     expect(screen.getByRole('tab', { name: 'Form' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByText('This field is explicitly set to null.')).toBeTruthy();

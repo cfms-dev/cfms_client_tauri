@@ -38,4 +38,5 @@ pub(crate) mod upload_tasks;
 pub(crate) mod registry;
 
 mod server_actions;
+pub(crate) mod server_settings;
 mod session;

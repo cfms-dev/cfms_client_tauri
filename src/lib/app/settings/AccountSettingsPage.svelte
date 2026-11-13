@@ -1,10 +1,12 @@
 <script lang="ts">
+  import ChangeUsernameDialog from '$lib/features/authentication/ChangeUsernameDialog.svelte';
+  import { canSetAccountName } from '$lib/features/authentication/auth-permissions';
   import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import { goto } from '$app/navigation';
   import { tick, untrack } from 'svelte';
   import { locale, _ as t } from 'svelte-i18n';
-  import { getUserInfo, renameUser, serverErrorStatus, type ManagedUserInfo } from '$lib/api';
+  import { getUserInfo, setUserNickname, serverErrorStatus, type ManagedUserInfo } from '$lib/api';
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
@@ -20,6 +22,9 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   const NICKNAME_MAX_LENGTH = 255;
+  let showUsernameEditor = $state(false);
+  const canChangeUsername = $derived(canSetAccountName(authStore.permissions, 'username', true));
+  const canChangeNickname = $derived(canSetAccountName(authStore.permissions, 'nickname', true));
   let editingNickname = $state(false);
   let nicknameInput = $state('');
   let nicknameInputElement = $state<HTMLInputElement | null>(null);
@@ -58,6 +63,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     authStore.isLoggedIn
       && serverStateStore.connected
       && Boolean(authStore.username)
+      && canChangeNickname
       && nicknameChanged
       && !nicknameTooLong
       && !nicknameBusy,
@@ -71,6 +77,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       loadError = null;
       loading = false;
       showAvatarPicker = false;
+      showUsernameEditor = false;
       editingNickname = false;
       nicknameInput = '';
       nicknameBusy = false;
@@ -105,6 +112,8 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       if (result.user_id !== userId) throw new Error($t('settings.account.invalidProfile'));
       // A read started before a successful nickname write must not undo that write.
       info = nicknameVersion === nicknameWriteVersion ? result : { ...result, nickname: authStore.nickname };
+      authStore.username = info.username;
+      authStore.nickname = info.nickname || info.username;
       updatedAt = Date.now() / 1000;
     } catch (err) {
       if (sequence !== requestSequence || scope !== accountScope) return;
@@ -143,7 +152,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   });
 
   async function beginNicknameEdit() {
-    if (!authStore.isLoggedIn || !authStore.username || nicknameBusy) return;
+    if (!canChangeNickname || !authStore.isLoggedIn || !authStore.username || nicknameBusy) return;
     nicknameInput = displayName;
     editingNickname = true;
     await tick();
@@ -171,7 +180,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     const nickname = cleanNickname;
     nicknameBusy = true;
     try {
-      const success = await renameUser(authStore.userId!, nickname);
+      const success = await setUserNickname(authStore.userId!, nickname);
       if (scope !== accountScope || generation !== accountGeneration) return;
       if (!success) throw new Error($t('settings.account.nicknameUpdateFailed'));
 
@@ -234,7 +243,10 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
         {#if !canChangeAvatar}<p class="avatar-hint">{$t('settings.account.avatarReadOnly')}</p>{/if}
       </div>
 
-      {#if !editingNickname}
+      {#if canChangeUsername}
+        <FluentButton appearance="subtle" disabled={!serverStateStore.connected || authStore.postLoginPending} onclick={() => { showUsernameEditor = true; }}>{$t('protocol30.changeUsername')}</FluentButton>
+      {/if}
+      {#if !editingNickname && canChangeNickname}
         <FluentButton data-fluent-owner="routes-home-settings-account-page"
           type="button"
           title={$t('settings.account.editNickname')}
@@ -435,3 +447,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   @media (prefers-reduced-motion: reduce) { .identity-avatar--editable { transition: none; } }
   @media (forced-colors: active) { .avatar-edit { background: Highlight; color: HighlightText; border-color: Canvas; } }
 </style>
+
+{#if showUsernameEditor && authStore.userId && authStore.username}
+  <ChangeUsernameDialog userId={authStore.userId} username={authStore.username} onClose={() => { showUsernameEditor = false; }} onSaved={async () => { requestSequence += 1; loading = false; await refreshProfile(); }} />
+{/if}

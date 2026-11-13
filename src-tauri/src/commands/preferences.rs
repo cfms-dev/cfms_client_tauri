@@ -15,7 +15,7 @@ use tauri::Runtime;
 
 /// Load the user preference file from disk.
 ///
-/// File path: `{app_data}/user_preferences/{server_hash}_{username}.json`
+/// File path: `{app_data}/user_preferences/accounts/{server_hash}/{user_id_hash}.json`
 ///
 /// Handles three cases:
 /// 1. File doesn't exist → returns default `UserPreference`.
@@ -28,8 +28,9 @@ pub async fn load_user_preference(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
     let _auth = state.inner.auth_update.lock().await;
-    let username = {
-        let u = state.inner.username.read().await;
+    ensure_account_storage(&state).await?;
+    let user_id = {
+        let u = state.inner.user_id.read().await;
         u.clone()
     }
     .ok_or_else(|| "Not logged in".to_string())?;
@@ -51,7 +52,7 @@ pub async fn load_user_preference(
 
     let app_data_dir = state.app_data_dir.clone();
     let mut pref = tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, Some(&*dek))
+        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &user_id, Some(&*dek))
             .map_err(|e| e.to_string())
     })
     .await
@@ -82,9 +83,9 @@ pub(super) async fn update_preferences(
     {
         return Err("The active account changed".into());
     }
-    let username = state
+    let user_id = state
         .inner
-        .username
+        .user_id
         .read()
         .await
         .clone()
@@ -103,12 +104,13 @@ pub(super) async fn update_preferences(
         .await
         .clone()
         .ok_or("Preference DEK is unavailable")?;
+    ensure_account_storage(state).await?;
     let app_data = state.app_data_dir.clone();
     let preferences = tokio::task::spawn_blocking(move || {
         cfms_service::user_preferences::update(
             &app_data,
             &cfms_core::get_server_hash(&server),
-            &username,
+            &user_id,
             &dek,
             mutate,
         )
@@ -181,13 +183,21 @@ pub async fn setup_preference_dek<R: Runtime>(
     .ok_or_else(|| "No server address".to_string())?;
     let server_hash = cfms_core::get_server_hash(&server_addr);
 
-    let has_local_encrypted_state =
-        cfms_service::user_preferences::exists(&state.app_data_dir, &server_hash, &username)
-            || cfms_service::transfers::task_persistence::exists(
-                &state.app_data_dir,
-                &server_hash,
-                &username,
-            );
+    let user_id = state
+        .inner
+        .user_id
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
+    let has_local_encrypted_state = cfms_service::account_storage::encrypted_paths(
+        &state.app_data_dir,
+        &server_hash,
+        &user_id,
+        &username,
+    )
+    .iter()
+    .any(|path| path.exists());
 
     let status = setup_preference_dek_for_loading(
         &state.inner,
@@ -219,8 +229,8 @@ pub async fn setup_preference_dek<R: Runtime>(
 pub async fn discard_user_preference(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<(), String> {
-    let username = {
-        let u = state.inner.username.read().await;
+    let user_id = {
+        let u = state.inner.user_id.read().await;
         u.clone()
     }
     .ok_or_else(|| "Not logged in".to_string())?;
@@ -235,7 +245,8 @@ pub async fn discard_user_preference(
     let app_data_dir = state.app_data_dir.clone();
 
     tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
+        cfms_service::account_storage::finish_legacy_import(&app_data_dir, &server_hash, &user_id)?;
+        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &user_id)
             .map_err(|e| e.to_string())
     })
     .await
@@ -264,6 +275,13 @@ pub async fn reset_preference_dek<R: Runtime>(
 
     let server_hash = cfms_core::get_server_hash(&server_addr);
     let app_data_dir = state.app_data_dir.clone();
+    let user_id = state
+        .inner
+        .user_id
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
 
     ensure_preference_dek(
         &state.inner,
@@ -275,19 +293,19 @@ pub async fn reset_preference_dek<R: Runtime>(
     .await?;
 
     tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &username)
+        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &user_id)
             .and_then(|_| {
                 cfms_service::transfers::task_persistence::discard(
                     &app_data_dir,
                     &server_hash,
-                    &username,
+                    &user_id,
                 )
             })
             .and_then(|_| {
                 cfms_service::transfers::upload_task_persistence::discard(
                     &app_data_dir,
                     &server_hash,
-                    &username,
+                    &user_id,
                 )
             })
             .map_err(|e| e.to_string())
@@ -331,8 +349,11 @@ fn sync_runtime_preferences(state: &AppHandleState, preferences: &UserPreference
 pub async fn load_appearance_preference(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<AppearancePreference, String> {
+    if state.inner.user_id.read().await.is_some() {
+        ensure_account_storage(&state).await?;
+    }
     let user_scope = appearance_user_scope(&state).await?;
-    let Some((server_hash, username, dek)) = user_scope else {
+    let Some((server_hash, user_id, dek)) = user_scope else {
         return state
             .settings
             .get_appearance()
@@ -341,7 +362,7 @@ pub async fn load_appearance_preference(
     let app_data_dir = state.app_data_dir.clone();
 
     tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &username, Some(&*dek))
+        cfms_service::user_preferences::load(&app_data_dir, &server_hash, &user_id, Some(&*dek))
             .map(|preferences| preferences.appearance)
     })
     .await
@@ -356,14 +377,17 @@ pub async fn save_appearance_preference(
     state: tauri::State<'_, AppHandleState>,
     appearance: AppearancePreference,
 ) -> Result<(), String> {
+    if state.inner.user_id.read().await.is_some() {
+        ensure_account_storage(&state).await?;
+    }
     let user_scope = appearance_user_scope(&state).await?;
-    let Some((server_hash, username, dek)) = user_scope else {
+    let Some((server_hash, user_id, dek)) = user_scope else {
         return state
             .settings
             .set_appearance(&appearance)
             .map_err(|e| format!("Failed to write global appearance setting: {e}"));
     };
-    let _ = (server_hash, username, dek);
+    let _ = (server_hash, user_id, dek);
     update_preferences(&state, move |pref| {
         pref.appearance = appearance;
         Ok(())
@@ -375,8 +399,8 @@ pub async fn save_appearance_preference(
 async fn appearance_user_scope(
     state: &AppHandleState,
 ) -> Result<Option<(String, String, zeroize::Zeroizing<[u8; 32]>)>, String> {
-    let username = state.inner.username.read().await.clone();
-    let Some(username) = username else {
+    let user_id = state.inner.user_id.read().await.clone();
+    let Some(user_id) = user_id else {
         return Ok(None);
     };
     let server_address = state
@@ -392,9 +416,54 @@ async fn appearance_user_scope(
 
     Ok(Some((
         cfms_core::get_server_hash(&server_address),
-        username,
+        user_id,
         dek,
     )))
 }
 
 // ---------------------------------------------------------------------------
+
+/// Call while the caller owns the authentication update guard when mutating identity.
+pub(super) async fn ensure_account_storage(state: &AppHandleState) -> Result<(), String> {
+    let username = state
+        .inner
+        .username
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
+    let user_id = state
+        .inner
+        .user_id
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
+    let server = state
+        .inner
+        .server_address
+        .read()
+        .await
+        .clone()
+        .ok_or("No server address")?;
+    let key = state
+        .inner
+        .dek
+        .read()
+        .await
+        .clone()
+        .ok_or("Preference DEK is unavailable")?;
+    let root = state.app_data_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        cfms_service::account_storage::migrate(
+            &root,
+            &cfms_core::get_server_hash(&server),
+            &user_id,
+            &username,
+            &key,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("CFMS_ACCOUNT_STORAGE_RECOVERY: {e}"))
+}

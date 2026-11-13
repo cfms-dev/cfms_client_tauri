@@ -88,7 +88,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
         const taskData = await getUserAvatar(targetUserId);
         if (!sessionIsCurrent()) return;
         if (!taskData) throw new Error($t('avatar.previewRefreshFailed'));
-        const path = await downloadAvatar(taskData, targetUsername, true);
+        const path = await downloadAvatar(taskData, targetUserId, targetUsername, true);
         if (!sessionIsCurrent()) return;
         if (!path) throw new Error($t('avatar.previewRefreshFailed'));
         authStore.avatarPath = path;

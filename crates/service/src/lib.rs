@@ -15,6 +15,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod account_storage;
 pub mod app_lock;
 pub mod authentication;
 pub mod connection;

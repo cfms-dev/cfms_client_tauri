@@ -98,7 +98,7 @@
         >
       <!-- Avatar preview -->
       <div class="flex justify-center mb-6">
-        {#if workspace.username.trim()}
+        {#if workspace.username}
           <AvatarPreview username={workspace.username} size={80} avatarPath={authStore.avatarPath || workspace.cachedAvatarPath} />
         {:else}
           <div

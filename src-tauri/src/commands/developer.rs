@@ -70,7 +70,7 @@ mod developer_request_tests {
     fn retry_identity_rejects_server_or_account_changes() {
         let expected = ServerActionIdentity {
             server_address: Some("server.example".to_string()),
-            username: "developer".to_string(),
+            user_id: "developer".to_string(),
         };
         assert!(validate_server_action_identity(&expected, &expected).is_ok());
         assert!(
@@ -78,7 +78,7 @@ mod developer_request_tests {
                 &expected,
                 &ServerActionIdentity {
                     server_address: Some("other.example".to_string()),
-                    username: "developer".to_string(),
+                    user_id: "developer".to_string(),
                 },
             )
             .is_err()
@@ -88,7 +88,7 @@ mod developer_request_tests {
                 &expected,
                 &ServerActionIdentity {
                     server_address: Some("server.example".to_string()),
-                    username: "another-user".to_string(),
+                    user_id: "another-user".to_string(),
                 },
             )
             .is_err()

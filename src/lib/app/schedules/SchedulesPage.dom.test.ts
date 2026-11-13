@@ -49,7 +49,7 @@ const schedule = {
 const taskType = {
   name: 'reports.weekly',
   contract_version: 1,
-  required_permission: 'manage_system',
+  required_permission: 'apply_lockdown',
   payload_schema: { type: 'object' },
   max_attempts: 3,
 };
@@ -116,7 +116,7 @@ describe('schedules page', () => {
   });
 
   it('offers the generic extension-backed editor to schedule managers', async () => {
-    signIn(['view_schedules', 'manage_schedules', 'manage_system']);
+    signIn(['view_schedules', 'manage_schedules', 'apply_lockdown']);
     render(SchedulesPage);
 
     await screen.findByText('reports.weekly');
@@ -265,7 +265,7 @@ describe('schedules page', () => {
     const updated = { ...schedule, enabled: false, revision: 3 };
     mocks.updateSchedule.mockResolvedValue(updated);
     const success = vi.spyOn(notificationStore, 'success');
-    signIn(['view_schedules', 'manage_schedules', 'manage_system']);
+    signIn(['view_schedules', 'manage_schedules', 'apply_lockdown']);
     render(SchedulesPage);
 
     await screen.findByText('reports.weekly');
@@ -283,7 +283,7 @@ describe('schedules page', () => {
   it('keeps failure feedback when toggling a schedule fails', async () => {
     mocks.updateSchedule.mockRejectedValue(new Error('Unable to update schedule'));
     const error = vi.spyOn(notificationStore, 'error');
-    signIn(['view_schedules', 'manage_schedules', 'manage_system']);
+    signIn(['view_schedules', 'manage_schedules', 'apply_lockdown']);
     render(SchedulesPage);
 
     await screen.findByText('reports.weekly');

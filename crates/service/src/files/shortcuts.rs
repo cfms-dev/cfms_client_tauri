@@ -229,6 +229,7 @@ fn validation_directory_ids(preferences: &cfms_core::UserPreference) -> HashSet<
 
 #[derive(Clone)]
 struct ValidationSnapshot {
+    user_id: String,
     username: String,
     token: crate::sensitive::SecretString,
     server_hash: String,
@@ -242,6 +243,7 @@ async fn validation_snapshot(state: &AppState) -> Option<ValidationSnapshot> {
     let dek = state.dek.read().await.clone();
 
     Some(ValidationSnapshot {
+        user_id: state.user_id.read().await.clone()?,
         username,
         token,
         server_hash: cfms_core::get_server_hash(&server_addr),
@@ -255,11 +257,11 @@ async fn load_preferences(
 ) -> Result<cfms_core::UserPreference, String> {
     let app_data_dir = app_data_dir.to_path_buf();
     let server_hash = snapshot.server_hash.clone();
-    let username = snapshot.username.clone();
+    let user_id = snapshot.user_id.clone();
     let dek = snapshot.dek.clone();
 
     tokio::task::spawn_blocking(move || {
-        crate::user_preferences::load(&app_data_dir, &server_hash, &username, dek.as_deref())
+        crate::user_preferences::load(&app_data_dir, &server_hash, &user_id, dek.as_deref())
             .map_err(|e| e.to_string())
     })
     .await

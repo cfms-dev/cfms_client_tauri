@@ -11,3 +11,5 @@ export type * from './types/events';
 export type * from './types/connection';
 export type * from './types/mobile';
 export type * from './types/settings';
+
+export type * from './types/server-settings';

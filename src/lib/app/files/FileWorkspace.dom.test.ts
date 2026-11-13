@@ -74,7 +74,7 @@ beforeEach(() => {
   document.documentElement.dataset.reduceMotion = 'true';
   authStore.apply({ user_id: 'self', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 1_900_000_000, permissions: [], groups: [] });
   serverStateStore.updateConnection(true, 'wss://files.test', false);
-  fileManagerNavigationStore.rememberTimeline('wss://files.test', 'alice', { entries: [], cursor: -1 });
+  fileManagerNavigationStore.rememberTimeline('wss://files.test', 'self', { entries: [], cursor: -1 });
   notificationStore.clear();
   mocks.events.clear();
   mocks.drop = null;

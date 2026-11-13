@@ -56,7 +56,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
     try {
       if (authStore.username) {
-        await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+        await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`);
       }
 
       const savedBehavior = await getRootBackButtonBehavior();

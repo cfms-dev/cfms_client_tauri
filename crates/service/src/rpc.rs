@@ -6,7 +6,7 @@ use rand::RngExt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionIdentity {
     pub server: String,
-    pub username: String,
+    pub user_id: String,
     pub generation: u64,
 }
 
@@ -20,7 +20,7 @@ impl SessionIdentity {
                 .await
                 .clone()
                 .ok_or("No server address")?,
-            username: state.username.read().await.clone().ok_or("Not logged in")?,
+            user_id: state.user_id.read().await.clone().ok_or("Not logged in")?,
             generation: state
                 .auth_generation
                 .load(std::sync::atomic::Ordering::SeqCst),
@@ -40,12 +40,30 @@ impl SessionIdentity {
             .load(std::sync::atomic::Ordering::SeqCst)
             == self.generation
             && state.server_address.read().await.as_deref() == Some(self.server.as_str())
-            && state.username.read().await.as_deref() == Some(self.username.as_str())
+            && state.user_id.read().await.as_deref() == Some(self.user_id.as_str())
         {
             Ok(())
         } else {
             Err("The active server or account changed".into())
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    #[tokio::test]
+    async fn renamed_accounts_keep_their_lifetime_but_reused_names_do_not() {
+        let state = crate::state::AppState::new();
+        *state.server_address.write().await = Some("server".into());
+        *state.user_id.write().await = Some("uuid-a".into());
+        *state.username.write().await = Some("alice".into());
+        let identity = SessionIdentity::capture(&state).await.unwrap();
+        *state.username.write().await = Some("new name".into());
+        assert!(identity.ensure_current(&state).await.is_ok());
+        *state.user_id.write().await = Some("uuid-b".into());
+        *state.username.write().await = Some("alice".into());
+        assert!(identity.ensure_current(&state).await.is_err());
     }
 }
 

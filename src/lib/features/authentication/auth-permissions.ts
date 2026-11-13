@@ -7,3 +7,7 @@ export function canConfigureAuthentication(permissions: readonly string[], manag
   return permissions.includes('super_configure_auth_methods')
     || (!managed && permissions.includes('configure_auth_methods'));
 }
+
+export function canSetAccountName(permissions: readonly string[], kind: 'username' | 'nickname', own: boolean): boolean {
+  return permissions.includes(`super_set_${kind}`) || (own && permissions.includes(`set_${kind}`));
+}

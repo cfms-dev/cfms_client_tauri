@@ -657,7 +657,7 @@ export function createFileWorkspace() {
     if (!navigationStateReady || !navigationScope) return;
     fileManagerNavigationStore.rememberTimeline(
       navigationScope.serverAddress,
-      navigationScope.username,
+      navigationScope.userId,
       navigationTimeline,
     );
   });
@@ -682,7 +682,7 @@ export function createFileWorkspace() {
 
   function sameRefreshTarget(left: DirectoryRefreshTarget, right: DirectoryRefreshTarget) {
     return sameDirectoryId(left.folderId, right.folderId)
-      && left.serverAddress === right.serverAddress && left.username === right.username;
+      && left.serverAddress === right.serverAddress && left.userId === right.userId;
   }
 
   function isCurrentRefreshTarget(target: DirectoryRefreshTarget) {
@@ -1590,7 +1590,7 @@ export function createFileWorkspace() {
   }
 
   function hasPermission(...permissions: string[]) {
-    return authStore.permissions.includes('manage_system') || permissions.some((permission) => authStore.permissions.includes(permission));
+    return permissions.some((permission) => authStore.permissions.includes(permission));
   }
 
   function canRenameSelected() {
@@ -2345,7 +2345,7 @@ export function createFileWorkspace() {
     if (!targets.length || batchBusy || loading || !hasPermission('set_access_rules')) return;
     batchAccessRulesDialog = {
       targets,
-      identity: { server: serverStateStore.remoteAddress, username: authStore.username },
+      identity: { server: serverStateStore.remoteAddress, userId: authStore.userId },
       initialTemplateKey: accessRulesTemplateKey(targets, focusedItemKey, contextItemKey),
       refreshTarget: captureDirectoryRefreshTarget(),
     };
@@ -2356,7 +2356,7 @@ export function createFileWorkspace() {
     if (!batchAccessRulesDialog) return { kind: 'stopped' as const };
     return batchRulesSessionProblem(batchAccessRulesDialog.identity, {
       server: serverStateStore.remoteAddress,
-      username: authStore.username,
+      userId: authStore.userId,
       loggedIn: authStore.isLoggedIn,
       permitted: hasPermission('set_access_rules'),
       connected: serverStateStore.connected,
@@ -3414,7 +3414,7 @@ export function createFileWorkspace() {
   function currentFilePreferenceScope(): FilePreferenceScope {
     return {
       serverAddress: serverStateStore.remoteAddress,
-      username: authStore.username,
+      userId: authStore.userId,
     };
   }
 
@@ -3676,7 +3676,7 @@ export function createFileWorkspace() {
     const requestedFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
     const requestedName = page.url.searchParams.get('name');
     navigationScope = currentFilePreferenceScope();
-    const rememberedTimeline = fileManagerNavigationStore.restoreTimeline(navigationScope.serverAddress, navigationScope.username);
+    const rememberedTimeline = fileManagerNavigationStore.restoreTimeline(navigationScope.serverAddress, navigationScope.userId);
     const initialNavigation = rememberedTimeline?.entries[rememberedTimeline.cursor] ?? {
       folderId: null, navigationRootId: null, navigationRootLabel: null, navHistory: [],
     };

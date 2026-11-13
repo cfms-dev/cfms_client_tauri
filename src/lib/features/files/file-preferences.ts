@@ -25,10 +25,10 @@ export interface RecentFileRecord extends FileRecord {
 
 export interface FilePreferenceScope {
   serverAddress: string | null;
-  username: string | null;
+  userId: string | null;
 }
 
-const RECENT_VISITS_KEY_PREFIX = 'cfms.recentVisits.v2';
+const RECENT_VISITS_KEY_PREFIX = 'cfms.recentVisits.v3';
 const MAX_RECENT_VISITS = 10;
 
 export function documentToRecord(
@@ -189,27 +189,27 @@ export function isFavoriteRecord(preferences: UserPreference | null, record: Fil
 
 export function hasFilePreferenceScope(
   scope: FilePreferenceScope | null | undefined,
-): scope is { serverAddress: string; username: string } {
+): scope is { serverAddress: string; userId: string } {
   return Boolean(scopeParts(scope));
 }
 
 function assertFilePreferenceScope(scope: FilePreferenceScope) {
   if (!hasFilePreferenceScope(scope)) {
-    throw new Error('Missing server address or username for file preferences.');
+    throw new Error('Missing server address or userId for file preferences.');
   }
 }
 
 function recentVisitsKey(scope: FilePreferenceScope): string | null {
   const parts = scopeParts(scope);
   if (!parts) return null;
-  return `${RECENT_VISITS_KEY_PREFIX}:${encodeURIComponent(parts.serverAddress)}:${encodeURIComponent(parts.username)}`;
+  return `${RECENT_VISITS_KEY_PREFIX}:${encodeURIComponent(parts.serverAddress)}:${encodeURIComponent(parts.userId)}`;
 }
 
 function scopeParts(scope: FilePreferenceScope | null | undefined) {
   const serverAddress = scope?.serverAddress?.trim();
-  const username = scope?.username?.trim();
-  if (!serverAddress || !username) return null;
-  return { serverAddress, username };
+  const userId = scope?.userId?.trim();
+  if (!serverAddress || !userId) return null;
+  return { serverAddress, userId };
 }
 
 function normalizeFavourites(value: Favourites | null | undefined): Favourites {

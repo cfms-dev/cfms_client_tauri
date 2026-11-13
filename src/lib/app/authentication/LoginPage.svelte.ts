@@ -171,7 +171,7 @@ export function createLoginFlow() {
       return false;
     }
     await appearanceStore.load(
-      `user:${serverStateStore.remoteAddress ?? 'local'}:${user}`,
+      `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`,
       true,
     );
 
@@ -180,7 +180,7 @@ export function createLoginFlow() {
     try {
       const taskData = await getUserAvatar(authStore.userId!);
       if (taskData) {
-        const path = await downloadAvatar(taskData, user, true);
+        const path = await downloadAvatar(taskData, authStore.userId!, user, true);
         if (path) {
           authStore.avatarPath = path;
         }
@@ -267,7 +267,8 @@ export function createLoginFlow() {
   function isUnreadablePreferenceError(e: unknown): boolean {
     const message = formatError(e).toLowerCase();
     return (
-      message.includes('encrypted preference file found but dek is unavailable')
+      message.includes('cfms_account_storage_recovery')
+      || message.includes('encrypted preference file found but dek is unavailable')
       || message.includes('preference dek is unavailable')
       || message.includes('failed to decrypt preference file')
       || (message.includes('preference file') && message.includes('is not encrypted'))
@@ -443,7 +444,7 @@ export function createLoginFlow() {
   }
 
   $effect(() => {
-    const currentUsername = username.trim();
+    const currentUsername = username;
     const currentServer = serverStateStore.remoteAddress ?? "";
 
     let cancelled = false;
@@ -487,7 +488,7 @@ export function createLoginFlow() {
   function validate(): boolean {
     fieldErrors = {};
     let valid = true;
-    if (!username.trim()) {
+    if (!username) {
       fieldErrors.username = translator.current('login.usernameRequired');
       valid = false;
     }
@@ -562,7 +563,7 @@ export function createLoginFlow() {
   }
 
   async function enterAccountDisabledState(requestedAt: number, reason: string | null) {
-    const accountName = username.trim();
+    const accountName = username;
 
     // A 4003 can also arrive while completing 2FA. Clear any partial native
     // auth state while preserving the current server connection.
@@ -611,10 +612,10 @@ export function createLoginFlow() {
       let authResult;
       if (loginMethod === 'publickey') {
         publicKeyPending = true;
-        try { authResult = await loginWithPublicKey(username.trim(), privateKey!.keyRef, keyPassphrase, receiveKeyInteraction); }
+        try { authResult = await loginWithPublicKey(username, privateKey!.keyRef, keyPassphrase, receiveKeyInteraction); }
         finally { publicKeyPending = false; keyPassphrase = ''; keyInteraction = null; }
         privateKey = null;
-      } else { authResult = await login(username.trim(), password); }
+      } else { authResult = await login(username, password); }
       await info("Login response received: {authResult}");
 
       // Check if server requires 2FA.
@@ -636,7 +637,7 @@ export function createLoginFlow() {
       loadingPhase = loadingPhases[0];
       await info("Login successful, running post-login loading phases...");
       if (!(await runLoadingPhases(
-        username.trim(),
+        username,
         password,
         authResult.has_server_preference_dek === true,
         authResult.needs_preference_dek_setup === true,
@@ -739,7 +740,7 @@ export function createLoginFlow() {
       // Animate the loading phases only after lockdown gating succeeds.
       loadingPhase = loadingPhases[0];
       if (!(await runLoadingPhases(
-        username.trim(),
+        username,
         pendingPassword,
         authResult.has_server_preference_dek === true,
         authResult.needs_preference_dek_setup === true,

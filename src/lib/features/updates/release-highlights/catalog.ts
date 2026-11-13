@@ -2,7 +2,6 @@ import { compareAppVersions } from '$lib/features/updates/app-version';
 import type { ReleaseHighlight, ReleaseTour } from '$lib/features/updates/release-highlights/types';
 
 const managementPermissions = [
-  'manage_system',
   'list_users',
   'create_user',
   'delete_user',

@@ -34,6 +34,8 @@ pub struct AppState {
     pub escalation: RwLock<Option<crate::authentication::IssuedToken>>,
     /// Invalidates in-flight authentication responses when the session is cleared.
     pub auth_generation: AtomicU64,
+    /// Prevent older profile reads from undoing a confirmed name update.
+    pub account_name_revision: AtomicU64,
     pub auth_update: Mutex<()>,
     pub download_batches: crate::transfers::download_batches::DownloadBatchRegistry,
     pub access_batches: crate::files::access_batches::Registry,
@@ -151,6 +153,7 @@ impl AppState {
             pending_auth: RwLock::new(None),
             escalation: RwLock::new(None),
             auth_generation: AtomicU64::new(0),
+            account_name_revision: AtomicU64::new(0),
             auth_update: Mutex::new(()),
             download_batches: Default::default(),
             access_batches: Default::default(),

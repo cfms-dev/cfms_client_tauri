@@ -5,6 +5,26 @@ use super::shared_helpers::{
 };
 use crate::AppHandleState;
 
+/// Mutations are sent once, retaining an explicit unknown-outcome marker.
+pub(super) async fn server_action_once(
+    state: &AppHandleState,
+    identity: &cfms_service::rpc::SessionIdentity,
+    action: &str,
+    data: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    cfms_service::rpc::action_once(&state.inner, identity, action, data)
+        .await
+        .map_err(|error| {
+            if let Some(code) = error.status {
+                super::shared_helpers::format_server_error_parts(code, &error.message, &error.data)
+            } else if error.sent {
+                format!("CFMS_REQUEST_UNCONFIRMED: {}", error.message)
+            } else {
+                error.message
+            }
+        })
+}
+
 pub(super) async fn server_action_json(
     state: &AppHandleState,
     action: &str,
@@ -55,33 +75,33 @@ pub(super) async fn server_action_response(
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ServerActionIdentity {
     pub(super) server_address: Option<String>,
-    pub(super) username: String,
+    pub(super) user_id: String,
 }
 
 async fn capture_server_action_identity(
     state: &cfms_service::state::AppState,
 ) -> Result<ServerActionIdentity, String> {
     let server_address = state.server_address.read().await.clone();
-    let username = state
-        .username
+    let user_id = state
+        .user_id
         .read()
         .await
         .clone()
         .ok_or_else(|| "Not logged in".to_string())?;
     Ok(ServerActionIdentity {
         server_address,
-        username,
+        user_id,
     })
 }
 
 async fn ensure_server_action_identity(
     state: &cfms_service::state::AppState,
     expected: &ServerActionIdentity,
-    username: &str,
+    _username: &str,
 ) -> Result<(), String> {
     let current = ServerActionIdentity {
         server_address: state.server_address.read().await.clone(),
-        username: username.to_string(),
+        user_id: state.user_id.read().await.clone().ok_or("Not logged in")?,
     };
     validate_server_action_identity(expected, &current)
 }

@@ -6,6 +6,30 @@ use super::transfer_helpers::create_transfer_connection;
 use crate::AppHandleState;
 use tauri::Manager;
 
+pub(super) fn update_username_index(
+    app_data: &std::path::Path,
+    server: &str,
+    old: &str,
+    new: &str,
+    avatar: Option<&str>,
+) {
+    if old == new {
+        return;
+    }
+    let index = app_data
+        .join("avatars")
+        .join(cfms_core::get_server_hash(server));
+    let old_path = index.join(cfms_core::get_username_hash(old));
+    if old_path.is_file() {
+        let _ = std::fs::remove_file(old_path);
+    }
+    if let Some(avatar) = avatar {
+        if std::fs::create_dir_all(&index).is_ok() {
+            let _ = std::fs::copy(avatar, index.join(cfms_core::get_username_hash(new)));
+        }
+    }
+}
+
 // Avatar commands (mirrors reference/src/include/util/avatar.py)
 // ---------------------------------------------------------------------------
 
@@ -45,7 +69,7 @@ pub async fn get_user_avatar(
 /// fetch the avatar and caches it at:
 ///
 /// ```text
-/// {app_data}/avatars/{server_hash}/{username_hash}
+/// {app_data}/avatars/accounts/{server_hash}/{user_id_hash}
 /// ```
 ///
 /// If the file already exists in the cache and `force_download` is `false`,
@@ -57,6 +81,7 @@ pub async fn download_avatar(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     task_data: serde_json::Value,
+    user_id: String,
     username: String,
     force_download: Option<bool>,
 ) -> Result<Option<String>, String> {
@@ -67,7 +92,7 @@ pub async fn download_avatar(
         .as_str()
         .ok_or_else(|| "task_data missing task_id".to_string())?;
 
-    // Build cache path: {app_data}/avatars/{server_hash}/{username_hash}
+    // Account UUID owns the cached image; username indexes are only login previews.
     let server_addr = {
         let a = state.inner.server_address.read().await;
         a.clone()
@@ -86,8 +111,8 @@ pub async fn download_avatar(
         .resolve("", tauri::path::BaseDirectory::AppData)
         .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
 
-    let cache_dir = app_data.join("avatars").join(&server_hash);
-    let cache_path = cache_dir.join(&username_hash);
+    let cache_dir = app_data.join("avatars").join("accounts").join(&server_hash);
+    let cache_path = cache_dir.join(cfms_core::get_username_hash(&user_id));
 
     // Return cached path early if it exists (and not forcing re-download).
     if !force && cache_path.exists() {
@@ -126,10 +151,13 @@ pub async fn download_avatar(
     result?;
 
     if cache_path.exists() {
+        let index_dir = app_data.join("avatars").join(&server_hash);
+        std::fs::create_dir_all(&index_dir).map_err(|e| e.to_string())?;
+        std::fs::copy(&cache_path, index_dir.join(&username_hash)).map_err(|e| e.to_string())?;
         let path_str = cache_path.to_string_lossy().into_owned();
         update_current_avatar(
             &state.inner,
-            &username,
+            &user_id,
             &server_addr,
             auth_generation,
             &path_str,
@@ -145,7 +173,7 @@ pub async fn download_avatar(
 /// publish its own avatar back into the authentication snapshot.
 async fn update_current_avatar(
     state: &cfms_service::state::AppState,
-    username: &str,
+    user_id: &str,
     server_address: &str,
     auth_generation: u64,
     path: &str,
@@ -155,7 +183,7 @@ async fn update_current_avatar(
         .auth_generation
         .load(std::sync::atomic::Ordering::SeqCst)
         != auth_generation
-        || state.username.read().await.as_deref() != Some(username)
+        || state.user_id.read().await.as_deref() != Some(user_id)
         || state.server_address.read().await.as_deref() != Some(server_address)
     {
         return;
@@ -167,10 +195,43 @@ async fn update_current_avatar(
 mod avatar_preview_tests {
     use super::*;
 
+    #[test]
+    fn renaming_updates_only_the_username_index_and_preserves_the_uuid_image() {
+        let root = tempfile::tempdir().unwrap();
+        let canonical = root
+            .path()
+            .join("avatars")
+            .join("accounts")
+            .join("uuid-image");
+        std::fs::create_dir_all(canonical.parent().unwrap()).unwrap();
+        std::fs::write(&canonical, b"avatar").unwrap();
+        let index = root
+            .path()
+            .join("avatars")
+            .join(cfms_core::get_server_hash("server"));
+        std::fs::create_dir_all(&index).unwrap();
+        let old = index.join(cfms_core::get_username_hash("alice"));
+        std::fs::copy(&canonical, &old).unwrap();
+        update_username_index(
+            root.path(),
+            "server",
+            "alice",
+            " alice ",
+            canonical.to_str(),
+        );
+        assert!(!old.exists());
+        assert_eq!(std::fs::read(&canonical).unwrap(), b"avatar");
+        assert_eq!(
+            std::fs::read(index.join(cfms_core::get_username_hash(" alice "))).unwrap(),
+            b"avatar"
+        );
+    }
+
     #[tokio::test]
     async fn preview_downloads_never_replace_another_users_avatar_or_a_new_session() {
         let state = cfms_service::state::AppState::new();
         *state.username.write().await = Some("admin".into());
+        *state.user_id.write().await = Some("admin".into());
         *state.server_address.write().await = Some("server-a".into());
         *state.avatar_path.write().await = Some("admin.png".into());
         update_current_avatar(&state, "alice", "server-a", 0, "alice.png").await;
@@ -208,8 +269,7 @@ pub async fn check_cached_avatar(
     state: tauri::State<'_, AppHandleState>,
     username: String,
 ) -> Result<Option<String>, String> {
-    let trimmed = username.trim();
-    if trimmed.is_empty() {
+    if username.is_empty() {
         return Ok(None);
     }
 
@@ -220,7 +280,7 @@ pub async fn check_cached_avatar(
     .ok_or_else(|| "No server address".to_string())?;
 
     let server_hash = cfms_core::get_server_hash(&server_addr);
-    let username_hash = cfms_core::get_username_hash(trimmed);
+    let username_hash = cfms_core::get_username_hash(&username);
 
     let app_data = app_handle
         .path()

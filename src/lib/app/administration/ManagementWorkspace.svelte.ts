@@ -1,3 +1,4 @@
+import { canAccessAdministration } from '$lib/features/administration/permissions';
 import { _ as t } from 'svelte-i18n';
 import { onDestroy, onMount, tick, untrack } from 'svelte';
 import { ensureEscalation } from '$lib/features/authentication/escalation.svelte.ts';
@@ -19,7 +20,7 @@ import {
   listUsers,
   manageUserStatus,
   renameGroup,
-  renameUser,
+  setUserNickname,
   resetUserPassword,
   unblockUser,
   updateUserBlock,
@@ -36,7 +37,7 @@ import {
 } from '$lib/api';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import { copyText } from '$lib/shared/platform/clipboard';
-import { canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
+import { canSetAccountName, canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
 import { canSetOtherUserAvatar } from '$lib/features/authentication/avatar-permissions';
 import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
@@ -49,7 +50,7 @@ import type { PermissionEntriesEditorData } from '$lib/features/access/permissio
 import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/shared/ui/keyboard';
 import { fromStore } from 'svelte/store';
 
-export type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs';
+export type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs' | 'settings';
 
 export interface ManageTab {
   key: ManageTabKey;
@@ -62,6 +63,7 @@ export type ManageContextTarget =
   | { kind: 'group'; group: ManagedGroup };
 
 export type ManageDialogState =
+  | { kind: 'username'; user: ManagedUser }
   | { kind: 'create-user' }
   | { kind: 'create-group' }
   | { kind: 'user-groups'; user: ManagedUser }
@@ -104,6 +106,7 @@ export function createManagementWorkspace() {
     { key: 'accounts', labelKey: 'manage.accounts', icon: 'supervisorAccount' },
     { key: 'groups', labelKey: 'manage.groups', icon: 'groups' },
     { key: 'security', labelKey: 'manage.security.title', icon: 'security' },
+    { key: 'settings', labelKey: 'serverSettings.title', icon: 'settings' },
     { key: 'logs', labelKey: 'manage.logs', icon: 'article' },
   ];
 
@@ -173,6 +176,8 @@ export function createManagementWorkspace() {
 
   let activeDialog = $state<ManageDialogState>(null);
 
+  let serverSettings = $state<{ canLeave: () => Promise<boolean>; refresh: () => Promise<void> }>();
+
   let authenticationManagement = $state<{ canLeave: () => Promise<boolean> }>();
 
   let accountDisableReason = $state('');
@@ -201,42 +206,23 @@ export function createManagementWorkspace() {
     sourceElement: HTMLElement | null;
   }>({ open: false, x: 0, y: 0, target: null, sourceElement: null });
 
-  const isAdmin = $derived(
-    authStore.permissions.some((p) =>
-      [
-        'manage_system',
-        'view_audit_logs',
-        'list_users',
-        'list_groups',
-        'create_user',
-        'create_group',
-        'delete_user',
-        'delete_group',
-        'super_configure_auth_methods',
-        'super_list_user_auth_methods',
-        'list_banned_subnets',
-        'manage_banned_subnets',
-        'list_auth_lockouts',
-        'unlock_auth_lockouts',
-      ].includes(p),
-    ),
-  );
+  const isAdmin = $derived(canAccessAdministration(authStore.permissions));
 
-  const canListUsers = $derived(hasAnyPermission('list_users', 'manage_system'));
+  const canListUsers = $derived(hasAnyPermission('list_users'));
 
-  const canListGroups = $derived(hasAnyPermission('list_groups', 'manage_system'));
+  const canListGroups = $derived(hasAnyPermission('list_groups'));
 
-  const canViewLogs = $derived(hasAnyPermission('view_audit_logs', 'manage_system'));
+  const canViewLogs = $derived(hasAnyPermission('view_audit_logs'));
 
-  const canBlock = $derived(hasAnyPermission('block', 'manage_system'));
+  const canBlock = $derived(hasAnyPermission('block'));
 
-  const canListBlocks = $derived(hasAnyPermission('list_user_blocks', 'manage_system'));
+  const canListBlocks = $derived(hasAnyPermission('list_user_blocks'));
 
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
 
   const canManageUserAvatars = $derived(canSetOtherUserAvatar(authStore.permissions));
 
-  const canManageUserStatus = $derived(hasAnyPermission('manage_user_status', 'manage_system'));
+  const canManageUserStatus = $derived(hasAnyPermission('manage_user_status'));
 
   const canManage2fa = $derived(hasAnyPermission('super_configure_auth_methods'));
 
@@ -325,7 +311,7 @@ export function createManagementWorkspace() {
   });
 
   onMount(() => {
-    if (isAdmin) loadActiveTab();
+    if (isAdmin) { if (!canListUsers && authStore.permissions.some((p) => p === 'view_settings' || p === 'manage_settings')) activeTab = 'settings'; loadActiveTab(); }
     void document.fonts?.ready.then(() => updateIdentityColumnWidths());
   });
 
@@ -416,7 +402,9 @@ export function createManagementWorkspace() {
     return Math.min(Math.ceil(width), IDENTITY_COLUMN_MAX_WIDTH);
   }
 
-  function setActiveTab(tab: ManageTabKey) {
+  async function setActiveTab(tab: ManageTabKey) {
+    if (activeTab === tab) return;
+    if (activeTab === 'settings' && !(await serverSettings?.canLeave() ?? true)) return;
     activeTab = tab;
     loadActiveTab();
   }
@@ -435,6 +423,7 @@ export function createManagementWorkspace() {
     if (activeTab === 'accounts') loadUserList();
     else if (activeTab === 'groups') loadGroupList();
     else if (activeTab === 'security') securityRefreshKey += 1;
+    else if (activeTab === 'settings') void serverSettings?.refresh();
     else loadAuditLogPage(null, 'reset');
   }
 
@@ -483,11 +472,19 @@ export function createManagementWorkspace() {
       },
       { type: 'divider' },
       {
-        id: 'rename-user',
+        id: 'set-username',
+        label: translator.current('protocol30.changeUsername'),
+        icon: 'edit',
+        onSelect: () => handleSetUsername(user),
+        disabled: disabled || !canChangeUsername(user),
+        requiresElevation: !elevated,
+      },
+      {
+        id: 'set-nickname',
         label: translator.current('manage.changeNickname'),
         icon: 'edit',
         onSelect: () => handleRenameUser(user),
-        disabled,
+        disabled: disabled || !canChangeNickname(user),
       },
       {
         id: 'edit-user-groups',
@@ -701,12 +698,19 @@ export function createManagementWorkspace() {
     });
   }
 
+  function canChangeUsername(user: ManagedUser) { return canSetAccountName(authStore.permissions, 'username', user.user_id === authStore.userId); }
+  function canChangeNickname(user: ManagedUser) { return canSetAccountName(authStore.permissions, 'nickname', user.user_id === authStore.userId); }
+  function handleSetUsername(user: ManagedUser) {
+    if (!canChangeUsername(user) || busyKey !== null) return;
+    activeDialog = { kind: 'username', user };
+  }
   async function handleRenameUser(user: ManagedUser) {
+    if (!canChangeNickname(user) || busyKey !== null) return;
     const nickname = await dialogStore.prompt(translator.current('manage.newNicknamePrompt'), user.nickname ?? user.username);
-    if (nickname === null) return;
+    if (nickname === null || !canChangeNickname(user)) return;
 
     await runBusy(`rename-user:${user.user_id}`, async () => {
-      await renameUser(user.user_id, nickname.trim());
+      await setUserNickname(user.user_id, nickname.trim());
       status = translator.current('manage.userUpdated', { values: { username: user.username } });
       await loadUserList();
     });
@@ -1145,6 +1149,11 @@ export function createManagementWorkspace() {
 
   return {
 
+    get serverSettings() { return serverSettings; },
+    set serverSettings(value) { serverSettings = value; },
+    canChangeUsername, canChangeNickname, handleSetUsername,
+    get canReadSettings() { return authStore.permissions.includes('view_settings'); },
+    get canWriteSettings() { return authStore.permissions.includes('manage_settings'); },
     get accountDisableReason() { return accountDisableReason; },
     set accountDisableReason(value) { accountDisableReason = value; },
     get accountIdentityColumnWidth() { return accountIdentityColumnWidth; },

@@ -64,9 +64,9 @@ function cloneSnapshot(snapshot: DirectoryNavigationSnapshot): DirectoryNavigati
   };
 }
 
-function scopeKey(remoteAddress: string | null, username: string | null): string | null {
-  if (!remoteAddress || !username) return null;
-  return JSON.stringify([remoteAddress, username]);
+function scopeKey(remoteAddress: string | null, userId: string | null): string | null {
+  if (!remoteAddress || !userId) return null;
+  return JSON.stringify([remoteAddress, userId]);
 }
 
 export class FileManagerNavigationStore {
@@ -74,32 +74,32 @@ export class FileManagerNavigationStore {
 
   remember(
     remoteAddress: string | null,
-    username: string | null,
+    userId: string | null,
     snapshot: DirectoryNavigationSnapshot,
   ) {
-    const key = scopeKey(remoteAddress, username);
+    const key = scopeKey(remoteAddress, userId);
     if (!key) return;
     this.timelines.set(key, recordDirectoryVisit(this.timelines.get(key) ?? { entries: [], cursor: -1 }, snapshot));
   }
 
   restore(
     remoteAddress: string | null,
-    username: string | null,
+    userId: string | null,
   ): DirectoryNavigationSnapshot | null {
-    const key = scopeKey(remoteAddress, username);
+    const key = scopeKey(remoteAddress, userId);
     if (!key) return null;
     const timeline = this.timelines.get(key);
     const snapshot = timeline?.entries[timeline.cursor];
     return snapshot ? cloneSnapshot(snapshot) : null;
   }
 
-  rememberTimeline(remoteAddress: string | null, username: string | null, timeline: DirectoryNavigationTimeline) {
-    const key = scopeKey(remoteAddress, username);
+  rememberTimeline(remoteAddress: string | null, userId: string | null, timeline: DirectoryNavigationTimeline) {
+    const key = scopeKey(remoteAddress, userId);
     if (key) this.timelines.set(key, cloneTimeline(timeline));
   }
 
-  restoreTimeline(remoteAddress: string | null, username: string | null): DirectoryNavigationTimeline | null {
-    const key = scopeKey(remoteAddress, username);
+  restoreTimeline(remoteAddress: string | null, userId: string | null): DirectoryNavigationTimeline | null {
+    const key = scopeKey(remoteAddress, userId);
     const timeline = key ? this.timelines.get(key) : null;
     return timeline ? cloneTimeline(timeline) : null;
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { canAccessAdministration } from '$lib/features/administration/permissions';
   import type { Snippet } from 'svelte';
   import { onMount, tick } from 'svelte';
   import { page } from '$app/stores';
@@ -54,16 +55,12 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   const accountDisplayName = $derived(
     authStore.displayName ?? authStore.username ?? $t('common.unknown'),
   );
-  const isAdmin = $derived(
-    authStore.permissions.some((permission) =>
-      ['manage_system', 'view_audit_logs', 'list_users', 'list_groups', 'super_configure_auth_methods', 'super_list_user_auth_methods'].includes(permission),
-    ),
-  );
+  const isAdmin = $derived(canAccessAdministration(authStore.permissions));
   const canApplyLockdown = $derived(
     authStore.isLoggedIn
       && serverStateStore.connected
       && authStore.permissions.some((permission) =>
-        permission === 'apply_lockdown' || permission === 'manage_system'
+        permission === 'apply_lockdown'
       ),
   );
   const canChangeOwnAvatar = $derived(
@@ -130,7 +127,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   const favoriteFolders = $derived(favorites.filter((record) => record.type === 'directory'));
 
   $effect(() => {
-    const scope = `${serverStateStore.remoteAddress ?? ''}:${authStore.username ?? ''}`;
+    const scope = `${serverStateStore.remoteAddress ?? ''}:${authStore.userId ?? ''}`;
     const path = $page.url.pathname;
     drawerOpen = false;
     accountMenuOpen = false;

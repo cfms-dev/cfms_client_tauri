@@ -4,7 +4,7 @@ import type { ServiceEvent, BatchRulesTarget, BatchRulesProblem, BatchRulesIdent
 import type { AccessRulesRecord } from './access-rules';
 export type { BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction, BatchRulesItemStatus, BatchRulesItemResult, BatchRulesProblemKind } from '$lib/api/types';
 export function batchRulesSessionProblem(expected: BatchRulesIdentity, current: BatchRulesSession): BatchRulesProblem | null {
-  if (expected.server !== current.server || expected.username !== current.username) return { kind: 'identity' };
+  if (expected.server !== current.server || expected.userId !== current.userId) return { kind: 'identity' };
   if (!current.loggedIn) return { kind: 'session' };
   if (!current.permitted) return { kind: 'permission' };
   if (current.lockdown && !current.bypassLockdown) return { kind: 'lockdown' };

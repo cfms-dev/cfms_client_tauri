@@ -1,6 +1,6 @@
 //! Per-user preference file persistence.
 //!
-//! Preferences are scoped by server and username, and are always encrypted
+//! Preferences are scoped by server and account UUID, and are always encrypted
 //! with the in-memory DEK before being written to disk.
 
 use std::path::{Path, PathBuf};
@@ -12,19 +12,19 @@ pub fn dir(app_data: &Path) -> PathBuf {
     app_data.join("user_preferences")
 }
 
-/// Return `{app_data}/user_preferences/{server_hash}_{username}.json`.
-pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf {
-    dir(app_data).join(format!("{server_hash}_{username}.json"))
+/// Return `{app_data}/user_preferences/accounts/{server_hash}/{user_id_hash}.json`.
+pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
+    crate::account_storage::file_path(app_data, "user_preferences", server_hash, user_id)
 }
 
 /// Return whether a persisted preference file exists for a user.
-pub fn exists(app_data: &Path, server_hash: &str, username: &str) -> bool {
-    file_path(app_data, server_hash, username).exists()
+pub fn exists(app_data: &Path, server_hash: &str, user_id: &str) -> bool {
+    file_path(app_data, server_hash, user_id).exists()
 }
 
 /// Delete the persisted preference file for a user, if one exists.
-pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
-    let path = file_path(app_data, server_hash, username);
+pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> {
+    let path = file_path(app_data, server_hash, user_id);
     let lock = preference_lock(&path);
     let _guard = lock.lock().unwrap();
     if !path.exists() {
@@ -43,10 +43,10 @@ pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()>
 pub fn load(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
 ) -> Result<UserPreference> {
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
 
     if !path.exists() {
         return Ok(UserPreference::default());
@@ -89,23 +89,23 @@ pub fn load(
 pub fn save(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
     preferences: &UserPreference,
 ) -> Result<()> {
-    let lock = preference_lock(&file_path(app_data, server_hash, username));
+    let lock = preference_lock(&file_path(app_data, server_hash, user_id));
     let _guard = lock.lock().unwrap();
-    save_unlocked(app_data, server_hash, username, dek, preferences)
+    save_unlocked(app_data, server_hash, user_id, dek, preferences)
 }
 
 fn save_unlocked(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
     preferences: &UserPreference,
 ) -> Result<()> {
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             cfms_core::Error::Other(format!(
@@ -156,17 +156,17 @@ fn preference_lock(path: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {
 pub fn update(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: &[u8; cfms_core::constants::KEY_LEN],
     mutate: impl FnOnce(&mut UserPreference) -> std::result::Result<(), String>,
 ) -> std::result::Result<UserPreference, String> {
-    let lock = preference_lock(&file_path(app_data, server_hash, username));
+    let lock = preference_lock(&file_path(app_data, server_hash, user_id));
     let _guard = lock.lock().unwrap();
-    let mut pref = load(app_data, server_hash, username, Some(dek)).map_err(|e| e.to_string())?;
+    let mut pref = load(app_data, server_hash, user_id, Some(dek)).map_err(|e| e.to_string())?;
     mutate(&mut pref)?;
     pref.task_concurrency = pref.task_concurrency.normalized();
     pref.transfer = pref.transfer.normalized();
-    save_unlocked(app_data, server_hash, username, Some(dek), &pref).map_err(|e| e.to_string())?;
+    save_unlocked(app_data, server_hash, user_id, Some(dek), &pref).map_err(|e| e.to_string())?;
     Ok(pref)
 }
 

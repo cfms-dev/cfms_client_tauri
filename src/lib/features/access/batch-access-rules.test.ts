@@ -31,8 +31,8 @@ describe('native access batch adapter', () => {
     expect(disposeAccessBatch).toHaveBeenCalledWith('late'); expect(change).not.toHaveBeenCalled();
   });
   it('keeps the frontend guard as an early UX check', () => {
-    const identity = { server: 's', username: 'u' };
+    const identity = { server: 's', userId: 'u' };
     expect(batchRulesSessionProblem(identity, { ...identity, loggedIn: true, permitted: true, connected: true, lockdown: true, bypassLockdown: true })).toBeNull();
-    expect(batchRulesSessionProblem(identity, { ...identity, username: 'other', loggedIn: true, permitted: true, connected: true, lockdown: false, bypassLockdown: false })).toEqual({ kind: 'identity' });
+    expect(batchRulesSessionProblem(identity, { ...identity, userId: 'other', loggedIn: true, permitted: true, connected: true, lockdown: false, bypassLockdown: false })).toEqual({ kind: 'identity' });
   });
 });

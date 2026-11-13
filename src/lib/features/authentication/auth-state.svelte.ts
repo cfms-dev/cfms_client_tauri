@@ -94,6 +94,5 @@ function normalizeNickname(nickname: string | null, username: string | null) {
   const cleanNickname = nickname?.trim();
   if (cleanNickname) return cleanNickname;
 
-  const cleanUsername = username?.trim();
-  return cleanUsername || null;
+  return username || null;
 }

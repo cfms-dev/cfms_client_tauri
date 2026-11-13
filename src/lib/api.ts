@@ -21,3 +21,5 @@ export * from './api/schedules';
 
 export * from './api/access-batches';
 export * from './api/app-lock';
+
+export * from './api/server-settings';

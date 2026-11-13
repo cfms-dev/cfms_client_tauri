@@ -49,6 +49,6 @@ pub fn get_server_hash(server_address: &str) -> String {
 /// Mirrors [`get_username_hash`] in the Python reference.
 pub fn get_username_hash(username: &str) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(username.trim().as_bytes());
+    hasher.update(username.as_bytes());
     hex::encode(&hasher.finalize()[..8])
 }

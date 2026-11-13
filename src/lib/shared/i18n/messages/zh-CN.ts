@@ -1,4 +1,34 @@
 export const zh_CN = {
+  protocol30: {
+    "changeUsername": "修改用户名",
+    "usernameHint": "用户名为 1–64 个字符，保留空格和大小写。以后请使用新用户名登录；账户 ID 和当前会话保持不变。",
+    "usernameRejected": "服务器拒绝了此用户名。请检查长度，以及是否已被其他账户使用。",
+    "unconfirmed": "无法确认操作结果。请先刷新核实服务器状态，再决定是否重试。"
+},
+  serverSettings: {
+    "title": "服务器设置",
+    "description": "按命名空间管理服务器运行选项。同一命名空间的更改将一起保存。",
+    "namespace": "命名空间",
+    "search": "搜索设置",
+    "readRequired": "需要 view_settings 权限才能发现和读取服务器设置。",
+    "disconnected": "请连接服务器并登录后查看服务器设置。",
+    "readOnly": "当前为只读模式，需要 manage_settings 权限才能保存。",
+    "empty": "此服务器没有公开的设置。",
+    "noMatches": "此命名空间中没有匹配的设置。",
+    "revision": "修订版本 {revision}",
+    "restoreDefault": "使用默认值",
+    "unsaved": "有未保存的更改",
+    "upToDate": "没有待保存的更改",
+    "saved": "服务器设置已保存。",
+    "conflict": "服务器上的设置已被修改，草稿已保留。请刷新并核对最新值后重新编辑。",
+    "invalid": "服务器拒绝了设置值或其组合，请检查后重试。",
+    "valueInvalid": "请输入符合此设置类型和约束的有效值。",
+    "unavailable": "部分设置已不可用，请刷新以重新加载服务器设置。",
+    "failed": "无法保存服务器设置，草稿已保留。",
+    "denied": "服务器拒绝了此操作，请检查设置权限。",
+    "leaveChanges": "放弃尚未保存的服务器设置更改？"
+},
+
   publicKey: {
     signInOptions: "登录选项",
     passwordOption: "密码",

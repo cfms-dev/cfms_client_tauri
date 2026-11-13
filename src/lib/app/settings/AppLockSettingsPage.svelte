@@ -73,7 +73,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
   onMount(async () => {
     if (authStore.isLoggedIn && authStore.username) {
-      await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+      await appLockStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`);
     }
     if (isMobile) {
       await appLockStore.refreshBiometricAvailability();

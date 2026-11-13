@@ -7,15 +7,16 @@ use crate::UploadInterruption;
 /// Reload download tasks for the current user.
 ///
 /// Loads tasks from the per-user encrypted JSON file into the in-memory queue.
-/// Must be called after login (when username, server_address, and DEK are set).
+/// Must be called after login (when user_id, server_address, and DEK are set).
 ///
 /// Mirrors [`reload_tasks_for_user`] in the Python reference.
 #[tauri::command]
 pub async fn reload_tasks_for_user(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<usize, String> {
-    let username = {
-        let u = state.inner.username.read().await;
+    super::preferences::ensure_account_storage(&state).await?;
+    let user_id = {
+        let u = state.inner.user_id.read().await;
         u.clone()
     }
     .ok_or_else(|| "Not logged in".to_string())?;
@@ -35,7 +36,7 @@ pub async fn reload_tasks_for_user(
 
     let count = state
         .tasks
-        .load_for_user(&state.app_data_dir, &server_hash, &username, dek.as_deref())
+        .load_for_user(&state.app_data_dir, &server_hash, &user_id, dek.as_deref())
         .map_err(|e| format!("Failed to load download tasks: {e}"))?;
 
     state
@@ -43,7 +44,7 @@ pub async fn reload_tasks_for_user(
         .interrupt_all(UploadInterruption::Cancelled);
     let upload_count = state
         .upload_tasks
-        .load_for_user(&state.app_data_dir, &server_hash, &username, dek.as_deref())
+        .load_for_user(&state.app_data_dir, &server_hash, &user_id, dek.as_deref())
         .map_err(|e| format!("Failed to load upload tasks: {e}"))?;
 
     tracing::info!("Reloaded {count} download tasks and {upload_count} upload tasks");

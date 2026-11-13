@@ -41,7 +41,7 @@ export interface BatchRulesProblem {
 
 export interface BatchRulesIdentity {
   server: string | null;
-  username: string | null;
+  userId: string | null;
 }
 
 export interface BatchRulesSession extends BatchRulesIdentity {

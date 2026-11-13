@@ -34,7 +34,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
     try {
       if (authStore.username) {
-        await screenProtectionStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`);
+        await screenProtectionStore.init(`${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`);
       }
       screenshotProtectionEnabled = screenProtectionStore.userEnabled;
     } catch (err) {

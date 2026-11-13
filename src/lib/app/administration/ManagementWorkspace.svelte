@@ -16,6 +16,8 @@
   import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
   import PermissionEntriesDialog from '$lib/features/access/PermissionEntriesDialog.svelte';
   import ResetUserPasswordDialog from '$lib/features/authentication/ResetUserPasswordDialog.svelte';
+  import ServerSettings from '$lib/features/administration/ServerSettings.svelte';
+  import ChangeUsernameDialog from '$lib/features/authentication/ChangeUsernameDialog.svelte';
   import SecurityManagement from '$lib/features/administration/SecurityManagement.svelte';
   import UserAvatarPicker from '$lib/features/authentication/UserAvatarPicker.svelte';
   import AuthenticationManagement from '$lib/features/authentication/AuthenticationManagement.svelte';
@@ -78,7 +80,7 @@
 
     <div
       class="management-content"
-      class:management-content--contained={workspace.activeTab !== 'security'}
+      class:management-content--contained={workspace.activeTab !== 'security' && workspace.activeTab !== 'settings'}
       class:management-content--audit={workspace.activeTab === 'logs'}
     >
       {#if workspace.activeTab === 'accounts'}
@@ -157,7 +159,8 @@
                 </FluentButton>
                 <div class="manage-list-actions">
                   {@render ActionButton('info', $t('manage.properties'), () => workspace.handleViewUser(user), workspace.busyKey !== null)}
-                  {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null)}
+                  {@render ActionButton('edit', $t('protocol30.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
+                  {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => workspace.handleEditUserGroups(user), workspace.busyKey !== null)}
                   {@render ActionButton('accountCircle', workspace.canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => workspace.handleChangeUserAvatar(user), !workspace.canManageUserAvatars || workspace.busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => workspace.handleEditUserPermissions(user), !workspace.canSetUserPermissions || workspace.busyKey !== null)}
@@ -172,7 +175,8 @@
                   <div class="manage-list-expanded rounded-lg border border-md3-outline/50 bg-md3-surface-container-high px-2 py-2 animate-fade-scale-in">
                     <div class="flex flex-wrap justify-end gap-1">
                       {@render ActionButton('info', $t('manage.properties'), () => workspace.handleViewUser(user), workspace.busyKey !== null)}
-                      {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null)}
+                      {@render ActionButton('edit', $t('protocol30.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
+                  {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => workspace.handleEditUserGroups(user), workspace.busyKey !== null)}
                       {@render ActionButton('accountCircle', workspace.canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => workspace.handleChangeUserAvatar(user), !workspace.canManageUserAvatars || workspace.busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => workspace.handleEditUserPermissions(user), !workspace.canSetUserPermissions || workspace.busyKey !== null)}
@@ -280,6 +284,8 @@
             {/each}
           </div>
         {/if}
+      {:else if workspace.activeTab === 'settings'}
+        <ServerSettings bind:this={workspace.serverSettings} />
       {:else if workspace.activeTab === 'security'}
         <SecurityManagement
           canListSubnets={workspace.canListBannedSubnets}
@@ -1073,3 +1079,7 @@
     }
   }
 </style>
+
+{#if workspace.activeDialog?.kind === 'username'}
+  <ChangeUsernameDialog userId={workspace.activeDialog.user.user_id} username={workspace.activeDialog.user.username} onClose={() => { workspace.activeDialog = null; }} onSaved={workspace.loadActiveTab} />
+{/if}

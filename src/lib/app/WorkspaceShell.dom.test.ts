@@ -47,7 +47,7 @@ it.each([
   ['About', '/home/about'],
   ['Administration', '/home/manage'],
 ])('opens %s directly from workspace navigation', async (label, href) => {
-  authStore.permissions = ['manage_system'];
+  authStore.permissions = ['list_users'];
   render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
   await fireEvent.click(screen.getByRole('button', { name: label }));
   expect(mocks.goto).toHaveBeenCalledWith(href);

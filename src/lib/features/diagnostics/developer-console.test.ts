@@ -4,7 +4,7 @@ import { canOpenDeveloperConsole, developerConsoleIdentityKey } from '$lib/featu
 const availableState = {
   connected: true,
   isLoggedIn: true,
-  username: 'developer',
+  userId: 'developer',
   postLoginPending: false,
   locked: false,
   serverAddress: 'server.example',
@@ -15,7 +15,7 @@ describe('developer console access', () => {
     expect(canOpenDeveloperConsole(availableState)).toBe(true);
     expect(canOpenDeveloperConsole({ ...availableState, connected: false })).toBe(false);
     expect(canOpenDeveloperConsole({ ...availableState, isLoggedIn: false })).toBe(false);
-    expect(canOpenDeveloperConsole({ ...availableState, username: null })).toBe(false);
+    expect(canOpenDeveloperConsole({ ...availableState, userId: null })).toBe(false);
     expect(canOpenDeveloperConsole({ ...availableState, postLoginPending: true })).toBe(false);
     expect(canOpenDeveloperConsole({ ...availableState, locked: true })).toBe(false);
   });

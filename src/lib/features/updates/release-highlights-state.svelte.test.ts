@@ -37,7 +37,7 @@ describe('release highlights state', () => {
   it('filters automatic presentations using account permissions', async () => {
     const { state } = createState('0.42.0');
     await state.initialize();
-    state.openAutomatically(['diagnostics', 'manage_system']);
+    state.openAutomatically(['diagnostics', 'list_users']);
     expect(state.presentation?.highlights.map((item) => item.id)).toEqual([
       'fullscreen-feature-tour',
       'document-id-download',
@@ -54,13 +54,13 @@ describe('release highlights state', () => {
       writeSetting: async () => {},
     });
 
-    expect(state.hasAvailableHighlights(['manage_system'])).toBe(false);
+    expect(state.hasAvailableHighlights(['list_users'])).toBe(false);
 
     await state.initialize();
 
     expect(state.hasAvailableHighlights([])).toBe(false);
     expect(state.hasAvailableHighlights(['diagnostics'])).toBe(false);
-    expect(state.hasAvailableHighlights(['manage_system'])).toBe(true);
+    expect(state.hasAvailableHighlights(['list_users'])).toBe(true);
   });
 
   it('fails closed when the seen-version setting is unavailable', async () => {

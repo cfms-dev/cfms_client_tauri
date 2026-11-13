@@ -4,7 +4,7 @@
 //! `reference/src/include/classes/services/download.py`:
 //!
 //! - Task metadata is stored in per-user encrypted JSON files:
-//!   `{app_data}/download_tasks/{server_hash}_{username}.json`
+//!   `{app_data}/download_tasks/accounts/{server_hash}/{user_id_hash}.json`
 //! - Files are encrypted with the DEK (AES-256-GCM) via
 //!   [`cfms_crypto::config`].
 //! - No plaintext fallback — this is a greenfield client without legacy
@@ -73,22 +73,20 @@ struct TaskJson {
 
 /// Build the persistence file path.
 ///
-/// Returns `{app_data}/download_tasks/{server_hash}_{username}.json`,
+/// Returns `{app_data}/download_tasks/accounts/{server_hash}/{user_id_hash}.json`,
 /// matching `_get_persistence_file_path()` in the Python reference.
-pub fn file_path(app_data: &Path, server_hash: &str, username: &str) -> PathBuf {
-    app_data
-        .join("download_tasks")
-        .join(format!("{server_hash}_{username}.json"))
+pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
+    crate::account_storage::file_path(app_data, "download_tasks", server_hash, user_id)
 }
 
 /// Return whether a persisted task file exists for a user.
-pub fn exists(app_data: &Path, server_hash: &str, username: &str) -> bool {
-    file_path(app_data, server_hash, username).exists()
+pub fn exists(app_data: &Path, server_hash: &str, user_id: &str) -> bool {
+    file_path(app_data, server_hash, user_id).exists()
 }
 
 /// Delete the persisted task file for a user, if one exists.
-pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()> {
-    let path = file_path(app_data, server_hash, username);
+pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> {
+    let path = file_path(app_data, server_hash, user_id);
     if !path.exists() {
         return Ok(());
     }
@@ -115,10 +113,10 @@ pub fn discard(app_data: &Path, server_hash: &str, username: &str) -> Result<()>
 pub fn load(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; KEY_LEN]>,
 ) -> Result<Vec<DownloadTaskDto>> {
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
 
     if !path.exists() {
         return Ok(Vec::new());
@@ -223,7 +221,7 @@ pub fn load(
 pub fn save(
     app_data: &Path,
     server_hash: &str,
-    username: &str,
+    user_id: &str,
     dek: Option<&[u8; KEY_LEN]>,
     tasks: &[DownloadTaskDto],
 ) -> Result<()> {
@@ -283,7 +281,7 @@ pub fn save(
     let encrypted = cfms_crypto::encrypt_config(&plaintext, dek)
         .map_err(|e| cfms_core::Error::Other(format!("Failed to encrypt tasks: {e}")))?;
 
-    let path = file_path(app_data, server_hash, username);
+    let path = file_path(app_data, server_hash, user_id);
 
     // Ensure the directory exists.
     if let Some(parent) = path.parent() {
@@ -361,4 +359,10 @@ mod tests {
         assert!(!exists(temp.path(), SERVER_HASH, USERNAME));
         assert!(!path.exists());
     }
+}
+
+pub(crate) fn validate(bytes: &[u8]) -> std::result::Result<(), String> {
+    serde_json::from_slice::<TasksJson>(bytes)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }

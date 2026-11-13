@@ -72,7 +72,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   let error = $state<string | null>(null);
   const scopeKey = $derived(
     authStore.isLoggedIn && authStore.username
-      ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`
+      ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`
       : 'global',
   );
   const autoSave = createAutoSave({

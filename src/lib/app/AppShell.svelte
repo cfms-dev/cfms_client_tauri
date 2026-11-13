@@ -100,7 +100,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   const developerConsoleAccessState = $derived({
     connected: serverStateStore.connected,
     isLoggedIn: authStore.isLoggedIn,
-    username: authStore.username,
+    userId: authStore.userId,
     postLoginPending: authStore.postLoginPending,
     locked: appLockStore.locked,
     serverAddress: serverStateStore.remoteAddress,
@@ -295,7 +295,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     if (resetRecoveryMode) return;
     if (authStore.postLoginPending) return;
     const scopeKey = authStore.isLoggedIn && authStore.username
-      ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`
+      ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`
       : 'global';
     void appearanceStore.load(scopeKey).catch((error) => {
       notificationStore.error(error instanceof Error ? error.message : String(error));
@@ -304,7 +304,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 
   $effect(() => {
     if (!authStore.isLoggedIn || !authStore.username) return;
-    const scopeKey = `${serverStateStore.remoteAddress ?? 'local'}:${authStore.username}`;
+    const scopeKey = `${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`;
     void appLockStore.init(scopeKey);
     void screenProtectionStore.init(scopeKey);
     void uploadStore.initConcurrency(scopeKey);

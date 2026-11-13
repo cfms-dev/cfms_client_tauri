@@ -13,11 +13,13 @@ export async function getUserAvatar(
  *  Returns the local filesystem path to the cached avatar, or null on failure. */
 export async function downloadAvatar(
   taskData: object,
+  userId: string,
   username: string,
   forceDownload?: boolean,
 ): Promise<string | null> {
   return invoke("download_avatar", {
     taskData,
+    userId,
     username,
     forceDownload: forceDownload ?? false,
   });

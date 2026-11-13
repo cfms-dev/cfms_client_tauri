@@ -651,6 +651,7 @@ mod tests {
             .unwrap();
         peer.state.clear_auth().await;
         *peer.state.username.write().await = Some("bob".into());
+        *peer.state.user_id.write().await = Some("bob-id".into());
         gate.notify_one();
         peer.state
             .download_batches
