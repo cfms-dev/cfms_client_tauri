@@ -15,6 +15,7 @@ pub use app_state::{AppHandleState, ConnectAttemptRegistry};
 mod github_credentials;
 mod local_data_reset;
 mod localization;
+mod managed_auth_keys;
 mod preference_keys;
 mod public_key_auth;
 mod secure_store;

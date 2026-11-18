@@ -7,14 +7,14 @@ import PublicKeyVerification from '$lib/features/authentication/PublicKeyVerific
 import PreferenceUnlockDialog from '$lib/features/authentication/PreferenceUnlockDialog.svelte';
 import AuthenticationDialog from '$lib/features/authentication/AuthenticationDialog.svelte';
 
-const mocks = vi.hoisted(() => ({ pick: vi.fn(), release: vi.fn(), respond: vi.fn(), cancel: vi.fn() }));
+const mocks = vi.hoisted(() => ({ pick: vi.fn(), release: vi.fn(), respond: vi.fn(), cancel: vi.fn(), managedKeys: vi.fn(), selectManaged: vi.fn() }));
 vi.hoisted(() => { Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) }); });
-vi.mock('$lib/api', async (original) => ({ ...await original<typeof import('$lib/api')>(), pickAuthPrivateKey: mocks.pick, releaseAuthPrivateKey: mocks.release, respondPublicKeyInteraction: mocks.respond, cancelPublicKeyAuthentication: mocks.cancel }));
+vi.mock('$lib/api', async (original) => ({ ...await original<typeof import('$lib/api')>(), pickAuthPrivateKey: mocks.pick, releaseAuthPrivateKey: mocks.release, respondPublicKeyInteraction: mocks.respond, cancelPublicKeyAuthentication: mocks.cancel, getManagedAuthKeys: mocks.managedKeys, selectManagedAuthKey: mocks.selectManaged }));
 vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
 const key = { keyRef: 'native-handle', filename: 'id_ed25519', algorithm: 'ssh-ed25519', fingerprint: 'abcdef'.repeat(10), encrypted: true };
-beforeEach(() => { locale.set('en'); mocks.pick.mockResolvedValue(key); mocks.release.mockResolvedValue(undefined); mocks.cancel.mockResolvedValue(undefined); });
+beforeEach(() => { locale.set('en'); mocks.pick.mockResolvedValue(key); mocks.release.mockResolvedValue(undefined); mocks.cancel.mockResolvedValue(undefined); mocks.managedKeys.mockResolvedValue({ storageAvailable: true, hardwareBacked: true, boundKeys: [], rescueKeys: [] }); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 async function select() {
   await fireEvent.click(screen.getByRole('button', { name: /Choose private key/ }));
@@ -60,6 +60,32 @@ describe('public-key verification', () => {
   it('offers public-key MFA only when the caller enables that capability', async () => {
     render(AuthenticationDialog, { methods: ['publickey'], title: 'MFA', onVerify: vi.fn(), onCancel: vi.fn(), allowPublicKey: true });
     expect(screen.getByRole('button', { name: /Choose private key/ })).toBeTruthy();
+  });
+  it('supports selecting server-bound managed keys, rescue keys from other servers, and external files', async () => {
+    mocks.managedKeys.mockResolvedValue({
+      storageAvailable: true,
+      hardwareBacked: true,
+      boundKeys: [{ keyId: 'bound-1', label: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'alice', credentialId: 'c1', createdAt: 1 }],
+      rescueKeys: [{ keyId: 'rescue-1', label: 'Migrated Key', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'alice', credentialId: 'c2', createdAt: 2 }],
+    });
+    mocks.selectManaged
+      .mockResolvedValueOnce({ keyRef: 'bound-ref', filename: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), encrypted: false, source: 'managed', keyId: 'bound-1', hardwareBacked: true, rescue: false, boundServer: 'current.example.com:443' })
+      .mockResolvedValueOnce({ keyRef: 'rescue-ref', filename: 'Migrated Key', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), encrypted: false, source: 'managed', keyId: 'rescue-1', hardwareBacked: false, rescue: true, boundServer: 'old.example.com:443' });
+    const verify = vi.fn().mockResolvedValue(true);
+    render(PublicKeyVerification, { onVerify: verify, onCancel: vi.fn() });
+
+    const boundButton = await screen.findByRole('button', { name: /Primary TPM Key/ });
+    await fireEvent.click(boundButton);
+    await waitFor(() => expect(mocks.selectManaged).toHaveBeenCalledWith('bound-1'));
+
+    const rescueButton = screen.getByRole('button', { name: /Migrated Key/ });
+    await fireEvent.click(rescueButton);
+    await waitFor(() => expect(mocks.selectManaged).toHaveBeenCalledWith('rescue-1'));
+    expect(mocks.release).toHaveBeenCalledWith('bound-ref');
+    expect(await screen.findByText(/Selected from rescue/)).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    await waitFor(() => expect(verify).toHaveBeenCalledWith('rescue-ref', '', expect.any(Function)));
   });
 });
 

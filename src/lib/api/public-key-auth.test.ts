@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { loginWithPublicKey, preparePreferenceUnlock, unlockPreferenceDek, respondPublicKeyInteraction } from './auth';
+import { generateUserAuthPublicKey, getManagedAuthKeys, loginWithPublicKey, preparePreferenceUnlock, selectManagedAuthKey, unlockPreferenceDek, respondPublicKeyInteraction } from './auth';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), Channel: class { onmessage?: (event: unknown) => void } }));
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(invoke).mockResolvedValue({ has_token: true }); });
 describe('native public-key bridge', () => {
@@ -21,5 +21,13 @@ describe('native public-key bridge', () => {
   it('targets the requested continuation interaction', async () => {
     await respondPublicKeyInteraction('step-2', 'second-native-key', '');
     expect(invoke).toHaveBeenCalledWith('respond_public_key_interaction', { interactionId: 'step-2', keyRef: 'second-native-key', passphrase: '' });
+  });
+  it('queries, selects, and generates device-managed authentication keypairs', async () => {
+    await getManagedAuthKeys();
+    expect(invoke).toHaveBeenNthCalledWith(1, 'get_managed_auth_keys');
+    await selectManagedAuthKey('managed-1');
+    expect(invoke).toHaveBeenNthCalledWith(2, 'select_managed_auth_key', { keyId: 'managed-1' });
+    await generateUserAuthPublicKey('Laptop TPM');
+    expect(invoke).toHaveBeenNthCalledWith(3, 'generate_user_auth_public_key', { label: 'Laptop TPM' });
   });
 });

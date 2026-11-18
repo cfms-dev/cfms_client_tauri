@@ -8,6 +8,13 @@ use std::{
 };
 use tokio::sync::{oneshot, watch};
 
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum KeySource {
+    External,
+    Managed,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyInfo {
@@ -16,15 +23,62 @@ pub struct KeyInfo {
     pub algorithm: String,
     pub fingerprint: String,
     pub encrypted: bool,
+    pub source: KeySource,
+    pub key_id: Option<String>,
+    pub hardware_backed: bool,
+    pub rescue: bool,
+    pub bound_server: Option<String>,
 }
+
+#[derive(Clone)]
+pub enum SigningKeyHandle {
+    External(AuthPrivateKey),
+    Managed {
+        key_id: String,
+        fingerprint: String,
+        backend: crate::managed_auth_keys::ManagedKeyBackend,
+        rescue: bool,
+    },
+}
+
+impl SigningKeyHandle {
+    pub fn fingerprint(&self) -> Result<String, String> {
+        match self {
+            Self::External(key) => public_key_auth::fingerprint(key),
+            Self::Managed { fingerprint, .. } => Ok(fingerprint.clone()),
+        }
+    }
+
+    pub fn rescue_key_id(&self) -> Option<&str> {
+        match self {
+            Self::Managed {
+                key_id,
+                rescue: true,
+                ..
+            } => Some(key_id.as_str()),
+            _ => None,
+        }
+    }
+}
+
+enum SelectedHandle {
+    External(AuthPrivateKey),
+    Managed {
+        key_id: String,
+        fingerprint: String,
+        backend: crate::managed_auth_keys::ManagedKeyBackend,
+        rescue: bool,
+    },
+}
+
 struct SelectedKey {
-    key: AuthPrivateKey,
+    handle: SelectedHandle,
     selected: Instant,
 }
 pub struct ActiveAttempt {
     pub id: String,
     pub cancel: watch::Sender<bool>,
-    pub reply: Option<(String, oneshot::Sender<AuthPrivateKey>)>,
+    pub reply: Option<(String, oneshot::Sender<SigningKeyHandle>)>,
 }
 #[derive(Default)]
 pub struct PublicKeyState {
@@ -44,29 +98,89 @@ impl PublicKeyState {
             algorithm: key.algorithm().to_string(),
             fingerprint: public_key_auth::fingerprint(&key)?,
             encrypted: key.is_encrypted(),
+            source: KeySource::External,
+            key_id: None,
+            hardware_backed: false,
+            rescue: false,
+            bound_server: None,
         };
         let mut keys = self.keys.lock().unwrap();
         keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
         keys.insert(
             info.key_ref.clone(),
             SelectedKey {
-                key,
+                handle: SelectedHandle::External(key),
                 selected: Instant::now(),
             },
         );
         Ok(info)
     }
-    pub fn take(&self, key_ref: &str, passphrase: &str) -> Result<AuthPrivateKey, String> {
+    pub fn select_managed(
+        &self,
+        record: &crate::managed_auth_keys::ManagedKeyRecord,
+        current_server_hash: Option<&str>,
+    ) -> KeyInfo {
+        let rescue = current_server_hash.is_none_or(|hash| hash != record.server_hash);
+        let filename = record
+            .label
+            .clone()
+            .filter(|label| !label.trim().is_empty())
+            .unwrap_or_else(|| record.algorithm.clone());
+        let info = KeyInfo {
+            key_ref: random_id(),
+            filename,
+            algorithm: record.algorithm.clone(),
+            fingerprint: record.fingerprint.clone(),
+            encrypted: false,
+            source: KeySource::Managed,
+            key_id: Some(record.key_id.clone()),
+            hardware_backed: record.hardware_backed,
+            rescue,
+            bound_server: Some(record.server_address.clone()),
+        };
+        let mut keys = self.keys.lock().unwrap();
+        keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
+        keys.insert(
+            info.key_ref.clone(),
+            SelectedKey {
+                handle: SelectedHandle::Managed {
+                    key_id: record.key_id.clone(),
+                    fingerprint: record.fingerprint.clone(),
+                    backend: record.backend,
+                    rescue,
+                },
+                selected: Instant::now(),
+            },
+        );
+        info
+    }
+    pub fn take(&self, key_ref: &str, passphrase: &str) -> Result<SigningKeyHandle, String> {
         let mut keys = self.keys.lock().unwrap();
         keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
         let key = keys
             .get(key_ref)
             .filter(|key| key.selected.elapsed() < Duration::from_secs(600))
             .ok_or("publicKey.selectAgain")?;
-        // Keep the encrypted selection for retry when the passphrase is wrong.
-        let decrypted = public_key_auth::unlock(key.key.clone(), passphrase)?;
+        let handle = match &key.handle {
+            SelectedHandle::External(raw) => {
+                // Keep the encrypted selection for retry when the passphrase is wrong.
+                let decrypted = public_key_auth::unlock(raw.clone(), passphrase)?;
+                SigningKeyHandle::External(decrypted)
+            }
+            SelectedHandle::Managed {
+                key_id,
+                fingerprint,
+                backend,
+                rescue,
+            } => SigningKeyHandle::Managed {
+                key_id: key_id.clone(),
+                fingerprint: fingerprint.clone(),
+                backend: *backend,
+                rescue: *rescue,
+            },
+        };
         keys.remove(key_ref);
-        Ok(decrypted)
+        Ok(handle)
     }
     pub fn release(&self, key_ref: &str) {
         self.keys.lock().unwrap().remove(key_ref);

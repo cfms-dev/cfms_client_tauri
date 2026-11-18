@@ -728,6 +728,7 @@ dependencies = [
  "url",
  "webpki-roots 1.0.12",
  "window-vibrancy",
+ "windows-sys 0.61.2",
  "winreg",
  "zeroize",
 ]

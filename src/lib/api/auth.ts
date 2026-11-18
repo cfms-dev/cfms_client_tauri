@@ -27,8 +27,35 @@ export interface AuthPrivateKeyInfo {
   algorithm: string;
   fingerprint: string;
   encrypted: boolean;
+  source?: 'external' | 'managed';
+  keyId?: string | null;
+  hardwareBacked?: boolean;
+  rescue?: boolean;
+  boundServer?: string | null;
 }
+
+export interface ManagedAuthKeySummary {
+  keyId: string;
+  label: string | null;
+  algorithm: string;
+  fingerprint: string;
+  hardwareBacked: boolean;
+  serverAddress: string;
+  username: string;
+  credentialId: string | null;
+  createdAt: number;
+}
+
+export interface ManagedAuthKeyInventory {
+  storageAvailable: boolean;
+  hardwareBacked: boolean;
+  boundKeys: ManagedAuthKeySummary[];
+  rescueKeys: ManagedAuthKeySummary[];
+}
+
 export type PublicKeyInteraction = { kind: 'signing' } | { kind: 'select_key'; interaction_id: string };
+export const getManagedAuthKeys = (): Promise<ManagedAuthKeyInventory> => invoke('get_managed_auth_keys');
+export const selectManagedAuthKey = (keyId: string): Promise<AuthPrivateKeyInfo> => invoke('select_managed_auth_key', { keyId });
 export const pickAuthPrivateKey = (): Promise<AuthPrivateKeyInfo | null> => invoke('pick_auth_private_key');
 export const releaseAuthPrivateKey = (keyRef: string): Promise<void> => invoke('release_auth_private_key', { keyRef });
 export const cancelPublicKeyAuthentication = (): Promise<void> => invoke('cancel_public_key_authentication');
@@ -54,6 +81,10 @@ export async function setUserAuthPolicies(policies: AuthPolicyReplacement[], use
 
 export async function registerUserAuthPublicKey(publicKey: string, label: string | null, userId?: string): Promise<{ credential_id: string; fingerprint: string; label: string | null }> {
   return invoke('register_user_auth_public_key', { publicKey, label, userId: userId ?? null });
+}
+
+export async function generateUserAuthPublicKey(label: string | null): Promise<{ credential_id: string; fingerprint: string; label: string | null; key_id: string; hardware_backed: boolean; algorithm: string }> {
+  return invoke('generate_user_auth_public_key', { label });
 }
 
 export async function updateUserAuthPublicKey(credentialId: string, label: string | null, userId?: string): Promise<{ credential_id: string; label: string | null }> {

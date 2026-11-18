@@ -2,16 +2,23 @@
   import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
   import type { Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { UserAuthentication } from '$lib/api';
+  import type { ManagedAuthKeyInventory, ManagedAuthKeySummary, UserAuthentication } from '$lib/api';
   import { AUTH_PURPOSES, authMethodName, credentialName, shortKeyIdentity, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
 
-  let { inventory, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onEdit, onDelete, authenticator }: {
-    inventory: UserAuthentication; writable: boolean; busy: boolean; canChangePassword: boolean;
+  let { inventory, managedKeys = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
+    inventory: UserAuthentication;
+    managedKeys?: ManagedAuthKeyInventory | null;
+    writable: boolean;
+    busy: boolean;
+    canChangePassword: boolean;
     managed?: boolean;
-    onPassword: () => void; onRegister: (key: string, label: string) => Promise<boolean>;
-    onEdit: (credential: AuthCredential) => void; onDelete: (credential: AuthCredential) => void;
+    onPassword: () => void;
+    onRegister: (key: string, label: string) => Promise<boolean>;
+    onGenerate?: (label: string) => Promise<boolean>;
+    onEdit: (credential: AuthCredential) => void;
+    onDelete: (credential: AuthCredential) => void;
     authenticator: Snippet;
   } = $props();
   let adding = $state(false);
@@ -21,9 +28,19 @@
     const purposes = AUTH_PURPOSES.filter((purpose) => inventory.policies[purpose].chains.some((chain) => chain.some((step) => step.credential_ids.includes(id))));
     return purposes.length ? $t('authManagement.usedFor', { values: { purposes: purposes.map((purpose) => $t(`authManagement.purposes.${purpose}`)).join(' · ') } }) : $t('authManagement.notUsed');
   }
+  function findManagedKey(credential: AuthCredential): ManagedAuthKeySummary | undefined {
+    if (managed || !managedKeys) return undefined;
+    return managedKeys.boundKeys.find(
+      (k) => k.credentialId === credential.credential_id || (Boolean(credential.key_identity) && k.fingerprint === credential.key_identity),
+    );
+  }
   async function register(event: SubmitEvent) {
     event.preventDefault();
     if (await onRegister(publicKey.trim(), label.trim())) { publicKey = ''; label = ''; adding = false; }
+  }
+  async function generate() {
+    if (!writable || !managedKeys?.storageAvailable || !onGenerate) return;
+    if (await onGenerate(label.trim())) { publicKey = ''; label = ''; adding = false; }
   }
   const outlinedId = $props.id();
 </script>
@@ -49,9 +66,19 @@
     <div class="auth-method-heading"><Icon name="passkey" size="22px" /><div class="auth-grow"><h2 id="auth-keys-heading">{$t('authentication.publickey')}</h2><p>{$t('authManagement.publickeyHelp')}</p></div><DialogActionButton disabled={!writable} onclick={() => { adding = !adding; }} aria-expanded={adding}>{$t(adding ? 'authManagement.cancelAddKey' : 'authManagement.addKey')}</DialogActionButton></div>
     <ul class="auth-key-list">
       {#each inventory.credentials.filter((c) => c.method === 'publickey') as credential (credential.credential_id)}
+        {@const localKey = findManagedKey(credential)}
         <li>
           <div class="auth-row">
-            <div class="auth-grow"><strong>{credentialName(credential, $t('authentication.publickey'))}</strong><p>{credential.active ? $t('authManagement.registered') : $t('authManagement.inactiveCredential')}{credential.label && credential.key_identity ? ` · ${shortKeyIdentity(credential.key_identity)}` : ''}</p><p>{usage(credential.credential_id)}</p></div>
+            <div class="auth-grow">
+              <div class="auth-key-title-row">
+                <strong>{credentialName(credential, $t('authentication.publickey'))}</strong>
+                {#if localKey}
+                  <span class="auth-managed-badge">{$t(localKey.hardwareBacked ? 'authManagement.managedHardwareKeyBadge' : 'authManagement.managedDeviceKeyBadge')}</span>
+                {/if}
+              </div>
+              <p>{credential.active ? $t('authManagement.registered') : $t('authManagement.inactiveCredential')}{credential.label && credential.key_identity ? ` · ${shortKeyIdentity(credential.key_identity)}` : ''}</p>
+              <p>{usage(credential.credential_id)}</p>
+            </div>
             <div class="auth-actions"><DialogActionButton disabled={!writable} onclick={() => onEdit(credential)}>{$t('authManagement.editLabel')}</DialogActionButton><DialogActionButton variant="danger" disabled={!writable} onclick={() => onDelete(credential)}>{$t('common.delete')}</DialogActionButton></div>
           </div>
           <details><summary>{$t('authManagement.details')}</summary><dl><dt>{$t('authManagement.credentialId')}</dt><dd><code>{credential.credential_id}</code></dd><dt>{$t('authManagement.fingerprint')}</dt><dd><code>{credential.key_identity ?? '—'}</code></dd></dl></details>
@@ -62,13 +89,25 @@
       <form class="auth-form auth-inset" onsubmit={register}>
         <p>{$t('authManagement.keyHelp')}</p>
         <div>
-          <MdOutlinedField inputId={`${outlinedId}-1`} label={$t('authManagement.publicKey')} disabled={!writable}>
-            <textarea id={`${outlinedId}-1`} data-focus-ring="delegated" class="cfms-native-field" bind:value={publicKey} disabled={!writable} rows="3" spellcheck="false" placeholder="ssh-ed25519 AAAA…"></textarea>
-          </MdOutlinedField>
-        </div>
-        <div>
           <MdOutlinedField inputId={`${outlinedId}-2`} label={$t('authManagement.keyLabel')} disabled={!writable}>
             <input id={`${outlinedId}-2`} data-focus-ring="delegated" class="cfms-native-field" bind:value={label} disabled={!writable} maxlength="255" />
+          </MdOutlinedField>
+        </div>
+        {#if !managed}
+          <div class="auth-generate-panel">
+            {#if managedKeys?.storageAvailable}
+              <p>{$t(managedKeys.hardwareBacked ? 'authManagement.generateHardwareHelp' : 'authManagement.generateDeviceHelp')}</p>
+            {:else}
+              <p role="status" class="auth-notice">{$t('authManagement.generateUnavailable')}</p>
+            {/if}
+            <div class="auth-actions">
+              <DialogActionButton variant="tonal" disabled={!writable || !managedKeys?.storageAvailable} onclick={generate}>{$t('authManagement.generateKey')}</DialogActionButton>
+            </div>
+          </div>
+        {/if}
+        <div>
+          <MdOutlinedField inputId={`${outlinedId}-1`} label={$t('authManagement.publicKey')} disabled={!writable}>
+            <textarea id={`${outlinedId}-1`} data-focus-ring="delegated" class="cfms-native-field" bind:value={publicKey} disabled={!writable} rows="3" spellcheck="false" placeholder="ssh-ed25519 AAAA…"></textarea>
           </MdOutlinedField>
         </div>
         <div class="auth-actions"><DialogActionButton type="submit" variant="primary" disabled={!writable || !publicKey.trim()}>{$t('authManagement.registerKey')}</DialogActionButton></div>

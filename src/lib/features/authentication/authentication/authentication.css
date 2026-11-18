@@ -14,6 +14,9 @@
 .authentication-management .auth-key-list { list-style: none; padding: 0; margin: .75rem 0 0; }
 .authentication-management .auth-key-list li { padding: .875rem 0; border-top: 1px solid var(--explorer-border); }
 .authentication-management .auth-key-list strong { font-size: .875rem; overflow-wrap: anywhere; }
+.authentication-management .auth-key-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.authentication-management .auth-managed-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; line-height: 16px; font-weight: 500; background: var(--explorer-surface-hover); color: var(--explorer-accent); border: 1px solid var(--explorer-border); }
+.authentication-management .auth-generate-panel { display: grid; gap: .65rem; padding: .75rem; border-radius: 6px; border: 1px solid var(--explorer-border); background: var(--explorer-surface-raised); }
 .authentication-management .auth-form { display: grid; gap: .875rem; }
 .authentication-management .auth-inset { margin-top: 1rem; padding: 1rem; border-radius: 8px; background: var(--explorer-surface); }
 .authentication-management label { display: grid; gap: .4rem; font-size: .8125rem; }

@@ -3,7 +3,9 @@ use crate::commands;
 use crate::{
     ActiveUploadRegistry, AppHandleState, ConnectAttemptRegistry, localization::LocalizationManager,
 };
-use crate::{github_credentials, local_data_reset, preference_keys, public_key_auth};
+use crate::{
+    github_credentials, local_data_reset, managed_auth_keys, preference_keys, public_key_auth,
+};
 use cfms_service::db::settings::SettingsStore;
 use cfms_service::runtime::manager::ServiceManager;
 use cfms_service::state::AppState;
@@ -33,6 +35,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     }
     app.manage(github_credentials);
     app.manage(preference_keys::PreferenceKeys::default());
+    app.manage(managed_auth_keys::ManagedAuthKeys::default());
 
     let mut log_targets = Vec::new();
     if cfg!(debug_assertions) {

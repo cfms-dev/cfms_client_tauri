@@ -5,8 +5,9 @@
   import type { Snippet } from 'svelte';
   import { beforeNavigate, goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getUserAuthentication, setUserAuthPolicies, registerUserAuthPublicKey, updateUserAuthPublicKey, deleteUserAuthPublicKey, changePassword, clearAuthSession, resetUserPassword, disableManagedTwoFactor, serverErrorData, type AuthPolicyStep, type AuthPurpose, type UserAuthentication } from '$lib/api';
+  import { getUserAuthentication, setUserAuthPolicies, registerUserAuthPublicKey, generateUserAuthPublicKey, getManagedAuthKeys, updateUserAuthPublicKey, deleteUserAuthPublicKey, changePassword, clearAuthSession, resetUserPassword, disableManagedTwoFactor, serverErrorData, type AuthPolicyStep, type AuthPurpose, type ManagedAuthKeyInventory, type UserAuthentication } from '$lib/api';
   import { AUTH_PURPOSES, changedAuthPolicies, canCompleteChain, invalidPolicyDraft, hasDuplicateAuthChains, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
+  import { publicKeyError } from '$lib/features/authentication/public-key-errors';
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
@@ -29,6 +30,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     header?: Snippet<[() => Promise<void>, boolean]>;
   } = $props();
   let inventory = $state<UserAuthentication | null>(null);
+  let managedKeys = $state<ManagedAuthKeyInventory | null>(null);
   let draft = $state<Record<AuthPurpose, AuthPolicyStep[][]>>({ login: [], mfa: [], escalation: [] });
   let loading = $state(true);
   let busy = $state(false);
@@ -73,6 +75,15 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     });
   });
 
+  async function refreshManagedKeys() {
+    if (managed) { managedKeys = null; return; }
+    try {
+      const next = await getManagedAuthKeys();
+      if (next && typeof next.storageAvailable === 'boolean') managedKeys = next;
+    } catch {
+      managedKeys = { storageAvailable: false, hardwareBacked: false, boundKeys: [], rescueKeys: [] };
+    }
+  }
   async function load() {
     error = '';
     if (!canReadAuthentication(authStore.permissions, managed)) {
@@ -86,6 +97,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       draft = Object.fromEntries(AUTH_PURPOSES.map((key) => [key, structuredClone(result.policies[key].chains)])) as typeof draft;
       conflict = false;
       selectedChain = 0; selectedStep = 0;
+      await refreshManagedKeys();
     } catch (e) { error = formatUserFacingError(e); }
     finally { loading = false; }
   }
@@ -129,7 +141,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       const reason = serverErrorData(e)?.reason;
       if (reason === 'revision_conflict') conflict = true;
       const reasons = ['revision_conflict', 'duplicate_public_key', 'login_unavailable', 'escalation_unavailable', 'invalid_public_key', 'unsupported_public_key', 'invalid_policy'];
-      error = typeof reason === 'string' && reasons.includes(reason) ? $t(`authManagement.errors.${reason}`) : formatUserFacingError(e);
+      error = typeof reason === 'string' && reasons.includes(reason) ? $t(`authManagement.errors.${reason}`) : publicKeyError(e, $t);
       return false;
     } finally { busy = false; }
   }
@@ -180,10 +192,18 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       inventory?.credentials.push({ method: 'publickey', credential_id: result.credential_id, active: true, label: result.label, key_identity: result.fingerprint });
     });
   }
+  async function generateKey(label: string) {
+    if (managed || !managedKeys?.storageAvailable) return false;
+    return await write(async () => {
+      const result = await generateUserAuthPublicKey(label || null);
+      inventory?.credentials.push({ method: 'publickey', credential_id: result.credential_id, active: true, label: result.label, key_identity: result.fingerprint });
+      await refreshManagedKeys();
+    });
+  }
   async function editKey(credential: AuthCredential) {
     const next = await dialogStore.prompt({ message: $t('authManagement.keyLabel'), defaultValue: credential.label ?? '', maxLength: 255 });
     if (next === null) return;
-    await write(async () => { const result = await updateUserAuthPublicKey(credential.credential_id, next.trim() || null, userId); credential.label = result.label; });
+    await write(async () => { const result = await updateUserAuthPublicKey(credential.credential_id, next.trim() || null, userId); credential.label = result.label; await refreshManagedKeys(); });
   }
   async function deleteKey(credential: AuthCredential) {
     if (!writable || !(await beforeMethodChange())) return;
@@ -240,7 +260,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       {/each}
     </div>
     <div id="auth-panel-methods" role="tabpanel" aria-labelledby="auth-tab-methods" hidden={tab !== 'methods'}>
-      <AuthenticationMethods {inventory} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onEdit={editKey} onDelete={deleteKey}>
+      <AuthenticationMethods {inventory} {managedKeys} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
         {#snippet authenticator()}
           <AuthenticatorSettings bind:this={authenticatorSettings} {userId} bind:busy={methodBusy} disabled={busy || loading || !authStore.isLoggedIn} beforeChange={beforeMethodChange} onChanged={load} />
         {/snippet}

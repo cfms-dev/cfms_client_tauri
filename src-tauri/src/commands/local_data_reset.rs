@@ -52,7 +52,10 @@ pub async fn reset_local_data<R: Runtime>(
         tokio::task::spawn_blocking(move || {
             let vault = app.state::<crate::preference_keys::PreferenceKeys>();
             let _guard = vault.operation.lock().unwrap();
-            crate::preference_keys::clear(&app)
+            crate::preference_keys::clear(&app)?;
+            let auth_keys = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
+            let _auth_guard = auth_keys.operation.lock().unwrap();
+            crate::managed_auth_keys::clear(&app)
         })
         .await
         .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())
@@ -132,6 +135,9 @@ pub async fn retry_local_data_reset<R: Runtime>(
                 let vault = app.state::<crate::preference_keys::PreferenceKeys>();
                 let _guard = vault.operation.lock().unwrap();
                 crate::preference_keys::clear(&app)?;
+                let auth_keys = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
+                let _auth_guard = auth_keys.operation.lock().unwrap();
+                crate::managed_auth_keys::clear(&app)?;
             }
             credentials.delete_for_reset().await?;
             if let Err(error) =

@@ -8,14 +8,15 @@ import type { AuthPolicy } from '$lib/api';
 import AuthenticationManagement from '$lib/features/authentication/AuthenticationManagement.svelte';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 
-const mocks = vi.hoisted(() => ({ inventory: vi.fn(), policies: vi.fn(), register: vi.fn(), update: vi.fn(), remove: vi.fn(), totp: vi.fn(), setup: vi.fn(), verify: vi.fn(), cancel: vi.fn(), changePassword: vi.fn(), reset: vi.fn(), clear: vi.fn(), goto: vi.fn() }));
+const mocks = vi.hoisted(() => ({ inventory: vi.fn(), policies: vi.fn(), register: vi.fn(), generate: vi.fn(), managedKeys: vi.fn(), update: vi.fn(), remove: vi.fn(), totp: vi.fn(), setup: vi.fn(), verify: vi.fn(), cancel: vi.fn(), changePassword: vi.fn(), reset: vi.fn(), clear: vi.fn(), goto: vi.fn() }));
 vi.mock('$lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('$lib/api')>(),
   getTwoFactorStatus: mocks.totp, changePassword: mocks.changePassword, clearAuthSession: mocks.clear,
   setupTwoFactor: mocks.setup, validateTwoFactor: mocks.verify, cancelTwoFactorSetup: mocks.cancel,
   resetUserPassword: mocks.reset,
   getUserAuthentication: mocks.inventory, setUserAuthPolicies: mocks.policies,
-  registerUserAuthPublicKey: mocks.register, updateUserAuthPublicKey: mocks.update, deleteUserAuthPublicKey: mocks.remove,
+  registerUserAuthPublicKey: mocks.register, generateUserAuthPublicKey: mocks.generate, getManagedAuthKeys: mocks.managedKeys,
+  updateUserAuthPublicKey: mocks.update, deleteUserAuthPublicKey: mocks.remove,
 }));
 vi.mock('$app/navigation', () => ({ beforeNavigate: vi.fn(), goto: mocks.goto }));
 vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
@@ -35,6 +36,7 @@ const inventory = (escalation: AuthPolicy = { revision: 0, chains: [] }) => ({
 beforeEach(() => {
   authStore.apply({ user_id: userId, username: 'alice', nickname: 'Alice', has_token: true, token_exp: 2e9, escalation_exp: Date.now() / 1000 + 300, permissions: ['super_configure_auth_methods', 'super_list_user_auth_methods'], groups: [] });
   mocks.inventory.mockResolvedValue(inventory());
+  mocks.managedKeys.mockResolvedValue({ storageAvailable: true, hardwareBacked: true, boundKeys: [], rescueKeys: [] });
   mocks.totp.mockResolvedValue({ configured: false, enabled: false, backup_codes_count: 0 });
   mocks.setup.mockResolvedValue({ secret: 'SECRET', provisioning_uri: 'otpauth://totp/account', backup_codes: ['recovery-code'] });
   mocks.verify.mockResolvedValue(undefined);
@@ -138,6 +140,35 @@ describe('authentication management', () => {
     expect(await screen.findByText('Work key')).toBeTruthy();
     expect(mocks.policies).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'authManagement.savePolicies' })).toBeNull();
+  });
+
+  it('generates a device-managed public key when secure storage is available and disables generation when unavailable', async () => {
+    mocks.generate.mockResolvedValue({ credential_id: 'gen-id', fingerprint: 'fp-generated', label: 'Device TPM Key', key_id: 'k1', hardware_backed: true, algorithm: 'ecdsa-sha2-nistp256' });
+    mocks.managedKeys
+      .mockResolvedValueOnce({ storageAvailable: true, hardwareBacked: true, boundKeys: [], rescueKeys: [] })
+      .mockResolvedValueOnce({
+        storageAvailable: true,
+        hardwareBacked: true,
+        boundKeys: [{ keyId: 'k1', label: 'Device TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: 'fp-generated', hardwareBacked: true, serverAddress: 'example.test:443', username: 'alice', credentialId: 'gen-id', createdAt: 1 }],
+        rescueKeys: [],
+      });
+    const view = render(AuthenticationManagement);
+    await screen.findByRole('heading', { name: 'authentication.password' });
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
+    expect(screen.getByText('authManagement.generateHardwareHelp')).toBeTruthy();
+    await fireEvent.input(screen.getByLabelText('authManagement.keyLabel'), { target: { value: 'Device TPM Key' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.generateKey' }));
+    await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith('Device TPM Key'));
+    expect(await screen.findByText('Device TPM Key')).toBeTruthy();
+    expect(await screen.findByText('authManagement.managedHardwareKeyBadge')).toBeTruthy();
+    view.unmount();
+
+    mocks.managedKeys.mockResolvedValue({ storageAvailable: false, hardwareBacked: false, boundKeys: [], rescueKeys: [] });
+    render(AuthenticationManagement);
+    await screen.findByRole('heading', { name: 'authentication.password' });
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
+    expect(screen.getByText('authManagement.generateUnavailable')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'authManagement.generateKey' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it.each([undefined, 'other-account-uuid'])('clears all elevation alternatives for %s using the current revision only after saving', async (target) => {

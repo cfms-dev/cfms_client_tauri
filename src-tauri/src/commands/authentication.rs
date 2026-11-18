@@ -246,35 +246,72 @@ pub async fn register_user_auth_public_key(
 }
 
 #[tauri::command]
-pub async fn update_user_auth_public_key(
+pub async fn update_user_auth_public_key<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     user_id: Option<String>,
     credential_id: String,
     label: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    server_action_json(
+    let result = server_action_json(
         &state,
         "core.user.authentication.public_key.update",
         authentication_target(
-            serde_json::json!({"credential_id": credential_id, "label": label}),
+            serde_json::json!({"credential_id": &credential_id, "label": &label}),
             user_id,
         ),
     )
-    .await
+    .await?;
+    if let Some(server) = state.inner.server_address.read().await.clone() {
+        let server_hash = cfms_core::get_server_hash(&server);
+        let updated_label = result["label"].as_str().map(String::from).or(label);
+        let _ = tokio::task::spawn_blocking(move || {
+            use tauri::Manager;
+            let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
+            let _guard = vault.operation.lock().unwrap();
+            let _ = crate::managed_auth_keys::update_label_by_credential_id(
+                &app,
+                &server_hash,
+                &credential_id,
+                updated_label,
+            );
+        })
+        .await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn delete_user_auth_public_key(
+pub async fn delete_user_auth_public_key<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     user_id: Option<String>,
     credential_id: String,
 ) -> Result<serde_json::Value, String> {
-    server_action_json(
+    let result = server_action_json(
         &state,
         "core.user.authentication.public_key.delete",
-        authentication_target(serde_json::json!({"credential_id": credential_id}), user_id),
+        authentication_target(
+            serde_json::json!({"credential_id": &credential_id}),
+            user_id,
+        ),
     )
-    .await
+    .await?;
+    if let Some(server) = state.inner.server_address.read().await.clone() {
+        let server_hash = cfms_core::get_server_hash(&server);
+        let _ = tokio::task::spawn_blocking(move || {
+            use tauri::Manager;
+            let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
+            let _guard = vault.operation.lock().unwrap();
+            let _ = crate::managed_auth_keys::delete_by_credential_id(
+                &app,
+                &server_hash,
+                &credential_id,
+            );
+        })
+        .await;
+    }
+    Ok(result)
 }
 
 #[tauri::command]

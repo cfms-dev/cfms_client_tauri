@@ -3,11 +3,17 @@ package org.crpteam.cfms_client_tauri
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import app.tauri.annotation.Command
@@ -18,7 +24,11 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import java.security.InvalidKeyException
 import java.security.KeyStore
+import java.security.PrivateKey
+import java.security.Signature
 import java.security.UnrecoverableKeyException
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -29,6 +39,12 @@ class GithubTokenArgs {
     var token: String? = null
     var service: String? = null
     var account: String? = null
+}
+
+@InvokeArg
+class HardwareAuthKeyArgs {
+    var keyId: String? = null
+    var challenge: String? = null
 }
 
 /** Keeps the GitHub token outside SQLite and WebView storage. */
@@ -215,5 +231,137 @@ class AndroidGithubCredentialPlugin(private val activity: Activity) : Plugin(act
                 .build()
         )
         return generator.generateKey()
+    }
+
+    private fun hardwareKeyAlias(keyId: String): String = "cfms_auth_key_$keyId"
+
+    private fun fixed32Bytes(value: BigInteger): ByteArray {
+        val raw = value.toByteArray()
+        val out = ByteArray(32)
+        if (raw.size == 33 && raw[0] == 0.toByte()) {
+            System.arraycopy(raw, 1, out, 0, 32)
+        } else if (raw.size <= 32) {
+            System.arraycopy(raw, 0, out, 32 - raw.size, raw.size)
+        } else {
+            throw IllegalArgumentException("Invalid P-256 coordinate length")
+        }
+        return out
+    }
+
+    private fun generateEcKeyPair(alias: String, useStrongBox: Boolean): java.security.KeyPair {
+        val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+        val builder = KeyGenParameterSpec.Builder(
+            alias,
+            KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+        )
+            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+            .setDigests(KeyProperties.DIGEST_SHA256)
+        if (useStrongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            builder.setIsStrongBoxBacked(true)
+        }
+        generator.initialize(builder.build())
+        return generator.generateKeyPair()
+    }
+
+    @Command
+    fun checkHardwareAuthSupport(invoke: Invoke) {
+        try {
+            keyStore()
+            invoke.resolve(JSObject().apply {
+                put("available", true)
+                put("hardwareBacked", true)
+            })
+        } catch (_: Exception) {
+            invoke.resolve(JSObject().apply {
+                put("available", false)
+                put("hardwareBacked", false)
+            })
+        }
+    }
+
+    @Command
+    fun generateHardwareAuthKey(invoke: Invoke) {
+        try {
+            val keyId = requireNotNull(invoke.parseArgs(HardwareAuthKeyArgs::class.java).keyId)
+            val alias = hardwareKeyAlias(keyId)
+            val hasStrongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                activity.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+            val pair = if (hasStrongBox) {
+                try {
+                    generateEcKeyPair(alias, true)
+                } catch (_: Exception) {
+                    try { keyStore().deleteEntry(alias) } catch (_: Exception) {}
+                    generateEcKeyPair(alias, false)
+                }
+            } else {
+                generateEcKeyPair(alias, false)
+            }
+            val ecPublic = pair.public as? ECPublicKey ?: throw IllegalStateException("Expected ECPublicKey")
+            val x = fixed32Bytes(ecPublic.w.affineX)
+            val y = fixed32Bytes(ecPublic.w.affineY)
+            val sec1 = ByteArray(65)
+            sec1[0] = 0x04
+            System.arraycopy(x, 0, sec1, 1, 32)
+            System.arraycopy(y, 0, sec1, 33, 32)
+            val hardwareBacked = try {
+                val factory = KeyFactory.getInstance(pair.private.algorithm, "AndroidKeyStore")
+                val keyInfo = factory.getKeySpec(pair.private, KeyInfo::class.java)
+                @Suppress("DEPRECATION")
+                keyInfo.isInsideSecureHardware
+            } catch (_: Exception) {
+                true
+            }
+            invoke.resolve(JSObject().apply {
+                put("sec1PublicKey", Base64.encodeToString(sec1, Base64.NO_WRAP))
+                put("hardwareBacked", hardwareBacked)
+            })
+        } catch (_: Exception) {
+            invoke.reject("publicKey.storageUnavailable")
+        }
+    }
+
+    @Command
+    fun signHardwareAuthChallenge(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(HardwareAuthKeyArgs::class.java)
+            val keyId = requireNotNull(args.keyId)
+            val challengeB64 = requireNotNull(args.challenge)
+            val alias = hardwareKeyAlias(keyId)
+            val privateKey = keyStore().getKey(alias, null) as? PrivateKey
+                ?: run {
+                    invoke.reject("publicKey.storageInvalidated")
+                    return
+                }
+            val challenge = Base64.decode(challengeB64, Base64.NO_WRAP)
+            try {
+                val signature = Signature.getInstance("SHA256withECDSA").run {
+                    initSign(privateKey)
+                    update(challenge)
+                    sign()
+                }
+                invoke.resolve(JSObject().apply {
+                    put("signature", Base64.encodeToString(signature, Base64.NO_WRAP))
+                })
+            } finally {
+                challenge.fill(0)
+            }
+        } catch (_: Exception) {
+            invoke.reject("publicKey.signingFailed")
+        }
+    }
+
+    @Command
+    fun deleteHardwareAuthKey(invoke: Invoke) {
+        try {
+            val keyId = requireNotNull(invoke.parseArgs(HardwareAuthKeyArgs::class.java).keyId)
+            val alias = hardwareKeyAlias(keyId)
+            val store = keyStore()
+            if (store.containsAlias(alias)) {
+                store.deleteEntry(alias)
+            }
+            invoke.resolve()
+        } catch (_: Exception) {
+            invoke.reject("publicKey.storageUnavailable")
+        }
     }
 }
