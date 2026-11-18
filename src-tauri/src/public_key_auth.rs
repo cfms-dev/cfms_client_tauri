@@ -32,7 +32,7 @@ pub struct KeyInfo {
 
 #[derive(Clone)]
 pub enum SigningKeyHandle {
-    External(AuthPrivateKey),
+    External(Box<AuthPrivateKey>),
     Managed {
         key_id: String,
         fingerprint: String,
@@ -61,35 +61,43 @@ impl SigningKeyHandle {
     }
 }
 
-enum SelectedHandle {
-    External(AuthPrivateKey),
-    Managed {
-        key_id: String,
-        fingerprint: String,
-        backend: crate::managed_auth_keys::ManagedKeyBackend,
-        rescue: bool,
-    },
-}
-
 struct SelectedKey {
-    handle: SelectedHandle,
+    handle: SigningKeyHandle,
     selected: Instant,
 }
+
 pub struct ActiveAttempt {
     pub id: String,
     pub cancel: watch::Sender<bool>,
     pub reply: Option<(String, oneshot::Sender<SigningKeyHandle>)>,
 }
+
 #[derive(Default)]
 pub struct PublicKeyState {
     keys: Mutex<HashMap<String, SelectedKey>>,
     pub active: Mutex<Option<ActiveAttempt>>,
+    deferred_rescue: Mutex<Option<(u64, Vec<String>)>>,
 }
+
 pub fn random_id() -> String {
     use rand::RngExt;
     hex::encode(rand::rng().random::<[u8; 24]>())
 }
+
 impl PublicKeyState {
+    fn insert_selection(&self, info: KeyInfo, handle: SigningKeyHandle) -> KeyInfo {
+        let mut keys = self.keys.lock().unwrap();
+        keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
+        keys.insert(
+            info.key_ref.clone(),
+            SelectedKey {
+                handle,
+                selected: Instant::now(),
+            },
+        );
+        info
+    }
+
     pub fn select(&self, bytes: &[u8], filename: String) -> Result<KeyInfo, String> {
         let key = public_key_auth::parse(bytes)?;
         let info = KeyInfo {
@@ -104,17 +112,9 @@ impl PublicKeyState {
             rescue: false,
             bound_server: None,
         };
-        let mut keys = self.keys.lock().unwrap();
-        keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
-        keys.insert(
-            info.key_ref.clone(),
-            SelectedKey {
-                handle: SelectedHandle::External(key),
-                selected: Instant::now(),
-            },
-        );
-        Ok(info)
+        Ok(self.insert_selection(info, SigningKeyHandle::External(Box::new(key))))
     }
+
     pub fn select_managed(
         &self,
         record: &crate::managed_auth_keys::ManagedKeyRecord,
@@ -138,22 +138,17 @@ impl PublicKeyState {
             rescue,
             bound_server: Some(record.server_address.clone()),
         };
-        let mut keys = self.keys.lock().unwrap();
-        keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
-        keys.insert(
-            info.key_ref.clone(),
-            SelectedKey {
-                handle: SelectedHandle::Managed {
-                    key_id: record.key_id.clone(),
-                    fingerprint: record.fingerprint.clone(),
-                    backend: record.backend,
-                    rescue,
-                },
-                selected: Instant::now(),
+        self.insert_selection(
+            info,
+            SigningKeyHandle::Managed {
+                key_id: record.key_id.clone(),
+                fingerprint: record.fingerprint.clone(),
+                backend: record.backend,
+                rescue,
             },
-        );
-        info
+        )
     }
+
     pub fn take(&self, key_ref: &str, passphrase: &str) -> Result<SigningKeyHandle, String> {
         let mut keys = self.keys.lock().unwrap();
         keys.retain(|_, key| key.selected.elapsed() < Duration::from_secs(600));
@@ -162,35 +157,56 @@ impl PublicKeyState {
             .filter(|key| key.selected.elapsed() < Duration::from_secs(600))
             .ok_or("publicKey.selectAgain")?;
         let handle = match &key.handle {
-            SelectedHandle::External(raw) => {
+            SigningKeyHandle::External(raw) => {
                 // Keep the encrypted selection for retry when the passphrase is wrong.
-                let decrypted = public_key_auth::unlock(raw.clone(), passphrase)?;
-                SigningKeyHandle::External(decrypted)
+                let decrypted = public_key_auth::unlock(raw.as_ref().clone(), passphrase)?;
+                SigningKeyHandle::External(Box::new(decrypted))
             }
-            SelectedHandle::Managed {
-                key_id,
-                fingerprint,
-                backend,
-                rescue,
-            } => SigningKeyHandle::Managed {
-                key_id: key_id.clone(),
-                fingerprint: fingerprint.clone(),
-                backend: *backend,
-                rescue: *rescue,
-            },
+            managed @ SigningKeyHandle::Managed { .. } => managed.clone(),
         };
         keys.remove(key_ref);
         Ok(handle)
     }
+
     pub fn release(&self, key_ref: &str) {
         self.keys.lock().unwrap().remove(key_ref);
     }
+
+    pub fn defer_rescue_keys(&self, generation: u64, key_ids: Vec<String>) {
+        if key_ids.is_empty() {
+            return;
+        }
+        let mut guard = self.deferred_rescue.lock().unwrap();
+        match &mut *guard {
+            Some((existing_gen, existing_ids)) if *existing_gen == generation => {
+                for id in key_ids {
+                    if !existing_ids.iter().any(|existing| existing == &id) {
+                        existing_ids.push(id);
+                    }
+                }
+            }
+            _ => {
+                *guard = Some((generation, key_ids));
+            }
+        }
+    }
+
+    pub fn take_deferred_rescue_keys(&self, generation: u64) -> Vec<String> {
+        let mut guard = self.deferred_rescue.lock().unwrap();
+        match guard.take() {
+            Some((stored_gen, ids)) if stored_gen == generation => ids,
+            _ => Vec::new(),
+        }
+    }
+
     pub fn cancel(&self) {
         if let Some(active) = self.active.lock().unwrap().take() {
             let _ = active.cancel.send(true);
         }
         self.keys.lock().unwrap().clear();
+        *self.deferred_rescue.lock().unwrap() = None;
     }
+
     pub fn finish(&self, id: &str) {
         let mut active = self.active.lock().unwrap();
         if active.as_ref().is_some_and(|a| a.id == id) {
@@ -209,6 +225,25 @@ pub enum AuthInteraction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_managed_record(server: &str) -> crate::managed_auth_keys::ManagedKeyRecord {
+        crate::managed_auth_keys::ManagedKeyRecord {
+            key_id: "managed_01234567".into(),
+            backend: crate::managed_auth_keys::ManagedKeyBackend::OsSecureStore,
+            hardware_backed: false,
+            algorithm: "ssh-ed25519".into(),
+            fingerprint: "fp-managed".into(),
+            public_key: "ssh-ed25519 AAAA".into(),
+            label: Some("Primary".into()),
+            server_hash: cfms_core::get_server_hash(server),
+            server_address: crate::managed_auth_keys::display_server_address(server),
+            user_id: "uid-1".into(),
+            username: "alice".into(),
+            credential_id: Some("cred-1".into()),
+            created_at: 1,
+        }
+    }
+
     #[test]
     fn cancelling_releases_pending_response_and_keys() {
         let state = PublicKeyState::default();
@@ -219,11 +254,14 @@ mod tests {
             cancel,
             reply: Some(("i".into(), reply)),
         });
+        state.defer_rescue_keys(7, vec!["k1".into()]);
         state.cancel();
         assert!(*rx.borrow());
         assert!(reply_rx.try_recv().is_err());
         assert!(state.active.lock().unwrap().is_none());
+        assert!(state.take_deferred_rescue_keys(7).is_empty());
     }
+
     #[test]
     fn encrypted_handles_retry_without_exposing_key_material_and_are_consumed_after_unlock() {
         let vectors: Vec<serde_json::Value> = serde_json::from_str(include_str!(
@@ -241,6 +279,7 @@ mod tests {
         assert!(state.take(&selected.key_ref, "test-passphrase").is_ok());
         assert!(state.take(&selected.key_ref, "test-passphrase").is_err());
     }
+
     #[test]
     fn expired_and_cancelled_selections_are_released() {
         let vectors: Vec<serde_json::Value> = serde_json::from_str(include_str!(
@@ -262,5 +301,31 @@ mod tests {
         let selected = state.select(bytes, "key".into()).unwrap();
         state.cancel();
         assert!(state.take(&selected.key_ref, "").is_err());
+    }
+
+    #[test]
+    fn managed_selections_detect_rescue_by_server_hash_and_defer_by_generation() {
+        let state = PublicKeyState::default();
+        let record = sample_managed_record("wss://alpha.example.com:443");
+        let alpha_hash = cfms_core::get_server_hash("wss://alpha.example.com:443");
+        let beta_hash = cfms_core::get_server_hash("wss://beta.example.com:443");
+
+        let bound_info = state.select_managed(&record, Some(&alpha_hash));
+        assert!(!bound_info.rescue);
+        assert_eq!(bound_info.source, KeySource::Managed);
+        let bound_handle = state.take(&bound_info.key_ref, "").unwrap();
+        assert_eq!(bound_handle.rescue_key_id(), None);
+
+        let rescue_info = state.select_managed(&record, Some(&beta_hash));
+        assert!(rescue_info.rescue);
+        let rescue_handle = state.take(&rescue_info.key_ref, "").unwrap();
+        assert_eq!(rescue_handle.rescue_key_id(), Some("managed_01234567"));
+
+        state.defer_rescue_keys(3, vec!["k1".into()]);
+        state.defer_rescue_keys(3, vec!["k1".into(), "k2".into()]);
+        assert!(state.take_deferred_rescue_keys(4).is_empty());
+        state.defer_rescue_keys(5, vec!["k3".into()]);
+        assert_eq!(state.take_deferred_rescue_keys(5), vec!["k3".to_string()]);
+        assert!(state.take_deferred_rescue_keys(5).is_empty());
     }
 }

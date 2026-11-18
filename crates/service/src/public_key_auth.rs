@@ -101,18 +101,22 @@ pub fn sha256_digest(message: &[u8]) -> [u8; 32] {
     Sha256::digest(message).into()
 }
 
+fn encode_p256_signature_der(sig: &p256::ecdsa::Signature) -> String {
+    Base64::encode_string(sig.to_der().as_bytes())
+}
+
 /// Convert a 64-byte IEEE P1363 `(r || s)` P-256 signature (e.g. from Windows CNG TPM)
 /// into the canonical ASN.1 DER Base64 format expected by CFMS servers.
 pub fn encode_p256_raw_signature(raw_r_s: &[u8]) -> Result<String, String> {
     let sig = p256::ecdsa::Signature::from_slice(raw_r_s).map_err(|_| "publicKey.signingFailed")?;
-    Ok(Base64::encode_string(sig.to_der().as_bytes()))
+    Ok(encode_p256_signature_der(&sig))
 }
 
 /// Validate and normalize an ASN.1 DER P-256 signature (e.g. from Android Keystore)
 /// into the canonical ASN.1 DER Base64 format expected by CFMS servers.
 pub fn encode_p256_der_signature(der: &[u8]) -> Result<String, String> {
     let sig = p256::ecdsa::Signature::from_der(der).map_err(|_| "publicKey.signingFailed")?;
-    Ok(Base64::encode_string(sig.to_der().as_bytes()))
+    Ok(encode_p256_signature_der(&sig))
 }
 
 pub fn unlock(key: PrivateKey, passphrase: &str) -> Result<PrivateKey, String> {

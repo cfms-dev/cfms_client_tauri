@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { locale } from 'svelte-i18n';
 import '$lib/shared/i18n';
 import PublicKeyVerification from '$lib/features/authentication/PublicKeyVerification.svelte';
+import PrivateKeyField from '$lib/features/authentication/PrivateKeyField.svelte';
 import PreferenceUnlockDialog from '$lib/features/authentication/PreferenceUnlockDialog.svelte';
 import AuthenticationDialog from '$lib/features/authentication/AuthenticationDialog.svelte';
 
@@ -72,7 +73,7 @@ describe('public-key verification', () => {
       .mockResolvedValueOnce({ keyRef: 'bound-ref', filename: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), encrypted: false, source: 'managed', keyId: 'bound-1', hardwareBacked: true, rescue: false, boundServer: 'current.example.com:443' })
       .mockResolvedValueOnce({ keyRef: 'rescue-ref', filename: 'Migrated Key', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), encrypted: false, source: 'managed', keyId: 'rescue-1', hardwareBacked: false, rescue: true, boundServer: 'old.example.com:443' });
     const verify = vi.fn().mockResolvedValue(true);
-    render(PublicKeyVerification, { onVerify: verify, onCancel: vi.fn() });
+    render(PublicKeyVerification, { username: 'alice', onVerify: verify, onCancel: vi.fn() });
 
     const boundButton = await screen.findByRole('button', { name: /Primary TPM Key/ });
     await fireEvent.click(boundButton);
@@ -86,6 +87,54 @@ describe('public-key verification', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
     await waitFor(() => expect(verify).toHaveBeenCalledWith('rescue-ref', '', expect.any(Function)));
+  });
+  it('hides all managed keys when username is empty, filters bound keys, and folds other-account rescue keys', async () => {
+    mocks.managedKeys.mockResolvedValue({
+      storageAvailable: true,
+      hardwareBacked: true,
+      boundKeys: [
+        { keyId: 'alice-bound', label: 'Alice TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'alice', credentialId: 'c1', createdAt: 1 },
+        { keyId: 'bob-bound', label: 'Bob TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '33'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'bob', credentialId: 'c3', createdAt: 3 },
+      ],
+      rescueKeys: [
+        { keyId: 'alice-rescue', label: 'Alice Old', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'alice', credentialId: 'c2', createdAt: 2 },
+        { keyId: 'bob-rescue', label: 'Bob Old', algorithm: 'ssh-ed25519', fingerprint: '44'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'bob', credentialId: 'c4', createdAt: 4 },
+      ],
+    });
+    const emptyView = render(PrivateKeyField, { username: '' });
+    await waitFor(() => expect(mocks.managedKeys).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Alice TPM')).toBeNull();
+    expect(screen.queryByText('Bob TPM')).toBeNull();
+    expect(screen.queryByText(/Use another managed key/)).toBeNull();
+    emptyView.unmount();
+
+    const scopedView = render(PrivateKeyField, { username: 'alice', invalid: true });
+    const aliceBound = await screen.findByRole('button', { name: /Alice TPM/ });
+    expect(screen.queryByText('Bob TPM')).toBeNull();
+    expect(screen.getByText('Alice Old')).toBeTruthy();
+    expect(screen.getByText('Keys bound to other usernames (1)')).toBeTruthy();
+    const chooseBtn = screen.getByRole('button', { name: /Choose private key/ });
+    expect(chooseBtn.classList.contains('invalid')).toBe(true);
+
+    mocks.selectManaged.mockResolvedValueOnce({
+      keyRef: 'alice-ref',
+      filename: 'Alice TPM',
+      algorithm: 'ecdsa-sha2-nistp256',
+      fingerprint: '11'.repeat(32),
+      encrypted: false,
+      source: 'managed',
+      keyId: 'alice-bound',
+      hardwareBacked: true,
+      rescue: false,
+      boundServer: 'current.example.com:443',
+    });
+    await fireEvent.click(aliceBound);
+    await waitFor(() => expect(chooseBtn.classList.contains('invalid')).toBe(false));
+
+    await scopedView.rerender({ username: 'bob', invalid: false });
+    await waitFor(() => expect(mocks.release).toHaveBeenCalledWith('alice-ref'));
+    expect(await screen.findByRole('button', { name: /Bob TPM/ })).toBeTruthy();
+    expect(screen.queryByText('Alice TPM')).toBeNull();
   });
 });
 

@@ -204,7 +204,7 @@
         </div>
 
         {:else}
-          <PrivateKeyField bind:selection={workspace.privateKey} bind:passphrase={workspace.keyPassphrase} disabled={workspace.busy} invalid={Boolean(workspace.fieldErrors.password)} describedBy={workspace.fieldErrors.password ? 'login-key-error' : undefined} />
+          <PrivateKeyField bind:selection={workspace.privateKey} bind:passphrase={workspace.keyPassphrase} username={workspace.username} disabled={workspace.busy} invalid={Boolean(workspace.fieldErrors.password)} describedBy={workspace.fieldErrors.password ? 'login-key-error' : undefined} />
           {#if workspace.fieldErrors.password}<p id="login-key-error" role="alert" class="text-xs text-md3-error mt-2">{workspace.fieldErrors.password}</p>{/if}
         {/if}
         </div>
@@ -288,7 +288,7 @@
 
 {#if workspace.keyInteraction}
   <ModalFrame title={$t('publicKey.keyTitle')} onClose={workspace.cancelKeyLogin} maxWidth="max-w-md">
-    <PublicKeyVerification interactionId={workspace.keyInteraction} onComplete={(completed) => { if (workspace.keyInteraction === completed) workspace.keyInteraction = null; }} onCancel={() => { workspace.keyInteraction = null; }} />
+    <PublicKeyVerification interactionId={workspace.keyInteraction} username={workspace.username} onComplete={(completed) => { if (workspace.keyInteraction === completed) workspace.keyInteraction = null; }} onCancel={() => { workspace.keyInteraction = null; }} />
   </ModalFrame>
 {/if}
 {#if workspace.migrationVisible}

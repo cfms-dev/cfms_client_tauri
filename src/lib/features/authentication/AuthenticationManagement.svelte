@@ -194,13 +194,18 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   }
   async function generateKey(label: string) {
     if (managed || !managedKeys?.storageAvailable) return false;
+    const expectedHardware = Boolean(managedKeys.hardwareBacked);
     return await write(async () => {
       const result = await generateUserAuthPublicKey(label || null);
       inventory?.credentials.push({ method: 'publickey', credential_id: result.credential_id, active: true, label: result.label, key_identity: result.fingerprint });
       await refreshManagedKeys();
+      if (expectedHardware && !result.hardware_backed) {
+        notificationStore.warning($t('authManagement.hardwareFallbackNotice'));
+      }
     });
   }
   async function editKey(credential: AuthCredential) {
+    if (!writable) return;
     const next = await dialogStore.prompt({ message: $t('authManagement.keyLabel'), defaultValue: credential.label ?? '', maxLength: 255 });
     if (next === null) return;
     await write(async () => { const result = await updateUserAuthPublicKey(credential.credential_id, next.trim() || null, userId); credential.label = result.label; await refreshManagedKeys(); });
@@ -260,7 +265,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       {/each}
     </div>
     <div id="auth-panel-methods" role="tabpanel" aria-labelledby="auth-tab-methods" hidden={tab !== 'methods'}>
-      <AuthenticationMethods {inventory} {managedKeys} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
+      <AuthenticationMethods {inventory} {managedKeys} currentUsername={authStore.username} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
         {#snippet authenticator()}
           <AuthenticatorSettings bind:this={authenticatorSettings} {userId} bind:busy={methodBusy} disabled={busy || loading || !authStore.isLoggedIn} beforeChange={beforeMethodChange} onChanged={load} />
         {/snippet}

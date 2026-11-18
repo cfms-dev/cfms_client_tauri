@@ -1,17 +1,95 @@
 use super::authentication::finish_authentication;
-use super::server_actions::server_action_json;
+use super::server_actions::server_action_once;
 use super::session::{clear_auth_state, get_connection_auth};
 use super::shared_helpers::format_server_error_parts;
 use super::transfer_helpers::unix_now;
 use crate::AppHandleState;
-use cfms_service::authentication::AUTH;
-use cfms_service::authentication::GENERAL;
+use cfms_service::authentication::{AUTH, GENERAL};
 #[cfg(target_os = "android")]
 use serde::Deserialize;
 use std::sync::Arc;
-use tauri::Manager;
-use tauri::Runtime;
 use tauri::ipc::Channel;
+use tauri::{Manager, Runtime};
+
+type ChallengeSigner = Arc<
+    dyn Fn(&crate::public_key_auth::SigningKeyHandle, &[u8]) -> Result<String, String>
+        + Send
+        + Sync,
+>;
+
+pub(super) async fn run_managed_vault_op<R, T, F>(
+    app: &tauri::AppHandle<R>,
+    check_reset: bool,
+    error_fallback: &'static str,
+    op: F,
+) -> Result<T, String>
+where
+    R: Runtime,
+    T: Send + 'static,
+    F: FnOnce(&tauri::AppHandle<R>) -> Result<T, String> + Send + 'static,
+{
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
+        let _guard = vault.operation.lock().unwrap_or_else(|e| e.into_inner());
+        if check_reset
+            && app
+                .state::<crate::local_data_reset::LocalDataResetRuntime>()
+                .in_progress
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(crate::secure_store::UNAVAILABLE.to_string());
+        }
+        op(&app)
+    })
+    .await
+    .map_err(|_| error_fallback.to_string())?
+}
+
+pub(super) async fn rebind_used_rescue_keys<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    state: &AppHandleState,
+    rescue_key_ids: &[String],
+    username: &str,
+) {
+    if rescue_key_ids.is_empty() {
+        return;
+    }
+    let Some(current_server) = state.inner.server_address.read().await.clone() else {
+        return;
+    };
+    let resolved_user_id = state.inner.user_id.read().await.clone();
+    let key_ids = rescue_key_ids.to_vec();
+    let user_for_rebind = username.to_string();
+    if let Err(err) =
+        run_managed_vault_op(app, true, crate::secure_store::UNAVAILABLE, move |app| {
+            crate::managed_auth_keys::rebind_keys_to_server(
+                app,
+                &key_ids,
+                &current_server,
+                resolved_user_id.as_deref(),
+                &user_for_rebind,
+            )
+        })
+        .await
+    {
+        tracing::warn!("Rescue login succeeded, but rebinding local key metadata failed: {err}");
+    }
+}
+
+fn normalize_public_key_label(label: Option<String>) -> Result<Option<String>, String> {
+    let Some(raw) = label else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.chars().count() > 255 || trimmed.chars().any(char::is_control) {
+        return Err("publicKey.invalidLabel".into());
+    }
+    Ok(Some(trimmed.to_string()))
+}
 
 #[tauri::command]
 pub async fn get_managed_auth_keys<R: Runtime>(
@@ -19,25 +97,22 @@ pub async fn get_managed_auth_keys<R: Runtime>(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<crate::managed_auth_keys::ManagedKeyInventory, String> {
     let current_server = state.inner.server_address.read().await.clone();
-    tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Ok(crate::managed_auth_keys::ManagedKeyInventory {
-                storage_available: false,
-                hardware_backed: false,
-                bound_keys: Vec::new(),
-                rescue_keys: Vec::new(),
-            });
-        }
-        crate::managed_auth_keys::list_inventory(&app, current_server.as_deref())
+    if app
+        .state::<crate::local_data_reset::LocalDataResetRuntime>()
+        .in_progress
+        .load(std::sync::atomic::Ordering::SeqCst)
+    {
+        return Ok(crate::managed_auth_keys::ManagedKeyInventory {
+            storage_available: false,
+            hardware_backed: false,
+            bound_keys: Vec::new(),
+            rescue_keys: Vec::new(),
+        });
+    }
+    run_managed_vault_op(&app, true, crate::secure_store::UNAVAILABLE, move |app| {
+        crate::managed_auth_keys::list_inventory(app, current_server.as_deref())
     })
     .await
-    .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())?
 }
 
 #[tauri::command]
@@ -49,23 +124,24 @@ pub async fn select_managed_auth_key<R: Runtime>(
     let current_server = state.inner.server_address.read().await.clone();
     let current_hash = current_server.as_deref().map(cfms_core::get_server_hash);
     let registry = state.public_keys.clone();
-    tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err(crate::secure_store::UNAVAILABLE.into());
-        }
+    run_managed_vault_op(&app, true, "publicKey.selectAgain", move |app| {
         let record =
-            crate::managed_auth_keys::find_record(&app, &key_id)?.ok_or("publicKey.selectAgain")?;
-        crate::managed_auth_keys::verify_key_usable(&app, &record)?;
+            crate::managed_auth_keys::find_record(app, &key_id)?.ok_or("publicKey.selectAgain")?;
+        crate::managed_auth_keys::verify_key_usable(app, &record)?;
         Ok(registry.select_managed(&record, current_hash.as_deref()))
     })
     .await
-    .map_err(|_| "publicKey.selectAgain".to_string())?
+}
+
+async fn cleanup_generated_secret<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    key_id: String,
+    backend: crate::managed_auth_keys::ManagedKeyBackend,
+) {
+    let _ = run_managed_vault_op(app, false, crate::secure_store::UNAVAILABLE, move |app| {
+        crate::managed_auth_keys::delete_secret_material(app, &key_id, backend)
+    })
+    .await;
 }
 
 #[tauri::command]
@@ -74,49 +150,26 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
     state: tauri::State<'_, AppHandleState>,
     label: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    let normalized_label = normalize_public_key_label(label)?;
     let (_, username, _) = get_connection_auth(&state).await?;
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected to a server")?;
+    let identity = cfms_service::rpc::SessionIdentity::capture(&state.inner).await?;
 
-    let app_gen = app.clone();
-    let generated = tokio::task::spawn_blocking(move || {
-        let vault = app_gen.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app_gen
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err(crate::secure_store::UNAVAILABLE.to_string());
-        }
-        crate::managed_auth_keys::generate_keypair(&app_gen)
-    })
-    .await
-    .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())??;
+    let generated = run_managed_vault_op(
+        &app,
+        true,
+        crate::secure_store::UNAVAILABLE,
+        crate::managed_auth_keys::generate_keypair,
+    )
+    .await?;
 
-    let normalized_label = label.and_then(|l| {
-        let trimmed = l.trim().to_string();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
-    });
+    if let Err(err) = identity.ensure_current(&state.inner).await {
+        cleanup_generated_secret(&app, generated.key_id, generated.backend).await;
+        return Err(err);
+    }
 
-    let register_result = server_action_json(
+    let register_result = server_action_once(
         &state,
+        &identity,
         "core.user.authentication.public_key.register",
         serde_json::json!({
             "public_key": &generated.public_key,
@@ -128,19 +181,7 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
     let mut response = match register_result {
         Ok(value) => value,
         Err(error) => {
-            let app_cleanup = app.clone();
-            let key_id = generated.key_id.clone();
-            let backend = generated.backend;
-            let _ = tokio::task::spawn_blocking(move || {
-                let vault = app_cleanup.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-                let _guard = vault.operation.lock().unwrap();
-                let _ = crate::managed_auth_keys::delete_secret_material(
-                    &app_cleanup,
-                    &key_id,
-                    backend,
-                );
-            })
-            .await;
+            cleanup_generated_secret(&app, generated.key_id, generated.backend).await;
             return Err(error);
         }
     };
@@ -163,25 +204,31 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
         fingerprint,
         public_key: generated.public_key,
         label: final_label,
-        server_hash: cfms_core::get_server_hash(&server),
-        server_address: crate::managed_auth_keys::display_server_address(&server),
-        user_id,
+        server_hash: cfms_core::get_server_hash(&identity.server),
+        server_address: crate::managed_auth_keys::display_server_address(&identity.server),
+        user_id: identity.user_id.clone(),
         username,
-        credential_id,
+        credential_id: credential_id.clone(),
         created_at: unix_now().max(0) as u64,
     };
 
-    let app_save = app.clone();
-    if let Err(err) = tokio::task::spawn_blocking(move || {
-        let vault = app_save.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        crate::managed_auth_keys::save_record(&app_save, record)
-    })
-    .await
-    .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())
-    .and_then(|res| res)
+    if let Err(err) =
+        run_managed_vault_op(&app, true, crate::secure_store::UNAVAILABLE, move |app| {
+            crate::managed_auth_keys::save_record(app, record)
+        })
+        .await
     {
-        tracing::warn!("Public key registered on server, but saving local metadata failed: {err}");
+        cleanup_generated_secret(&app, generated.key_id, generated.backend).await;
+        if let Some(cid) = credential_id {
+            let _ = server_action_once(
+                &state,
+                &identity,
+                "core.user.authentication.public_key.delete",
+                serde_json::json!({ "credential_id": cid }),
+            )
+            .await;
+        }
+        return Err(err);
     }
 
     response["key_id"] = generated.key_id.into();
@@ -317,9 +364,47 @@ fn sign_with_handle<R: Runtime>(
             key_id, backend, ..
         } => {
             let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-            let _guard = vault.operation.lock().unwrap();
+            let _guard = vault.operation.lock().unwrap_or_else(|e| e.into_inner());
             crate::managed_auth_keys::sign_challenge(app, key_id, *backend, challenge)
         }
+    }
+}
+
+async fn build_public_key_login_request(
+    state: &AppHandleState,
+    username: &str,
+    fingerprint: &str,
+    mfa: bool,
+) -> Result<(String, cfms_service::sensitive::SensitiveJson), String> {
+    if mfa {
+        let pending = state.inner.pending_auth.read().await;
+        let pending = pending
+            .as_ref()
+            .filter(|pending| {
+                pending.issued.claims.purpose == AUTH
+                    && pending.methods.iter().any(|method| method == "publickey")
+                    && pending.issued.claims.exp > cfms_service::authentication::unix_now()
+            })
+            .ok_or("publicKey.cancelled")?;
+        Ok((
+            pending.username.clone(),
+            cfms_service::sensitive::SensitiveJson::new(serde_json::json!({
+                "action":"core.auth.token.exchange",
+                "data":{"method":"publickey", "data":{"fingerprint":fingerprint}, "target_purpose":GENERAL},
+                "username":pending.username,
+                "token":pending.issued.secret.as_str(),
+                "timestamp":unix_now(),
+                "nonce":crate::public_key_auth::random_id(),
+            })),
+        ))
+    } else {
+        Ok((
+            username.to_string(),
+            cfms_service::sensitive::SensitiveJson::new(serde_json::json!({
+                "action":"core.auth.login",
+                "data":{"method":"publickey", "credential":{"username":username,"fingerprint":fingerprint}},
+            })),
+        ))
     }
 }
 
@@ -366,32 +451,9 @@ pub async fn login_with_public_key<R: Runtime>(
         .clone()
         .ok_or("Not connected to a server")?;
     let fingerprint = key.fingerprint()?;
-    let (user, request) = if mfa {
-        let pending = state.inner.pending_auth.read().await;
-        let pending = pending
-            .as_ref()
-            .filter(|pending| {
-                pending.issued.claims.purpose == AUTH
-                    && pending.methods.iter().any(|method| method == "publickey")
-                    && pending.issued.claims.exp > cfms_service::authentication::unix_now()
-            })
-            .ok_or("publicKey.cancelled")?;
-        (
-            pending.username.clone(),
-            cfms_service::sensitive::SensitiveJson::new(serde_json::json!({
-                "action":"core.auth.token.exchange", "data":{"method":"publickey", "data":{"fingerprint":fingerprint}, "target_purpose":GENERAL},
-                "username":pending.username,"token":pending.issued.secret.as_str(),
-                "timestamp":unix_now(),"nonce":crate::public_key_auth::random_id(),
-            })),
-        )
-    } else {
-        (
-            username.clone(),
-            cfms_service::sensitive::SensitiveJson::new(serde_json::json!({
-                "action":"core.auth.login", "data":{"method":"publickey", "credential":{"username":username,"fingerprint":fingerprint}},
-            })),
-        )
-    };
+    let (user, request) =
+        build_public_key_login_request(&state, &username, &fingerprint, mfa).await?;
+
     let id = crate::public_key_auth::random_id();
     let (cancel, mut cancellation) = tokio::sync::watch::channel(false);
     {
@@ -406,11 +468,8 @@ pub async fn login_with_public_key<R: Runtime>(
         });
     }
     let app_sign = app.clone();
-    let signer: Arc<
-        dyn Fn(&crate::public_key_auth::SigningKeyHandle, &[u8]) -> Result<String, String>
-            + Send
-            + Sync,
-    > = Arc::new(move |handle, challenge| sign_with_handle(&app_sign, handle, challenge));
+    let signer: ChallengeSigner =
+        Arc::new(move |handle, challenge| sign_with_handle(&app_sign, handle, challenge));
     let outcome = run_public_key_stream(
         &state.inner,
         &state.public_keys,
@@ -425,28 +484,87 @@ pub async fn login_with_public_key<R: Runtime>(
     )
     .await;
     state.public_keys.finish(&id);
-    let (response, rescue_key_ids) = outcome?;
+    let (response, mut rescue_key_ids) = outcome?;
     let response_code = response.code;
     let status = finish_authentication(&state, &user, response, generation).await?;
-    if (response_code == 200 || response_code == 202) && !rescue_key_ids.is_empty() {
-        if let Some(current_server) = state.inner.server_address.read().await.clone() {
-            let resolved_user_id = state.inner.user_id.read().await.clone();
-            let user_for_rebind = user.clone();
-            let _ = tokio::task::spawn_blocking(move || {
-                let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-                let _guard = vault.operation.lock().unwrap();
-                let _ = crate::managed_auth_keys::rebind_keys_to_server(
-                    &app,
-                    &rescue_key_ids,
-                    &current_server,
-                    resolved_user_id.as_deref(),
-                    &user_for_rebind,
-                );
-            })
-            .await;
+
+    if response_code == 202 {
+        state
+            .public_keys
+            .defer_rescue_keys(generation, rescue_key_ids);
+    } else if response_code == 200 {
+        for deferred_id in state.public_keys.take_deferred_rescue_keys(generation) {
+            if !rescue_key_ids
+                .iter()
+                .any(|existing| existing == &deferred_id)
+            {
+                rescue_key_ids.push(deferred_id);
+            }
         }
+        rebind_used_rescue_keys(&app, &state, &rescue_key_ids, &user).await;
     }
     Ok(status)
+}
+
+async fn handle_challenge_step(
+    key: crate::public_key_auth::SigningKeyHandle,
+    data: &serde_json::Value,
+    stream_id: u32,
+    stage: &str,
+    signer: &ChallengeSigner,
+    channel: &Channel<crate::public_key_auth::AuthInteraction>,
+) -> Result<(crate::public_key_auth::SigningKeyHandle, serde_json::Value), String> {
+    use crate::public_key_auth::AuthInteraction;
+    let fingerprint = key.fingerprint()?;
+    let challenge =
+        cfms_service::public_key_auth::decode_challenge(data, stream_id, &fingerprint, stage)?;
+    channel
+        .send(AuthInteraction::Signing)
+        .map_err(|_| "publicKey.cancelled")?;
+    let step_signer = Arc::clone(signer);
+    let (next_key, signature) = tokio::task::spawn_blocking(move || {
+        let signature = step_signer(&key, &challenge)?;
+        Ok::<_, String>((key, signature))
+    })
+    .await
+    .map_err(|_| "publicKey.signingFailed")??;
+    Ok((
+        next_key,
+        serde_json::json!({"fingerprint": fingerprint, "signature": signature}),
+    ))
+}
+
+async fn handle_continue_step(
+    public_keys: &crate::public_key_auth::PublicKeyState,
+    interaction: &str,
+    channel: &Channel<crate::public_key_auth::AuthInteraction>,
+    rescue_keys_used: &mut Vec<String>,
+) -> Result<(crate::public_key_auth::SigningKeyHandle, serde_json::Value), String> {
+    use crate::public_key_auth::AuthInteraction;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    public_keys
+        .active
+        .lock()
+        .unwrap()
+        .as_mut()
+        .ok_or("publicKey.cancelled")?
+        .reply = Some((interaction.into(), tx));
+    channel
+        .send(AuthInteraction::SelectKey {
+            interaction_id: interaction.into(),
+        })
+        .map_err(|_| "publicKey.cancelled")?;
+    let next_key = tokio::time::timeout(std::time::Duration::from_secs(60), rx)
+        .await
+        .map_err(|_| "publicKey.expired")?
+        .map_err(|_| "publicKey.cancelled")?;
+    if let Some(kid) = next_key.rescue_key_id()
+        && !rescue_keys_used.iter().any(|existing| existing == kid)
+    {
+        rescue_keys_used.push(kid.to_string());
+    }
+    let payload = serde_json::json!({"fingerprint": next_key.fingerprint()?});
+    Ok((next_key, payload))
 }
 
 async fn run_public_key_stream(
@@ -456,16 +574,11 @@ async fn run_public_key_stream(
     cancellation: &mut tokio::sync::watch::Receiver<bool>,
     request: cfms_service::sensitive::SensitiveJson,
     mut key: crate::public_key_auth::SigningKeyHandle,
-    signer: Arc<
-        dyn Fn(&crate::public_key_auth::SigningKeyHandle, &[u8]) -> Result<String, String>
-            + Send
-            + Sync,
-    >,
+    signer: ChallengeSigner,
     channel: Channel<crate::public_key_auth::AuthInteraction>,
     generation: u64,
     stage: &str,
 ) -> Result<(cfms_core::Response, Vec<String>), String> {
-    use crate::public_key_auth::AuthInteraction;
     let mut rescue_keys_used = Vec::new();
     if let Some(kid) = key.rescue_key_id() {
         rescue_keys_used.push(kid.to_string());
@@ -519,55 +632,17 @@ async fn run_public_key_stream(
             if data["method"] != "publickey" || data["stage"] != stage {
                 return Err("publicKey.invalidChallenge".into());
             }
-            let response = match message["action"].as_str() {
+            let (next_key, response) = match message["action"].as_str() {
                 Some("auth_challenge") => {
-                    let fingerprint = key.fingerprint()?;
-                    let challenge = cfms_service::public_key_auth::decode_challenge(
-                        data,
-                        stream.id,
-                        &fingerprint,
-                        stage,
-                    )?;
-                    channel
-                        .send(AuthInteraction::Signing)
-                        .map_err(|_| "publicKey.cancelled")?;
-                    let step_signer = Arc::clone(&signer);
-                    let (next_key, signature) = tokio::task::spawn_blocking(move || {
-                        let signature = step_signer(&key, &challenge)?;
-                        Ok::<_, String>((key, signature))
-                    })
-                    .await
-                    .map_err(|_| "publicKey.signingFailed")??;
-                    key = next_key;
-                    serde_json::json!({"fingerprint":fingerprint,"signature":signature})
+                    handle_challenge_step(key, data, stream.id, stage, &signer, &channel).await?
                 }
                 Some("auth_continue") => {
-                    let (tx, rx) = tokio::sync::oneshot::channel();
-                    public_keys
-                        .active
-                        .lock()
-                        .unwrap()
-                        .as_mut()
-                        .ok_or("publicKey.cancelled")?
-                        .reply = Some((interaction.into(), tx));
-                    channel
-                        .send(AuthInteraction::SelectKey {
-                            interaction_id: interaction.into(),
-                        })
-                        .map_err(|_| "publicKey.cancelled")?;
-                    key = tokio::time::timeout(std::time::Duration::from_secs(60), rx)
-                        .await
-                        .map_err(|_| "publicKey.expired")?
-                        .map_err(|_| "publicKey.cancelled")?;
-                    if let Some(kid) = key.rescue_key_id()
-                        && !rescue_keys_used.iter().any(|existing| existing == kid)
-                    {
-                        rescue_keys_used.push(kid.to_string());
-                    }
-                    serde_json::json!({"fingerprint":key.fingerprint()?})
+                    handle_continue_step(public_keys, interaction, &channel, &mut rescue_keys_used)
+                        .await?
                 }
                 _ => return Err("publicKey.invalidChallenge".into()),
             };
+            key = next_key;
             let response = cfms_service::sensitive::SensitiveJson::new(
                 serde_json::json!({"action":"auth_response","interaction_id":interaction,"method":"publickey","data":response}),
             );
@@ -732,7 +807,7 @@ mod public_key_stream_tests {
             })
         });
         let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let signer = Arc::new(
+            let signer: ChallengeSigner = Arc::new(
                 |handle: &crate::public_key_auth::SigningKeyHandle, challenge: &[u8]| match handle {
                     crate::public_key_auth::SigningKeyHandle::External(k) => {
                         cfms_service::public_key_auth::sign(k, challenge)
@@ -747,7 +822,7 @@ mod public_key_stream_tests {
                     &connection,
                     &mut cancellation,
                     request,
-                    crate::public_key_auth::SigningKeyHandle::External(key),
+                    crate::public_key_auth::SigningKeyHandle::External(Box::new(key)),
                     signer,
                     Channel::new(|_| Ok(())),
                     0,
@@ -801,5 +876,125 @@ mod public_key_stream_tests {
     #[tokio::test]
     async fn cancellation_concludes_only_the_authentication_stream() {
         check_stream_lifecycle(None, true, "login").await;
+    }
+
+    #[tokio::test]
+    async fn managed_rescue_handle_tracks_used_rescue_key_ids_across_stream() {
+        let vectors: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+            "../../../crates/service/tests/fixtures/auth-keys.json"
+        ))
+        .unwrap();
+        let backing_key = cfms_service::public_key_auth::parse(
+            vectors[0]["private_key"].as_str().unwrap().as_bytes(),
+        )
+        .unwrap();
+        let fingerprint = cfms_service::public_key_auth::fingerprint(&backing_key).unwrap();
+        let server_fp = fingerprint.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut websocket = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let _ = websocket.next().await.unwrap().unwrap();
+            let challenge = serde_json::to_vec(&serde_json::json!({
+                "scope":"cfms.auth.publickey", "stream_id":1, "interaction_id":"step-1",
+                "fingerprint":server_fp, "stage":"login",
+            }))
+            .unwrap();
+            websocket
+                .send(Message::Binary(
+                    frame::encode(
+                        &FrameHeader {
+                            id: 1,
+                            kind: FrameKind::Process,
+                        },
+                        &serde_json::to_vec(&serde_json::json!({
+                            "action":"auth_challenge", "data":{
+                                "method":"publickey", "stage":"login", "interaction_id":"step-1",
+                                "challenge":Base64::encode_string(&challenge),
+                            },
+                        }))
+                        .unwrap(),
+                    )
+                    .into(),
+                ))
+                .await
+                .unwrap();
+            let _proof = websocket.next().await.unwrap().unwrap();
+            websocket
+                .send(Message::Binary(
+                    frame::encode(
+                        &FrameHeader {
+                            id: 1,
+                            kind: FrameKind::Conclusion,
+                        },
+                        &serde_json::to_vec(&serde_json::json!({
+                            "code":202, "data":{}, "message":"", "timestamp":0.0,
+                        }))
+                        .unwrap(),
+                    )
+                    .into(),
+                ))
+                .await
+                .unwrap();
+        });
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let connection = cfms_transport::Connection::connect(
+            &format!("ws://{address}"),
+            cfms_transport::tls::TlsConfig::plaintext(),
+            None,
+            true,
+        )
+        .await
+        .unwrap();
+        let state = cfms_service::state::AppState::new();
+        let public_keys = crate::public_key_auth::PublicKeyState::default();
+        let (_control, mut cancellation) = tokio::sync::watch::channel(false);
+        let request = cfms_service::sensitive::SensitiveJson::new(serde_json::json!({
+            "action":"core.auth.login",
+            "data":{"method":"publickey", "credential":{"username":"alice", "fingerprint":fingerprint}},
+        }));
+        let signer: ChallengeSigner = Arc::new(move |handle, challenge| {
+            assert_eq!(handle.rescue_key_id(), Some("rescue_key_01"));
+            cfms_service::public_key_auth::sign(&backing_key, challenge)
+        });
+        let (resp, rescue_ids) = run_public_key_stream(
+            &state,
+            &public_keys,
+            &connection,
+            &mut cancellation,
+            request,
+            crate::public_key_auth::SigningKeyHandle::Managed {
+                key_id: "rescue_key_01".into(),
+                fingerprint,
+                backend: crate::managed_auth_keys::ManagedKeyBackend::OsSecureStore,
+                rescue: true,
+            },
+            signer,
+            Channel::new(|_| Ok(())),
+            0,
+            "login",
+        )
+        .await
+        .unwrap();
+        assert_eq!(resp.code, 202);
+        assert_eq!(rescue_ids, vec!["rescue_key_01".to_string()]);
+        connection.close().await;
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn label_normalization_trims_and_enforces_bounds() {
+        assert_eq!(normalize_public_key_label(None).unwrap(), None);
+        assert_eq!(
+            normalize_public_key_label(Some("   ".into())).unwrap(),
+            None
+        );
+        assert_eq!(
+            normalize_public_key_label(Some("  Work Key  ".into())).unwrap(),
+            Some("Work Key".into())
+        );
+        assert!(normalize_public_key_label(Some("bad\nlabel".into())).is_err());
+        assert!(normalize_public_key_label(Some("a".repeat(256))).is_err());
     }
 }

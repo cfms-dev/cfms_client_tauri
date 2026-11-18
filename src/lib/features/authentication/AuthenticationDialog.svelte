@@ -2,6 +2,7 @@
   import { untrack, tick, onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import type { JsonValue } from '$lib/api';
+  import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
   import { supportedVerificationMethods } from '$lib/features/authentication/authentication';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import TwoFactorVerifyDialog from '$lib/features/authentication/TwoFactorVerifyDialog.svelte';
@@ -68,6 +69,7 @@
   <ModalFrame {title} maxWidth="max-w-md" dismissible={!busy} onClose={onCancel} closeLabel={$t('common.close')}>
     {#if selected === 'publickey'}
       <PublicKeyVerification
+        username={authStore.username ?? ''}
         onVerify={(keyRef, passphrase, receive) => onVerify('publickey', { keyRef, passphrase }, receive)}
         {onCancel}
         onBack={available.length > 1 ? () => { selected = null; } : undefined}

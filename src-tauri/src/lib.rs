@@ -69,6 +69,11 @@ pub struct AndroidGithubCredentialPlugin<R: Runtime> {
     pub handle: tauri::plugin::PluginHandle<R>,
 }
 
+#[cfg(target_os = "android")]
+pub struct AndroidAuthKeyPlugin<R: Runtime> {
+    pub handle: tauri::plugin::PluginHandle<R>,
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -105,6 +110,7 @@ pub fn run() {
         .plugin(android_secure_screen_plugin())
         .plugin(android_update_notification_plugin())
         .plugin(android_github_credential_plugin())
+        .plugin(android_auth_key_plugin())
         .plugin(background_service_plugin())
         .setup(bootstrap::setup)
         .invoke_handler(commands::registry::handler())
@@ -299,4 +305,22 @@ fn android_github_credential_plugin<R: tauri::Runtime>() -> tauri::plugin::Tauri
 #[cfg(not(target_os = "android"))]
 fn android_github_credential_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("android-github-credential-noop").build()
+}
+
+#[cfg(target_os = "android")]
+fn android_auth_key_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+    tauri::plugin::Builder::new("android-auth-key")
+        .setup(|app, api| {
+            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidAuthKeyPlugin")?;
+            app.manage(AndroidAuthKeyPlugin { handle });
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_auth_key_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("android-auth-key-noop").build()
 }

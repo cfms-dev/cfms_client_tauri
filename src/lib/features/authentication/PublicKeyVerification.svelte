@@ -2,18 +2,21 @@
   import { onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { respondPublicKeyInteraction, cancelPublicKeyAuthentication, type AuthPrivateKeyInfo, type PublicKeyInteraction } from '$lib/api';
+  import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
   import { publicKeyError } from '$lib/features/authentication/public-key-errors';
   import PrivateKeyField from '$lib/features/authentication/PrivateKeyField.svelte';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
 
-  let { onVerify, onCancel, onBack, onComplete, interactionId = null } : {
+  let { onVerify, onCancel, onBack, onComplete, interactionId = null, username } : {
     onVerify?: (keyRef: string, passphrase: string, onInteraction: (event: PublicKeyInteraction) => void) => Promise<boolean>;
     onCancel: () => void;
     onBack?: () => void;
     onComplete?: (interactionId: string) => void;
     interactionId?: string | null;
+    username?: string | null;
   } = $props();
+  const effectiveUsername = $derived(username ?? authStore.username ?? '');
   let selection = $state<AuthPrivateKeyInfo | null>(null);
   let passphrase = $state('');
   let pending = $state<string | null>(null);
@@ -54,7 +57,7 @@
 
 <form class="flex flex-col gap-5 p-5" onsubmit={submit}>
   {#if waiting}<p class="text-sm text-md3-on-surface-variant" role="status">{$t('publicKey.nextKey')}</p>{/if}
-  <PrivateKeyField bind:selection bind:passphrase disabled={submitting || (busy && !waiting)} id="verification-key" />
+  <PrivateKeyField bind:selection bind:passphrase username={effectiveUsername} disabled={submitting || (busy && !waiting)} id="verification-key" />
   {#if error}<p role="alert" class="text-sm text-md3-error">{error}</p>{/if}
   <div class="flex justify-end gap-2">
     {#if onBack}<DialogActionButton disabled={busy} onclick={onBack}>{$t('common.back')}</DialogActionButton>{/if}

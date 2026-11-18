@@ -122,7 +122,8 @@ pub(super) async fn finish_authentication(
 }
 
 #[tauri::command]
-pub async fn complete_login_mfa(
+pub async fn complete_login_mfa<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
     method: String,
     data: serde_json::Value,
@@ -162,7 +163,13 @@ pub async fn complete_login_mfa(
         &token,
     )
     .await?;
-    finish_authentication(&state, &username, response, generation).await
+    let response_code = response.code;
+    let status = finish_authentication(&state, &username, response, generation).await?;
+    if response_code == 200 {
+        let deferred = state.public_keys.take_deferred_rescue_keys(generation);
+        super::public_key_auth::rebind_used_rescue_keys(&app, &state, &deferred, &username).await;
+    }
+    Ok(status)
 }
 
 #[tauri::command]
@@ -253,6 +260,8 @@ pub async fn update_user_auth_public_key<R: tauri::Runtime>(
     credential_id: String,
     label: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    let session_user_id = state.inner.user_id.read().await.clone();
+    let target_user_id = user_id.clone().or(session_user_id);
     let result = server_action_json(
         &state,
         "core.user.authentication.public_key.update",
@@ -265,17 +274,20 @@ pub async fn update_user_auth_public_key<R: tauri::Runtime>(
     if let Some(server) = state.inner.server_address.read().await.clone() {
         let server_hash = cfms_core::get_server_hash(&server);
         let updated_label = result["label"].as_str().map(String::from).or(label);
-        let _ = tokio::task::spawn_blocking(move || {
-            use tauri::Manager;
-            let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-            let _guard = vault.operation.lock().unwrap();
-            let _ = crate::managed_auth_keys::update_label_by_credential_id(
-                &app,
-                &server_hash,
-                &credential_id,
-                updated_label,
-            );
-        })
+        let _ = super::public_key_auth::run_managed_vault_op(
+            &app,
+            false,
+            crate::secure_store::UNAVAILABLE,
+            move |app| {
+                crate::managed_auth_keys::update_label_by_credential_id(
+                    app,
+                    &server_hash,
+                    target_user_id.as_deref(),
+                    &credential_id,
+                    updated_label,
+                )
+            },
+        )
         .await;
     }
     Ok(result)
@@ -288,6 +300,8 @@ pub async fn delete_user_auth_public_key<R: tauri::Runtime>(
     user_id: Option<String>,
     credential_id: String,
 ) -> Result<serde_json::Value, String> {
+    let session_user_id = state.inner.user_id.read().await.clone();
+    let target_user_id = user_id.clone().or(session_user_id);
     let result = server_action_json(
         &state,
         "core.user.authentication.public_key.delete",
@@ -299,16 +313,19 @@ pub async fn delete_user_auth_public_key<R: tauri::Runtime>(
     .await?;
     if let Some(server) = state.inner.server_address.read().await.clone() {
         let server_hash = cfms_core::get_server_hash(&server);
-        let _ = tokio::task::spawn_blocking(move || {
-            use tauri::Manager;
-            let vault = app.state::<crate::managed_auth_keys::ManagedAuthKeys>();
-            let _guard = vault.operation.lock().unwrap();
-            let _ = crate::managed_auth_keys::delete_by_credential_id(
-                &app,
-                &server_hash,
-                &credential_id,
-            );
-        })
+        let _ = super::public_key_auth::run_managed_vault_op(
+            &app,
+            false,
+            crate::secure_store::UNAVAILABLE,
+            move |app| {
+                crate::managed_auth_keys::delete_by_credential_id(
+                    app,
+                    &server_hash,
+                    target_user_id.as_deref(),
+                    &credential_id,
+                )
+            },
+        )
         .await;
     }
     Ok(result)

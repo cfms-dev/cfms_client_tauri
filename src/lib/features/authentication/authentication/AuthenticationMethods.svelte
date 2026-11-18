@@ -6,10 +6,12 @@
   import { AUTH_PURPOSES, authMethodName, credentialName, shortKeyIdentity, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
+  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
 
-  let { inventory, managedKeys = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
+  let { inventory, managedKeys = null, currentUsername = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
     inventory: UserAuthentication;
     managedKeys?: ManagedAuthKeyInventory | null;
+    currentUsername?: string | null;
     writable: boolean;
     busy: boolean;
     canChangePassword: boolean;
@@ -24,23 +26,50 @@
   let adding = $state(false);
   let publicKey = $state('');
   let label = $state('');
+  let pendingAction = $state<'generate' | 'register' | null>(null);
   function usage(id: string): string {
     const purposes = AUTH_PURPOSES.filter((purpose) => inventory.policies[purpose].chains.some((chain) => chain.some((step) => step.credential_ids.includes(id))));
     return purposes.length ? $t('authManagement.usedFor', { values: { purposes: purposes.map((purpose) => $t(`authManagement.purposes.${purpose}`)).join(' · ') } }) : $t('authManagement.notUsed');
   }
   function findManagedKey(credential: AuthCredential): ManagedAuthKeySummary | undefined {
     if (managed || !managedKeys) return undefined;
+    const byCredential = managedKeys.boundKeys.find(
+      (k) => k.credentialId === credential.credential_id,
+    );
+    if (byCredential) return byCredential;
+    if (!credential.key_identity) return undefined;
     return managedKeys.boundKeys.find(
-      (k) => k.credentialId === credential.credential_id || (Boolean(credential.key_identity) && k.fingerprint === credential.key_identity),
+      (k) => !k.credentialId
+        && k.fingerprint === credential.key_identity
+        && (!currentUsername || k.username === currentUsername),
     );
   }
   async function register(event: SubmitEvent) {
     event.preventDefault();
-    if (await onRegister(publicKey.trim(), label.trim())) { publicKey = ''; label = ''; adding = false; }
+    if (pendingAction || !writable || !publicKey.trim()) return;
+    pendingAction = 'register';
+    try {
+      if (await onRegister(publicKey.trim(), label.trim())) {
+        publicKey = '';
+        label = '';
+        adding = false;
+      }
+    } finally {
+      pendingAction = null;
+    }
   }
   async function generate() {
-    if (!writable || !managedKeys?.storageAvailable || !onGenerate) return;
-    if (await onGenerate(label.trim())) { publicKey = ''; label = ''; adding = false; }
+    if (pendingAction || !writable || !managedKeys?.storageAvailable || !onGenerate) return;
+    pendingAction = 'generate';
+    try {
+      if (await onGenerate(label.trim())) {
+        publicKey = '';
+        label = '';
+        adding = false;
+      }
+    } finally {
+      pendingAction = null;
+    }
   }
   const outlinedId = $props.id();
 </script>
@@ -73,7 +102,10 @@
               <div class="auth-key-title-row">
                 <strong>{credentialName(credential, $t('authentication.publickey'))}</strong>
                 {#if localKey}
-                  <span class="auth-managed-badge">{$t(localKey.hardwareBacked ? 'authManagement.managedHardwareKeyBadge' : 'authManagement.managedDeviceKeyBadge')}</span>
+                  <span class="auth-managed-badge" class:auth-managed-badge--hardware={localKey.hardwareBacked}>
+                    <Icon name={localKey.hardwareBacked ? 'verifiedUser' : 'passkey'} size="14px" />
+                    <span>{$t(localKey.hardwareBacked ? 'authManagement.managedHardwareKeyBadge' : 'authManagement.managedDeviceKeyBadge')}</span>
+                  </span>
                 {/if}
               </div>
               <p>{credential.active ? $t('authManagement.registered') : $t('authManagement.inactiveCredential')}{credential.label && credential.key_identity ? ` · ${shortKeyIdentity(credential.key_identity)}` : ''}</p>
@@ -89,28 +121,47 @@
       <form class="auth-form auth-inset" onsubmit={register}>
         <p>{$t('authManagement.keyHelp')}</p>
         <div>
-          <MdOutlinedField inputId={`${outlinedId}-2`} label={$t('authManagement.keyLabel')} disabled={!writable}>
-            <input id={`${outlinedId}-2`} data-focus-ring="delegated" class="cfms-native-field" bind:value={label} disabled={!writable} maxlength="255" />
+          <MdOutlinedField inputId={`${outlinedId}-2`} label={$t('authManagement.keyLabel')} disabled={!writable || Boolean(pendingAction)}>
+            <input id={`${outlinedId}-2`} data-focus-ring="delegated" class="cfms-native-field" bind:value={label} disabled={!writable || Boolean(pendingAction)} maxlength="255" />
           </MdOutlinedField>
         </div>
         {#if !managed}
           <div class="auth-generate-panel">
             {#if managedKeys?.storageAvailable}
-              <p>{$t(managedKeys.hardwareBacked ? 'authManagement.generateHardwareHelp' : 'authManagement.generateDeviceHelp')}</p>
+              <div class="auth-generate-copy">
+                <span class="cfms-icon-text__icon" aria-hidden="true">
+                  <Icon name={managedKeys.hardwareBacked ? 'verifiedUser' : 'storage'} size="16px" />
+                </span>
+                <p>{$t(managedKeys.hardwareBacked ? 'authManagement.generateHardwareHelp' : 'authManagement.generateDeviceHelp')}</p>
+              </div>
             {:else}
-              <p role="status" class="auth-notice">{$t('authManagement.generateUnavailable')}</p>
+              <div class="auth-generate-copy auth-generate-copy--warning">
+                <span class="cfms-icon-text__icon" aria-hidden="true">
+                  <Icon name="warningAmber" size="16px" />
+                </span>
+                <p role="status" class="auth-notice">{$t('authManagement.generateUnavailable')}</p>
+              </div>
             {/if}
             <div class="auth-actions">
-              <DialogActionButton variant="tonal" disabled={!writable || !managedKeys?.storageAvailable} onclick={generate}>{$t('authManagement.generateKey')}</DialogActionButton>
+              <DialogActionButton variant="tonal" disabled={!writable || Boolean(pendingAction) || !managedKeys?.storageAvailable} onclick={generate}>
+                {#if pendingAction === 'generate'}<ProgressRing size={16} tone="inherit" label={$t('common.loading')} />{/if}
+                {$t('authManagement.generateKey')}
+              </DialogActionButton>
             </div>
           </div>
+          <div class="auth-method-or" aria-hidden="true"><span>{$t('authManagement.orDivider')}</span></div>
         {/if}
         <div>
-          <MdOutlinedField inputId={`${outlinedId}-1`} label={$t('authManagement.publicKey')} disabled={!writable}>
-            <textarea id={`${outlinedId}-1`} data-focus-ring="delegated" class="cfms-native-field" bind:value={publicKey} disabled={!writable} rows="3" spellcheck="false" placeholder="ssh-ed25519 AAAA…"></textarea>
+          <MdOutlinedField inputId={`${outlinedId}-1`} label={$t('authManagement.publicKey')} disabled={!writable || Boolean(pendingAction)}>
+            <textarea id={`${outlinedId}-1`} data-focus-ring="delegated" class="cfms-native-field" bind:value={publicKey} disabled={!writable || Boolean(pendingAction)} rows="3" spellcheck="false" placeholder="ssh-ed25519 AAAA…"></textarea>
           </MdOutlinedField>
         </div>
-        <div class="auth-actions"><DialogActionButton type="submit" variant="primary" disabled={!writable || !publicKey.trim()}>{$t('authManagement.registerKey')}</DialogActionButton></div>
+        <div class="auth-actions">
+          <DialogActionButton type="submit" variant="primary" disabled={!writable || Boolean(pendingAction) || !publicKey.trim()}>
+            {#if pendingAction === 'register'}<ProgressRing size={16} tone="inherit" label={$t('common.loading')} />{/if}
+            {$t('authManagement.registerKey')}
+          </DialogActionButton>
+        </div>
       </form>
     {/if}
   </section>

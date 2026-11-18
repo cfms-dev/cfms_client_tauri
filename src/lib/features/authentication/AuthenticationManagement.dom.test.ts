@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import type { AuthPolicy } from '$lib/api';
+import type { AuthPolicy, UserAuthentication } from '$lib/api';
 import AuthenticationManagement from '$lib/features/authentication/AuthenticationManagement.svelte';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 
@@ -26,9 +26,12 @@ vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string)
 beforeEach(stubInstantAnimations);
 
 const userId = 'aabbccdd-0000-4000-8000-000000000001';
-const inventory = (escalation: AuthPolicy = { revision: 0, chains: [] }) => ({
+const inventory = (escalation: AuthPolicy = { revision: 0, chains: [] }): UserAuthentication => ({
   user_id: userId,
-  methods: { password: { purposes: ['login', 'mfa', 'escalation'] }, publickey: { purposes: ['login', 'mfa', 'escalation'] } },
+  methods: {
+    password: { purposes: ['login', 'mfa', 'escalation'], schema: null, category: 'knowledge', throttle_factor: 'password' },
+    publickey: { purposes: ['login', 'mfa', 'escalation'], schema: null, category: 'possession', throttle_factor: 'publickey' },
+  },
   credentials: [{ method: 'password', credential_id: 'password-id', active: true, label: 'Password', key_identity: null }],
   policies: { login: { revision: 3, chains: [[{ method: 'password', credential_ids: ['password-id'] }]] }, mfa: { revision: 0, chains: [] }, escalation },
 });
@@ -169,6 +172,53 @@ describe('authentication management', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
     expect(screen.getByText('authManagement.generateUnavailable')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'authManagement.generateKey' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('warns on hardware fallback and isolates managed badges by credential and username', async () => {
+    const warn = vi.spyOn(notificationStore, 'warning');
+    const customInventory = inventory();
+    customInventory.credentials.push(
+      { method: 'publickey', credential_id: 'cred-shared', active: true, label: 'Alice Key', key_identity: 'fp-shared' },
+    );
+    mocks.inventory.mockResolvedValue(customInventory);
+    mocks.managedKeys
+      .mockResolvedValueOnce({
+        storageAvailable: true,
+        hardwareBacked: true,
+        boundKeys: [
+          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', username: 'bob', credentialId: null, createdAt: 1 },
+        ],
+        rescueKeys: [],
+      })
+      .mockResolvedValueOnce({
+        storageAvailable: true,
+        hardwareBacked: true,
+        boundKeys: [
+          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', username: 'bob', credentialId: null, createdAt: 1 },
+          { keyId: 'alice-k', label: 'Fallback Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-fallback', hardwareBacked: false, serverAddress: 'example.test:443', username: 'alice', credentialId: 'cred-fallback', createdAt: 2 },
+        ],
+        rescueKeys: [],
+      });
+    mocks.generate.mockResolvedValue({
+      credential_id: 'cred-fallback',
+      fingerprint: 'fp-fallback',
+      label: 'Fallback Key',
+      key_id: 'alice-k',
+      hardware_backed: false,
+      algorithm: 'ssh-ed25519',
+    });
+
+    render(AuthenticationManagement);
+    await screen.findByText('Alice Key');
+    expect(screen.queryByText('authManagement.managedDeviceKeyBadge')).toBeNull();
+    expect(screen.queryByText('authManagement.managedHardwareKeyBadge')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
+    await fireEvent.input(screen.getByLabelText('authManagement.keyLabel'), { target: { value: 'Fallback Key' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.generateKey' }));
+
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('authManagement.hardwareFallbackNotice'));
+    expect(await screen.findByText('authManagement.managedDeviceKeyBadge')).toBeTruthy();
   });
 
   it.each([undefined, 'other-account-uuid'])('clears all elevation alternatives for %s using the current revision only after saving', async (target) => {
