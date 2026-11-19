@@ -158,13 +158,26 @@ describe('authentication management', () => {
     const view = render(AuthenticationManagement);
     await screen.findByRole('heading', { name: 'authentication.password' });
     await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
-    expect(screen.getByText('authManagement.generateHardwareHelp')).toBeTruthy();
+    const hwHelp = screen.getByText('authManagement.generateHardwareHelp');
+    expect(hwHelp).toBeTruthy();
+    expect(hwHelp.closest('.auth-generate-copy')?.querySelector('[data-icon="vault"]')).toBeTruthy();
     await fireEvent.input(screen.getByLabelText('authManagement.keyLabel'), { target: { value: 'Device TPM Key' } });
     await fireEvent.click(screen.getByRole('button', { name: 'authManagement.generateKey' }));
     await waitFor(() => expect(mocks.generate).toHaveBeenCalledWith('Device TPM Key'));
     expect(await screen.findByText('Device TPM Key')).toBeTruthy();
-    expect(await screen.findByText('authManagement.managedHardwareKeyBadge')).toBeTruthy();
+    const hwBadge = (await screen.findByText('authManagement.managedHardwareKeyBadge')).closest('.auth-managed-badge--hardware');
+    expect(hwBadge).toBeTruthy();
+    expect(hwBadge?.querySelector('[data-icon="vault"]')).toBeTruthy();
     view.unmount();
+
+    mocks.managedKeys.mockResolvedValue({ storageAvailable: true, hardwareBacked: false, boundKeys: [], rescueKeys: [] });
+    const deviceOnlyView = render(AuthenticationManagement);
+    await screen.findByRole('heading', { name: 'authentication.password' });
+    await fireEvent.click(screen.getByRole('button', { name: 'authManagement.addKey' }));
+    const deviceHelp = screen.getByText('authManagement.generateDeviceHelp');
+    expect(deviceHelp).toBeTruthy();
+    expect(deviceHelp.closest('.auth-generate-copy')?.querySelector('[data-icon="lockClosedKey"]')).toBeTruthy();
+    deviceOnlyView.unmount();
 
     mocks.managedKeys.mockResolvedValue({ storageAvailable: false, hardwareBacked: false, boundKeys: [], rescueKeys: [] });
     render(AuthenticationManagement);
@@ -218,7 +231,10 @@ describe('authentication management', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'authManagement.generateKey' }));
 
     await waitFor(() => expect(warn).toHaveBeenCalledWith('authManagement.hardwareFallbackNotice'));
-    expect(await screen.findByText('authManagement.managedDeviceKeyBadge')).toBeTruthy();
+    const fallbackBadge = (await screen.findByText('authManagement.managedDeviceKeyBadge')).closest('.auth-managed-badge');
+    expect(fallbackBadge).toBeTruthy();
+    expect(fallbackBadge?.classList.contains('auth-managed-badge--hardware')).toBe(false);
+    expect(fallbackBadge?.querySelector('[data-icon="lockClosedKey"]')).toBeTruthy();
   });
 
   it.each([undefined, 'other-account-uuid'])('clears all elevation alternatives for %s using the current revision only after saving', async (target) => {

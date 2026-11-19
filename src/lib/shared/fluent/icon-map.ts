@@ -151,4 +151,6 @@ export const ICON_MAP = {
   "tagReset": "tag_reset",
   "eraser": "eraser",
   "personEdit": "person_edit",
+  "vault": "vault",
+  "lockClosedKey": "lock_closed_key",
 } as const;

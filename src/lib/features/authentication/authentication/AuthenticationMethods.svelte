@@ -103,7 +103,7 @@
                 <strong>{credentialName(credential, $t('authentication.publickey'))}</strong>
                 {#if localKey}
                   <span class="auth-managed-badge" class:auth-managed-badge--hardware={localKey.hardwareBacked}>
-                    <Icon name={localKey.hardwareBacked ? 'verifiedUser' : 'passkey'} size="14px" />
+                    <Icon name={localKey.hardwareBacked ? 'vault' : 'lockClosedKey'} size="14px" />
                     <span>{$t(localKey.hardwareBacked ? 'authManagement.managedHardwareKeyBadge' : 'authManagement.managedDeviceKeyBadge')}</span>
                   </span>
                 {/if}
@@ -130,7 +130,7 @@
             {#if managedKeys?.storageAvailable}
               <div class="auth-generate-copy">
                 <span class="cfms-icon-text__icon" aria-hidden="true">
-                  <Icon name={managedKeys.hardwareBacked ? 'verifiedUser' : 'storage'} size="16px" />
+                  <Icon name={managedKeys.hardwareBacked ? 'vault' : 'lockClosedKey'} size="16px" />
                 </span>
                 <p>{$t(managedKeys.hardwareBacked ? 'authManagement.generateHardwareHelp' : 'authManagement.generateDeviceHelp')}</p>
               </div>

@@ -104,6 +104,7 @@
 
 {#snippet keyOption(key: ManagedAuthKeySummary, isRescue: boolean)}
   {@const isSelected = selection?.source === 'managed' && selection?.keyId === key.keyId}
+  {@const trustLabel = $t(key.hardwareBacked ? 'publicKey.hardwareBackedBadge' : 'publicKey.deviceStoredBadge')}
   <button
     type="button"
     class="key-picker"
@@ -114,13 +115,19 @@
     onclick={() => chooseManaged(key.keyId)}
   >
     <span class="key-picker-icon" aria-hidden="true">
-      <Icon name={key.hardwareBacked ? 'verifiedUser' : 'passkey'} size="22px" />
+      <Icon name="passkey" size="22px" />
     </span>
     <span class="key-picker-copy">
       <span class="key-picker-title-row">
         <strong>{key.label || key.algorithm}</strong>
-        <span class="key-trust-pill" class:key-trust-pill--hardware={key.hardwareBacked}>
-          {$t(key.hardwareBacked ? 'publicKey.hardwareBackedBadge' : 'publicKey.deviceStoredBadge')}
+        <span
+          class="key-trust-badge"
+          class:key-trust-badge--hardware={key.hardwareBacked}
+          title={trustLabel}
+          data-trust-tier={key.hardwareBacked ? 'hardware' : 'device'}
+        >
+          <Icon name={key.hardwareBacked ? 'vault' : 'lockClosedKey'} size="16px" />
+          <span class="sr-only">{trustLabel}</span>
         </span>
       </span>
       <span class="key-picker-meta">
@@ -236,13 +243,13 @@
   .key-picker-icon { display: grid; place-items: center; flex: none; color: var(--colorBrandForeground1); }
   .key-picker--secondary .key-picker-icon { color: var(--colorNeutralForeground2); }
   .key-picker-copy { display: grid; gap: 4px; min-width: 0; flex: 1; }
-  .key-picker-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-  .key-picker-copy strong { font-size: 14px; line-height: 20px; font-weight: 600; overflow-wrap: anywhere; }
+  .key-picker-title-row { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+  .key-picker-copy strong { min-width: 0; font-size: 14px; line-height: 20px; font-weight: 600; overflow-wrap: anywhere; }
   .key-picker-meta { font-size: 12px; line-height: 16px; color: var(--colorNeutralForeground3); overflow-wrap: anywhere; }
   .key-picker-meta code { font-family: var(--fontFamilyMonospace); font-size: 12px; }
   .key-picker-status { display: grid; place-items: center; flex: none; color: var(--colorBrandForeground1); }
-  .key-trust-pill { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 500; background: var(--colorNeutralBackground3); color: var(--colorNeutralForeground2); border: 1px solid var(--colorNeutralStroke2); }
-  .key-trust-pill--hardware { background: var(--colorBrandBackground2); color: var(--colorBrandForeground1); border-color: var(--colorBrandStroke2, var(--colorNeutralStroke1)); }
+  .key-trust-badge { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 20px; color: var(--colorNeutralForeground2); }
+  .key-trust-badge--hardware { color: var(--colorCompoundBrandForeground1); }
   .key-fingerprint, .key-rescue, .key-rescue-other { color: var(--colorNeutralForeground3); font-size: 12px; line-height: 16px; }
   .key-fingerprint summary, .key-rescue summary, .key-rescue-other summary { cursor: pointer; padding: 4px 0; }
   .key-rescue > summary { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; color: var(--colorNeutralForeground2); }
@@ -257,6 +264,7 @@
   }
   @media (forced-colors: active) {
     .key-picker.selected { border-color: Highlight; box-shadow: inset 0 0 0 1px Highlight; }
+    .key-trust-badge, .key-trust-badge--hardware { color: CanvasText; }
     .key-rescue-notice { border-color: Highlight; background: Canvas; color: CanvasText; }
   }
   @media (prefers-reduced-motion: reduce) { .key-picker { transition: none; } }

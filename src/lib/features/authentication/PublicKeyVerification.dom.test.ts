@@ -76,10 +76,26 @@ describe('public-key verification', () => {
     render(PublicKeyVerification, { username: 'alice', onVerify: verify, onCancel: vi.fn() });
 
     const boundButton = await screen.findByRole('button', { name: /Primary TPM Key/ });
+    expect(boundButton.querySelector('.key-picker-icon [data-icon]')?.getAttribute('data-icon')).toBe('passkey');
+    const hardwareBadge = boundButton.querySelector('.key-trust-badge');
+    expect(hardwareBadge?.classList.contains('key-trust-badge--hardware')).toBe(true);
+    expect(hardwareBadge?.getAttribute('data-trust-tier')).toBe('hardware');
+    expect(hardwareBadge?.getAttribute('title')).toBe('Hardware security');
+    expect(hardwareBadge?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('vault');
+    expect(hardwareBadge?.querySelector('.sr-only')?.textContent).toBe('Hardware security');
+    expect(boundButton.querySelector('.key-trust-pill')).toBeNull();
     await fireEvent.click(boundButton);
     await waitFor(() => expect(mocks.selectManaged).toHaveBeenCalledWith('bound-1'));
 
     const rescueButton = screen.getByRole('button', { name: /Migrated Key/ });
+    expect(rescueButton.querySelector('.key-picker-icon [data-icon]')?.getAttribute('data-icon')).toBe('passkey');
+    const deviceBadge = rescueButton.querySelector('.key-trust-badge');
+    expect(deviceBadge?.classList.contains('key-trust-badge--hardware')).toBe(false);
+    expect(deviceBadge?.getAttribute('data-trust-tier')).toBe('device');
+    expect(deviceBadge?.getAttribute('title')).toBe('Device secure storage');
+    expect(deviceBadge?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('lockClosedKey');
+    expect(deviceBadge?.querySelector('.sr-only')?.textContent).toBe('Device secure storage');
+    expect(rescueButton.querySelector('.key-trust-pill')).toBeNull();
     await fireEvent.click(rescueButton);
     await waitFor(() => expect(mocks.selectManaged).toHaveBeenCalledWith('rescue-1'));
     expect(mocks.release).toHaveBeenCalledWith('bound-ref');

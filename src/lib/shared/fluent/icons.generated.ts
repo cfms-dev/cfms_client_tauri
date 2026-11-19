@@ -517,6 +517,14 @@ import svg514 from '@fluentui/svg-icons/icons/person_edit_24_regular.svg?raw';
 import svg515 from '@fluentui/svg-icons/icons/person_edit_24_filled.svg?raw';
 import svg516 from '@fluentui/svg-icons/icons/person_edit_20_regular.svg?raw';
 import svg517 from '@fluentui/svg-icons/icons/person_edit_20_filled.svg?raw';
+import svg518 from '@fluentui/svg-icons/icons/vault_24_regular.svg?raw';
+import svg519 from '@fluentui/svg-icons/icons/vault_24_filled.svg?raw';
+import svg520 from '@fluentui/svg-icons/icons/vault_20_regular.svg?raw';
+import svg521 from '@fluentui/svg-icons/icons/vault_20_filled.svg?raw';
+import svg522 from '@fluentui/svg-icons/icons/lock_closed_key_24_regular.svg?raw';
+import svg523 from '@fluentui/svg-icons/icons/lock_closed_key_24_filled.svg?raw';
+import svg524 from '@fluentui/svg-icons/icons/lock_closed_key_20_regular.svg?raw';
+import svg525 from '@fluentui/svg-icons/icons/lock_closed_key_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -684,4 +692,6 @@ export const ICON_VARIANTS = {
   tagReset: { regular: svg506, filled: svg507, small: svg508, smallFilled: svg509 },
   eraser: { regular: svg510, filled: svg511, small: svg512, smallFilled: svg513 },
   personEdit: { regular: svg514, filled: svg515, small: svg516, smallFilled: svg517 },
+  vault: { regular: svg518, filled: svg519, small: svg520, smallFilled: svg521 },
+  lockClosedKey: { regular: svg522, filled: svg523, small: svg524, smallFilled: svg525 },
 } as const;
