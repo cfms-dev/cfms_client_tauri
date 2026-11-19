@@ -375,17 +375,34 @@
                 </div>
               {/if}
             {/each}
-            {#if workspace.hasAuditFilters}
-              <FluentButton data-fluent-owner="routes-home-manage-page" type="button" disabled={workspace.loadingLogs}
-                onclick={() => workspace.applyAuditFilters({ include: [], exclude: [] })} appearance="subtle" class="audit-filter-clear">
-                {$t('manage.auditFilterClearAll')}
+            <div class="audit-active-filters__actions">
+              {#if workspace.hasAuditFilters}
+                <FluentButton data-fluent-owner="routes-home-manage-page"
+                  type="button"
+                  disabled={workspace.loadingLogs}
+                  aria-label={$t('manage.auditFilterClearAll')}
+                  title={$t('manage.auditFilterClearAll')}
+                  onclick={() => workspace.applyAuditFilters({ include: [], exclude: [] })}
+                  appearance="subtle"
+                  class="audit-filter-action"
+                  iconOnly
+                >
+                  <Icon name="eraser" size="18px" />
+                </FluentButton>
+              {/if}
+              <FluentButton data-fluent-owner="routes-home-manage-page"
+                type="button"
+                disabled={workspace.loadingLogs || workspace.auditFiltersAreDefault}
+                aria-label={$t('manage.auditFilterRestoreDefaults')}
+                title={$t('manage.auditFilterRestoreDefaults')}
+                onclick={workspace.restoreAuditDefaults}
+                appearance="subtle"
+                class="audit-filter-action"
+                iconOnly
+              >
+                <Icon name="tagReset" size="18px" />
               </FluentButton>
-            {/if}
-            <FluentButton data-fluent-owner="routes-home-manage-page" type="button"
-              disabled={workspace.loadingLogs || workspace.auditFiltersAreDefault}
-              onclick={workspace.restoreAuditDefaults} appearance="subtle">
-              {$t('manage.auditFilterRestoreDefaults')}
-            </FluentButton>
+            </div>
           </div>
         {/if}
 
@@ -400,6 +417,7 @@
             <p>{$t('manage.auditLoadFailed')}</p>
             <FluentButton data-fluent-owner="routes-home-manage-page" type="button" appearance="subtle"
               onclick={() => workspace.loadAuditLogPage(null, 'reset')}>
+              <Icon name="refresh" size="16px" />
               {$t('common.retry')}
             </FluentButton>
           </div>
@@ -413,6 +431,7 @@
                 onclick={() => workspace.applyAuditFilters({ include: [], exclude: [] })}
                 appearance="subtle"
               >
+                <Icon name="eraser" size="16px" />
                 {$t('manage.auditFilterClearAll')}
               </FluentButton>
             </div>
@@ -694,26 +713,9 @@
                   {$t('manage.idWithValue', { values: { id: block.block_id } })}
                 </p>
               </div>
-              <div class="flex flex-none gap-1.5">
-                <FluentButton data-fluent-owner="routes-home-manage-page"
-                  onclick={() => workspace.handleEditBlockReason(block)}
-                  disabled={workspace.busyKey !== null}
-                  type="button"
-                  appearance="subtle"
-                  class="px-3 py-1 text-xs rounded bg-md3-primary-container text-md3-on-primary-container  disabled:opacity-50"
-                >
-                  {$t('common.edit')}
-                </FluentButton>
-                <FluentButton data-fluent-owner="routes-home-manage-page"
-                  onclick={() => workspace.handleUnblock(block.block_id)}
-                  disabled={workspace.busyKey !== null}
-                  type="button"
-                  appearance="subtle"
-                  tone="danger"
-                  class="px-3 py-1 text-xs rounded bg-md3-error-container\n                         text-md3-on-error-container  disabled:opacity-50"
-                >
-                  {$t('files.revoke')}
-                </FluentButton>
+              <div class="flex flex-none gap-1">
+                {@render ActionButton('edit', $t('common.edit'), () => workspace.handleEditBlockReason(block), workspace.busyKey !== null)}
+                {@render ActionButton('delete', $t('files.revoke'), () => workspace.handleUnblock(block.block_id), workspace.busyKey !== null, true)}
               </div>
             </div>
             <p class="text-xs text-md3-on-surface-variant">
@@ -763,8 +765,8 @@
     onclick={onClick}
     {disabled}
     appearance="subtle"
-    tone="danger"
-    class={"p-1.5 rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40\n           " + (danger
+    tone={danger ? 'danger' : 'neutral'}
+    class={"manage-icon-action rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40\n           " + (danger
              ? 'text-md3-error hover:bg-md3-error-container/40'
              : 'text-md3-on-surface-variant hover:bg-md3-primary-container/40 hover:text-md3-primary-emphasis')}
     iconOnly
@@ -947,26 +949,43 @@
     background: color-mix(in srgb, var(--color-md3-on-primary-container) 12%, transparent);
   }
 
-  .audit-filter-chip :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"]):is(:disabled, [disabled])),
-  :global(.audit-filter-clear[data-fluent-owner="routes-home-manage-page"]:is(:disabled, [disabled])) {
-    cursor: not-allowed;
-    opacity: 0.45;
+  .audit-active-filters__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-inline-start: auto;
   }
 
-  :global(.audit-filter-clear[data-fluent-owner="routes-home-manage-page"]) {
-    min-height: 1.9rem;
+  .audit-filter-chip :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"]):is(:disabled, [disabled])),
+  :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]:is(:disabled, [disabled])) {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]),
+  :global(.manage-icon-action[data-fluent-owner="routes-home-manage-page"]) {
+    display: inline-flex;
     flex: none;
-    border-radius: 5px;
-    padding: 0.25rem 0.5rem;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 12px;
-    font-weight: 600;
+    inline-size: 32px;
+    min-inline-size: 32px;
+    max-inline-size: 32px;
+    block-size: 32px;
+    min-block-size: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]) {
+    border-radius: var(--borderRadiusMedium);
+    color: var(--colorNeutralForeground2);
     transition: background-color 120ms ease, color 120ms ease;
   }
 
-  :global(.audit-filter-clear[data-fluent-owner="routes-home-manage-page"]:hover:not(:is(:disabled, [disabled]))) {
-    color: var(--color-md3-on-surface);
-    background: var(--color-md3-surface-container-high);
+  :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]:hover:not(:is(:disabled, [disabled]))) {
+    color: var(--colorNeutralForeground1);
+    background: var(--colorNeutralBackground1Hover);
   }
 
   .audit-filter-empty {
@@ -1005,11 +1024,11 @@
     background: var(--color-md3-primary-container);
     font-size: 12px;
     font-weight: 600;
-    transition: filter 120ms ease, transform 120ms ease;
+    transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
   }
 
   .audit-filter-empty :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"]):hover) {
-    filter: none;
+    background: color-mix(in srgb, var(--color-md3-primary-container) 84%, currentColor 12%);
   }
 
   .audit-filter-empty :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"]):active) {
@@ -1022,16 +1041,26 @@
     }
 
     .audit-filter-chip :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"])),
-    :global(.audit-filter-clear[data-fluent-owner="routes-home-manage-page"]),
+    :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]),
+    :global(.manage-icon-action[data-fluent-owner="routes-home-manage-page"]),
     .audit-filter-empty :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"])) {
       min-width: 2.75rem;
       min-height: 2.75rem;
+    }
+
+    :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]),
+    :global(.manage-icon-action[data-fluent-owner="routes-home-manage-page"]) {
+      inline-size: 44px;
+      min-inline-size: 44px;
+      max-inline-size: 44px;
+      block-size: 44px;
+      min-block-size: 44px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .audit-filter-chip :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"])),
-    :global(.audit-filter-clear[data-fluent-owner="routes-home-manage-page"]),
+    :global(.audit-filter-action[data-fluent-owner="routes-home-manage-page"]),
     .audit-filter-empty :global(:is(button[data-fluent-owner="routes-home-manage-page"], .cfms-button[data-fluent-owner="routes-home-manage-page"])) {
       transition: none;
     }

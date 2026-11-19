@@ -31,8 +31,8 @@
           <FluentButton data-fluent-owner="shared-multi-select-filter"
             type="button"
             disabled={draftOptions.length === 0}
-            aria-label={$t('common.reset')}
-            title={$t('common.reset')}
+            aria-label={$t('common.clear')}
+            title={$t('common.clear')}
             onclick={() => {
               draftOptions = [];
               editorRevision += 1;
@@ -41,7 +41,7 @@
             class="filter-reset"
             iconOnly
           >
-            <Icon name="resetSettings" size="20px" />
+            <Icon name="eraser" size="20px" />
           </FluentButton>
           <span class="filter-selection-summary">
             {labels.selected(draftOptions.length)}

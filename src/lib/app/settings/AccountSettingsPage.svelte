@@ -245,7 +245,18 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
       <div class="identity-actions">
         {#if canChangeUsername}
-          <FluentButton appearance="subtle" disabled={!serverStateStore.connected || authStore.postLoginPending} onclick={() => { showUsernameEditor = true; }}>{$t('protocol30.changeUsername')}</FluentButton>
+          <FluentButton data-fluent-owner="routes-home-settings-account-page"
+            type="button"
+            title={$t('protocol30.changeUsername')}
+            aria-label={$t('protocol30.changeUsername')}
+            appearance="subtle"
+            class="action-button action-button--secondary"
+            disabled={!serverStateStore.connected || authStore.postLoginPending}
+            onclick={() => { showUsernameEditor = true; }}
+          >
+            <Icon name="personEdit" size="18px" />
+            <span>{$t('protocol30.changeUsername')}</span>
+          </FluentButton>
         {/if}
         {#if !editingNickname && canChangeNickname}
           <FluentButton data-fluent-owner="routes-home-settings-account-page"
@@ -351,7 +362,16 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     {#if loadError}
       <div class="profile-error" role="alert">
         <div class="cfms-heading-copy"><strong>{$t(info ? 'settings.account.refreshFailed' : 'settings.account.loadFailed')}</strong><p>{loadError}</p></div>
-        <FluentButton appearance="outline" disabled={loading || !serverStateStore.connected} onclick={refreshProfile}>{$t('settings.account.retry')}</FluentButton>
+        <FluentButton data-fluent-owner="routes-home-settings-account-page"
+          type="button"
+          appearance="outline"
+          class="action-button action-button--secondary"
+          disabled={loading || !serverStateStore.connected}
+          onclick={refreshProfile}
+        >
+          <Icon name="refresh" size="16px" />
+          <span>{$t('settings.account.retry')}</span>
+        </FluentButton>
       </div>
     {/if}
     {#if updatedAt}<p>{$t('settings.account.lastUpdated', { values: { time: date(updatedAt) } })}</p>{/if}

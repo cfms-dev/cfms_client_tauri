@@ -275,6 +275,7 @@
               appearance="subtle"
               class="search-preview-action"
             >
+              <Icon name="filterList" size="16px" />
               {$t('files.advancedSearch')}
             </FluentButton>
             <FluentButton data-fluent-owner="routes-home-files-page"
@@ -387,6 +388,7 @@
     secondary={workspace.statusBarSecondary}
     tone={workspace.directoryLoadPhase === 'partial-error' ? 'danger' : 'default'}
     actionLabel={workspace.directoryLoadPhase === 'partial-error' ? $t('workspace.retryLoading') : ''}
+    actionIcon={workspace.directoryLoadPhase === 'partial-error' ? 'refresh' : undefined}
     onAction={workspace.retryDirectoryLoad}
   />
 </div>
@@ -793,6 +795,7 @@
           appearance="primary"
           class="server-search-action"
         >
+          <Icon name="search" size="16px" />
           {$t('files.serverSearch')}
         </FluentButton>
       </div>

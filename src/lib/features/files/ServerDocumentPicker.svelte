@@ -198,6 +198,7 @@
             tone="danger"
             class="rounded bg-md3-error-container px-3 py-1.5 text-xs font-medium transition-all "
           >
+            <Icon name="refresh" size="16px" />
             {$t('common.refresh')}
           </FluentButton>
         </div>

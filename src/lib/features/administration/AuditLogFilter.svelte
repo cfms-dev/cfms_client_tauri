@@ -3,6 +3,7 @@
   import FilterPopover from '$lib/shared/ui/FilterPopover.svelte';
   import MultiSelectOptions from '$lib/shared/ui/MultiSelectOptions.svelte';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import Icon from '$lib/shared/ui/Icon.svelte';
   import { focusRovingItem } from '$lib/shared/ui/keyboard';
   import { DEFAULT_AUDIT_EXCLUSIONS, defaultAuditFilters, normalizeAuditActions, normalizeAuditFilters, selectAuditAction, type AuditActionFilters } from './audit-filters';
 
@@ -62,14 +63,27 @@
   {#snippet footer(close)}
     <footer class="filter-panel__footer">
       <div class="filter-panel__actions audit-filter-draft-actions">
-        <FluentButton data-fluent-owner="shared-multi-select-filter" type="button" appearance="subtle"
+        <FluentButton data-fluent-owner="shared-multi-select-filter"
+          type="button"
+          appearance="subtle"
+          class="filter-reset"
+          iconOnly
+          aria-label={$t('manage.auditFilterClearAll')}
+          title={$t('manage.auditFilterClearAll')}
           disabled={draft.include.length + draft.exclude.length === 0}
           onclick={() => { draft = { include: [], exclude: [] }; editorRevision += 1; }}>
-          {$t('manage.auditFilterClearAll')}
+          <Icon name="eraser" size="20px" />
         </FluentButton>
-        <FluentButton data-fluent-owner="shared-multi-select-filter" type="button" appearance="subtle" disabled={defaultsSelected}
+        <FluentButton data-fluent-owner="shared-multi-select-filter"
+          type="button"
+          appearance="subtle"
+          class="filter-reset"
+          iconOnly
+          aria-label={$t('manage.auditFilterRestoreDefaults')}
+          title={$t('manage.auditFilterRestoreDefaults')}
+          disabled={defaultsSelected}
           onclick={() => { draft = defaultAuditFilters(); editorRevision += 1; }}>
-          {$t('manage.auditFilterRestoreDefaults')}
+          <Icon name="tagReset" size="20px" />
         </FluentButton>
       </div>
       <div class="filter-panel__actions">
@@ -91,6 +105,6 @@
   .audit-filter-tabs button:hover { background: var(--colorNeutralBackground1Hover); }
   .audit-filter-tabs button[aria-selected="true"] { color: var(--colorBrandForeground1); background: var(--colorBrandBackground2); font-weight: 600; }
   .audit-filter-editor { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-  :global(.audit-filter-draft-actions) { width: 100%; justify-content: flex-start; margin-inline-start: 0; }
+  :global(.filter-panel__actions.audit-filter-draft-actions) { flex: 0 1 auto; justify-content: flex-start; margin-inline-start: 0; gap: 4px; }
   @media (pointer: coarse) { .audit-filter-tabs button { min-height: 44px; } }
 </style>

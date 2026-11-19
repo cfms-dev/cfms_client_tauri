@@ -149,4 +149,6 @@ export const ICON_MAP = {
   "cancelledTransfer": "dismiss_circle",
   "appsSettings": "apps_settings",
   "tagReset": "tag_reset",
+  "eraser": "eraser",
+  "personEdit": "person_edit",
 } as const;

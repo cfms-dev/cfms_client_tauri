@@ -104,7 +104,7 @@
       {#if !workspace.canWrite}<p class="notice">{$t('serverSettings.readOnly')}</p>{/if}
       {#if workspace.error}
         <div role="alert" class="error notice"><p>{workspace.error}</p>
-          {#if !workspace.discovered}<FluentButton disabled={refreshState.disabled} onclick={() => void refresh()}>{$t('serverSettings.retry')}</FluentButton>{/if}
+          {#if !workspace.discovered}<FluentButton disabled={refreshState.disabled} onclick={() => void refresh()}><Icon name="refresh" size={16} />{$t('serverSettings.retry')}</FluentButton>{/if}
         </div>
       {/if}
       {#if workspace.failedNamespaces.length}
@@ -113,16 +113,16 @@
           <ul>
             {#each workspace.failedNamespaces as ns (ns)}
               <li><span><code>{ns}</code> · {workspace.entries[ns].error}</span>
-                <FluentButton appearance="subtle" disabled={workspace.saving} aria-label={$t('serverSettings.retryNamespace', { values: { namespace: ns } })} onclick={() => workspace.retry([ns])}>{$t('serverSettings.retry')}</FluentButton>
+                <FluentButton appearance="subtle" iconOnly class="inline-icon-action" data-fluent-owner="server-settings" disabled={workspace.saving} aria-label={$t('serverSettings.retryNamespace', { values: { namespace: ns } })} title={$t('serverSettings.retryNamespace', { values: { namespace: ns } })} onclick={() => workspace.retry([ns])}><Icon name="refresh" size={18} /></FluentButton>
               </li>
             {/each}
           </ul>
-          {#if workspace.failedNamespaces.length > 1}<FluentButton disabled={workspace.saving} onclick={() => workspace.retry()}>{$t('serverSettings.retryFailed')}</FluentButton>{/if}
+          {#if workspace.failedNamespaces.length > 1}<FluentButton disabled={workspace.saving} onclick={() => workspace.retry()}><Icon name="refresh" size={16} />{$t('serverSettings.retryFailed')}</FluentButton>{/if}
         </div>
       {/if}
       {#if workspace.invalid}
         <div class="invalid-notice notice" role="alert"><p>{$t('serverSettings.invalidDrafts')}</p>
-          <FluentButton appearance="subtle" onclick={clearFilters}>{$t('serverSettings.clearFilters')}</FluentButton>
+          <FluentButton appearance="subtle" iconOnly class="inline-icon-action" data-fluent-owner="server-settings" aria-label={$t('serverSettings.clearFilters')} title={$t('serverSettings.clearFilters')} onclick={clearFilters}><Icon name="eraser" size={20} /></FluentButton>
         </div>
       {/if}
       {#if workspace.discovering}
@@ -211,6 +211,7 @@
   .read-errors li span { min-width: 0; font-size: 12px; line-height: 16px; }
   .read-errors code { display: inline; }
   .invalid-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  :global(.inline-icon-action[data-fluent-owner="server-settings"]) { display: inline-flex; flex: none; inline-size: 32px; min-inline-size: 32px; max-inline-size: 32px; block-size: 32px; min-block-size: 32px; align-items: center; justify-content: center; padding: 0; }
   footer { display: flex; flex: none; gap: 16px; align-items: center; justify-content: space-between; padding: 24px; padding-bottom: max(24px, var(--safe-area-bottom, 0px)); border-top: 1px solid var(--colorNeutralStroke2); }
   footer > div { min-width: 0; overflow-wrap: anywhere; }
   footer > :global(fluent-button) { flex-shrink: 0; }
@@ -227,5 +228,6 @@
   .no-matches { padding: 24px 0; }
   @media (max-width: 700px) { .settings-scroll { padding: 16px; } footer { padding-inline: 16px; } .setting-row { grid-template-columns: 1fr; gap: 16px; } }
   @media (max-width: 400px) { .filters { grid-template-columns: 1fr; } .read-errors li, .invalid-notice { flex-wrap: wrap; } }
+  @media (pointer: coarse) { :global(.inline-icon-action[data-fluent-owner="server-settings"]) { inline-size: 44px; min-inline-size: 44px; max-inline-size: 44px; block-size: 44px; min-block-size: 44px; } }
   @media (forced-colors: active) { .skeleton { background: GrayText; opacity: 0.2; } .filter-tags :global(.namespace-tag[data-fluent-owner="server-settings"]) { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } }
 </style>

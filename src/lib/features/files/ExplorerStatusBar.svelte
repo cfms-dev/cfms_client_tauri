@@ -1,10 +1,13 @@
 <script lang="ts">
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import Icon from '$lib/shared/ui/Icon.svelte';
+  import type { IconName } from '$lib/shared/ui/icons';
   let {
     primary,
     secondary = '',
     tone = 'default',
     actionLabel = '',
+    actionIcon,
     actionBusy = false,
     onAction,
   }: {
@@ -12,6 +15,7 @@
     secondary?: string;
     tone?: 'default' | 'success' | 'danger';
     actionLabel?: string;
+    actionIcon?: IconName;
     actionBusy?: boolean;
     onAction?: () => void;
   } = $props();
@@ -31,6 +35,7 @@
       appearance="subtle"
       class="explorer-status-action"
     >
+      {#if actionIcon}<Icon name={actionIcon} size="14px" />{/if}
       {actionLabel}
     </FluentButton>
   {/if}

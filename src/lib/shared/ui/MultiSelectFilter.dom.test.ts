@@ -193,22 +193,23 @@ describe('MultiSelectFilter', () => {
     expect(panel.classList.contains('filter-panel--above')).toBe(true);
   });
 
-  it('exposes a labelled reset icon that stages clearing without applying it', async () => {
+  it('exposes a labelled clear icon that stages clearing without applying it', async () => {
     const onApply = vi.fn();
     render(MultiSelectFilter, {
       labels, allowCustom: true, availableOptions: ['login'], selectedOptions: ['login'], onApply,
     });
     await fireEvent.click(screen.getByRole('button', { name: 'manage.auditFilterButton' }));
-    const reset = screen.getByRole('button', { name: 'common.reset' });
-    expect(reset.hasAttribute('icon-only')).toBe(true);
-    expect(reset.getAttribute('title')).toBe('common.reset');
-    expect(reset.hasAttribute('disabled')).toBe(false);
+    const clear = screen.getByRole('button', { name: 'common.clear' });
+    expect(clear.hasAttribute('icon-only')).toBe(true);
+    expect(clear.getAttribute('title')).toBe('common.clear');
+    expect(clear.querySelector('[data-icon="eraser"]')).toBeTruthy();
+    expect(clear.hasAttribute('disabled')).toBe(false);
 
     await fireEvent.input(screen.getByLabelText('manage.auditFilterSearch'), {
       target: { value: 'login' },
     });
-    await fireEvent.click(reset);
-    expect(reset.hasAttribute('disabled')).toBe(true);
+    await fireEvent.click(clear);
+    expect(clear.hasAttribute('disabled')).toBe(true);
     expect((screen.getByLabelText('manage.auditFilterSearch') as HTMLInputElement).value).toBe('');
     expect(screen.getByRole('option', { name: 'login' }).getAttribute('aria-selected')).toBe('false');
     expect(onApply).not.toHaveBeenCalled();

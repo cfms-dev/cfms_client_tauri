@@ -200,7 +200,8 @@
             onclick={onAdd}
             appearance="subtle"
           >
-            {$t('manage.addPermissionEntry')}
+            <Icon name="add" size="17px" />
+            <span>{$t('manage.addPermissionEntry')}</span>
           </FluentButton>
         {/if}
       </div>

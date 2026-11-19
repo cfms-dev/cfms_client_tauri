@@ -45,6 +45,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   let selected = $state<Schedule | null>(null);
   let editorMode = $state<'create' | 'edit' | null>(null);
   let search = $state('');
+  let searchInput = $state<HTMLInputElement | null>(null);
   let includeDeleted = $state(false);
   let currentCursor = $state<string | null>(null);
   let nextCursor = $state<string | null>(null);
@@ -424,11 +425,26 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     <div class="schedule-workspace" class:has-inspector={editorMode !== null || selected !== null}>
       <section class="ledger" aria-label={$t('schedules.listLabel')}>
         <div class="command-bar">
-          <label class="search-field cfms-input-composite cfms-field-surface">
+          <div class="search-field cfms-input-composite cfms-field-surface">
             <Icon name="search" size="18px" />
-            <span class="sr-only">{$t('schedules.search')}</span>
-            <input class="cfms-native-field" data-focus-ring="delegated" bind:value={search} disabled={editorMode !== null} placeholder={$t('schedules.searchPlaceholder')} />
-          </label>
+            <input bind:this={searchInput} class="cfms-native-field" data-focus-ring="delegated" bind:value={search} disabled={editorMode !== null} aria-label={$t('schedules.search')} placeholder={$t('schedules.searchPlaceholder')} />
+            {#if search}
+              <span class="cfms-input-composite__end">
+                <FluentButton data-fluent-owner="routes-home-schedules-page"
+                  type="button"
+                  aria-label={$t('common.clear')}
+                  title={$t('common.clear')}
+                  disabled={editorMode !== null}
+                  onclick={() => { search = ''; searchInput?.focus({ preventScroll: true }); }}
+                  appearance="subtle"
+                  class="cfms-control-action"
+                  iconOnly
+                >
+                  <Icon name="close" size="16px" />
+                </FluentButton>
+              </span>
+            {/if}
+          </div>
           <label class="deleted-filter">
             <input type="checkbox" bind:checked={includeDeleted} disabled={editorMode !== null} onchange={resetAndRefresh} />
             <span>{$t('schedules.includeDeleted')}</span>
@@ -444,7 +460,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
               type="button"
               onclick={() => void refreshAll()}
               appearance="subtle"
-            >{$t('common.retry')}</FluentButton>
+            ><Icon name="refresh" size="16px" />{$t('common.retry')}</FluentButton>
           </div>
         {:else if loading && schedules.length === 0}
           <div class="load-state"><ProgressRing size={24} label={$t('schedules.loading')} /><span>{$t('schedules.loading')}</span></div>
@@ -459,7 +475,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
                 onclick={openCreate}
                 appearance="subtle"
                 class="primary-action"
-              >{$t('schedules.createFirst')}</FluentButton>
+              ><Icon name="add" size="18px" />{$t('schedules.createFirst')}</FluentButton>
             {/if}
           </div>
         {:else}
@@ -635,7 +651,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   .command-bar { display: flex; min-height: 52px; align-items: center; gap: 12px; border-bottom: 1px solid var(--color-md3-outline); padding: 0.45rem 1rem; }
   .search-field { display: flex; min-width: 180px; max-width: 390px; flex: 1; align-items: center; gap: 8px; border: 1px solid var(--color-md3-outline); border-radius: var(--borderRadiusMedium); background: var(--color-md3-field); color: var(--color-md3-on-surface-variant); }
   .search-field:focus-within { border-color: var(--color-md3-primary); box-shadow: inset 0 0 0 1px var(--color-md3-primary); }
-  .search-field input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--color-md3-on-surface); font: 0.8rem var(--font-md3-sans); }
+  .search-field input { min-width: 0; flex: 1; width: 100%; border: 0; outline: 0; background: transparent; color: var(--color-md3-on-surface); font: 0.8rem var(--font-md3-sans); }
   .search-field:has(input:is(:disabled, [disabled])) { opacity: 0.55; }
   .deleted-filter { display: flex; align-items: center; gap: 8px; color: var(--color-md3-on-surface-variant); font-size: 12px; cursor: pointer; }
   .deleted-filter input { accent-color: var(--color-md3-primary); }

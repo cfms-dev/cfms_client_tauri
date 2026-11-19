@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   requestEscalation: vi.fn(),
   getManagedTwoFactorStatus: vi.fn(),
   disableManagedTwoFactor: vi.fn(),
+  listUserBlocks: vi.fn(),
   listServerSettings: vi.fn(),
   getServerSettings: vi.fn(),
 }));
@@ -39,6 +40,7 @@ vi.mock('$lib/api', async (importOriginal) => ({
   requestEscalation: mocks.requestEscalation,
   getManagedTwoFactorStatus: mocks.getManagedTwoFactorStatus,
   disableManagedTwoFactor: mocks.disableManagedTwoFactor,
+  listUserBlocks: mocks.listUserBlocks,
   listServerSettings: mocks.listServerSettings,
   getServerSettings: mocks.getServerSettings,
 }));
@@ -96,6 +98,7 @@ beforeEach(() => {
   });
   mocks.viewAuditLogs.mockReset();
   mocks.listUsers.mockReset();
+  mocks.listUserBlocks.mockReset();
   mocks.listServerSettings.mockReset().mockResolvedValue({ items: [] });
   mocks.getServerSettings.mockReset();
   mocks.getUserInfo.mockReset().mockResolvedValue({
@@ -383,6 +386,35 @@ describe('management account context menu', () => {
     }
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('uses labelled icon buttons for block-record row actions', async () => {
+    authStore.permissions = ['list_users', 'list_user_blocks'];
+    mocks.listUsers.mockResolvedValue([{ user_id: 'other-id', username: 'alice', nickname: 'Alice', groups: [], effective_permissions: [], last_login: null }]);
+    mocks.listUserBlocks.mockResolvedValue([{
+      block_id: 'block-1',
+      block_types: ['read'],
+      target_type: 'all',
+      target_id: null,
+      timestamp: 1_786_600_000,
+      not_before: 1_786_600_000,
+      not_after: -1,
+      reason: 'Policy review',
+    }]);
+
+    render(ManagePage);
+    await fireEvent.contextMenu((await screen.findAllByRole('listitem'))[0]);
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'View/Revoke blocks' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Blocks: alice' });
+    const edit = within(dialog).getByRole('button', { name: 'Edit' });
+    const revoke = within(dialog).getByRole('button', { name: 'Revoke' });
+    expect(edit.hasAttribute('icon-only')).toBe(true);
+    expect(edit.getAttribute('title')).toBe('Edit');
+    expect(edit.querySelector('[data-icon="edit"]')).toBeTruthy();
+    expect(revoke.hasAttribute('icon-only')).toBe(true);
+    expect(revoke.getAttribute('title')).toBe('Revoke');
+    expect(revoke.querySelector('[data-icon="delete"]')).toBeTruthy();
+  });
 });
 
 describe('management audit logs', () => {
@@ -393,7 +425,11 @@ describe('management audit logs', () => {
     expect(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' })).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' }));
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], ['core.audit.entry.list']));
-    await fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    const clearButton = screen.getByRole('button', { name: 'Clear filters' });
+    expect(clearButton.hasAttribute('icon-only')).toBe(true);
+    expect(clearButton.getAttribute('title')).toBe('Clear filters');
+    expect(clearButton.querySelector('[data-icon="eraser"]')).toBeTruthy();
+    await fireEvent.click(clearButton);
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []));
     await fireEvent.click(screen.getByRole('tab', { name: 'Accounts' }));
     await fireEvent.click(screen.getByRole('tab', { name: 'Logs' }));
@@ -401,7 +437,11 @@ describe('management audit logs', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledTimes(5));
     expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []);
-    await fireEvent.click(screen.getByRole('button', { name: 'Restore defaults' }));
+    const restoreButton = screen.getByRole('button', { name: 'Restore defaults' });
+    expect(restoreButton.hasAttribute('icon-only')).toBe(true);
+    expect(restoreButton.getAttribute('title')).toBe('Restore defaults');
+    expect(restoreButton.querySelector('[data-icon="tagReset"]')).toBeTruthy();
+    await fireEvent.click(restoreButton);
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], defaultExclusions));
     cleanup();
     await openAuditLogs();
@@ -414,7 +454,10 @@ describe('management audit logs', () => {
     expect(await screen.findByText('Could not load audit logs. Your filters have been kept. Try again.')).toBeTruthy();
     expect(screen.queryByText('No audit logs match the current filters.')).toBeNull();
     expect(screen.getByRole('button', { name: 'Remove excluded action core.setting.get' })).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    expect(retry.hasAttribute('icon-only')).toBe(false);
+    expect(retry.querySelector('[data-icon="refresh"]')).toBeTruthy();
+    await fireEvent.click(retry);
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenCalledTimes(2));
     expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], defaultExclusions);
     expect(await screen.findByText('No audit logs match the current filters.')).toBeTruthy();
@@ -651,7 +694,10 @@ describe('management audit logs', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
 
     expect(await screen.findByText('No audit logs match the current filters.')).toBeTruthy();
-    await fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' }).at(-1)!);
+    const emptyClear = screen.getAllByRole('button', { name: 'Clear filters' }).at(-1)!;
+    expect(emptyClear.hasAttribute('icon-only')).toBe(false);
+    expect(emptyClear.querySelector('[data-icon="eraser"]')).toBeTruthy();
+    await fireEvent.click(emptyClear);
     await waitFor(() => expect(mocks.viewAuditLogs).toHaveBeenLastCalledWith(null, 128, [], []));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Filter audit logs; 0 included, 0 excluded' }));

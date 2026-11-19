@@ -509,6 +509,14 @@ import svg506 from '@fluentui/svg-icons/icons/tag_reset_24_regular.svg?raw';
 import svg507 from '@fluentui/svg-icons/icons/tag_reset_24_filled.svg?raw';
 import svg508 from '@fluentui/svg-icons/icons/tag_reset_20_regular.svg?raw';
 import svg509 from '@fluentui/svg-icons/icons/tag_reset_20_filled.svg?raw';
+import svg510 from '@fluentui/svg-icons/icons/eraser_24_regular.svg?raw';
+import svg511 from '@fluentui/svg-icons/icons/eraser_24_filled.svg?raw';
+import svg512 from '@fluentui/svg-icons/icons/eraser_20_regular.svg?raw';
+import svg513 from '@fluentui/svg-icons/icons/eraser_20_filled.svg?raw';
+import svg514 from '@fluentui/svg-icons/icons/person_edit_24_regular.svg?raw';
+import svg515 from '@fluentui/svg-icons/icons/person_edit_24_filled.svg?raw';
+import svg516 from '@fluentui/svg-icons/icons/person_edit_20_regular.svg?raw';
+import svg517 from '@fluentui/svg-icons/icons/person_edit_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -674,4 +682,6 @@ export const ICON_VARIANTS = {
   cancelledTransfer: { regular: svg256, filled: svg257, small: svg258, smallFilled: svg259 },
   appsSettings: { regular: svg504, filled: svg505, small: svg504, smallFilled: svg505 },
   tagReset: { regular: svg506, filled: svg507, small: svg508, smallFilled: svg509 },
+  eraser: { regular: svg510, filled: svg511, small: svg512, smallFilled: svg513 },
+  personEdit: { regular: svg514, filled: svg515, small: svg516, smallFilled: svg517 },
 } as const;

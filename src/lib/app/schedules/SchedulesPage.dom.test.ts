@@ -253,12 +253,22 @@ describe('schedules page', () => {
     expect(tooltip.style.top).toBe('70px');
   });
 
-  it('delegates the search input focus ring to its composite field', async () => {
+  it('delegates the search input focus ring to its composite field and clears search via icon button', async () => {
     signIn(['view_schedules']);
     render(SchedulesPage);
 
     await screen.findByText('reports.weekly');
-    expect(screen.getByPlaceholderText('Search this page by task, ID, or owner').getAttribute('data-focus-ring')).toBe('delegated');
+    const input = screen.getByPlaceholderText('Search this page by task, ID, or owner') as HTMLInputElement;
+    expect(input.getAttribute('data-focus-ring')).toBe('delegated');
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
+    await fireEvent.input(input, { target: { value: 'missing' } });
+    expect(screen.getByText('No matching schedules')).toBeTruthy();
+    const clear = screen.getByRole('button', { name: 'Clear' });
+    expect(clear.hasAttribute('icon-only')).toBe(true);
+    expect(clear.querySelector('[data-icon="close"]')).toBeTruthy();
+    await fireEvent.click(clear);
+    expect(input.value).toBe('');
+    expect(screen.getByText('reports.weekly')).toBeTruthy();
   });
 
   it('toggles a schedule inline without opening details or showing success feedback', async () => {

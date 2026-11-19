@@ -405,7 +405,11 @@ it('blocks saving an invalid draft even when it is hidden by filters', async () 
   expect(screen.queryByRole('spinbutton', { name: 'Limit a' })).toBeNull();
   expect(screen.getByText('serverSettings.invalidDrafts')).toBeTruthy();
   expect((screen.getByRole('button', { name: 'common.save' }) as HTMLButtonElement).disabled).toBe(true);
-  await fireEvent.click(screen.getByRole('button', { name: 'serverSettings.clearFilters' }));
+  const clearButton = screen.getByRole('button', { name: 'serverSettings.clearFilters' });
+  expect(clearButton.hasAttribute('icon-only')).toBe(true);
+  expect(clearButton.getAttribute('title')).toBe('serverSettings.clearFilters');
+  expect(clearButton.querySelector('[data-icon="eraser"]')).toBeTruthy();
+  await fireEvent.click(clearButton);
   expect((screen.getByRole('spinbutton', { name: 'Limit a' }) as HTMLInputElement).value).toBe('0');
 });
 
@@ -418,7 +422,11 @@ it('retries only failed reads and preserves ready drafts', async () => {
   await screen.findByText(/serverSettings.readTimeout/);
   expect(screen.getByText('serverSettings.notLoaded')).toBeTruthy();
   mocks.get.mockResolvedValueOnce(values('b'));
-  await fireEvent.click(screen.getByRole('button', { name: 'serverSettings.retryNamespace' }));
+  const retryNamespace = screen.getByRole('button', { name: 'serverSettings.retryNamespace' });
+  expect(retryNamespace.hasAttribute('icon-only')).toBe(true);
+  expect(retryNamespace.getAttribute('title')).toBe('serverSettings.retryNamespace');
+  expect(retryNamespace.querySelector('[data-icon="refresh"]')).toBeTruthy();
+  await fireEvent.click(retryNamespace);
   await screen.findByRole('spinbutton', { name: 'Limit b' });
   expect((a as HTMLInputElement).value).toBe('7');
   expect(mocks.get.mock.calls.map(([ns]) => ns)).toEqual(['a', 'b', 'b']);

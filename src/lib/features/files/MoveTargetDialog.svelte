@@ -241,6 +241,7 @@
               tone="danger"
               class="rounded bg-md3-error-container px-3 py-1.5 text-xs font-medium text-md3-on-error-container transition-all "
             >
+              <Icon name="refresh" size="16px" />
               {$t('common.refresh')}
             </FluentButton>
             <FluentButton data-fluent-owner="lib-components-move-target-dialog"
@@ -249,6 +250,7 @@
               appearance="subtle"
               class="rounded bg-md3-surface-container-high px-3 py-1.5 text-xs font-medium text-md3-on-surface-variant transition-all "
             >
+              <Icon name="home" size="16px" />
               {$t('files.goToRoot')}
             </FluentButton>
           </div>
