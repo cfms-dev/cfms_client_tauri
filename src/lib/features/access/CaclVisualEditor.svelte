@@ -1,6 +1,10 @@
 <script lang="ts">
+  import { flip } from 'svelte/animate';
+  import { cubicOut } from 'svelte/easing';
   import { _ as t } from 'svelte-i18n';
   import type { ObjectType } from 'codemirror-lang-cacl';
+  import { isReducedMotionEnabled } from '$lib/shared/appearance';
+  import { inlineNotice } from '$lib/shared/motion/transitions';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import CaclRuleCard from './CaclRuleCard.svelte';
@@ -146,7 +150,7 @@
   </div>
 
   {#if document.rules.length === 0}
-    <div class="empty-policy" class:empty-policy--warn={!document.inherit}>
+    <div class="empty-policy" class:empty-policy--warn={!document.inherit} transition:inlineNotice>
       <Icon name={document.inherit ? 'info' : 'warning'} size="24px" />
       <div class="empty-copy">
         <h4>
@@ -184,21 +188,27 @@
   {:else}
     <div class="rules-list">
       {#each document.rules as rule, idx (rule.id)}
-        <CaclRuleCard
-          {rule}
-          index={idx}
-          expanded={expandedRuleId === rule.id}
-          {targetObjectType}
-          {directory}
-          userHints={document.userHints}
-          {canListUsers}
-          {canListGroups}
-          {disabled}
-          onToggleExpand={() => onExpandedChange?.(expandedRuleId === rule.id ? null : rule.id)}
-          onChange={(nextRule) => updateRule(idx, nextRule)}
-          onDuplicate={() => duplicateRule(idx)}
-          onRemove={() => removeRule(idx)}
-        />
+        <div
+          class="rule-list-item"
+          animate:flip={{ duration: isReducedMotionEnabled() ? 0 : 220, easing: cubicOut }}
+          transition:inlineNotice
+        >
+          <CaclRuleCard
+            {rule}
+            index={idx}
+            expanded={expandedRuleId === rule.id}
+            {targetObjectType}
+            {directory}
+            userHints={document.userHints}
+            {canListUsers}
+            {canListGroups}
+            {disabled}
+            onToggleExpand={() => onExpandedChange?.(expandedRuleId === rule.id ? null : rule.id)}
+            onChange={(nextRule) => updateRule(idx, nextRule)}
+            onDuplicate={() => duplicateRule(idx)}
+            onRemove={() => removeRule(idx)}
+          />
+        </div>
       {/each}
     </div>
   {/if}
@@ -280,6 +290,10 @@
     background: var(--colorNeutralBackground2);
     color: var(--colorNeutralForeground2);
     text-align: center;
+    transition:
+      border-color var(--durationNormal, 200ms) var(--curveEasyEase, ease),
+      background-color var(--durationNormal, 200ms) var(--curveEasyEase, ease),
+      color var(--durationNormal, 200ms) var(--curveEasyEase, ease);
   }
 
   .empty-policy--warn {
@@ -317,10 +331,20 @@
     gap: 10px;
   }
 
+  .rule-list-item {
+    min-width: 0;
+  }
+
   @media (pointer: coarse) {
     .template-select,
     :global(.toolbar-btn[data-fluent-owner="cacl-visual-editor"]) {
       min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .empty-policy {
+      transition: none;
     }
   }
 </style>

@@ -800,10 +800,10 @@ export const en = {
       templatePicker: 'Rule template',
       insertTemplate: 'Insert template',
       annotateUsers: 'Annotate user UUIDs',
+      lengthApproaching: 'Policy is approaching the character limit ({remaining} remaining).',
       lengthExceeded: 'Policy exceeds {max} characters ({length} used).',
       diagnosticsErrors: '{count} error(s)',
       diagnosticsWarnings: '{count} warning(s)',
-      policyValid: 'Valid policy · {count} rule(s)',
       selfLockoutTitle: 'Self-lockout warning',
       selfLockoutMessage:
         'Applying this DACL would remove your own ability to read or modify permissions on this object. Apply anyway?',

@@ -1,9 +1,13 @@
 <script lang="ts">
   import { onMount, untrack, type Snippet } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
+  import { fly, scale } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
   import { analyzeCacl, type CaclDiagnostic, type ObjectType } from 'codemirror-lang-cacl';
   import { listGroups, listUsers } from '$lib/api';
   import type { ServerCaclDiagnostic } from '$lib/api/types';
+  import { isReducedMotionEnabled } from '$lib/shared/appearance';
+  import { inlineNotice } from '$lib/shared/motion/transitions';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -16,6 +20,7 @@
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
   import {
     DACL_SOURCE_MAX_LENGTH,
+    DACL_SOURCE_WARN_REMAINING,
     escapeCaclString,
     extractUserAnnotations,
     parseCaclToModel,
@@ -70,6 +75,7 @@
   }: Props = $props();
 
   let activeView = $state<'visual' | 'source'>('visual');
+  let hasSwitchedView = $state(false);
   let sourceText = $state('');
   let visualDoc = $state<CaclPolicyDocument>({ inherit: true, rules: [], userHints: {} });
   let expandedRuleId = $state<string | null>(null);
@@ -133,8 +139,19 @@
 
   const clientErrors = $derived(liveAnalysis.diagnostics.filter((d) => d.severity === 'error'));
   const clientWarnings = $derived(liveAnalysis.diagnostics.filter((d) => d.severity === 'warning'));
+  const remainingChars = $derived(DACL_SOURCE_MAX_LENGTH - sourceText.length);
+  const showCharCounter = $derived(remainingChars <= DACL_SOURCE_WARN_REMAINING);
   const lengthExceeded = $derived(sourceText.length > DACL_SOURCE_MAX_LENGTH);
   const hasErrors = $derived(clientErrors.length > 0 || lengthExceeded);
+  const totalDiagnosticItems = $derived(liveAnalysis.diagnostics.length + serverDiagnostics.length);
+  const hasDiagnosticItems = $derived(totalDiagnosticItems > 0);
+  const showDiagnosticsBar = $derived(lengthExceeded || showCharCounter || hasDiagnosticItems);
+
+  $effect(() => {
+    if (!hasDiagnosticItems) {
+      showDiagnosticsPanel = false;
+    }
+  });
 
   const currentInherit = $derived.by(() => {
     if (activeView === 'visual') return visualDoc.inherit;
@@ -202,6 +219,7 @@
       });
       switchError = null;
     }
+    hasSwitchedView = true;
     activeView = view;
   }
 
@@ -300,9 +318,15 @@
           <Icon name="code" size="16px" />
           <span>{$t('files.sourceCode')}</span>
           {#if clientErrors.length > 0}
-            <span class="tab-badge tab-badge--error">{clientErrors.length}</span>
+            <span
+              class="tab-badge tab-badge--error"
+              transition:scale={{ start: 0.85, duration: isReducedMotionEnabled() ? 0 : 150, easing: cubicOut }}
+            >{clientErrors.length}</span>
           {:else if clientWarnings.length + serverDiagnostics.length > 0}
-            <span class="tab-badge tab-badge--warn">
+            <span
+              class="tab-badge tab-badge--warn"
+              transition:scale={{ start: 0.85, duration: isReducedMotionEnabled() ? 0 : 150, easing: cubicOut }}
+            >
               {clientWarnings.length + serverDiagnostics.length}
             </span>
           {/if}
@@ -330,7 +354,7 @@
     </header>
 
     {#if switchError}
-      <div class="banner-alert" role="alert">
+      <div class="banner-alert" role="alert" transition:inlineNotice>
         <span class="cfms-icon-text__icon"><Icon name="errorFilled" size="16px" /></span>
         <span>{switchError}</span>
       </div>
@@ -338,19 +362,27 @@
 
     <div class="dacl-workspace" class:dacl-workspace--source={activeView === 'source'}>
       {#if activeView === 'visual'}
-        <CaclVisualEditor
-          document={visualDoc}
-          {targetObjectType}
-          {directory}
-          {canListUsers}
-          {canListGroups}
-          disabled={saving}
-          {expandedRuleId}
-          onExpandedChange={(id) => { expandedRuleId = id; }}
-          onChange={updateFromVisual}
-        />
+        <div
+          class="visual-view-pane"
+          in:fly={{ x: -10, duration: !hasSwitchedView || isReducedMotionEnabled() ? 0 : 180, easing: cubicOut }}
+        >
+          <CaclVisualEditor
+            document={visualDoc}
+            {targetObjectType}
+            {directory}
+            {canListUsers}
+            {canListGroups}
+            disabled={saving}
+            {expandedRuleId}
+            onExpandedChange={(id) => { expandedRuleId = id; }}
+            onChange={updateFromVisual}
+          />
+        </div>
       {:else}
-        <div class="source-pane">
+        <div
+          class="source-pane"
+          in:fly={{ x: 10, duration: !hasSwitchedView || isReducedMotionEnabled() ? 0 : 180, easing: cubicOut }}
+        >
           <div class="source-toolbar">
             <div class="source-toolbar-left">
               <FluentButton
@@ -407,7 +439,7 @@
           </div>
 
           {#if showPrincipalInsert}
-            <div class="principal-popover">
+            <div class="principal-popover" transition:inlineNotice>
               <CaclPrincipalPicker
                 {directory}
                 {canListUsers}
@@ -438,73 +470,96 @@
       {/if}
     </div>
 
-    <section class="diagnostics-bar" aria-live="polite">
-      <button
-        type="button"
-        class="diagnostics-summary"
-        aria-expanded={showDiagnosticsPanel}
-        onclick={() => { showDiagnosticsPanel = !showDiagnosticsPanel; }}
-      >
-        {#if lengthExceeded}
-          <Icon name="errorFilled" size="15px" />
-          <span class="diag-status diag-status--error">
-            {$t('files.cacl.lengthExceeded', {
-              values: { length: sourceText.length, max: DACL_SOURCE_MAX_LENGTH },
-            })}
-          </span>
-        {:else if clientErrors.length > 0}
-          <Icon name="errorFilled" size="15px" />
-          <span class="diag-status diag-status--error">
-            {$t('files.cacl.diagnosticsErrors', { values: { count: clientErrors.length } })}
-          </span>
-        {:else if clientWarnings.length + serverDiagnostics.length > 0}
-          <Icon name="warning" size="15px" />
-          <span class="diag-status diag-status--warn">
-            {$t('files.cacl.diagnosticsWarnings', {
-              values: { count: clientWarnings.length + serverDiagnostics.length },
-            })}
-          </span>
+    {#if showDiagnosticsBar}
+      <section class="diagnostics-bar" aria-live="polite" transition:inlineNotice>
+        {#snippet diagnosticSummaryContent()}
+          {#if lengthExceeded}
+            <Icon name="errorFilled" size="15px" />
+            <span class="diag-status diag-status--error">
+              {$t('files.cacl.lengthExceeded', {
+                values: { length: sourceText.length, max: DACL_SOURCE_MAX_LENGTH },
+              })}
+            </span>
+          {:else if clientErrors.length > 0}
+            <Icon name="errorFilled" size="15px" />
+            <span class="diag-status diag-status--error">
+              {$t('files.cacl.diagnosticsErrors', { values: { count: clientErrors.length } })}
+            </span>
+          {:else if clientWarnings.length + serverDiagnostics.length > 0}
+            <Icon name="warning" size="15px" />
+            <span class="diag-status diag-status--warn">
+              {$t('files.cacl.diagnosticsWarnings', {
+                values: { count: clientWarnings.length + serverDiagnostics.length },
+              })}
+            </span>
+          {:else if showCharCounter}
+            <Icon name="warning" size="15px" />
+            <span class="diag-status diag-status--warn">
+              {$t('files.cacl.lengthApproaching', {
+                values: { remaining: Math.max(0, remainingChars) },
+              })}
+            </span>
+          {:else}
+            <Icon name="info" size="15px" />
+            <span class="diag-status">
+              {$t('files.cacl.diagnosticsWarnings', {
+                values: { count: totalDiagnosticItems },
+              })}
+            </span>
+          {/if}
+
+          {#if showCharCounter}
+            <span
+              class="char-counter"
+              class:char-counter--warn={!lengthExceeded}
+              class:char-counter--error={lengthExceeded}
+            >
+              {sourceText.length} / {DACL_SOURCE_MAX_LENGTH}
+            </span>
+          {/if}
+
+          {#if hasDiagnosticItems}
+            <span class="diag-chevron" class:diag-chevron--open={showDiagnosticsPanel} aria-hidden="true">
+              <Icon name="expandMore" size="15px" />
+            </span>
+          {/if}
+        {/snippet}
+
+        {#if hasDiagnosticItems}
+          <button
+            type="button"
+            class="diagnostics-summary diagnostics-summary--interactive"
+            aria-expanded={showDiagnosticsPanel}
+            onclick={() => { showDiagnosticsPanel = !showDiagnosticsPanel; }}
+          >
+            {@render diagnosticSummaryContent()}
+          </button>
         {:else}
-          <Icon name="checkCircle" size="15px" />
-          <span class="diag-status diag-status--ok">
-            {$t('files.cacl.policyValid', {
-              values: {
-                count: activeView === 'visual' ? visualDoc.rules.length : liveAnalysis.ruleMetas.length,
-              },
-            })}
-          </span>
+          <div class="diagnostics-summary">
+            {@render diagnosticSummaryContent()}
+          </div>
         {/if}
 
-        <span class="char-counter" class:char-counter--warn={sourceText.length > DACL_SOURCE_MAX_LENGTH * 0.85}>
-          {sourceText.length} / {DACL_SOURCE_MAX_LENGTH}
-        </span>
-
-        {#if liveAnalysis.diagnostics.length + serverDiagnostics.length > 0}
-          <span class="diag-chevron">
-            <Icon name={showDiagnosticsPanel ? 'expandLess' : 'expandMore'} size="15px" />
-          </span>
+        {#if showDiagnosticsPanel && hasDiagnosticItems}
+          <ul class="diagnostics-list" transition:inlineNotice>
+            {#each liveAnalysis.diagnostics as diag (`c:${diag.code}:${diag.from}:${diag.to}`)}
+              <li>
+                <button type="button" class="diag-row" onclick={() => jumpToDiagnostic(diag)}>
+                  <span class={`diag-code diag-code--${diag.severity}`}>{diag.code}</span>
+                  <span class="diag-msg">{diag.message}</span>
+                </button>
+              </li>
+            {/each}
+            {#each serverDiagnostics as sdiag (`s:${sdiag.code}:${sdiag.message}`)}
+              <li class="diag-row diag-row--static">
+                <span class={`diag-code diag-code--${sdiag.severity}`}>{sdiag.code}</span>
+                <span class="diag-msg">{sdiag.message}</span>
+              </li>
+            {/each}
+          </ul>
         {/if}
-      </button>
-
-      {#if showDiagnosticsPanel && (liveAnalysis.diagnostics.length > 0 || serverDiagnostics.length > 0)}
-        <ul class="diagnostics-list">
-          {#each liveAnalysis.diagnostics as diag (`c:${diag.code}:${diag.from}:${diag.to}`)}
-            <li>
-              <button type="button" class="diag-row" onclick={() => jumpToDiagnostic(diag)}>
-                <span class={`diag-code diag-code--${diag.severity}`}>{diag.code}</span>
-                <span class="diag-msg">{diag.message}</span>
-              </button>
-            </li>
-          {/each}
-          {#each serverDiagnostics as sdiag (`s:${sdiag.code}:${sdiag.message}`)}
-            <li class="diag-row diag-row--static">
-              <span class={`diag-code diag-code--${sdiag.severity}`}>{sdiag.code}</span>
-              <span class="diag-msg">{sdiag.message}</span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
+      </section>
+    {/if}
   </div>
 
   {#if footer}
@@ -543,6 +598,8 @@
   }
 
   .dacl-main {
+    position: relative;
+    isolation: isolate;
     display: flex;
     min-height: 0;
     flex: 1;
@@ -551,6 +608,9 @@
   }
 
   .dacl-topbar {
+    position: relative;
+    z-index: 2;
+    flex: none;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -575,6 +635,9 @@
     border-radius: var(--borderRadiusMedium, 4px);
     color: var(--colorNeutralForeground2);
     font: 400 13px/18px var(--fontFamilyBase);
+    transition:
+      background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   :global(.mode-tab[data-fluent-owner="cacl-access-manager"]:hover:not(:is(:disabled, [disabled]))) {
@@ -636,6 +699,7 @@
     color: var(--colorNeutralForeground1);
     font: 400 13px/18px var(--fontFamilyBase);
     cursor: pointer;
+    transition: color var(--durationFast, 150ms) var(--curveEasyEase, ease);
   }
 
   .inherit-switch--off {
@@ -643,6 +707,9 @@
   }
 
   .banner-alert {
+    position: relative;
+    z-index: 2;
+    flex: none;
     display: flex;
     align-items: flex-start;
     gap: 8px;
@@ -658,6 +725,10 @@
     flex: 1;
     overflow: auto;
     padding: 16px 20px;
+  }
+
+  .visual-view-pane {
+    min-width: 0;
   }
 
   .dacl-workspace--source {
@@ -725,6 +796,10 @@
     background: transparent;
     color: var(--colorNeutralForeground1);
     font: 400 12px/16px var(--fontFamilyBase);
+    transition:
+      background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      border-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]:hover:not(:is(:disabled, [disabled]))) {
@@ -779,6 +854,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 14rem;
+    transition: border-color var(--durationFast, 150ms) var(--curveEasyEase, ease);
   }
 
   .source-editor-wrap :global(.cacl-code-editor > div:first-child),
@@ -812,6 +888,8 @@
   }
 
   .diagnostics-bar {
+    position: relative;
+    z-index: 2;
     flex: none;
     border-top: 1px solid var(--colorNeutralStroke2);
     background: var(--colorNeutralBackground2);
@@ -825,11 +903,15 @@
     padding: 8px 20px;
     font: 400 12px/16px var(--fontFamilyBase);
     color: var(--colorNeutralForeground2);
-    cursor: pointer;
     text-align: left;
   }
 
-  .diagnostics-summary:hover {
+  .diagnostics-summary--interactive {
+    cursor: pointer;
+    transition: background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
+  }
+
+  .diagnostics-summary--interactive:hover {
     background: var(--colorSubtleBackgroundHover);
   }
 
@@ -840,7 +922,6 @@
 
   .diag-status--error { color: var(--colorStatusDangerForeground1); }
   .diag-status--warn { color: var(--colorStatusWarningForeground2); }
-  .diag-status--ok { color: var(--colorStatusSuccessForeground1); }
 
   .char-counter {
     color: var(--colorNeutralForeground3);
@@ -851,6 +932,20 @@
   .char-counter--warn {
     color: var(--colorStatusWarningForeground2);
     font-weight: 600;
+  }
+
+  .char-counter--error {
+    color: var(--colorStatusDangerForeground1);
+    font-weight: 600;
+  }
+
+  .diag-chevron {
+    display: inline-flex;
+    transition: transform var(--durationFast, 150ms) var(--curveDecelerateMid, cubic-bezier(0, 0, 0, 1));
+  }
+
+  .diag-chevron--open {
+    transform: rotate(180deg);
   }
 
   .diagnostics-list {
@@ -874,6 +969,7 @@
     font: 400 12px/16px var(--fontFamilyBase);
     color: var(--colorNeutralForeground1);
     cursor: pointer;
+    transition: background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   .diag-row:hover {
@@ -918,6 +1014,18 @@
     :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]),
     .code-template-select {
       min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.mode-tab[data-fluent-owner="cacl-access-manager"]),
+    .inherit-switch,
+    :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]),
+    .source-editor-wrap :global(.cacl-code-editor),
+    .diagnostics-summary--interactive,
+    .diag-chevron,
+    .diag-row {
+      transition: none;
     }
   }
 </style>

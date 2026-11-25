@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import { parseCanonicalUuid } from 'codemirror-lang-cacl';
+  import { inlineNotice } from '$lib/shared/motion/transitions';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
@@ -163,7 +164,7 @@
   </div>
 
   {#if validationError}
-    <p class="picker-error" role="alert">{validationError}</p>
+    <p class="picker-error" role="alert" transition:inlineNotice>{validationError}</p>
   {/if}
 
   {#if kind === 'user' && matchingUsers.length > 0 && (query.trim().length > 0 || matchingUsers.length <= 6)}
@@ -258,6 +259,18 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    animation: cacl-suggestions-in var(--durationFast, 150ms) var(--curveDecelerateMid, cubic-bezier(0, 0, 0, 1)) both;
+  }
+
+  @keyframes cacl-suggestions-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
   }
 
   .suggestion-item {
@@ -304,6 +317,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .picker-suggestions {
+      animation: none;
+    }
+
     .suggestion-item {
       transition: none;
     }

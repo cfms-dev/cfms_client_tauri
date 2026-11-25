@@ -12,6 +12,7 @@ import {
 } from 'codemirror-lang-cacl';
 
 export const DACL_SOURCE_MAX_LENGTH = 65_536;
+export const DACL_SOURCE_WARN_REMAINING = 1_024;
 
 export interface CaclOpItem {
   name: string;

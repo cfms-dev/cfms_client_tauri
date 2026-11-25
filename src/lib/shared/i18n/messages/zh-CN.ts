@@ -794,10 +794,10 @@ export const zh_CN = {
       templatePicker: '规则模板',
       insertTemplate: '插入模板',
       annotateUsers: '注释用户 UUID',
+      lengthApproaching: '策略即将达到字符上限（还剩 {remaining} 个字符）。',
       lengthExceeded: '策略超出 {max} 个字符限制（当前 {length} 个字符）。',
       diagnosticsErrors: '{count} 个错误',
       diagnosticsWarnings: '{count} 个警告',
-      policyValid: '策略有效 · {count} 条规则',
       selfLockoutTitle: '自我锁定警告',
       selfLockoutMessage:
         '应用此 DACL 将使你自己的账户无法继续读取或修改该对象的权限规则。确定仍要应用吗？',

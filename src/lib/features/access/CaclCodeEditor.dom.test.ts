@@ -226,4 +226,35 @@ describe('CaclCodeEditor', () => {
     expect(within(menu).getByRole('menuitem', { name: /Copy/ })).toBeTruthy();
     expect(within(menu).queryByRole('menuitem', { name: /Format/ })).toBeNull();
   });
+
+  it('keeps the active line translucent and applies high-specificity selection styling in both dark and light themes', async () => {
+    document.documentElement.dataset.theme = 'dark';
+    render(CaclCodeEditor, {
+      props: {
+        value: 'inherit on;\nallow [READ_CONTENT] to any;\n',
+        ariaLabel: 'Selection Contrast CACL Policy',
+        loadingLabel: 'Loading CACL editor…',
+        onChange: vi.fn(),
+      },
+    });
+
+    await screen.findByLabelText('Selection Contrast CACL Policy', {}, { timeout: 4000 });
+
+    const collectThemeCss = () => Array.from(document.head.querySelectorAll('style'))
+      .map((styleEl) => styleEl.textContent ?? '')
+      .join('\n');
+
+    await waitFor(() => {
+      const css = collectThemeCss();
+      expect(css).toMatch(/\.cm-activeLine\s*\{[^}]*transparent/);
+      expect(css).toContain('.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground');
+      expect(css).toContain('.cm-selectionMatch-main');
+    });
+
+    document.documentElement.dataset.theme = 'light';
+    await waitFor(() => {
+      const css = collectThemeCss();
+      expect(css).toMatch(/\.cm-activeLine\s*\{[^}]*#242424\)\s*5%/);
+    });
+  });
 });

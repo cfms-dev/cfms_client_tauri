@@ -1,10 +1,15 @@
 <script lang="ts">
+  import { flip } from 'svelte/animate';
+  import { cubicOut } from 'svelte/easing';
+  import { scale } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
   import {
     PRESET_MACRO_DESCRIPTIONS,
     type ObjectType,
     type Scope,
   } from 'codemirror-lang-cacl';
+  import { isReducedMotionEnabled } from '$lib/shared/appearance';
+  import { inlineNotice } from '$lib/shared/motion/transitions';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
@@ -161,8 +166,8 @@
       aria-expanded={expanded}
       onclick={onToggleExpand}
     >
-      <span class="rule-chevron" aria-hidden="true">
-        <Icon name={expanded ? 'expandMore' : 'breadcrumbSep'} size="16px" />
+      <span class="rule-chevron" class:rule-chevron--open={expanded} aria-hidden="true">
+        <Icon name="breadcrumbSep" size="16px" />
       </span>
       <span class="rule-index">#{index + 1}</span>
       <span class="effect-badge" class:effect-badge--deny={rule.effect === 'deny'}>
@@ -213,7 +218,7 @@
   </header>
 
   {#if expanded}
-    <div class="rule-body">
+    <div class="rule-body" transition:inlineNotice>
       <div class="rule-section rule-section--grid">
         <div class="control-block">
           <span class="block-label">{$t('files.cacl.effectLabel')}</span>
@@ -289,12 +294,14 @@
           aria-expanded={showAtomicMatrix}
           onclick={() => { showAtomicMatrix = !showAtomicMatrix; }}
         >
-          <Icon name={showAtomicMatrix ? 'expandLess' : 'expandMore'} size="15px" />
+          <span class="matrix-chevron" class:matrix-chevron--open={showAtomicMatrix} aria-hidden="true">
+            <Icon name="expandMore" size="15px" />
+          </span>
           <span>{$t(showAtomicMatrix ? 'files.cacl.hideAtomicOps' : 'files.cacl.showAtomicOps')}</span>
         </button>
 
         {#if showAtomicMatrix}
-          <div class="atomic-groups">
+          <div class="atomic-groups" transition:inlineNotice>
             {#each CACL_OPERATION_GROUPS as group (group.id)}
               <div class="atomic-group">
                 <span class="atomic-group-title">{$t(group.labelKey)}</span>
@@ -356,38 +363,44 @@
         </div>
 
         {#if rule.match.kind === 'any'}
-          <p class="section-hint">{$t('files.cacl.matchAnyHint')}</p>
+          <p class="section-hint match-panel">{$t('files.cacl.matchAnyHint')}</p>
         {:else if rule.match.kind === 'to'}
-          {#if rule.match.principals.length === 0}
-            <p class="section-hint">{$t('files.cacl.noPrincipalsHint')}</p>
-          {:else}
-            <div class="principal-pills">
-              {#each rule.match.principals as principal, pIdx (`${principal.kind}:${principal.value}`)}
-                <span class="principal-pill">
-                  <Icon name={principal.kind === 'user' ? 'manageAccounts' : 'groups'} size="14px" />
-                  <span title={principal.value}>{formatPrincipalLabel(principal)}</span>
-                  <button
-                    type="button"
-                    class="pill-remove"
-                    disabled={disabled}
-                    aria-label={$t('files.removeEntry')}
-                    onclick={() => removePrincipal(pIdx)}
+          <div class="match-panel">
+            {#if rule.match.principals.length === 0}
+              <p class="section-hint">{$t('files.cacl.noPrincipalsHint')}</p>
+            {:else}
+              <div class="principal-pills">
+                {#each rule.match.principals as principal, pIdx (`${principal.kind}:${principal.value}`)}
+                  <span
+                    class="principal-pill"
+                    animate:flip={{ duration: isReducedMotionEnabled() ? 0 : 180, easing: cubicOut }}
+                    transition:scale={{ start: 0.9, duration: isReducedMotionEnabled() ? 0 : 140, easing: cubicOut }}
                   >
-                    <Icon name="close" size="13px" />
-                  </button>
-                </span>
-              {/each}
-            </div>
-          {/if}
-          <CaclPrincipalPicker
-            {directory}
-            {canListUsers}
-            {canListGroups}
-            {disabled}
-            onAdd={addPrincipal}
-          />
+                    <Icon name={principal.kind === 'user' ? 'manageAccounts' : 'groups'} size="14px" />
+                    <span title={principal.value}>{formatPrincipalLabel(principal)}</span>
+                    <button
+                      type="button"
+                      class="pill-remove"
+                      disabled={disabled}
+                      aria-label={$t('files.removeEntry')}
+                      onclick={() => removePrincipal(pIdx)}
+                    >
+                      <Icon name="close" size="13px" />
+                    </button>
+                  </span>
+                {/each}
+              </div>
+            {/if}
+            <CaclPrincipalPicker
+              {directory}
+              {canListUsers}
+              {canListGroups}
+              {disabled}
+              onAdd={addPrincipal}
+            />
+          </div>
         {:else}
-          <div class="when-editor">
+          <div class="when-editor match-panel">
             <MdOutlinedField inputId={`${fieldPrefix}-when`} label={$t('files.cacl.whenExpressionLabel')} {disabled}>
               <input
                 id={`${fieldPrefix}-when`}
@@ -502,7 +515,7 @@
             {/each}
           </div>
           {#if rule.effect === 'deny' && rule.validUntil}
-            <p class="warning-hint">
+            <p class="warning-hint" transition:inlineNotice>
               <span class="cfms-icon-text__icon"><Icon name="warning" size="14px" /></span>
               <span>{$t('files.cacl.tempDenyWarning')}</span>
             </p>
@@ -536,6 +549,7 @@
     border-radius: var(--borderRadiusLarge, 8px);
     background: var(--colorNeutralBackground1);
     overflow: hidden;
+    transition: border-color var(--durationNormal, 200ms) var(--curveEasyEase, ease);
   }
 
   .rule-card--deny {
@@ -562,6 +576,7 @@
     text-align: left;
     color: var(--colorNeutralForeground1);
     cursor: pointer;
+    transition: background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   .rule-toggle:hover {
@@ -571,6 +586,11 @@
   .rule-chevron {
     display: inline-flex;
     color: var(--colorNeutralForeground3);
+    transition: transform var(--durationNormal, 200ms) var(--curveDecelerateMid, cubic-bezier(0, 0, 0, 1));
+  }
+
+  .rule-chevron--open {
+    transform: rotate(90deg);
   }
 
   .rule-index {
@@ -592,6 +612,9 @@
   .effect-badge {
     background: var(--colorBrandBackground2);
     color: var(--colorBrandForeground2);
+    transition:
+      background-color var(--durationFast, 150ms) var(--curveEasyEase, ease),
+      color var(--durationFast, 150ms) var(--curveEasyEase, ease);
   }
 
   .effect-badge--deny {
@@ -785,13 +808,23 @@
     color: var(--colorNeutralForeground1);
     font: 500 12px/16px var(--fontFamilyMonospace);
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    transition:
+      background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      border-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      transform var(--durationUltraFast, 50ms) var(--curveEasyEase, ease);
   }
 
   .macro-chip:hover:not(:disabled),
   .atomic-chip:hover:not(:disabled),
   .when-chip:hover:not(:disabled) {
     background: var(--colorSubtleBackgroundHover);
+  }
+
+  .macro-chip:active:not(:disabled),
+  .atomic-chip:active:not(:disabled),
+  .when-chip:active:not(:disabled) {
+    transform: scale(0.98);
   }
 
   .macro-chip.active,
@@ -819,10 +852,20 @@
     color: var(--colorBrandForegroundLink);
     font: 600 12px/16px var(--fontFamilyBase);
     cursor: pointer;
+    transition: background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   .matrix-toggle:hover {
     background: var(--colorSubtleBackgroundHover);
+  }
+
+  .matrix-chevron {
+    display: inline-flex;
+    transition: transform var(--durationFast, 150ms) var(--curveDecelerateMid, cubic-bezier(0, 0, 0, 1));
+  }
+
+  .matrix-chevron--open {
+    transform: rotate(180deg);
   }
 
   .atomic-groups {
@@ -883,11 +926,35 @@
     padding: 2px;
     color: var(--colorNeutralForeground3);
     cursor: pointer;
+    transition:
+      background-color var(--durationFaster, 100ms) var(--curveEasyEase, ease),
+      color var(--durationFaster, 100ms) var(--curveEasyEase, ease);
   }
 
   .pill-remove:hover:not(:disabled) {
     background: var(--colorStatusDangerBackground1);
     color: var(--colorStatusDangerForeground1);
+  }
+
+  .match-panel {
+    display: grid;
+    gap: 8px;
+    animation: cacl-panel-in var(--durationFast, 150ms) var(--curveDecelerateMid, cubic-bezier(0, 0, 0, 1)) both;
+  }
+
+  p.match-panel {
+    display: block;
+  }
+
+  @keyframes cacl-panel-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
   }
 
   .when-editor {
@@ -952,11 +1019,28 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .rule-card,
+    .rule-toggle,
+    .rule-chevron,
+    .effect-badge,
+    .matrix-toggle,
+    .matrix-chevron,
+    .pill-remove,
     .segment-btn,
     .macro-chip,
     .atomic-chip,
     .when-chip {
       transition: none;
+    }
+
+    .macro-chip:active:not(:disabled),
+    .atomic-chip:active:not(:disabled),
+    .when-chip:active:not(:disabled) {
+      transform: none;
+    }
+
+    .match-panel {
+      animation: none;
     }
   }
 </style>

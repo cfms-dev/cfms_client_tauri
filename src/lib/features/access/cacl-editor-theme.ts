@@ -128,15 +128,38 @@ export function caclCodeEditorTheme(dark: boolean): Extension {
         color: 'var(--colorNeutralForeground1, var(--color-md3-on-surface))',
       },
       '.cm-foldGutter svg': { width: '16px', height: '16px' },
-      '.cm-activeLine, .cm-activeLineGutter': {
-        backgroundColor: 'var(--colorSubtleBackgroundHover, var(--color-md3-surface-container-highest))',
+      '.cm-activeLine': {
+        backgroundColor: dark
+          ? 'color-mix(in srgb, var(--colorNeutralForeground1, #ffffff) 6%, transparent)'
+          : 'color-mix(in srgb, var(--colorNeutralForeground1, #242424) 5%, transparent)',
+      },
+      '.cm-activeLineGutter': {
+        backgroundColor: dark
+          ? 'color-mix(in srgb, var(--colorNeutralForeground1, #ffffff) 7%, transparent)'
+          : 'color-mix(in srgb, var(--colorNeutralForeground1, #242424) 6%, transparent)',
       },
       '.cm-cursor, .cm-dropCursor': {
         borderLeftColor: 'var(--colorBrandForeground1, var(--color-md3-primary))',
         borderLeftWidth: '2px',
       },
-      '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection': {
-        backgroundColor: 'color-mix(in srgb, var(--colorBrandBackground, var(--color-md3-primary)) 26%, transparent)',
+      '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+        backgroundColor: dark
+          ? 'color-mix(in srgb, var(--colorBrandBackgroundStatic, #0067c0) 58%, transparent)'
+          : 'color-mix(in srgb, var(--colorBrandBackground, var(--color-md3-primary)) 28%, transparent)',
+      },
+      '.cm-selectionBackground, .cm-content ::selection': {
+        backgroundColor: dark
+          ? 'color-mix(in srgb, var(--colorBrandBackgroundStatic, #0067c0) 34%, transparent)'
+          : 'color-mix(in srgb, var(--colorBrandBackground, var(--color-md3-primary)) 18%, transparent)',
+      },
+      '.cm-selectionMatch': {
+        backgroundColor: dark
+          ? 'color-mix(in srgb, var(--colorBrandBackground, #60cdff) 18%, transparent)'
+          : 'color-mix(in srgb, var(--colorBrandBackground, #0067c0) 14%, transparent)',
+        borderRadius: '2px',
+      },
+      '.cm-selectionMatch-main': {
+        backgroundColor: 'transparent',
       },
       '.cm-matchingBracket': {
         backgroundColor: 'var(--colorBrandBackground2, var(--color-md3-primary-container))',

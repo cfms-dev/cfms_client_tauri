@@ -5,6 +5,7 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import AccessRulesManager from '$lib/features/access/AccessRulesManager.svelte';
+import { DACL_SOURCE_MAX_LENGTH, DACL_SOURCE_WARN_REMAINING } from '$lib/features/access/cacl-model';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
@@ -212,5 +213,72 @@ describe('AccessRulesManager', () => {
     await tick();
     await fireEvent.keyDown(editorDom, { key: 'F', shiftKey: true, altKey: true });
     await screen.findByRole('alert');
+  });
+
+  it('hides the diagnostics bar and size counter when valid and within safe length, and shows approaching/exceeded warnings only near limit', async () => {
+    const base = 'inherit on;\n# ';
+    const makeSourceOfLength = (len: number) => `${base}${'a'.repeat(len - base.length)}`;
+
+    const { container } = render(AccessRulesManager, {
+      dacl: 'inherit on;\nallow [PRESET_READ] to any;\n',
+      targetObjectType: 'directory',
+      onSave: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    expect(container.querySelector('.diagnostics-bar')).toBeNull();
+    expect(screen.queryByText(/policyValid/)).toBeNull();
+    expect(screen.queryByText(/\/ 65536/)).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'files.sourceCode' }));
+    const editorDom = await screen.findByLabelText('files.accessRules');
+    const cmView = EditorView.findFromDOM(editorDom)!;
+
+    // 1025 chars remaining (64511 / 65536) -> still hidden
+    const safeBoundary = DACL_SOURCE_MAX_LENGTH - DACL_SOURCE_WARN_REMAINING - 1;
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: makeSourceOfLength(safeBoundary) } });
+    await tick();
+    expect(container.querySelector('.diagnostics-bar')).toBeNull();
+    expect(screen.queryByText(/\/ 65536/)).toBeNull();
+
+    // 1024 chars remaining (64512 / 65536) -> approaching warning + counter appear
+    const warnBoundary = DACL_SOURCE_MAX_LENGTH - DACL_SOURCE_WARN_REMAINING;
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: makeSourceOfLength(warnBoundary) } });
+    await tick();
+    await waitFor(() => {
+      expect(container.querySelector('.diagnostics-bar')).not.toBeNull();
+      expect(screen.getByText('files.cacl.lengthApproaching')).toBeTruthy();
+      expect(screen.getByText(`${warnBoundary} / ${DACL_SOURCE_MAX_LENGTH}`)).toBeTruthy();
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'common.save' }).disabled).toBe(false);
+    });
+
+    // Exceeded (65537 / 65536) -> exceeded error + counter + disabled Save
+    const exceededLength = DACL_SOURCE_MAX_LENGTH + 1;
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: makeSourceOfLength(exceededLength) } });
+    await tick();
+    await waitFor(() => {
+      expect(screen.getByText('files.cacl.lengthExceeded')).toBeTruthy();
+      expect(screen.getByText(`${exceededLength} / ${DACL_SOURCE_MAX_LENGTH}`)).toBeTruthy();
+      expect(screen.getByRole<HTMLButtonElement>('button', { name: 'common.save' }).disabled).toBe(true);
+    });
+  });
+
+  it('shows diagnostics without the size counter when a short policy has diagnostics', async () => {
+    const { container } = render(AccessRulesManager, {
+      dacl: 'inherit on;\n',
+      serverDiagnostics: [
+        {
+          code: 'SERVER_LOCKOUT',
+          severity: 'warning' as const,
+          message: 'Server warning message',
+        },
+      ],
+      onSave: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    expect(container.querySelector('.diagnostics-bar')).not.toBeNull();
+    expect(screen.getByText('files.cacl.diagnosticsWarnings')).toBeTruthy();
+    expect(screen.queryByText(/\/ 65536/)).toBeNull();
   });
 });
