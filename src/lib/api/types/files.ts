@@ -39,9 +39,7 @@ export interface ServerDocumentInfo {
   created_time?: number | null;
   last_modified?: number | null;
   parent_id?: string | null;
-  access_rules?: unknown;
   metadata?: ServerDocumentMetadata;
-  info_code?: number | null;
 }
 
 export interface ServerDirectoryInfo {
@@ -50,8 +48,6 @@ export interface ServerDirectoryInfo {
   count_of_child?: number;
   created_time?: number | null;
   parent_id?: string | null;
-  access_rules?: unknown;
-  info_code?: number | null;
 }
 
 export type ServerObjectType = "document" | "directory";

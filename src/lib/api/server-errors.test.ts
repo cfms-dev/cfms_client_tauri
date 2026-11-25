@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isAccessDeniedError,
   isLockdownError,
+  parseCaclSaveError,
   serverErrorData,
   serverErrorMessage,
   serverErrorStatus,
@@ -78,5 +79,28 @@ describe('server errors', () => {
     expect(isAccessDeniedError('Server returned 404: missing')).toBe(false);
     expect(isAccessDeniedError('Failed to create stream for list_directory')).toBe(false);
     expect(isAccessDeniedError('Permission denied while reading local cache')).toBe(false);
+  });
+
+  it('parses CACL 409 self-lockout warnings and 400 compilation diagnostics', () => {
+    const lockout = 'Server returned 409: Saving this DACL would revoke your own WRITE_DACL access\nCFMS_ERROR_DATA:{"self_lockout_warning":true,"diagnostics":[{"code":"W209","severity":"warning","message":"Expired rule","span":{"line":2,"column":1,"end_line":2,"end_column":10}}]}';
+    expect(parseCaclSaveError(lockout)).toEqual({
+      status: 409,
+      isSelfLockout: true,
+      diagnostics: [{
+        code: 'W209',
+        severity: 'warning',
+        message: 'Expired rule',
+        span: { line: 2, column: 1, end_line: 2, end_column: 10 },
+      }],
+    });
+
+    const invalid = 'Server returned 400: Invalid CACL policy\nCFMS_ERROR_DATA:{"diagnostics":[{"code":"E202","severity":"error","message":"Unknown op"}]}';
+    expect(parseCaclSaveError(invalid)).toEqual({
+      status: 400,
+      isSelfLockout: false,
+      diagnostics: [{ code: 'E202', severity: 'error', message: 'Unknown op' }],
+    });
+
+    expect(parseCaclSaveError('Server returned 403: Access denied')).toBeNull();
   });
 });

@@ -395,7 +395,6 @@ pub(super) async fn upload_local_file<R: Runtime>(
         serde_json::json!({
             "title": file_name,
             "folder_id": non_empty_optional(parent_id.clone()),
-            "access_rules": {},
         }),
         &username,
         &token,
@@ -417,7 +416,6 @@ pub(super) async fn upload_local_file<R: Runtime>(
                 serde_json::json!({
                     "title": candidate,
                     "folder_id": non_empty_optional(parent_id.clone()),
-                    "access_rules": {},
                 }),
                 &username,
                 &token,

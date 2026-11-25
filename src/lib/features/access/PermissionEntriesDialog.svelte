@@ -5,6 +5,7 @@
   import { InvalidAdminResponseError, type PermissionEntry } from '$lib/api';
   import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
   import {
+    KNOWN_GLOBAL_PERMISSIONS,
     countPermissionEntryChanges,
     createImmediatePermissionEntry,
     permissionEntryChangeKind,
@@ -147,6 +148,7 @@
     localEntries.filter((row) => !row.deleted).map((row) => row.entry),
     localEffectivePermissions,
     localInheritedPermissions,
+    KNOWN_GLOBAL_PERMISSIONS,
   ));
   const filterCounts = $derived<Record<PermissionEntryFilter, number>>({
     all: rows.length,

@@ -4,7 +4,6 @@ import { _ as t } from 'svelte-i18n';
 import { onDestroy, onMount, tick, untrack } from 'svelte';
 import { ensureEscalation } from '$lib/features/authentication/escalation.svelte.ts';
 import {
-  blockUser,
   changeGroupPermissions,
   changeUserGroups,
   changeUserPermissions,
@@ -17,14 +16,11 @@ import {
   getManagedTwoFactorStatus,
   getUserInfo,
   listGroups,
-  listUserBlocks,
   listUsers,
   manageUserStatus,
   renameGroup,
   setUserNickname,
   resetUserPassword,
-  unblockUser,
-  updateUserBlock,
   viewAuditLogs,
   type AuditLogEntry,
   type ManagedGroup,
@@ -33,8 +29,6 @@ import {
   type ManagedUserStatus,
   type PermissionEntry,
   type TwoFactorStatus,
-  type UserBlock,
-  type UserBlockTarget,
 } from '$lib/api';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import { copyText } from '$lib/shared/platform/clipboard';
@@ -78,7 +72,6 @@ export type ManageDialogState =
     info: ManagedUserInfo | null;
     twoFactor: TwoFactorStatus | null;
   }
-  | { kind: 'block-user'; user: ManagedUser }
   | { kind: 'group-permissions'; group: ManagedGroup }
   | null;
 
@@ -175,8 +168,6 @@ export function createManagementWorkspace() {
 
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
 
-  let blocksDialog = $state<{ userId: string; username: string; blocks: UserBlock[] } | null>(null);
-
   let activeDialog = $state<ManageDialogState>(null);
 
   let serverSettings = $state<{
@@ -220,10 +211,6 @@ export function createManagementWorkspace() {
   const canListGroups = $derived(hasAnyPermission('list_groups'));
 
   const canViewLogs = $derived(hasAnyPermission('view_audit_logs'));
-
-  const canBlock = $derived(hasAnyPermission('block'));
-
-  const canListBlocks = $derived(hasAnyPermission('list_user_blocks'));
 
   const canSetUserPermissions = $derived(hasAnyPermission('set_user_permissions'));
 
@@ -546,23 +533,6 @@ export function createManagementWorkspace() {
         disabled,
         hidden: !canReadUserAuthentication(user),
       },
-      { type: 'divider', hidden: !canBlock && !canListBlocks },
-      {
-        id: 'block-user',
-        label: translator.current('manage.blockUser'),
-        icon: 'block',
-        onSelect: () => handleBlockUser(user),
-        disabled,
-        hidden: !canBlock,
-      },
-      {
-        id: 'view-user-blocks',
-        label: translator.current('manage.viewBlocks'),
-        icon: 'manageAccounts',
-        onSelect: () => handleListBlocks(user),
-        disabled,
-        hidden: !canListBlocks,
-      },
       { type: 'divider' },
       {
         id: 'delete-user',
@@ -844,57 +814,6 @@ export function createManagementWorkspace() {
     });
   }
 
-  async function handleBlockUser(user: ManagedUser) {
-    activeDialog = { kind: 'block-user', user };
-  }
-
-  async function handleListBlocks(user: ManagedUser) {
-    await runBusy(`blocks-user:${user.user_id}`, async () => {
-      const blocks = await listUserBlocks(user.user_id);
-      blocksDialog = { userId: user.user_id, username: user.username, blocks };
-    });
-  }
-
-  async function handleUnblock(blockId: string) {
-    if (!blocksDialog) return;
-    await runBusy(`unblock:${blockId}`, async () => {
-      await unblockUser(blockId);
-      blocksDialog = {
-        userId: blocksDialog!.userId,
-        username: blocksDialog!.username,
-        blocks: await listUserBlocks(blocksDialog!.userId),
-      };
-      status = translator.current('manage.blockRevoked');
-    });
-  }
-
-  async function handleEditBlockReason(block: UserBlock) {
-    if (!blocksDialog) return;
-    const reasonValue = await dialogStore.prompt({
-      title: translator.current('manage.editBlockReasonTitle'),
-      message: translator.current('manage.editBlockReasonHelp'),
-      defaultValue: block.reason ?? '',
-      placeholder: translator.current('manage.blockReasonPlaceholder'),
-      confirmLabel: translator.current('common.save'),
-      cancelLabel: translator.current('common.cancel'),
-      multiline: true,
-      maxLength: 1024,
-    });
-    if (reasonValue === null) return;
-
-    await runBusy(`block-reason:${block.block_id}`, async () => {
-      const updated = await updateUserBlock(block.block_id, reasonValue || null);
-      blocksDialog = {
-        userId: blocksDialog!.userId,
-        username: blocksDialog!.username,
-        blocks: blocksDialog!.blocks.map((entry) =>
-          entry.block_id === block.block_id ? updated : entry,
-        ),
-      };
-      status = translator.current('manage.blockReasonUpdated');
-    });
-  }
-
   async function handleCreateGroup() {
     activeDialog = { kind: 'create-group' };
   }
@@ -993,18 +912,6 @@ export function createManagementWorkspace() {
     activeDialog = null;
   }
 
-  async function saveBlockUser(
-    user: ManagedUser,
-    blockTypes: string[],
-    target: UserBlockTarget,
-    notAfter: number | null,
-    reason: string | null,
-  ) {
-    await blockUser(user.user_id, blockTypes, target, notAfter, reason);
-    status = translator.current('manage.userBlocked', { values: { username: user.username } });
-    activeDialog = null;
-  }
-
   async function loadGroupPermissionEditorData(group: ManagedGroup): Promise<PermissionEntriesEditorData> {
     const info = await getGroupInfo(group.name);
     return {
@@ -1088,16 +995,6 @@ export function createManagementWorkspace() {
     void saveActiveUserStatus(activeDialog.info.status === 'disabled' ? 'active' : 'disabled');
   }
 
-  async function saveActiveBlockUser(
-    blockTypes: string[],
-    target: UserBlockTarget,
-    notAfter: number | null,
-    reason: string | null,
-  ) {
-    if (activeDialog?.kind !== 'block-user') return;
-    await saveBlockUser(activeDialog.user, blockTypes, target, notAfter, reason);
-  }
-
   async function refreshActiveGroupPermissions() {
     if (activeDialog?.kind !== 'group-permissions') return { entries: [], effectivePermissions: [] };
     return loadGroupPermissionEditorData(activeDialog.group);
@@ -1150,13 +1047,6 @@ export function createManagementWorkspace() {
     return JSON.stringify(value);
   }
 
-  function formatBlockTarget(block: UserBlock) {
-    const targetType = block.target_type ?? 'all';
-    if (targetType === 'all') return translator.current('tasks.all');
-    if (block.target_id) return `${targetType}: ${block.target_id}`;
-    return targetType;
-  }
-
   function formatError(err: unknown) {
     return formatUserFacingError(err);
   }
@@ -1201,14 +1091,10 @@ export function createManagementWorkspace() {
     set auditPageIndex(value) { auditPageIndex = value; },
     get authenticationManagement() { return authenticationManagement; },
     set authenticationManagement(value) { authenticationManagement = value; },
-    get blocksDialog() { return blocksDialog; },
-    set blocksDialog(value) { blocksDialog = value; },
     get busyKey() { return busyKey; },
     set busyKey(value) { busyKey = value; },
-    get canBlock() { return canBlock; },
     get canListAuthLockouts() { return canListAuthLockouts; },
     get canListBannedSubnets() { return canListBannedSubnets; },
-    get canListBlocks() { return canListBlocks; },
     get canListGroups() { return canListGroups; },
     get canListUsers() { return canListUsers; },
     get canManage2fa() { return canManage2fa; },
@@ -1230,7 +1116,6 @@ export function createManagementWorkspace() {
     disableActiveUserTwoFactor,
     get expandedActionRow() { return expandedActionRow; },
     set expandedActionRow(value) { expandedActionRow = value; },
-    formatBlockTarget,
     formatDate,
     formatList,
     get groupIdentityColumnWidth() { return groupIdentityColumnWidth; },
@@ -1239,23 +1124,19 @@ export function createManagementWorkspace() {
     set groupListElement(value) { groupListElement = value; },
     get groups() { return groups; },
     set groups(value) { groups = value; },
-    handleBlockUser,
     handleChangeUserAvatar,
     handleCreateGroup,
     handleCreateUser,
     handleDeleteGroup,
     handleDeleteUser,
-    handleEditBlockReason,
     handleEditGroupPermissions,
     handleEditUserGroups,
     handleEditUserPermissions,
-    handleListBlocks,
     handleManageAccount,
     handleManageTabKeydown,
     handleRenameGroup,
     handleRenameUser,
     handleResetPassword,
-    handleUnblock,
     handleViewUser,
     get hideAccountMetadata() { return hideAccountMetadata; },
     set hideAccountMetadata(value) { hideAccountMetadata = value; },
@@ -1278,7 +1159,6 @@ export function createManagementWorkspace() {
     refreshActiveUserPermissions,
     removeAuditFilter,
     restoreAuditDefaults,
-    saveActiveBlockUser,
     saveActiveGroupPermissions,
     saveActiveResetPassword,
     saveActiveUserGroups,

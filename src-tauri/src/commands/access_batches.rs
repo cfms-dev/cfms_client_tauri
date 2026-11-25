@@ -5,14 +5,14 @@ use cfms_service::files::access_batches::{ItemChange, Problem, Snapshot, Target}
 pub async fn prepare_access_batch(
     state: tauri::State<'_, AppHandleState>,
     targets: Vec<Target>,
-    rules: serde_json::Value,
-    inherit: bool,
+    dacl: String,
+    allow_self_lockout: bool,
     recursive: bool,
 ) -> Result<String, String> {
     state
         .inner
         .access_batches
-        .create(&state.inner, targets, rules, inherit, recursive)
+        .create(&state.inner, targets, dacl, allow_self_lockout, recursive)
         .await
 }
 #[tauri::command]

@@ -30,12 +30,15 @@ pub struct Problem {
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<Vec<serde_json::Value>>,
 }
 impl Problem {
     fn new(kind: &str) -> Self {
         Self {
             kind: kind.into(),
             status: None,
+            diagnostics: None,
         }
     }
 }
@@ -85,8 +88,8 @@ struct State {
     queue: VecDeque<Target>,
     cursor: Option<String>,
     cursors: HashSet<String>,
-    rules: serde_json::Value,
-    inherit: bool,
+    dacl: String,
+    allow_self_lockout: bool,
     answer: Option<(u64, String)>,
 }
 pub struct Batch {
@@ -109,52 +112,12 @@ pub struct ItemChange {
     pub item: Item,
 }
 
-pub fn validate_rules(rules: &serde_json::Value) -> Result<(), String> {
-    fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-        T: Deserialize<'de>,
-    {
-        T::deserialize(deserializer).map(Some)
-    }
-    #[derive(Deserialize)]
-    #[serde(rename_all = "lowercase")]
-    enum Match {
-        All,
-        Any,
-    }
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Condition {
-        #[serde(rename = "match", default, deserialize_with = "present")]
-        _mode: Option<Match>,
-        #[serde(rename = "require", default, deserialize_with = "present")]
-        _require: Option<Vec<String>>,
-    }
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Sub {
-        #[serde(rename = "match", default, deserialize_with = "present")]
-        _mode: Option<Match>,
-        #[serde(rename = "rights", default, deserialize_with = "present")]
-        _rights: Option<Condition>,
-        #[serde(rename = "groups", default, deserialize_with = "present")]
-        _groups: Option<Condition>,
-    }
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Group {
-        #[serde(rename = "match")]
-        _mode: Match,
-        #[serde(rename = "match_groups")]
-        _groups: Vec<Sub>,
-    }
-    let map = rules.as_object().ok_or("Access rules must be an object")?;
-    for (key, value) in map {
-        if !["read", "write", "move", "manage"].contains(&key.as_str()) {
-            return Err("Unknown access operation".into());
-        }
-        serde_json::from_value::<Vec<Group>>(value.clone()).map_err(|e| e.to_string())?;
+pub fn validate_dacl_source(dacl: &str) -> Result<(), String> {
+    if dacl.chars().count() > cfms_core::constants::DACL_SOURCE_MAX_LENGTH {
+        return Err(format!(
+            "CACL policy exceeds maximum length of {} characters",
+            cfms_core::constants::DACL_SOURCE_MAX_LENGTH
+        ));
     }
     Ok(())
 }
@@ -164,11 +127,11 @@ impl Registry {
         &self,
         app: &AppState,
         targets: Vec<Target>,
-        rules: serde_json::Value,
-        inherit: bool,
+        dacl: String,
+        allow_self_lockout: bool,
         recursive: bool,
     ) -> Result<String, String> {
-        validate_rules(&rules)?;
+        validate_dacl_source(&dacl)?;
         if targets.is_empty()
             || targets.iter().any(|t| {
                 t.object_id.is_empty()
@@ -210,8 +173,8 @@ impl Registry {
             queue: VecDeque::new(),
             cursor: None,
             cursors: HashSet::new(),
-            rules,
-            inherit,
+            dacl,
+            allow_self_lockout,
             answer: None,
         };
         for target in targets {
@@ -316,7 +279,16 @@ impl Batch {
         emit(app, id);
     }
     pub fn decide(&self, ticket: u64, answer: String) -> Result<(), String> {
-        if !["retry", "skip", "skip_all", "cancel"].contains(&answer.as_str()) {
+        if ![
+            "retry",
+            "skip",
+            "skip_all",
+            "cancel",
+            "allow_lockout",
+            "allow_lockout_all",
+        ]
+        .contains(&answer.as_str())
+        {
             return Err("Invalid failure decision".into());
         }
         let mut state = self.state.lock().unwrap();
@@ -340,9 +312,6 @@ impl Batch {
             return Err(Problem::new("session"));
         }
         let permissions = app.permissions.read().await;
-        if !permissions.iter().any(|p| p == "set_access_rules") {
-            return Err(Problem::new("permission"));
-        }
         if app.app_lockdown.load(Ordering::SeqCst)
             && !permissions.iter().any(|p| p == "bypass_lockdown")
         {
@@ -625,30 +594,46 @@ impl Batch {
             indices
         };
         let mut skipped = HashSet::new();
+        let mut allow_lockout_all = false;
         for index in indices {
+            let mut allow_lockout_once = false;
             loop {
                 self.guard(app).await?;
-                let (target, rules, inherit) = {
+                let (target, dacl, default_allow_self_lockout) = {
                     let state = self.state.lock().unwrap();
                     (
                         state.items[index].target.clone(),
-                        state.rules.clone(),
-                        state.inherit,
+                        state.dacl.clone(),
+                        state.allow_self_lockout,
                     )
                 };
                 self.state.lock().unwrap().snapshot.active_key = Some(target.key());
                 emit(app, id);
                 let action = if target.object_type == "document" {
-                    "core.document.access_rule.set"
+                    "core.document.dacl.set"
                 } else {
-                    "core.directory.access_rule.set"
+                    "core.directory.dacl.set"
                 };
                 let id_field = if target.object_type == "document" {
                     "document_id"
                 } else {
                     "directory_id"
                 };
-                let outcome = self.request(app, id, action, serde_json::json!({(id_field): target.object_id, "access_rules": rules, "inherit_parent": inherit}), true).await;
+                let effective_allow_lockout =
+                    default_allow_self_lockout || allow_lockout_all || allow_lockout_once;
+                let outcome = self
+                    .request(
+                        app,
+                        id,
+                        action,
+                        serde_json::json!({
+                            (id_field): target.object_id,
+                            "dacl": dacl,
+                            "allow_self_lockout": effective_allow_lockout,
+                        }),
+                        true,
+                    )
+                    .await;
                 let problem = outcome.err();
                 let attempted = problem.as_ref().is_none_or(|p| {
                     p.status.is_some()
@@ -689,9 +674,19 @@ impl Batch {
                 let key = format!("{}:{:?}", problem.kind, problem.status);
                 let choice = if skipped.contains(&key) {
                     "skip".into()
+                } else if problem.kind == "self_lockout" && allow_lockout_all {
+                    "allow_lockout".into()
                 } else {
                     self.decision(app, id, target, problem).await?
                 };
+                if choice == "allow_lockout" {
+                    allow_lockout_once = true;
+                    continue;
+                }
+                if choice == "allow_lockout_all" {
+                    allow_lockout_all = true;
+                    continue;
+                }
                 if choice == "retry" {
                     continue;
                 }
@@ -797,12 +792,25 @@ fn halts(problem: &Problem) -> bool {
     .contains(&problem.kind.as_str())
 }
 pub fn classify_failure(error: &ActionFailure, mutation: bool) -> Problem {
+    let diagnostics = error
+        .data
+        .get("diagnostics")
+        .and_then(|v| v.as_array())
+        .cloned();
+    let is_self_lockout = error.status == Some(409)
+        && error
+            .data
+            .get("self_lockout_warning")
+            .and_then(|v| v.as_bool())
+            == Some(true);
     let kind = match error.status {
         Some(401) => "session",
         Some(403) => "denied",
         Some(404) => "missing",
         Some(999) => "lockdown",
         Some(429 | 503) => "temporary",
+        Some(409) if is_self_lockout => "self_lockout",
+        Some(400) if diagnostics.is_some() => "invalid_policy",
         Some(_) => "rejected",
         None if mutation && error.sent => "unconfirmed",
         None => "disconnected",
@@ -810,6 +818,11 @@ pub fn classify_failure(error: &ActionFailure, mutation: bool) -> Problem {
     Problem {
         kind: kind.into(),
         status: error.status,
+        diagnostics: if matches!(kind, "self_lockout" | "invalid_policy") {
+            diagnostics
+        } else {
+            None
+        },
     }
 }
 fn reorder(state: &mut State) {

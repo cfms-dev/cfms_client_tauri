@@ -1,18 +1,31 @@
-import type { ServerObjectType } from './files';
+export interface ServerCaclSpan {
+  line: number;
+  column: number;
+  end_line: number;
+  end_column: number;
+}
 
-export type AccessEntityType = "user" | "group";
+export interface ServerCaclDiagnostic {
+  code: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  span?: ServerCaclSpan;
+  hint?: string;
+}
 
-export type AccessType = "read" | "write" | "move" | "manage";
+export interface NodeDaclResponse {
+  dacl: string;
+  inherit: boolean;
+  fingerprint: string;
+  annotated_dacl?: string;
+}
 
-export interface AccessEntry {
-  id: number;
-  entity_type: AccessEntityType | string;
-  entity_identifier: string;
-  target_type: ServerObjectType | string;
-  target_identifier: string;
-  access_type: AccessType | string;
-  start_time: number | null;
-  end_time: number | null;
+export interface SetNodeDaclResponse {
+  dacl: string;
+  inherit: boolean;
+  fingerprint: string;
+  diagnostics: ServerCaclDiagnostic[];
+  self_lockout_warning: boolean;
 }
 
 export interface PermissionEntry {
@@ -31,12 +44,13 @@ export interface BatchRulesTarget {
 
 export type BatchRulesProblemKind = 'identity' | 'session' | 'permission' | 'disconnected'
   | 'lockdown' | 'temporary' | 'denied' | 'missing' | 'rejected' | 'unconfirmed'
-  | 'invalid_response' | 'cycle' | 'cursor' | 'stopped';
+  | 'invalid_response' | 'cycle' | 'cursor' | 'stopped' | 'self_lockout' | 'invalid_policy';
 
 export interface BatchRulesProblem {
   kind: BatchRulesProblemKind;
   status?: number;
   error?: unknown;
+  diagnostics?: ServerCaclDiagnostic[];
 }
 
 export interface BatchRulesIdentity {
@@ -46,14 +60,13 @@ export interface BatchRulesIdentity {
 
 export interface BatchRulesSession extends BatchRulesIdentity {
   loggedIn: boolean;
-  permitted: boolean;
   connected: boolean;
   lockdown: boolean;
   bypassLockdown: boolean;
 }
 
 export type BatchRulesItemStatus = 'pending' | 'success' | 'failed' | 'unconfirmed';
-export type BatchRulesFailureAction = 'retry' | 'skip' | 'skip_all' | 'cancel';
+export type BatchRulesFailureAction = 'retry' | 'skip' | 'skip_all' | 'cancel' | 'allow_lockout' | 'allow_lockout_all';
 export interface BatchRulesItemResult {
   target: BatchRulesTarget;
   status: BatchRulesItemStatus;

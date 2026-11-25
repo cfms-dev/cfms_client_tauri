@@ -513,43 +513,6 @@ pub async fn set_lockdown(
 }
 
 #[tauri::command]
-pub async fn block_user(
-    state: tauri::State<'_, AppHandleState>,
-    user_id: String,
-    block_types: Vec<String>,
-    target: serde_json::Value,
-    not_after: Option<f64>,
-    reason: Option<String>,
-) -> Result<serde_json::Value, String> {
-    let mut data = serde_json::json!({
-        "user_id": user_id,
-        "block_types": block_types,
-        "target": target,
-        "reason": operation_reason_value(reason),
-    });
-    if let Some(value) = not_after {
-        data["not_after"] = serde_json::json!(value);
-    }
-
-    server_action_json(&state, "core.user.block.create", data).await
-}
-
-#[tauri::command]
-pub async fn list_user_blocks(
-    state: tauri::State<'_, AppHandleState>,
-    user_id: String,
-) -> Result<serde_json::Value, String> {
-    let items = fetch_all_cursor_items(
-        &state,
-        "core.user.block.list",
-        serde_json::json!({ "user_id": user_id }),
-    )
-    .await?;
-
-    Ok(serde_json::json!({ "blocks": items }))
-}
-
-#[tauri::command]
 pub async fn get_managed_2fa_status(
     state: tauri::State<'_, AppHandleState>,
     user_id: String,
@@ -668,36 +631,6 @@ pub async fn unlock_auth_lockouts(
         &state,
         "core.security.auth_lockout.unlock",
         serde_json::json!({ "locks": locks, "reason": reason }),
-    )
-    .await
-}
-
-#[tauri::command]
-pub async fn unblock_user(
-    state: tauri::State<'_, AppHandleState>,
-    block_id: String,
-) -> Result<bool, String> {
-    server_action_bool(
-        &state,
-        "core.user.block.delete",
-        serde_json::json!({ "block_id": block_id }),
-    )
-    .await
-}
-
-#[tauri::command]
-pub async fn update_user_block(
-    state: tauri::State<'_, AppHandleState>,
-    block_id: String,
-    reason: Option<String>,
-) -> Result<serde_json::Value, String> {
-    server_action_json(
-        &state,
-        "core.user.block.update",
-        serde_json::json!({
-            "block_id": block_id,
-            "reason": operation_reason_value(reason),
-        }),
     )
     .await
 }

@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   requestEscalation: vi.fn(),
   getManagedTwoFactorStatus: vi.fn(),
   disableManagedTwoFactor: vi.fn(),
-  listUserBlocks: vi.fn(),
   listServerSettings: vi.fn(),
   getServerSettings: vi.fn(),
 }));
@@ -40,7 +39,6 @@ vi.mock('$lib/api', async (importOriginal) => ({
   requestEscalation: mocks.requestEscalation,
   getManagedTwoFactorStatus: mocks.getManagedTwoFactorStatus,
   disableManagedTwoFactor: mocks.disableManagedTwoFactor,
-  listUserBlocks: mocks.listUserBlocks,
   listServerSettings: mocks.listServerSettings,
   getServerSettings: mocks.getServerSettings,
 }));
@@ -98,7 +96,6 @@ beforeEach(() => {
   });
   mocks.viewAuditLogs.mockReset();
   mocks.listUsers.mockReset();
-  mocks.listUserBlocks.mockReset();
   mocks.listServerSettings.mockReset().mockResolvedValue({ items: [] });
   mocks.getServerSettings.mockReset();
   mocks.getUserInfo.mockReset().mockResolvedValue({
@@ -385,35 +382,6 @@ describe('management account context menu', () => {
       expect(notificationStore.entries).toHaveLength(0);
     }
     expect(screen.queryByRole('menu')).toBeNull();
-  });
-
-  it('uses labelled icon buttons for block-record row actions', async () => {
-    authStore.permissions = ['list_users', 'list_user_blocks'];
-    mocks.listUsers.mockResolvedValue([{ user_id: 'other-id', username: 'alice', nickname: 'Alice', groups: [], effective_permissions: [], last_login: null }]);
-    mocks.listUserBlocks.mockResolvedValue([{
-      block_id: 'block-1',
-      block_types: ['read'],
-      target_type: 'all',
-      target_id: null,
-      timestamp: 1_786_600_000,
-      not_before: 1_786_600_000,
-      not_after: -1,
-      reason: 'Policy review',
-    }]);
-
-    render(ManagePage);
-    await fireEvent.contextMenu((await screen.findAllByRole('listitem'))[0]);
-    await fireEvent.click(screen.getByRole('menuitem', { name: 'View/Revoke blocks' }));
-
-    const dialog = await screen.findByRole('dialog', { name: 'Blocks: alice' });
-    const edit = within(dialog).getByRole('button', { name: 'Edit' });
-    const revoke = within(dialog).getByRole('button', { name: 'Revoke' });
-    expect(edit.hasAttribute('icon-only')).toBe(true);
-    expect(edit.getAttribute('title')).toBe('Edit');
-    expect(edit.querySelector('[data-icon="edit"]')).toBeTruthy();
-    expect(revoke.hasAttribute('icon-only')).toBe(true);
-    expect(revoke.getAttribute('title')).toBe('Revoke');
-    expect(revoke.querySelector('[data-icon="delete"]')).toBeTruthy();
   });
 });
 

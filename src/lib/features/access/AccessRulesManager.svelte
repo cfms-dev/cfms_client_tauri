@@ -1,49 +1,62 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import { untrack, type Snippet } from 'svelte';
+  import { onMount, untrack, type Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import {
-    ACCESS_OPERATIONS,
-    CONDITION_TYPES,
-    cloneAccessRules,
-    createConditionBlock,
-    createRuleGroup,
-    createSubRule,
-    formatAccessRules,
-    normalizeAccessRules,
-    parseAccessRulesJson,
-    validateAccessRules,
-    type AccessConditionBlock,
-    type AccessOperation,
-    type AccessRuleGroup,
-    type AccessRulesRecord,
-    type AccessSubRule,
-    type ConditionType,
-    type MatchMode,
-  } from '$lib/features/access/access-rules';
+  import { analyzeCacl, type CaclDiagnostic, type ObjectType } from 'codemirror-lang-cacl';
+  import { listGroups, listUsers } from '$lib/api';
+  import type { ServerCaclDiagnostic } from '$lib/api/types';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
+  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
-  import JsonCodeEditor from '$lib/shared/ui/JsonCodeEditor.svelte';
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import CaclCodeEditor from './CaclCodeEditor.svelte';
+  import CaclPrincipalPicker from './CaclPrincipalPicker.svelte';
+  import CaclVisualEditor from './CaclVisualEditor.svelte';
+  import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
+  import {
+    DACL_SOURCE_MAX_LENGTH,
+    escapeCaclString,
+    extractUserAnnotations,
+    parseCaclToModel,
+    serializeModelToCacl,
+    setInheritDirectiveInSource,
+    type CaclPolicyDocument,
+    type CaclPrincipalRef,
+  } from './cacl-model';
+  import { CACL_RULE_TEMPLATES } from './cacl-presets';
+
+  export interface CaclDraftState {
+    dacl: string;
+    inherit: boolean;
+    hasErrors: boolean;
+    ruleCount: number;
+  }
 
   interface Props {
-    rules: unknown;
-    inheritParent: boolean;
+    dacl: string;
+    annotatedDacl?: string | null;
+    targetObjectType?: ObjectType | null;
+    serverDiagnostics?: readonly ServerCaclDiagnostic[];
+    canListUsers?: boolean;
+    canListGroups?: boolean;
     saving?: boolean;
     submitLabel?: string;
     submitDisabled?: boolean;
     resetRevision?: number;
     footer?: Snippet<[submit: (intent?: 'ok' | 'apply') => Promise<void>]>;
     onEdit?: () => void;
-    onDraftChange?: (draft: { rules: AccessRulesRecord; inheritParent: boolean } | null) => void;
-    onSave: (rules: AccessRulesRecord, inheritParent: boolean, intent?: 'ok' | 'apply') => Promise<void> | void;
+    onDraftChange?: (draft: CaclDraftState | null) => void;
+    onSave: (dacl: string, intent?: 'ok' | 'apply') => Promise<void> | void;
     onCancel: () => void;
   }
 
   let {
-    rules,
-    inheritParent,
+    dacl,
+    annotatedDacl = null,
+    targetObjectType = null,
+    serverDiagnostics = [],
+    canListUsers = false,
+    canListGroups = false,
     saving = false,
     submitLabel,
     submitDisabled = false,
@@ -56,693 +69,788 @@
   }: Props = $props();
 
   let activeView = $state<'visual' | 'source'>('visual');
-  let activeOperation = $state<AccessOperation>('read');
-  let visualRules = $state<AccessRulesRecord>({});
   let sourceText = $state('');
-  let inherit = $state(false);
-  let sourceError = $state<string | null>(null);
+  let visualDoc = $state<CaclPolicyDocument>({ inherit: true, rules: [], userHints: {} });
+  let expandedRuleId = $state<string | null>(null);
+  let switchError = $state<string | null>(null);
+  let showDiagnosticsPanel = $state(false);
+  let showPrincipalInsert = $state(false);
+  let annotateUsersInCode = $state(false);
+  let selectedCodeTemplateId = $state(CACL_RULE_TEMPLATES[0].id);
+  let directory = $state<CaclPrincipalDirectory>({ users: [], groups: [] });
+  let codeEditorRef = $state<{
+    insertAtCursor: (text: string) => void;
+    focusRange: (from: number, to: number) => void;
+  } | undefined>();
   let incomingDraftKey: string | null = null;
 
-  const operationRules = $derived(visualRules[activeOperation] ?? []);
+  onMount(() => {
+    if (canListUsers) {
+      void listUsers().then((users) => {
+        directory = { ...directory, users };
+      }).catch(() => {});
+    }
+    if (canListGroups) {
+      void listGroups().then((groups) => {
+        directory = { ...directory, groups };
+      }).catch(() => {});
+    }
+  });
 
   $effect(() => {
-    const nextRules = normalizeAccessRules(rules);
-    const nextInherit = Boolean(inheritParent);
-    const nextKey = JSON.stringify([nextRules, nextInherit, resetRevision]);
+    const nextKey = JSON.stringify([dacl, annotatedDacl ?? '', resetRevision]);
     if (incomingDraftKey === nextKey) return;
     incomingDraftKey = nextKey;
-    visualRules = nextRules;
-    sourceText = formatAccessRules(nextRules);
-    inherit = nextInherit;
-    sourceError = null;
+
+    const initialText = annotatedDacl && annotatedDacl.trim() ? annotatedDacl : dacl;
+    const hints = extractUserAnnotations(initialText);
+    const parsed = parseCaclToModel(dacl || 'inherit on;\n');
+    annotateUsersInCode = Boolean(annotatedDacl && annotatedDacl.includes('# @'));
+
+    if (parsed.ok) {
+      visualDoc = {
+        ...parsed.document,
+        userHints: { ...hints, ...parsed.document.userHints },
+      };
+      sourceText = annotateUsersInCode && annotatedDacl ? annotatedDacl : serializeModelToCacl(visualDoc);
+      expandedRuleId = visualDoc.rules[0]?.id ?? null;
+      if (activeView === 'source' && !annotateUsersInCode) {
+        sourceText = serializeModelToCacl(visualDoc);
+      }
+      switchError = null;
+    } else {
+      sourceText = initialText;
+      activeView = 'source';
+      switchError = null;
+    }
+  });
+
+  const liveAnalysis = $derived(analyzeCacl(sourceText, {
+    targetObjectType,
+    includeWarnings: true,
+  }));
+
+  const clientErrors = $derived(liveAnalysis.diagnostics.filter((d) => d.severity === 'error'));
+  const clientWarnings = $derived(liveAnalysis.diagnostics.filter((d) => d.severity === 'warning'));
+  const lengthExceeded = $derived(sourceText.length > DACL_SOURCE_MAX_LENGTH);
+  const hasErrors = $derived(clientErrors.length > 0 || lengthExceeded);
+
+  const currentInherit = $derived.by(() => {
+    if (activeView === 'visual') return visualDoc.inherit;
+    const parsed = parseCaclToModel(sourceText);
+    return parsed.ok ? parsed.document.inherit : true;
   });
 
   $effect(() => {
     const notify = onDraftChange;
     if (!notify) return;
-    let draft: { rules: AccessRulesRecord; inheritParent: boolean } | null;
-    try {
-      draft = { rules: cloneAccessRules(validatedDraftRules()), inheritParent: inherit };
-      if (activeView === 'source') sourceError = null;
-    } catch (error) {
-      draft = null;
-      if (activeView === 'source') sourceError = (error as Error).message;
-    }
-    // A parent can update its baseline or button state without making those
-    // reactive reads dependencies of the editor's draft notification.
-    untrack(() => notify(draft));
+    const text = sourceText;
+    const errors = hasErrors;
+    const inherit = currentInherit;
+    const ruleCount = activeView === 'visual' ? visualDoc.rules.length : liveAnalysis.ruleMetas.length;
+    untrack(() => notify(errors
+      ? null
+      : { dacl: text, inherit, hasErrors: false, ruleCount }));
   });
 
-  function validatedDraftRules(): AccessRulesRecord {
-    const nextRules = activeView === 'source'
-      ? parseAccessRulesJson(sourceText)
-      : normalizeAccessRules(visualRules);
-    validateAccessRules(nextRules);
-    return nextRules;
-  }
-
-  function getRulesForActiveOperation() {
-    return [...(visualRules[activeOperation] ?? [])];
-  }
-
-  function commitActiveOperationRules(nextRules: AccessRuleGroup[]) {
+  function updateFromVisual(nextDoc: CaclPolicyDocument) {
     if (saving) return;
     onEdit?.();
-    visualRules = {
-      ...visualRules,
-      [activeOperation]: nextRules,
-    };
-    sourceError = null;
+    visualDoc = nextDoc;
+    sourceText = serializeModelToCacl(nextDoc, {
+      annotateUsers: annotateUsersInCode,
+    });
+    switchError = null;
   }
 
-  function selectEditorView(view: 'visual' | 'source') {
+  function toggleInherit(nextInherit: boolean) {
     if (saving) return;
-    if (view === activeView) return;
+    onEdit?.();
+    if (activeView === 'visual') {
+      updateFromVisual({ ...visualDoc, inherit: nextInherit });
+    } else {
+      sourceText = setInheritDirectiveInSource(sourceText, nextInherit);
+    }
+  }
 
+  function changeSource(nextSource: string) {
+    if (saving) return;
+    onEdit?.();
+    sourceText = nextSource;
+    switchError = null;
+  }
+
+  function selectView(view: 'visual' | 'source') {
+    if (saving || view === activeView) return;
     if (view === 'visual') {
-      try {
-        visualRules = parseAccessRulesJson(sourceText);
-        sourceError = null;
-      } catch (err) {
-        sourceError = (err as Error).message;
+      const parsed = parseCaclToModel(sourceText);
+      if (!parsed.ok) {
+        switchError = $t('files.cacl.cannotSwitchToVisual', { values: { error: parsed.error } });
+        showDiagnosticsPanel = true;
         return;
       }
+      visualDoc = {
+        ...parsed.document,
+        userHints: { ...visualDoc.userHints, ...parsed.document.userHints },
+      };
+      expandedRuleId = visualDoc.rules[0]?.id ?? null;
+      switchError = null;
     } else {
-      sourceText = formatAccessRules(normalizeAccessRules(visualRules));
-      sourceError = null;
+      sourceText = serializeModelToCacl(visualDoc, {
+        annotateUsers: annotateUsersInCode,
+      });
+      switchError = null;
     }
-
     activeView = view;
   }
 
-  function changeSource(value: string) {
+  function formatSource() {
     if (saving) return;
+    const parsed = parseCaclToModel(sourceText);
+    if (!parsed.ok) {
+      switchError = parsed.error;
+      showDiagnosticsPanel = true;
+      return;
+    }
     onEdit?.();
-    sourceText = value;
-    sourceError = null;
-  }
-
-  function setActiveOperation(operation: AccessOperation) {
-    if (saving) return;
-    activeOperation = operation;
-  }
-
-  function addRuleGroup() {
-    commitActiveOperationRules([...getRulesForActiveOperation(), createRuleGroup()]);
-  }
-
-  function updateRuleGroup(groupIndex: number, patch: Partial<AccessRuleGroup>) {
-    const nextRules = getRulesForActiveOperation();
-    nextRules[groupIndex] = {
-      ...nextRules[groupIndex],
-      ...patch,
+    visualDoc = {
+      ...parsed.document,
+      userHints: { ...visualDoc.userHints, ...parsed.document.userHints },
     };
-    commitActiveOperationRules(nextRules);
+    sourceText = serializeModelToCacl(visualDoc, {
+      annotateUsers: annotateUsersInCode,
+    });
+    switchError = null;
   }
 
-  function removeRuleGroup(groupIndex: number) {
-    commitActiveOperationRules(
-      getRulesForActiveOperation().filter((_, index) => index !== groupIndex),
+  function toggleAnnotateUsers(nextChecked: boolean) {
+    annotateUsersInCode = nextChecked;
+    const parsed = parseCaclToModel(sourceText);
+    if (!parsed.ok) return;
+    sourceText = serializeModelToCacl(
+      {
+        ...parsed.document,
+        userHints: { ...visualDoc.userHints, ...parsed.document.userHints },
+      },
+      { annotateUsers: nextChecked },
     );
   }
 
-  function addSubRule(groupIndex: number) {
-    const group = operationRules[groupIndex];
-    updateRuleGroup(groupIndex, {
-      match_groups: [...group.match_groups, createSubRule()],
-    });
+  function insertPrincipalSnippet(principal: CaclPrincipalRef) {
+    const snippet = `${principal.kind}(${escapeCaclString(principal.value)})`;
+    codeEditorRef?.insertAtCursor(snippet);
+    showPrincipalInsert = false;
   }
 
-  function updateSubRule(
-    groupIndex: number,
-    subRuleIndex: number,
-    patch: Partial<AccessSubRule>,
-  ) {
-    const group = operationRules[groupIndex];
-    const nextSubRules = [...group.match_groups];
-    nextSubRules[subRuleIndex] = {
-      ...nextSubRules[subRuleIndex],
-      ...patch,
-    };
-    updateRuleGroup(groupIndex, { match_groups: nextSubRules });
+  function insertCodeTemplate() {
+    const tpl = CACL_RULE_TEMPLATES.find((item) => item.id === selectedCodeTemplateId);
+    if (!tpl) return;
+    const snippet = tpl.snippet(targetObjectType);
+    const prefix = sourceText.endsWith('\n') || sourceText.length === 0 ? '' : '\n';
+    codeEditorRef?.insertAtCursor(`${prefix}${snippet}\n`);
   }
 
-  function removeSubRule(groupIndex: number, subRuleIndex: number) {
-    const group = operationRules[groupIndex];
-    updateRuleGroup(groupIndex, {
-      match_groups: group.match_groups.filter((_, index) => index !== subRuleIndex),
-    });
-  }
-
-  function setConditionBlock(
-    groupIndex: number,
-    subRuleIndex: number,
-    type: ConditionType,
-    block: AccessConditionBlock | undefined,
-  ) {
-    const subRule = operationRules[groupIndex].match_groups[subRuleIndex];
-    const nextSubRule = { ...subRule };
-    if (block) {
-      nextSubRule[type] = block;
-    } else {
-      delete nextSubRule[type];
+  function jumpToDiagnostic(diag: CaclDiagnostic) {
+    if (activeView !== 'source') {
+      selectView('source');
     }
-
-    const group = operationRules[groupIndex];
-    const nextSubRules = [...group.match_groups];
-    nextSubRules[subRuleIndex] = nextSubRule;
-    updateRuleGroup(groupIndex, { match_groups: nextSubRules });
-  }
-
-  function updateConditionBlock(
-    groupIndex: number,
-    subRuleIndex: number,
-    type: ConditionType,
-    patch: Partial<AccessConditionBlock>,
-  ) {
-    const block = operationRules[groupIndex].match_groups[subRuleIndex][type];
-    if (!block) return;
-    setConditionBlock(groupIndex, subRuleIndex, type, {
-      ...block,
-      ...patch,
+    queueMicrotask(() => {
+      codeEditorRef?.focusRange(diag.from, diag.to);
     });
   }
 
-  function addConditionEntry(
-    groupIndex: number,
-    subRuleIndex: number,
-    type: ConditionType,
-    value: string,
-  ) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-
-    const block = operationRules[groupIndex].match_groups[subRuleIndex][type];
-    if (!block || block.require.includes(trimmed)) return;
-
-    updateConditionBlock(groupIndex, subRuleIndex, type, {
-      require: [...block.require, trimmed],
-    });
-  }
-
-  function removeConditionEntry(
-    groupIndex: number,
-    subRuleIndex: number,
-    type: ConditionType,
-    entryIndex: number,
-  ) {
-    const block = operationRules[groupIndex].match_groups[subRuleIndex][type];
-    if (!block) return;
-
-    updateConditionBlock(groupIndex, subRuleIndex, type, {
-      require: block.require.filter((_, index) => index !== entryIndex),
-    });
-  }
-
-  async function submitRules(intent?: 'ok' | 'apply') {
-    if (saving || submitDisabled) return;
-    let nextRules: AccessRulesRecord;
-
-    try {
-      nextRules = validatedDraftRules();
-      sourceError = null;
-    } catch (err) {
-      sourceError = (err as Error).message;
-      return;
-    }
-
+  async function submitPolicy(intent?: 'ok' | 'apply') {
+    if (saving || submitDisabled || hasErrors) return;
+    const payload = activeView === 'visual'
+      ? serializeModelToCacl(visualDoc, { annotateUsers: false })
+      : sourceText;
     if (intent) {
-      await onSave(cloneAccessRules(nextRules), inherit, intent);
+      await onSave(payload, intent);
     } else {
-      await onSave(cloneAccessRules(nextRules), inherit);
+      await onSave(payload);
     }
-  }
-
-  function selectValue(event: Event) {
-    return (event.currentTarget as HTMLSelectElement).value;
-  }
-
-  function entryInput(event: SubmitEvent) {
-    return (event.currentTarget as HTMLFormElement).elements.namedItem('entry') as HTMLInputElement;
   }
 </script>
 
-<div class="flex h-full min-h-0 max-h-[78vh] flex-col overflow-hidden">
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden" inert={saving} aria-busy={saving}>
-  <div class="border-b border-md3-outline px-5 py-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-        type="button"
-        onclick={() => selectEditorView('visual')}
-        disabled={saving}
-        appearance="subtle"
-        class={"editor-tab " + (activeView === 'visual' ? 'editor-tab-active' : '')}
-      >
-        <Icon name="rule" size="17px" />
-        {$t('files.accessRulesVisualization')}
-      </FluentButton>
-      <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-        type="button"
-        onclick={() => selectEditorView('source')}
-        disabled={saving}
-        appearance="subtle"
-        class={"editor-tab " + (activeView === 'source' ? 'editor-tab-active' : '')}
-      >
-        <Icon name="code" size="17px" />
-        {$t('files.sourceCode')}
-      </FluentButton>
-      <div class="ml-auto flex items-center gap-2 text-sm text-md3-on-surface-variant">
-        <MdSwitch
-          bind:checked={inherit}
+<div class="dacl-manager">
+  <div class="dacl-main" inert={saving} aria-busy={saving}>
+    <header class="dacl-topbar">
+      <div class="view-tabs" role="tablist" aria-label={$t('files.cacl.editorMode')}>
+        <FluentButton
+          data-fluent-owner="cacl-access-manager"
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'visual'}
+          appearance="subtle"
           disabled={saving}
-          onChange={() => onEdit?.()}
-          ariaLabel={$t('files.inheritParentRules')}
-        />
-        {$t('files.inheritParentRules')}
+          class={'mode-tab ' + (activeView === 'visual' ? 'mode-tab--active' : '')}
+          onclick={() => selectView('visual')}
+        >
+          <Icon name="rule" size="16px" />
+          <span>{$t('files.accessRulesVisualization')}</span>
+        </FluentButton>
+
+        <FluentButton
+          data-fluent-owner="cacl-access-manager"
+          type="button"
+          role="tab"
+          aria-selected={activeView === 'source'}
+          appearance="subtle"
+          disabled={saving}
+          class={'mode-tab ' + (activeView === 'source' ? 'mode-tab--active' : '')}
+          onclick={() => selectView('source')}
+        >
+          <Icon name="code" size="16px" />
+          <span>{$t('files.sourceCode')}</span>
+          {#if clientErrors.length > 0}
+            <span class="tab-badge tab-badge--error">{clientErrors.length}</span>
+          {:else if clientWarnings.length + serverDiagnostics.length > 0}
+            <span class="tab-badge tab-badge--warn">
+              {clientWarnings.length + serverDiagnostics.length}
+            </span>
+          {/if}
+        </FluentButton>
       </div>
-    </div>
-  </div>
 
-  {#if activeView === 'visual'}
-    <div class="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[150px_1fr]">
-      <nav class="border-b border-md3-outline bg-md3-surface-container p-3 md:border-b-0 md:border-r">
-        <p class="mb-2 px-2 text-[11px] font-medium uppercase text-md3-on-surface-variant">
-          {$t('files.accessOperation')}
-        </p>
-        <div class="grid grid-cols-2 gap-2 md:grid-cols-1">
-          {#each ACCESS_OPERATIONS as operation}
-            <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-              type="button"
-              onclick={() => setActiveOperation(operation)}
-              disabled={saving}
-              appearance="subtle"
-              class={"operation-button " + (activeOperation === operation ? 'operation-button-active' : '')}
-            >
-              {#if operation === 'read'}
-                <Icon name="visibility" size="18px" />
-              {:else if operation === 'write'}
-                <Icon name="edit" size="18px" />
-              {:else if operation === 'move'}
-                <Icon name="driveFileMove" size="18px" />
-              {:else}
-                <Icon name="manageAccounts" size="18px" />
-              {/if}
-              {$t(`files.operation.${operation}`)}
-            </FluentButton>
-          {/each}
-        </div>
-      </nav>
-
-      <div class="min-h-0 overflow-auto p-5">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h4 class="text-sm font-semibold text-md3-on-surface">
-              {$t(`files.operation.${activeOperation}`)}
-            </h4>
-            <p class="mt-1 text-xs text-md3-on-surface-variant">
-              {$t('files.ruleGroupsCount', { values: { count: operationRules.length } })}
-            </p>
-          </div>
-          <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-            type="button"
-            onclick={addRuleGroup}
-            disabled={saving}
-            appearance="subtle"
-            class="filled-button"
-          >
-            <Icon name="add" size="17px" />
-            {$t('files.addRuleGroup')}
-          </FluentButton>
-        </div>
-
-        {#if operationRules.length === 0}
-          <div class="rounded-lg border border-dashed border-md3-outline p-8 text-center text-sm text-md3-on-surface-variant">
-            {$t('files.noRuleGroups')}
-          </div>
-        {:else}
-          <div class="space-y-4">
-            {#each operationRules as group, groupIndex}
-              <section class="rounded-lg border border-md3-outline bg-md3-surface-container">
-                <div class="flex flex-wrap items-center gap-3 border-b border-md3-outline px-4 py-3">
-                  <div class="min-w-0">
-                    <h5 class="text-sm font-semibold text-md3-on-surface">
-                      {$t('files.ruleGroup')} #{groupIndex + 1}
-                    </h5>
-                  </div>
-                  <label class="ml-auto flex items-center gap-2 text-xs text-md3-on-surface-variant">
-                    {$t('files.matchMode')}
-                    <select
-                      class="cfms-native-field select-field"
-                      value={group.match}
-                      onchange={(event) => updateRuleGroup(groupIndex, { match: selectValue(event) as MatchMode })}
-                      disabled={saving}
-                    >
-                      <option value="all">{$t('files.allAnd')}</option>
-                      <option value="any">{$t('files.anyOr')}</option>
-                    </select>
-                  </label>
-                  <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                    type="button"
-                    title={$t('files.deleteRuleGroup')}
-                    onclick={() => removeRuleGroup(groupIndex)}
-                    disabled={saving}
-                    appearance="subtle"
-                    tone="danger"
-                    class="cfms-control-action icon-button danger-button"
-                    iconOnly
-                    aria-label={$t('files.deleteRuleGroup')}
-                  >
-                    <Icon name="delete" size="18px" />
-                  </FluentButton>
-                </div>
-
-                <div class="space-y-3 p-4">
-                  {#each group.match_groups as subRule, subRuleIndex}
-                    <article class="rounded-lg border border-md3-outline/70 bg-md3-surface">
-                      <div class="flex flex-wrap items-center gap-3 border-b border-md3-outline/60 px-3 py-2.5">
-                        <span class="text-sm font-medium text-md3-on-surface">
-                          {$t('files.subgroup')} #{subRuleIndex + 1}
-                        </span>
-                        <label class="ml-auto flex items-center gap-2 text-xs text-md3-on-surface-variant">
-                          {$t('files.matchMode')}
-                          <select
-                            class="cfms-native-field select-field"
-                            value={subRule.match}
-                            onchange={(event) => updateSubRule(groupIndex, subRuleIndex, { match: selectValue(event) as MatchMode })}
-                            disabled={saving}
-                          >
-                            <option value="all">{$t('files.allAnd')}</option>
-                            <option value="any">{$t('files.anyOr')}</option>
-                          </select>
-                        </label>
-                        <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                          type="button"
-                          title={$t('files.deleteSubgroup')}
-                          onclick={() => removeSubRule(groupIndex, subRuleIndex)}
-                          disabled={saving}
-                          appearance="subtle"
-                          tone="danger"
-                          class="cfms-control-action icon-button danger-button"
-                          iconOnly
-                          aria-label={$t('files.deleteSubgroup')}
-                        >
-                          <Icon name="remove" size="18px" />
-                        </FluentButton>
-                      </div>
-
-                      <div class="grid gap-3 p-3 lg:grid-cols-2">
-                        {#each CONDITION_TYPES as type}
-                          {@const block = subRule[type]}
-                          {#if block}
-                            <div class="rounded-lg border border-md3-outline/60 bg-md3-surface-container p-3">
-                              <div class="mb-3 flex items-center gap-2">
-                                <span class="text-sm font-medium text-md3-on-surface">
-                                  {$t(`files.condition.${type}`)}
-                                </span>
-                                <select
-                                  class="cfms-native-field select-field ml-auto"
-                                  value={block.match}
-                                  onchange={(event) => updateConditionBlock(groupIndex, subRuleIndex, type, { match: selectValue(event) as MatchMode })}
-                                  disabled={saving}
-                                >
-                                  <option value="all">{$t('files.allAnd')}</option>
-                                  <option value="any">{$t('files.anyOr')}</option>
-                                </select>
-                                <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                                  type="button"
-                                  title={$t('files.removeSection')}
-                                  onclick={() => setConditionBlock(groupIndex, subRuleIndex, type, undefined)}
-                                  disabled={saving}
-                                  appearance="subtle"
-                                  tone="danger"
-                                  class="cfms-control-action icon-button danger-button"
-                                  iconOnly
-                                  aria-label={$t('files.removeSection')}
-                                >
-                                  <Icon name="close" size="17px" />
-                                </FluentButton>
-                              </div>
-
-                              {#if block.require.length === 0}
-                                <p class="mb-3 text-xs text-md3-on-surface-variant">
-                                  {$t('files.noEntries')}
-                                </p>
-                              {:else}
-                                <div class="mb-3 flex flex-wrap gap-2">
-                                  {#each block.require as entry, entryIndex}
-                                    <span class="inline-flex max-w-full items-center gap-1 rounded-full bg-md3-surface-container-high px-2.5 py-1 text-xs text-md3-on-surface">
-                                      <span class="truncate">{entry}</span>
-                                      <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                                        type="button"
-                                        title={$t('files.removeEntry')}
-                                        onclick={() => removeConditionEntry(groupIndex, subRuleIndex, type, entryIndex)}
-                                        disabled={saving}
-                                        appearance="subtle"
-                                        tone="danger"
-                                        class="text-md3-on-surface-variant hover:text-md3-error"
-                                        iconOnly
-                                        aria-label={$t('files.removeEntry')}
-                                      >
-                                        <Icon name="close" size="14px" />
-                                      </FluentButton>
-                                    </span>
-                                  {/each}
-                                </div>
-                              {/if}
-
-                              <form
-                                class="flex gap-2"
-                                onsubmit={(event) => {
-                                  event.preventDefault();
-                                  const input = entryInput(event);
-                                  addConditionEntry(groupIndex, subRuleIndex, type, input.value);
-                                  input.value = '';
-                                }}
-                              >
-                                <input
-                                  name="entry"
-                                  class="cfms-native-field min-w-0 flex-1 rounded-lg border border-md3-outline bg-md3-field px-3 text-sm text-md3-on-surface outline-none transition"
-                                  placeholder={type === 'rights' ? $t('files.rightNamePlaceholder') : $t('files.groupNamePlaceholder')}
-                                  disabled={saving}
-                                />
-                                <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                                  type="submit"
-                                  title={$t('files.addEntry')}
-                                  disabled={saving}
-                                  appearance="subtle"
-                                  class="cfms-control-action icon-button primary-button"
-                                  iconOnly
-                                  aria-label={$t('files.addEntry')}
-                                >
-                                  <Icon name="add" size="18px" />
-                                </FluentButton>
-                              </form>
-                            </div>
-                          {/if}
-                        {/each}
-
-                        {#if !subRule.rights || !subRule.groups}
-                          <div class="flex flex-wrap items-start gap-2">
-                            {#if !subRule.rights}
-                              <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                                type="button"
-                                onclick={() => setConditionBlock(groupIndex, subRuleIndex, 'rights', createConditionBlock())}
-                                disabled={saving}
-                                appearance="subtle"
-                                class="outline-button"
-                              >
-                                <Icon name="add" size="17px" />
-                                {$t('files.addRightsSection')}
-                              </FluentButton>
-                            {/if}
-                            {#if !subRule.groups}
-                              <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                                type="button"
-                                onclick={() => setConditionBlock(groupIndex, subRuleIndex, 'groups', createConditionBlock())}
-                                disabled={saving}
-                                appearance="subtle"
-                                class="outline-button"
-                              >
-                                <Icon name="add" size="17px" />
-                                {$t('files.addGroupsSection')}
-                              </FluentButton>
-                            {/if}
-                          </div>
-                        {/if}
-                      </div>
-                    </article>
-                  {/each}
-
-                  <FluentButton data-fluent-owner="lib-components-access-rules-manager"
-                    type="button"
-                    onclick={() => addSubRule(groupIndex)}
-                    disabled={saving}
-                    appearance="subtle"
-                    class="outline-button"
-                  >
-                    <Icon name="add" size="17px" />
-                    {$t('files.addSubgroup')}
-                  </FluentButton>
-                </div>
-              </section>
-            {/each}
-          </div>
+      <div class="topbar-meta">
+        {#if targetObjectType}
+          <span class="target-pill">
+            <Icon name={targetObjectType === 'directory' ? 'folder' : 'filePresent'} size="14px" />
+            {$t(`files.${targetObjectType}`)}
+          </span>
         {/if}
+
+        <label class="inherit-switch" class:inherit-switch--off={!currentInherit}>
+          <MdSwitch
+            checked={currentInherit}
+            disabled={saving}
+            onChange={(checked) => toggleInherit(checked)}
+            ariaLabel={$t('files.inheritParentRules')}
+          />
+          <span>{$t('files.inheritParentRules')}</span>
+        </label>
       </div>
-    </div>
-  {:else}
-    <div class="min-h-0 flex-1 overflow-auto p-5">
-      <div class="access-rules-source-editor" class:has-error={sourceError !== null}>
-        <JsonCodeEditor
-          value={sourceText}
+    </header>
+
+    {#if switchError}
+      <div class="banner-alert" role="alert">
+        <span class="cfms-icon-text__icon"><Icon name="errorFilled" size="16px" /></span>
+        <span>{switchError}</span>
+      </div>
+    {/if}
+
+    <div class="dacl-workspace">
+      {#if activeView === 'visual'}
+        <CaclVisualEditor
+          document={visualDoc}
+          {targetObjectType}
+          {directory}
+          {canListUsers}
+          {canListGroups}
           disabled={saving}
-          ariaLabel={$t('files.accessRules')}
-          loadingLabel={$t('files.accessRulesEditorLoading')}
-          onChange={changeSource}
+          {expandedRuleId}
+          onExpandedChange={(id) => { expandedRuleId = id; }}
+          onChange={updateFromVisual}
         />
-      </div>
-      {#if sourceError}
-        <p class="mt-2 text-xs text-md3-error" role="alert">
-          {$t('files.invalidAccessRulesJson', { values: { error: sourceError } })}
-        </p>
+      {:else}
+        <div class="source-pane">
+          <div class="source-toolbar">
+            <div class="source-toolbar-left">
+              <FluentButton
+                data-fluent-owner="cacl-access-manager"
+                type="button"
+                appearance="subtle"
+                class="source-tool-btn"
+                disabled={saving}
+                onclick={() => { showPrincipalInsert = !showPrincipalInsert; }}
+              >
+                <Icon name="manageAccounts" size="15px" />
+                <span>{$t('files.cacl.insertPrincipal')}</span>
+              </FluentButton>
+
+              <select
+                class="cfms-native-field code-template-select"
+                bind:value={selectedCodeTemplateId}
+                disabled={saving}
+                aria-label={$t('files.cacl.templatePicker')}
+              >
+                {#each CACL_RULE_TEMPLATES as tpl (tpl.id)}
+                  <option value={tpl.id}>{$t(tpl.labelKey)}</option>
+                {/each}
+              </select>
+              <FluentButton
+                data-fluent-owner="cacl-access-manager"
+                type="button"
+                appearance="subtle"
+                class="source-tool-btn"
+                disabled={saving}
+                onclick={insertCodeTemplate}
+              >
+                <Icon name="add" size="15px" />
+                <span>{$t('files.cacl.insertTemplate')}</span>
+              </FluentButton>
+
+              <FluentButton
+                data-fluent-owner="cacl-access-manager"
+                type="button"
+                appearance="subtle"
+                class="source-tool-btn"
+                disabled={saving}
+                onclick={formatSource}
+              >
+                <Icon name="wandStars" size="15px" />
+                <span>{$t('files.cacl.formatPolicy')}</span>
+              </FluentButton>
+            </div>
+
+            <label class="annotate-toggle">
+              <MdSwitch
+                checked={annotateUsersInCode}
+                disabled={saving}
+                onChange={toggleAnnotateUsers}
+                ariaLabel={$t('files.cacl.annotateUsers')}
+              />
+              <span>{$t('files.cacl.annotateUsers')}</span>
+            </label>
+          </div>
+
+          {#if showPrincipalInsert}
+            <div class="principal-popover">
+              <CaclPrincipalPicker
+                {directory}
+                {canListUsers}
+                {canListGroups}
+                disabled={saving}
+                onAdd={insertPrincipalSnippet}
+              />
+            </div>
+          {/if}
+
+          <div class="source-editor-wrap" class:has-error={hasErrors}>
+            <CaclCodeEditor
+              bind:this={codeEditorRef}
+              value={sourceText}
+              {targetObjectType}
+              {serverDiagnostics}
+              principalDirectory={directory}
+              disabled={saving}
+              ariaLabel={$t('files.accessRules')}
+              loadingLabel={$t('files.accessRulesEditorLoading')}
+              onChange={changeSource}
+            />
+          </div>
+
+          <p class="source-help">{$t('files.ruleFormatHelp')}</p>
+        </div>
       {/if}
-      <p class="mt-3 text-xs text-md3-on-surface-variant">
-        {$t('files.ruleFormatHelp')}
-      </p>
     </div>
-  {/if}
+
+    <section class="diagnostics-bar" aria-live="polite">
+      <button
+        type="button"
+        class="diagnostics-summary"
+        aria-expanded={showDiagnosticsPanel}
+        onclick={() => { showDiagnosticsPanel = !showDiagnosticsPanel; }}
+      >
+        {#if lengthExceeded}
+          <Icon name="errorFilled" size="15px" />
+          <span class="diag-status diag-status--error">
+            {$t('files.cacl.lengthExceeded', {
+              values: { length: sourceText.length, max: DACL_SOURCE_MAX_LENGTH },
+            })}
+          </span>
+        {:else if clientErrors.length > 0}
+          <Icon name="errorFilled" size="15px" />
+          <span class="diag-status diag-status--error">
+            {$t('files.cacl.diagnosticsErrors', { values: { count: clientErrors.length } })}
+          </span>
+        {:else if clientWarnings.length + serverDiagnostics.length > 0}
+          <Icon name="warning" size="15px" />
+          <span class="diag-status diag-status--warn">
+            {$t('files.cacl.diagnosticsWarnings', {
+              values: { count: clientWarnings.length + serverDiagnostics.length },
+            })}
+          </span>
+        {:else}
+          <Icon name="checkCircle" size="15px" />
+          <span class="diag-status diag-status--ok">
+            {$t('files.cacl.policyValid', {
+              values: {
+                count: activeView === 'visual' ? visualDoc.rules.length : liveAnalysis.ruleMetas.length,
+              },
+            })}
+          </span>
+        {/if}
+
+        <span class="char-counter" class:char-counter--warn={sourceText.length > DACL_SOURCE_MAX_LENGTH * 0.85}>
+          {sourceText.length} / {DACL_SOURCE_MAX_LENGTH}
+        </span>
+
+        {#if liveAnalysis.diagnostics.length + serverDiagnostics.length > 0}
+          <span class="diag-chevron">
+            <Icon name={showDiagnosticsPanel ? 'expandLess' : 'expandMore'} size="15px" />
+          </span>
+        {/if}
+      </button>
+
+      {#if showDiagnosticsPanel && (liveAnalysis.diagnostics.length > 0 || serverDiagnostics.length > 0)}
+        <ul class="diagnostics-list">
+          {#each liveAnalysis.diagnostics as diag (`c:${diag.code}:${diag.from}:${diag.to}`)}
+            <li>
+              <button type="button" class="diag-row" onclick={() => jumpToDiagnostic(diag)}>
+                <span class={`diag-code diag-code--${diag.severity}`}>{diag.code}</span>
+                <span class="diag-msg">{diag.message}</span>
+              </button>
+            </li>
+          {/each}
+          {#each serverDiagnostics as sdiag (`s:${sdiag.code}:${sdiag.message}`)}
+            <li class="diag-row diag-row--static">
+              <span class={`diag-code diag-code--${sdiag.severity}`}>{sdiag.code}</span>
+              <span class="diag-msg">{sdiag.message}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
   </div>
 
   {#if footer}
-    {@render footer(submitRules)}
+    {@render footer(submitPolicy)}
   {:else}
-    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-md3-outline px-5 py-4">
-    <DialogActionButton onclick={onCancel} disabled={saving}>
-      {$t('common.cancel')}
-    </DialogActionButton>
-    <DialogActionButton
-      variant="primary"
-      onclick={() => submitRules()}
-      disabled={saving || submitDisabled}
-    >
-      {#if saving}
-        <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
-        {$t('common.saving')}
-      {:else}
-        <Icon name="done" size="17px" />
-        {submitLabel ?? $t('common.save')}
-      {/if}
-    </DialogActionButton>
-    </div>
+    <footer class="dacl-footer">
+      <DialogActionButton onclick={onCancel} disabled={saving}>
+        {$t('common.cancel')}
+      </DialogActionButton>
+      <DialogActionButton
+        variant="primary"
+        onclick={() => submitPolicy()}
+        disabled={saving || submitDisabled || hasErrors}
+      >
+        {#if saving}
+          <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
+          {$t('common.saving')}
+        {:else}
+          <Icon name="done" size="17px" />
+          {submitLabel ?? $t('common.save')}
+        {/if}
+      </DialogActionButton>
+    </footer>
   {/if}
 </div>
 
 <style>
-  :global(.editor-tab[data-fluent-owner="lib-components-access-rules-manager"]),
-  :global(.operation-button[data-fluent-owner="lib-components-access-rules-manager"]),
-  :global(.filled-button[data-fluent-owner="lib-components-access-rules-manager"]),
-  :global(.outline-button[data-fluent-owner="lib-components-access-rules-manager"]),
-  :global(.icon-button[data-fluent-owner="lib-components-access-rules-manager"]) {
+  .dacl-manager {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    max-height: 78vh;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--colorNeutralForeground1);
+  }
+
+  .dacl-main {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .dacl-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--colorNeutralStroke2);
+  }
+
+  .view-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  :global(.mode-tab[data-fluent-owner="cacl-access-manager"]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 12px;
+    border-radius: var(--borderRadiusMedium, 4px);
+    color: var(--colorNeutralForeground2);
+    font: 400 13px/18px var(--fontFamilyBase);
+  }
+
+  :global(.mode-tab[data-fluent-owner="cacl-access-manager"]:hover:not(:is(:disabled, [disabled]))) {
+    background: var(--colorSubtleBackgroundHover);
+    color: var(--colorNeutralForeground1);
+  }
+
+  :global(.mode-tab--active[data-fluent-owner="cacl-access-manager"]) {
+    background: var(--colorBrandBackground2);
+    color: var(--colorBrandForeground2);
+    font-weight: 600;
+  }
+
+  .tab-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font: 600 11px/14px var(--fontFamilyBase);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tab-badge--error {
+    background: var(--colorStatusDangerBackground3);
+    color: var(--colorNeutralForegroundStaticInverted);
+  }
+
+  .tab-badge--warn {
+    background: var(--colorStatusWarningBackground1);
+    color: var(--colorStatusWarningForeground2);
+  }
+
+  .topbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .target-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: 999px;
+    background: var(--colorNeutralBackground2);
+    color: var(--colorNeutralForeground2);
+    font: 400 12px/16px var(--fontFamilyBase);
+  }
+
+  .inherit-switch {
+    display: inline-flex;
+    align-items: center;
     gap: 8px;
-    transition:
-      background-color 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease,
-      filter 150ms ease;
+    color: var(--colorNeutralForeground1);
+    font: 400 13px/18px var(--fontFamilyBase);
+    cursor: pointer;
   }
 
-  :global(.editor-tab[data-fluent-owner="lib-components-access-rules-manager"]) {
-    min-height: 2.25rem;
-    border-radius: var(--borderRadiusMedium);
-    padding: 0.45rem 0.85rem;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 14px;
+  .inherit-switch--off {
+    color: var(--colorStatusWarningForeground2);
   }
 
-  :global(.editor-tab[data-fluent-owner="lib-components-access-rules-manager"]):hover,
-  :global(.operation-button[data-fluent-owner="lib-components-access-rules-manager"]:hover),
-  :global(.outline-button[data-fluent-owner="lib-components-access-rules-manager"]:hover),
-  :global(.icon-button[data-fluent-owner="lib-components-access-rules-manager"]:hover) {
-    background: color-mix(in srgb, var(--color-md3-primary-container) 34%, transparent);
+  .banner-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--colorStatusDangerBorder1);
+    background: var(--colorStatusDangerBackground1);
+    color: var(--colorStatusDangerForeground1);
+    font: 400 12px/16px var(--fontFamilyBase);
   }
 
-  :global(.editor-tab-active[data-fluent-owner="lib-components-access-rules-manager"]),
-  :global(.operation-button-active[data-fluent-owner="lib-components-access-rules-manager"]) {
-    background: var(--color-md3-primary-container);
-    color: var(--color-md3-on-primary-container);
+  .dacl-workspace {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    padding: 16px 20px;
   }
 
-  :global(.operation-button[data-fluent-owner="lib-components-access-rules-manager"]) {
-    min-height: 2.5rem;
-    border-radius: var(--borderRadiusMedium);
-    padding: 0.55rem 0.7rem;
-    color: var(--color-md3-on-surface-variant);
-    font-size: 14px;
+  .source-pane {
+    display: grid;
+    gap: 10px;
   }
 
-  :global(.filled-button[data-fluent-owner="lib-components-access-rules-manager"]) {
-    min-height: 2.25rem;
-    border-radius: var(--borderRadiusMedium);
-    background: var(--color-md3-primary);
-    color: var(--color-md3-on-primary);
-    padding: 0.5rem 1rem;
-    font-size: 14px;
-    font-weight: 500;
+  .source-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  :global(.outline-button[data-fluent-owner="lib-components-access-rules-manager"]) {
-    min-height: 2.25rem;
-    border: 1px solid var(--color-md3-outline);
-    border-radius: var(--borderRadiusMedium);
-    color: var(--color-md3-on-surface);
-    padding: 0.45rem 0.85rem;
-    font-size: 12px;
+  .source-toolbar-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
   }
 
-  :global(.icon-button[data-fluent-owner="lib-components-access-rules-manager"]) {
-    border-radius: var(--borderRadiusMedium);
-    color: var(--color-md3-on-surface-variant);
+  :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium, 4px);
+    background: var(--colorNeutralBackground2);
+    color: var(--colorNeutralForeground1);
+    font: 400 12px/16px var(--fontFamilyBase);
   }
 
-  :global(.primary-button[data-fluent-owner="lib-components-access-rules-manager"]) {
-    background: var(--color-md3-primary-container);
-    color: var(--color-md3-on-primary-container);
+  .code-template-select {
+    min-height: 32px;
+    max-width: 14rem;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium, 4px);
+    padding-inline: 8px;
+    background: var(--colorNeutralBackground1);
+    color: var(--colorNeutralForeground1);
+    font: 400 12px/16px var(--fontFamilyBase);
   }
 
-  :global(.danger-button[data-fluent-owner="lib-components-access-rules-manager"]:hover) {
-    background: var(--color-md3-error-container);
-    color: var(--color-md3-on-error-container);
+  .annotate-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--colorNeutralForeground2);
+    font: 400 12px/16px var(--fontFamilyBase);
+    cursor: pointer;
   }
 
-  :global(.filled-button[data-fluent-owner="lib-components-access-rules-manager"]:is(:disabled, [disabled])),
-  :global(.outline-button[data-fluent-owner="lib-components-access-rules-manager"]:is(:disabled, [disabled])),
-  :global(.icon-button[data-fluent-owner="lib-components-access-rules-manager"]:is(:disabled, [disabled])),
-  :global(.editor-tab[data-fluent-owner="lib-components-access-rules-manager"]):is(:disabled, [disabled]),
-  :global(.operation-button[data-fluent-owner="lib-components-access-rules-manager"]:is(:disabled, [disabled])) {
-    cursor: not-allowed;
-    opacity: 0.55;
+  .principal-popover {
+    padding: 12px;
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusLarge, 8px);
+    background: var(--colorNeutralBackground2);
   }
 
-  .select-field {
-    border-radius: var(--borderRadiusMedium);
-    border: 1px solid var(--color-md3-outline);
-    background: var(--color-md3-field);
-    color: var(--color-md3-on-surface);
-    padding-inline: 0.55rem;
-    outline: none;
+  .source-editor-wrap :global(.cm-editor),
+  .source-editor-wrap :global(.editor-loading),
+  .source-editor-wrap :global(textarea) {
+    height: 44vh;
+    min-height: 14rem;
   }
 
-  .access-rules-source-editor :global(.cm-editor),
-  .access-rules-source-editor :global(.editor-loading),
-  .access-rules-source-editor :global(textarea) {
-    height: 54vh;
-    min-height: 12rem;
+  .source-editor-wrap.has-error :global(.cacl-code-editor) {
+    border-color: var(--colorStatusDangerBorder1);
   }
 
-  .access-rules-source-editor.has-error :global(.code-editor) {
-    border-color: var(--color-md3-error);
+  .source-help {
+    margin: 0;
+    color: var(--colorNeutralForeground3);
+    font: 400 12px/16px var(--fontFamilyBase);
+  }
+
+  .diagnostics-bar {
+    flex: none;
+    border-top: 1px solid var(--colorNeutralStroke2);
+    background: var(--colorNeutralBackground2);
+  }
+
+  .diagnostics-summary {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    font: 400 12px/16px var(--fontFamilyBase);
+    color: var(--colorNeutralForeground2);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .diagnostics-summary:hover {
+    background: var(--colorSubtleBackgroundHover);
+  }
+
+  .diag-status {
+    flex: 1;
+    font-weight: 600;
+  }
+
+  .diag-status--error { color: var(--colorStatusDangerForeground1); }
+  .diag-status--warn { color: var(--colorStatusWarningForeground2); }
+  .diag-status--ok { color: var(--colorStatusSuccessForeground1); }
+
+  .char-counter {
+    color: var(--colorNeutralForeground3);
+    font: 400 11px/14px var(--fontFamilyMonospace);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .char-counter--warn {
+    color: var(--colorStatusWarningForeground2);
+    font-weight: 600;
+  }
+
+  .diagnostics-list {
+    max-height: 140px;
+    overflow: auto;
+    margin: 0;
+    padding: 0 20px 8px;
+    list-style: none;
+    display: grid;
+    gap: 4px;
+  }
+
+  .diag-row {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: var(--borderRadiusMedium, 4px);
+    text-align: left;
+    font: 400 12px/16px var(--fontFamilyBase);
+    color: var(--colorNeutralForeground1);
+    cursor: pointer;
+  }
+
+  .diag-row:hover {
+    background: var(--colorSubtleBackgroundHover);
+  }
+
+  .diag-row--static {
+    cursor: default;
+  }
+
+  .diag-code {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font: 600 11px/14px var(--fontFamilyMonospace);
+  }
+
+  .diag-code--error {
+    background: var(--colorStatusDangerBackground1);
+    color: var(--colorStatusDangerForeground1);
+  }
+
+  .diag-code--warning,
+  .diag-code--info {
+    background: var(--colorStatusWarningBackground1);
+    color: var(--colorStatusWarningForeground2);
+  }
+
+  .dacl-footer {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    border-top: 1px solid var(--colorNeutralStroke2);
+    padding: 12px 20px;
+  }
+
+  @media (pointer: coarse) {
+    :global(.mode-tab[data-fluent-owner="cacl-access-manager"]),
+    :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]),
+    .code-template-select {
+      min-height: 44px;
+    }
   }
 </style>

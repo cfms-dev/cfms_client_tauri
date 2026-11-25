@@ -1,4 +1,5 @@
 allowBuilds:
+  "codemirror-lang-cacl@https://codeload.github.com/cfms-dev/cacl/tar.gz/9c08c9b630740448ae3018b72fb9be9904de3cd4#path:editors/codemirror-lang-cacl": true
   es5-ext: true
   esbuild: true
   puppeteer: true

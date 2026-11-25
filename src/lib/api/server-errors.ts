@@ -1,3 +1,5 @@
+import type { ServerCaclDiagnostic } from './types/access';
+
 const SERVER_STATUS_PATTERN = /\bServer returned\s+(\d{3,4})\s*:/i;
 const CORE_REJECTION_STATUS_PATTERN = /\b(?:connection rejected|server rejected request)\s*\((\d{3,4})\)\s*:/i;
 const PARENTHESIZED_STATUS_PATTERN = /^\s*\((\d{3,4})\)\s+/;
@@ -78,4 +80,30 @@ export function isAccessDeniedError(error: unknown): boolean {
   if (serverErrorStatus(error) === 403) return true;
   const message = error instanceof Error ? error.message : String(error);
   return /^\s*Access denied\s*:/i.test(message);
+}
+
+export interface CaclSaveErrorDetails {
+  status: 400 | 409;
+  isSelfLockout: boolean;
+  diagnostics: ServerCaclDiagnostic[];
+}
+
+function isServerCaclDiagnostic(value: unknown): value is ServerCaclDiagnostic {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.code === 'string'
+    && typeof record.message === 'string'
+    && (record.severity === 'error' || record.severity === 'warning' || record.severity === 'info');
+}
+
+/** Extract CACL compilation diagnostics and 409 self-lockout warnings from a server error. */
+export function parseCaclSaveError(error: unknown): CaclSaveErrorDetails | null {
+  const status = serverErrorStatus(error);
+  if (status !== 400 && status !== 409) return null;
+  const data = serverErrorData(error);
+  const rawDiagnostics = Array.isArray(data?.diagnostics) ? data.diagnostics : [];
+  const diagnostics = rawDiagnostics.filter(isServerCaclDiagnostic);
+  const isSelfLockout = status === 409 && data?.self_lockout_warning === true;
+  if (!isSelfLockout && diagnostics.length === 0) return null;
+  return { status, isSelfLockout, diagnostics };
 }

@@ -16,7 +16,6 @@ import {
   setUserNickname,
   setLockdown,
   unlockAuthLockouts,
-  updateUserBlock,
   viewAuditLogs,
 } from './admin';
 
@@ -155,13 +154,6 @@ describe('admin API', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('set_lockdown', {
       status: true,
       reason: '  incident  ',
-    });
-
-    invokeMock.mockResolvedValueOnce({ block_id: 'block-1', reason: null });
-    await updateUserBlock('block-1', null);
-    expect(invokeMock).toHaveBeenLastCalledWith('update_user_block', {
-      blockId: 'block-1',
-      reason: null,
     });
   });
 

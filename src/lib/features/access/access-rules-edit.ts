@@ -1,21 +1,12 @@
-import { normalizeAccessRules, type AccessRulesRecord } from '$lib/features/access/access-rules';
+import { caclDraftFingerprint } from '$lib/features/access/cacl-model';
 import { batchRulesTargetKey, type BatchRulesTarget } from '$lib/features/access/batch-access-rules';
 
-/** Ignore JSON formatting and property order when comparing an editor baseline. */
-export function accessRulesDraftFingerprint(rules: AccessRulesRecord, inherit: boolean): string {
-  return JSON.stringify(canonical({ rules: normalizeAccessRules(rules), inherit }));
+/** Ignore whitespace and `# @username` comment annotations when checking unsaved DACL changes. */
+export function accessRulesDraftFingerprint(dacl: string): string {
+  return caclDraftFingerprint(dacl);
 }
 
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entry]) => [key, canonical(entry)]));
-  }
-  return value;
-}
-
-/** Explorer uses folder: keys; the rules API uses directory: keys. */
+/** Explorer uses folder: keys; the DACL API uses directory: keys. */
 export function accessRulesTemplateKey(
   targets: BatchRulesTarget[],
   focusedItemKey: string | null,

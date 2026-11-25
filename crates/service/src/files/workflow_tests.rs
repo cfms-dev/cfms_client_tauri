@@ -41,8 +41,8 @@ async fn recursive_access_scan_deduplicates_pages_and_applies_children_first() {
         .create(
             &peer.state,
             vec![target("directory", "root"), target("directory", "child")],
-            json!({}),
-            true,
+            "inherit on;\nallow [READ_METADATA] to any;\n".into(),
+            false,
             true,
         )
         .await
@@ -55,11 +55,13 @@ async fn recursive_access_scan_deduplicates_pages_and_applies_children_first() {
     let calls = peer.requests.lock().unwrap();
     let writes: Vec<_> = calls
         .iter()
-        .filter(|r| r["action"].as_str().unwrap().ends_with(".set"))
+        .filter(|r| r["action"].as_str().unwrap().ends_with(".dacl.set"))
         .collect();
     assert_eq!(writes.len(), 3);
     assert_eq!(writes.last().unwrap()["data"]["directory_id"], "root");
-    assert!(writes.iter().all(|r| r["data"]["inherit_parent"] == true));
+    assert!(writes.iter().all(|r| r["data"]["dacl"]
+        == "inherit on;\nallow [READ_METADATA] to any;\n"
+        && r["data"]["allow_self_lockout"] == false));
     assert_eq!(batch.snapshot().run_completed, 3);
 }
 
@@ -81,7 +83,7 @@ async fn scan_detects_cycles_and_repeated_cursors_without_unbounded_requests() {
         .create(
             &peer.state,
             vec![target("directory", "root")],
-            json!({}),
+            "inherit off;\n".into(),
             false,
             true,
         )
@@ -127,7 +129,7 @@ async fn incomplete_scan_requires_approval_and_does_not_hide_other_roots() {
         .create(
             &peer.state,
             vec![target("directory", "denied"), target("document", "doc")],
-            json!({}),
+            "inherit off;\n".into(),
             false,
             true,
         )
@@ -157,7 +159,7 @@ async fn lost_write_response_is_unconfirmed_and_not_selected_by_continue() {
         .create(
             &peer.state,
             vec![target("document", "a"), target("document", "b")],
-            json!({}),
+            "inherit on;\n".into(),
             true,
             false,
         )
@@ -194,7 +196,7 @@ async fn guard_changes_leave_unsent_items_pending_and_old_sessions_are_rejected(
         .create(
             &peer.state,
             vec![target("document", "a")],
-            json!({}),
+            "inherit off;\n".into(),
             false,
             false,
         )
@@ -207,7 +209,9 @@ async fn guard_changes_leave_unsent_items_pending_and_old_sessions_are_rejected(
         .await
         .unwrap();
     batch.run(&peer.state, &id, "scan", false).await.unwrap();
-    peer.state.permissions.write().await.clear();
+    peer.state
+        .app_lockdown
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     batch.run(&peer.state, &id, "apply", false).await.unwrap();
     assert_eq!(batch.changes(0)[0].item.status, "pending");
     assert!(peer.requests.lock().unwrap().is_empty());
@@ -267,24 +271,104 @@ async fn node_resolution_falls_back_only_on_404_and_checks_parent() {
 }
 
 #[test]
-fn access_rules_validate_the_wire_shape_without_discarding_unknown_fields() {
-    use super::access_batches::validate_rules;
-    assert!(
-        validate_rules(
-            &json!({"read":[{"match":"any","match_groups":[{"rights":{"require":["a"]}}]}]})
+fn dacl_source_validates_maximum_character_length() {
+    use super::access_batches::validate_dacl_source;
+    assert!(validate_dacl_source("inherit on;\n").is_ok());
+    let max = "a".repeat(cfms_core::constants::DACL_SOURCE_MAX_LENGTH);
+    assert!(validate_dacl_source(&max).is_ok());
+    let over = "a".repeat(cfms_core::constants::DACL_SOURCE_MAX_LENGTH + 1);
+    assert!(validate_dacl_source(&over).is_err());
+}
+
+#[tokio::test]
+async fn self_lockout_decision_retries_with_allow_self_lockout_and_all_mode() {
+    let peer = Peer::new(|request| {
+        if request["action"] == "core.document.dacl.set"
+            && request["data"]["allow_self_lockout"] != true
+        {
+            Some((
+                409,
+                json!({
+                    "self_lockout_warning": true,
+                    "diagnostics": [{"code": "W209", "severity": "warning", "message": "expired"}],
+                }),
+            ))
+        } else {
+            Some((200, json!({})))
+        }
+    })
+    .await;
+    let id = peer
+        .state
+        .access_batches
+        .create(
+            &peer.state,
+            vec![target("document", "a"), target("document", "b")],
+            "inherit off;\n".into(),
+            false,
+            false,
         )
-        .is_ok()
+        .await
+        .unwrap();
+    let batch = peer
+        .state
+        .access_batches
+        .get(&peer.state, &id)
+        .await
+        .unwrap();
+    batch.run(&peer.state, &id, "scan", false).await.unwrap();
+    let mut events = peer.state.event_tx.subscribe();
+    let runner = batch.clone();
+    let state = peer.state.clone();
+    let running_id = id.clone();
+    let run = tokio::spawn(async move { runner.run(&state, &running_id, "apply", false).await });
+    let ticket = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if let Some(decision) = batch.snapshot().decision {
+                assert_eq!(decision.problem.kind, "self_lockout");
+                assert_eq!(decision.problem.diagnostics.as_ref().map(Vec::len), Some(1));
+                break decision.ticket;
+            }
+            events.recv().await.unwrap();
+        }
+    })
+    .await
+    .unwrap();
+    batch.decide(ticket, "allow_lockout_all".into()).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), run)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let requests = peer.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[0]["data"]["allow_self_lockout"], false);
+    assert_eq!(requests[1]["data"]["allow_self_lockout"], true);
+    assert_eq!(requests[2]["data"]["allow_self_lockout"], true);
+    assert!(
+        batch
+            .changes(0)
+            .iter()
+            .all(|row| row.item.status == "success")
     );
-    for value in [
-        json!({"other":[]}),
-        json!({"read":[{"match":"any","match_groups":[],"unknown":true}]}),
-        json!({"read":[{"match":"wrong","match_groups":[]}]}),
-        json!(null),
-        json!({"read":[{"match":"any","match_groups":[{"rights":null}]}]}),
-        json!({"read":[{"match":"any","match_groups":[{"match":null}]}]}),
-    ] {
-        assert!(validate_rules(&value).is_err());
-    }
+}
+
+#[test]
+fn classify_failure_preserves_server_diagnostics_on_400() {
+    use super::access_batches::classify_failure;
+    use crate::rpc::ActionFailure;
+
+    let failure = ActionFailure {
+        status: Some(400),
+        message: "Invalid CACL policy".into(),
+        data: json!({
+            "diagnostics": [{"code": "E101", "severity": "error", "message": "Syntax error"}]
+        }),
+        sent: true,
+    };
+    let problem = classify_failure(&failure, true);
+    assert_eq!(problem.kind, "invalid_policy");
+    assert_eq!(problem.diagnostics.as_ref().map(Vec::len), Some(1));
 }
 
 #[tokio::test]
@@ -297,7 +381,7 @@ async fn stopping_an_in_flight_write_keeps_its_confirmed_success_and_sends_no_ne
         .create(
             &peer.state,
             vec![target("document", "a"), target("document", "b")],
-            json!({}),
+            "inherit off;\n".into(),
             false,
             false,
         )
@@ -362,7 +446,7 @@ async fn an_explicit_failure_decision_retries_the_same_item_and_clears_the_promp
         .create(
             &peer.state,
             vec![target("document", "a")],
-            json!({}),
+            "inherit off;\n".into(),
             false,
             false,
         )

@@ -1,18 +1,24 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getAccessRules } from '$lib/api';
-  import { ACCESS_OPERATIONS, cloneAccessRules, validateAccessRules, type AccessRulesRecord } from '$lib/features/access/access-rules';
+  import type { ObjectType } from 'codemirror-lang-cacl';
+  import { getNodeDacl } from '$lib/api';
+  import type { ServerCaclDiagnostic } from '$lib/api/types';
   import {
-    BatchAccessRulesController, batchRulesTargetKey,
-    type BatchRulesFailureAction, type BatchRulesItemStatus, type BatchRulesProblem,
-    type BatchRulesSnapshot, type BatchRulesTarget,
+    BatchAccessRulesController,
+    batchRulesTargetKey,
+    type BatchRulesFailureAction,
+    type BatchRulesItemStatus,
+    type BatchRulesProblem,
+    type BatchRulesSnapshot,
+    type BatchRulesTarget,
   } from '$lib/features/access/batch-access-rules';
   import { accessRulesDraftFingerprint } from '$lib/features/access/access-rules-edit';
+  import { parseCaclToModel } from '$lib/features/access/cacl-model';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
+  import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte.ts';
   import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import AccessRulesManager from '$lib/features/access/AccessRulesManager.svelte';
+  import AccessRulesManager, { type CaclDraftState } from '$lib/features/access/AccessRulesManager.svelte';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdCheckbox from '$lib/shared/ui/MdCheckbox.svelte';
@@ -20,10 +26,19 @@
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
 
-  let { targets, initialTemplateKey, canReadTemplate, checkGuard, onApplied, onClose }: {
+  let {
+    targets,
+    initialTemplateKey,
+    canListUsers = false,
+    canListGroups = false,
+    checkGuard,
+    onApplied,
+    onClose,
+  }: {
     targets: BatchRulesTarget[];
     initialTemplateKey?: string;
-    canReadTemplate: boolean;
+    canListUsers?: boolean;
+    canListGroups?: boolean;
     checkGuard: () => BatchRulesProblem | null;
     onApplied: () => Promise<void>;
     onClose: () => void;
@@ -32,16 +47,23 @@
   const roots = untrack(() => targets.map((target) => ({ ...target })));
   const isMultiSelection = roots.length > 1;
   const progressId = 'files:batch-access-rules:' + crypto.randomUUID();
+  const targetObjectType: ObjectType | null = untrack(() => {
+    const first = roots[0]?.objectType;
+    if (!first) return null;
+    return roots.every((item) => item.objectType === first) ? first : null;
+  });
+
   let stage = $state<'edit' | 'scan' | 'results'>('edit');
   let recursive = $state(false);
-  let editorRules = $state<AccessRulesRecord>({});
-  let editorInherit = $state(true);
+  let editorDacl = $state('inherit on;\n');
+  let editorAnnotatedDacl = $state<string | null>(null);
   let editorResetRevision = $state(0);
-  let validDraft = $state<{ rules: AccessRulesRecord; inheritParent: boolean } | null>(null);
+  let validDraft = $state<CaclDraftState | null>(null);
   let baseline = $state<string | null>(null);
-  let initialized = $state(untrack(() => !canReadTemplate));
-  let draftRules = $state<AccessRulesRecord>({});
+  let initialized = $state(false);
+  let draftDacl = $state('inherit on;\n');
   let draftInherit = $state(true);
+  let draftRuleCount = $state(0);
   let draftRecursive = $state(false);
   let intent = $state<'ok' | 'apply'>('apply');
   let templateKey = $state(untrack(() => roots.some((target) => batchRulesTargetKey(target) === initialTemplateKey)
@@ -72,9 +94,9 @@
   const busy = $derived(['scanning', 'running', 'waiting', 'deciding'].includes(snapshot.phase));
   const guardIssue = $derived(checkGuard());
   const canSubmit = $derived(initialized && !templateLoading && !guardIssue && !busy
-    && !preparing && !refreshing && stage === 'edit' && validDraft !== null);
+    && !preparing && !refreshing && stage === 'edit' && validDraft !== null && !validDraft.hasErrors);
   const dirty = $derived(recursive || baseline === null || (validDraft !== null
-    && accessRulesDraftFingerprint(validDraft.rules, validDraft.inheritParent) !== baseline));
+    && accessRulesDraftFingerprint(validDraft.dacl) !== baseline));
   const counts = $derived.by(() => {
     const result = { pending: 0, success: 0, failed: 0, unconfirmed: 0 };
     for (const item of snapshot.results) result[item.status] += 1;
@@ -84,7 +106,7 @@
   const documents = $derived(snapshot.targets.length - folders);
   const filteredResults = $derived(snapshot.results.filter((item) => filter === 'all' || item.status === filter));
   const activeTarget = $derived(snapshot.results.find((item) => batchRulesTargetKey(item.target) === snapshot.activeKey)?.target);
-  const emptyRules = $derived(ACCESS_OPERATIONS.every((operation) => !(draftRules[operation]?.length)));
+  const emptyRules = $derived(draftRuleCount === 0);
   const incompleteScope = $derived(!snapshot.scanComplete || snapshot.scanIssues.length > 0);
   const waitSeconds = $derived(Math.max(0, Math.ceil(((snapshot.waitingUntil ?? snapshot.retryAt) - now) / 1_000)));
   const confirmationTargets = $derived(confirmation === 'resubmit'
@@ -114,8 +136,6 @@
 
   $effect(() => {
     if (stage === 'edit' || confirmation) return;
-    // Hiding the focused editor would otherwise leave keyboard focus on the
-    // document body, where the dialog cannot receive Escape or trap Tab.
     void tick().then(() => {
       if (!disposed && stage !== 'edit' && !confirmation && !dialogStore.current) {
         progressElement?.focus({ preventScroll: true });
@@ -124,7 +144,7 @@
   });
 
   onMount(() => {
-    if (canReadTemplate) void loadTemplate();
+    void loadTemplate();
     const timer = setInterval(() => { now = Date.now(); }, 1_000);
     return () => clearInterval(timer);
   });
@@ -154,23 +174,42 @@
     });
   }
 
+  function formatProblemDiagnostics(diagnostics?: readonly ServerCaclDiagnostic[]): string {
+    if (!diagnostics || diagnostics.length === 0) return '';
+    return diagnostics.slice(0, 3).map((d) => `[${d.code}] ${d.message}`).join(' · ');
+  }
+
   async function resolveFailure(target: BatchRulesTarget, problem: BatchRulesProblem, signal: AbortSignal): Promise<BatchRulesFailureAction> {
+    const isSelfLockout = problem.kind === 'self_lockout';
+    const choices: Array<{ value: BatchRulesFailureAction; label: string; icon?: import('$lib/shared/ui/icons').IconName; intent?: 'primary' | 'danger' }> = isSelfLockout
+      ? [
+          { value: 'allow_lockout', label: $t('files.cacl.allowLockoutOnce'), icon: 'warning', intent: 'danger' },
+          { value: 'allow_lockout_all', label: $t('files.cacl.allowLockoutAll'), icon: 'warning', intent: 'danger' },
+          { value: 'skip', label: $t('files.batchRules.skip'), intent: 'primary' },
+          { value: 'skip_all', label: $t('files.batchRules.skipAll') },
+        ]
+      : [
+          { value: 'retry', label: $t('common.retry'), icon: 'refresh', intent: 'primary' },
+          { value: 'skip', label: $t('files.batchRules.skip') },
+          { value: 'skip_all', label: $t('files.batchRules.skipAll') },
+        ];
+
     const choice = await dialogStore.choose({
-      title: $t('files.batchRules.failureTitle'), message: problemText(problem),
+      title: $t(isSelfLockout ? 'files.cacl.selfLockoutTitle' : 'files.batchRules.failureTitle'),
+      message: problemText(problem),
       details: [{ label: target.name, meta: target.path ?? target.objectId, kind: target.objectType === 'directory' ? 'directory' : 'file' }],
-      choices: [
-        { value: 'retry' as const, label: $t('common.retry'), icon: 'refresh', intent: 'primary' },
-        { value: 'skip' as const, label: $t('files.batchRules.skip') },
-        { value: 'skip_all' as const, label: $t('files.batchRules.skipAll') },
-      ],
-      cancelLabel: $t('files.batchRules.stop'), signal,
+      choices,
+      cancelLabel: $t('files.batchRules.stop'),
+      signal,
     });
     return choice?.value ?? 'cancel';
   }
 
   function problemText(problem: BatchRulesProblem, scanning = false): string {
     const label = $t(scanning && problem.kind === 'denied' ? 'files.batchRules.scanDenied' : 'files.batchRules.problem.' + problem.kind);
-    return problem.error === undefined ? label : label + ': ' + formatUserFacingError(problem.error);
+    const diagText = formatProblemDiagnostics(problem.diagnostics);
+    const base = problem.error === undefined ? label : label + ': ' + formatUserFacingError(problem.error);
+    return diagText ? `${base} (${diagText})` : base;
   }
 
   function close() {
@@ -182,8 +221,8 @@
   function createBlank() {
     if (busy || refreshing || stage !== 'edit') return;
     templateRequest += 1;
-    editorRules = {};
-    editorInherit = true;
+    editorDacl = 'inherit on;\n';
+    editorAnnotatedDacl = null;
     editorResetRevision += 1;
     baseline = null;
     initialized = true;
@@ -194,7 +233,7 @@
   }
 
   async function loadTemplate() {
-    if (!canReadTemplate || templateLoading || guardIssue || stage !== 'edit') return;
+    if (templateLoading || guardIssue || stage !== 'edit') return;
     const target = roots.find((item) => batchRulesTargetKey(item) === templateKey);
     if (!target) return;
     const request = ++templateRequest;
@@ -202,14 +241,13 @@
     templateLoading = true;
     templateError = null;
     try {
-      const current = await getAccessRules(target.objectType, target.objectId);
-      if (disposed || !canReadTemplate || request !== templateRequest || revision !== editRevision || checkGuard()) return;
-      if (typeof current?.inherit !== 'boolean') throw new Error($t('files.batchRules.problem.invalid_response'));
-      validateAccessRules(current.rules);
-      editorRules = cloneAccessRules(current.rules);
-      editorInherit = current.inherit;
+      const current = await getNodeDacl(target.objectType, target.objectId, true);
+      if (disposed || request !== templateRequest || revision !== editRevision || checkGuard()) return;
+      if (typeof current?.dacl !== 'string') throw new Error($t('files.batchRules.problem.invalid_response'));
+      editorDacl = current.dacl;
+      editorAnnotatedDacl = typeof current.annotated_dacl === 'string' ? current.annotated_dacl : null;
       editorResetRevision += 1;
-      if (roots.length === 1) baseline = accessRulesDraftFingerprint(current.rules, current.inherit);
+      if (roots.length === 1) baseline = accessRulesDraftFingerprint(current.dacl);
       templateSource = target.name;
       initialized = true;
       appliedCount = null;
@@ -220,16 +258,19 @@
     }
   }
 
-  async function prepare(rules: AccessRulesRecord, inherit: boolean, submitIntent: 'ok' | 'apply' = 'apply') {
+  async function prepare(dacl: string, submitIntent: 'ok' | 'apply' = 'apply') {
     if (!canSubmit) return;
     if (!dirty) {
       if (submitIntent === 'ok') onClose();
       return;
     }
+    const parsed = parseCaclToModel(dacl);
+    draftInherit = parsed.ok ? parsed.document.inherit : true;
+    draftRuleCount = parsed.ok ? parsed.document.rules.length : 0;
+
     preparing = true;
     intent = submitIntent;
-    draftRules = cloneAccessRules(rules);
-    draftInherit = inherit;
+    draftDacl = dacl;
     draftRecursive = recursive;
     allowIncomplete = false;
     refreshError = null;
@@ -243,7 +284,7 @@
     refreshedSuccesses = 0;
     const round = generation;
     try {
-      await controller.discover(draftRules, draftInherit, draftRecursive);
+      await controller.discover(draftDacl, false, draftRecursive);
       if (disposed || round !== generation) return;
       await afterScan();
     } catch (error) {
@@ -270,7 +311,7 @@
     const round = generation;
     try {
       if (resume) await controller.resumeScan();
-      else await controller.discover(draftRules, draftInherit, draftRecursive);
+      else await controller.discover(draftDacl, false, draftRecursive);
       if (!disposed && round === generation) await afterScan();
     } catch (error) {
       if (!disposed && round === generation) { templateError = formatUserFacingError(error); stage = 'edit'; }
@@ -323,7 +364,7 @@
   function finishSuccessfulRun() {
     if (snapshot.phase !== 'finished' || incompleteScope || counts.pending || counts.failed
       || counts.unconfirmed || refreshError || guardIssue || refreshing) return;
-    baseline = accessRulesDraftFingerprint(draftRules, draftInherit);
+    baseline = accessRulesDraftFingerprint(draftDacl);
     recursive = false;
     appliedCount = counts.success;
     if (intent === 'ok') onClose();
@@ -361,7 +402,7 @@
       {#if guardIssue}<p class="batch-rules-warning" role="alert">{problemText(guardIssue)}</p>{/if}
       {#if stage === 'edit'}
         {#if isMultiSelection}<p class="batch-rules-muted">{$t('files.batchRules.overwrite')}</p>{/if}
-        {#if canReadTemplate && isMultiSelection}
+        {#if isMultiSelection}
           <div class="batch-rules-template">
             <select class="cfms-native-field" bind:value={templateKey} aria-label={$t('files.batchRules.templateObject')} disabled={templateLoading}>
               {#each roots as target (batchRulesTargetKey(target))}
@@ -373,9 +414,9 @@
               {$t(templateError ? 'common.retry' : 'files.batchRules.loadTemplate')}
             </DialogActionButton>
           </div>
-        {:else if canReadTemplate && templateLoading}
+        {:else if templateLoading}
           <div class="batch-rules-status"><ProgressRing size={16} label={$t('common.loadingEllipsis')} /><span>{$t('common.loadingEllipsis')}</span></div>
-        {:else if canReadTemplate && templateError}
+        {:else if templateError}
           <DialogActionButton onclick={loadTemplate} disabled={!!guardIssue}>{$t('common.retry')}</DialogActionButton>
         {/if}
         {#if isMultiSelection && templateSource}<p class="batch-rules-muted">{$t('files.batchRules.templateSource', { values: { name: templateSource } })}</p>{/if}
@@ -389,20 +430,29 @@
     </div>
     <div class="batch-rules-editor" bind:this={editorElement} hidden={stage !== 'edit'}>
       <AccessRulesManager
-        rules={editorRules} inheritParent={editorInherit} resetRevision={editorResetRevision}
+        dacl={editorDacl}
+        annotatedDacl={editorAnnotatedDacl}
+        {targetObjectType}
+        {canListUsers}
+        {canListGroups}
+        resetRevision={editorResetRevision}
         saving={busy || preparing || refreshing || !initialized}
         submitDisabled={!canSubmit}
         onDraftChange={(draft) => { validDraft = draft; }}
         onEdit={() => { editRevision += 1; appliedCount = null; }}
-        onSave={prepare} onCancel={close}
+        onSave={prepare}
+        onCancel={close}
       >
         {#snippet footer(submit)}
           <div class="batch-rules-editor-footer">
             {#if roots.some((target) => target.objectType === 'directory')}
-              <label class="batch-rules-choice">
-                <MdCheckbox bind:checked={recursive} disabled={!initialized || templateLoading} ariaLabel={$t('files.batchRules.recursive')} />
-                <span>{$t('files.batchRules.recursive')}</span>
-              </label>
+              <div class="recursive-block">
+                <label class="batch-rules-choice">
+                  <MdCheckbox bind:checked={recursive} disabled={!initialized || templateLoading} ariaLabel={$t('files.batchRules.recursive')} />
+                  <span>{$t('files.batchRules.recursive')}</span>
+                </label>
+                <p class="batch-rules-muted recursive-hint">{$t('files.cacl.recursiveInheritanceHint')}</p>
+              </div>
             {/if}
             <div class="batch-rules-actions">
               <DialogActionButton variant="primary" data-dialog-default onclick={() => submit('ok')} disabled={!canSubmit}>{$t('files.batchRules.ok')}</DialogActionButton>
@@ -513,37 +563,38 @@
 {/if}
 
 <style>
-  .batch-rules-layout { display: flex; min-height: 0; max-height: 78vh; flex-direction: column; color: var(--color-md3-on-surface); font-size: 14px; }
-  .batch-rules-context, .batch-rules-summary { flex: none; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--color-md3-outline); }
+  .batch-rules-layout { display: flex; min-height: 0; max-height: 78vh; flex-direction: column; color: var(--colorNeutralForeground1); font-size: 14px; }
+  .batch-rules-context, .batch-rules-summary { flex: none; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--colorNeutralStroke2); }
   .batch-rules-context p, .batch-rules-summary p { margin-block: 0.25rem; overflow-wrap: anywhere; }
   .batch-rules-step { font-weight: 600; }
-  .batch-rules-muted { color: var(--color-md3-on-surface-variant); font-size: 12px; }
-  .batch-rules-warning { color: var(--color-md3-error); overflow-wrap: anywhere; }
+  .batch-rules-muted { color: var(--colorNeutralForeground3); font-size: 12px; }
+  .batch-rules-warning { color: var(--colorStatusDangerForeground1); overflow-wrap: anywhere; }
   .batch-rules-template, .batch-rules-choice, .batch-rules-status, .batch-rules-filter { display: flex; align-items: center; gap: 12px; }
   .batch-rules-template { min-width: 0; flex-wrap: wrap; margin-block: 0.5rem; }
   .batch-rules-choice { font-size: 12px; cursor: pointer; }
   .batch-rules-choice > span { min-width: 0; }
-  select { max-width: 100%; min-height: 2rem; min-width: 0; border: 1px solid var(--color-md3-outline); border-radius: var(--borderRadiusMedium); padding: 0.3rem 0.5rem; background: var(--color-md3-field); color: var(--color-md3-on-surface); }
+  .recursive-block { display: grid; gap: 4px; margin: 0.6rem 1.25rem 0; }
+  .recursive-hint { margin: 0; padding-inline-start: 28px; }
+  select { max-width: 100%; min-height: 2rem; min-width: 0; border: 1px solid var(--colorNeutralStroke1); border-radius: var(--borderRadiusMedium); padding: 0.3rem 0.5rem; background: var(--colorNeutralBackground1); color: var(--colorNeutralForeground1); }
   .batch-rules-template select { max-width: 22rem; }
   .batch-rules-editor { display: flex; min-height: 0; flex: 1; flex-direction: column; }
   .batch-rules-editor[hidden] { display: none; }
-  .batch-rules-editor-footer { flex: none; border-top: 1px solid var(--color-md3-outline); }
-  .batch-rules-editor-footer > .batch-rules-choice { margin: 0.6rem 1.25rem 0; }
+  .batch-rules-editor-footer { flex: none; border-top: 1px solid var(--colorNeutralStroke2); }
   .batch-rules-editor-footer .batch-rules-actions { border: 0; }
   .batch-rules-filter { flex: none; padding: 0.6rem 1.25rem; }
   .batch-rules-layout :global(.batch-rules-results) { flex: 1; min-height: 100px; max-height: 38vh; overflow: auto; }
-  .batch-rules-result { display: flex; align-items: flex-start; gap: 12px; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--color-md3-outline); }
+  .batch-rules-result { display: flex; align-items: flex-start; gap: 12px; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--colorNeutralStroke2); }
   .batch-rules-result-copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
   .batch-rules-result p { margin-top: 0.2rem; }
   .batch-rules-result > span { flex: none; font-size: 12px; }
-  .batch-rules-success { color: var(--color-md3-success); }
+  .batch-rules-success { color: var(--colorStatusSuccessForeground1); }
   .batch-rules-current { font-weight: 600; }
-  .batch-rules-issue-row { padding-block: 0.5rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--color-md3-outline); }
+  .batch-rules-issue-row { padding-block: 0.5rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--colorNeutralStroke2); }
   .batch-rules-issue-row p { margin-block: 0.25rem 0; }
   .batch-rules-actions, .batch-rules-recovery { display: flex; flex: none; flex-wrap: wrap; gap: 8px; padding: 0.75rem 1.25rem; }
-  .batch-rules-actions { justify-content: flex-end; border-top: 1px solid var(--color-md3-outline); }
+  .batch-rules-actions { justify-content: flex-end; border-top: 1px solid var(--colorNeutralStroke2); }
   .batch-rules-empty { padding: 1rem 1.25rem; }
-  progress { width: 100%; height: 0.3rem; accent-color: var(--color-md3-primary); margin-top: 0.65rem; }
+  progress { width: 100%; height: 0.3rem; accent-color: var(--colorBrandBackground); margin-top: 0.65rem; }
   .batch-rules-confirmation { padding: 1.25rem; font-size: 14px; }
   .batch-rules-confirmation > * + * { margin-top: 0.75rem; }
   .batch-rules-confirmation :global(.batch-rules-issues), .batch-rules-confirmation :global(.batch-rules-scope-list) { max-height: 24vh; overflow: auto; margin-top: 0.5rem; }
@@ -551,7 +602,7 @@
   @media (max-width: 640px) {
     .batch-rules-layout { max-height: 82vh; }
     .batch-rules-context, .batch-rules-summary, .batch-rules-actions, .batch-rules-recovery, .batch-rules-confirmation { padding: 0.75rem; }
-    .batch-rules-editor-footer > .batch-rules-choice { margin-inline: 0.75rem; }
+    .recursive-block { margin-inline: 0.75rem; }
     .batch-rules-template select { flex: 1; }
     .batch-rules-result { padding-inline: 0.75rem; }
     .batch-rules-result > span { max-width: 5rem; overflow-wrap: anywhere; }

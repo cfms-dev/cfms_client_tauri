@@ -1,24 +1,24 @@
 import { prepareAccessBatch, getAccessBatch, getAccessBatchChanges, runAccessBatch, stopAccessBatch, disposeAccessBatch, decideAccessBatch } from '$lib/api';
 import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
 import type { ServiceEvent, BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction } from '$lib/api/types';
-import type { AccessRulesRecord } from './access-rules';
 export type { BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction, BatchRulesItemStatus, BatchRulesItemResult, BatchRulesProblemKind } from '$lib/api/types';
+
 export function batchRulesSessionProblem(expected: BatchRulesIdentity, current: BatchRulesSession): BatchRulesProblem | null {
   if (expected.server !== current.server || expected.userId !== current.userId) return { kind: 'identity' };
   if (!current.loggedIn) return { kind: 'session' };
-  if (!current.permitted) return { kind: 'permission' };
   if (current.lockdown && !current.bypassLockdown) return { kind: 'lockdown' };
   if (!current.connected) return { kind: 'disconnected' };
   return null;
 }
 
-
 export function batchRulesTargetKey(target: BatchRulesTarget): string { return `${target.objectType}:${target.objectId}`; }
+
 interface Dependencies {
   guard: () => BatchRulesProblem | null;
   onChange: (snapshot: BatchRulesSnapshot) => void;
   resolveFailure?: (target: BatchRulesTarget, problem: BatchRulesProblem, signal: AbortSignal) => Promise<BatchRulesFailureAction>;
 }
+
 /** UI adapter only: native services own scanning, mutation order, retries and cancellation. */
 export class BatchAccessRulesController {
   snapshot: BatchRulesSnapshot = { phase: 'idle', operation: 'scan', targets: [], results: [], scanIssues: [], scanComplete: false, started: false, runCompleted: 0, runTotal: 0, activeKey: null, waitingUntil: null, retryAt: 0, stopRequested: false, stopReason: null };
@@ -31,7 +31,8 @@ export class BatchAccessRulesController {
   private deciding: number | null = null;
   private decision: AbortController | null = null;
   constructor(private roots: BatchRulesTarget[], private dependencies: Dependencies) {}
-  async discover(rules: AccessRulesRecord, inherit: boolean, recursive: boolean) {
+
+  async discover(dacl: string, allowSelfLockout: boolean, recursive: boolean) {
     if (this.disposed) return;
     if (this.id) await disposeAccessBatch(this.id);
     this.revision = 0;
@@ -43,11 +44,12 @@ export class BatchAccessRulesController {
       if (this.disposed) { unlisten(); return; }
       this.unlisten = unlisten;
     }
-    const id = await prepareAccessBatch(this.roots, rules, inherit, recursive);
+    const id = await prepareAccessBatch(this.roots, dacl, allowSelfLockout, recursive);
     if (this.disposed) { await disposeAccessBatch(id); return; }
     this.id = id;
     await this.run('scan');
   }
+
   private refresh(): Promise<void> {
     this.refreshRequested = true;
     if (this.pendingRefresh) return this.pendingRefresh;
@@ -59,6 +61,7 @@ export class BatchAccessRulesController {
     })().finally(() => { this.pendingRefresh = null; });
     return this.pendingRefresh;
   }
+
   private async readSnapshot() {
     const id = this.id;
     if (!id || this.disposed) return;
@@ -96,6 +99,7 @@ export class BatchAccessRulesController {
       }).catch(() => {});
     }
   }
+
   private async run(command: string, allowIncomplete = false) {
     if (!this.id || this.disposed) return;
     const problem = this.dependencies.guard();
@@ -103,15 +107,18 @@ export class BatchAccessRulesController {
     try { await runAccessBatch(this.id, command, allowIncomplete); }
     finally { await this.refresh(); }
   }
+
   resumeScan() { return this.run('scan'); }
   apply(allowIncomplete = false) { return this.run('apply', allowIncomplete); }
   retryFailed() { return this.run('retry'); }
   continuePending() { return this.run('continue'); }
   resubmitUnconfirmed() { return this.run('resubmit'); }
+
   stop(reason?: BatchRulesProblem) {
     this.decision?.abort();
     if (this.id) void stopAccessBatch(this.id, reason).then(() => this.refresh()).catch(() => {});
   }
+
   dispose() {
     this.disposed = true; this.decision?.abort(); this.unlisten?.(); this.unlisten = null;
     if (this.id) void disposeAccessBatch(this.id).catch(() => {});

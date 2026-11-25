@@ -161,7 +161,7 @@ pub async fn rename_document(
     .await
 }
 
-/// Move a directory into another directory, or root when target is `None`.
+/// Reparent a directory into another directory, or root when target is `None`.
 #[tauri::command]
 pub async fn move_directory(
     state: tauri::State<'_, AppHandleState>,
@@ -170,7 +170,7 @@ pub async fn move_directory(
 ) -> Result<bool, String> {
     server_action_bool(
         &state,
-        "core.directory.move",
+        "core.directory.reparent",
         serde_json::json!({
             "folder_id": folder_id,
             "target_folder_id": non_empty_optional(target_folder_id),
@@ -179,7 +179,7 @@ pub async fn move_directory(
     .await
 }
 
-/// Move a document into another directory, or root when target is `None`.
+/// Reparent a document into another directory, or root when target is `None`.
 #[tauri::command]
 pub async fn move_document(
     state: tauri::State<'_, AppHandleState>,
@@ -188,7 +188,7 @@ pub async fn move_document(
 ) -> Result<bool, String> {
     server_action_bool(
         &state,
-        "core.document.move",
+        "core.document.reparent",
         serde_json::json!({
             "document_id": document_id,
             "target_folder_id": non_empty_optional(target_folder_id),
@@ -240,89 +240,35 @@ pub async fn get_directory_info(
     .await
 }
 
-/// View temporary access entries for a document or directory.
+/// Fetch document or directory CACL DACL policy.
 #[tauri::command]
-pub async fn view_access_entries(
-    state: tauri::State<'_, AppHandleState>,
-    object_type: String,
-    object_identifier: String,
-) -> Result<serde_json::Value, String> {
-    let items = fetch_all_cursor_items(
-        &state,
-        "core.access.entry.list",
-        serde_json::json!({
-            "object_type": object_type,
-            "object_identifier": object_identifier,
-        }),
-    )
-    .await?;
-
-    Ok(serde_json::json!({ "result": items }))
-}
-
-/// Revoke a temporary access entry.
-#[tauri::command]
-pub async fn revoke_access(
-    state: tauri::State<'_, AppHandleState>,
-    entry_id: i64,
-) -> Result<bool, String> {
-    server_action_bool(
-        &state,
-        "core.access.entry.revoke",
-        serde_json::json!({ "entry_id": entry_id }),
-    )
-    .await
-}
-
-/// Grant temporary access to a document or directory.
-#[tauri::command]
-pub async fn grant_access(
-    state: tauri::State<'_, AppHandleState>,
-    entity_identifier: String,
-    entity_type: String,
-    target_type: String,
-    target_identifier: String,
-    access_types: Vec<String>,
-    start_time: f64,
-    end_time: f64,
-) -> Result<bool, String> {
-    server_action_bool(
-        &state,
-        "core.access.entry.grant",
-        serde_json::json!({
-            "entity_identifier": entity_identifier,
-            "entity_type": entity_type,
-            "target_type": target_type,
-            "target_identifier": target_identifier,
-            "access_types": access_types,
-            "start_time": start_time,
-            "end_time": end_time,
-        }),
-    )
-    .await
-}
-
-/// Fetch document or directory access rules.
-#[tauri::command]
-pub async fn get_access_rules(
+pub async fn get_node_dacl(
     state: tauri::State<'_, AppHandleState>,
     object_type: String,
     object_id: String,
+    annotate_users: Option<bool>,
 ) -> Result<serde_json::Value, String> {
+    let annotate = annotate_users.unwrap_or(false);
     match object_type.as_str() {
         "document" => {
             server_action_json(
                 &state,
-                "core.document.access_rule.get",
-                serde_json::json!({ "document_id": object_id }),
+                "core.document.dacl.get",
+                serde_json::json!({
+                    "document_id": object_id,
+                    "annotate_users": annotate,
+                }),
             )
             .await
         }
         "directory" => {
             server_action_json(
                 &state,
-                "core.directory.access_rule.get",
-                serde_json::json!({ "directory_id": object_id }),
+                "core.directory.dacl.get",
+                serde_json::json!({
+                    "directory_id": object_id,
+                    "annotate_users": annotate,
+                }),
             )
             .await
         }
@@ -330,37 +276,38 @@ pub async fn get_access_rules(
     }
 }
 
-/// Set document or directory access rules.
+/// Set document or directory CACL DACL policy.
 #[tauri::command]
-pub async fn set_access_rules(
+pub async fn set_node_dacl(
     state: tauri::State<'_, AppHandleState>,
     object_type: String,
     object_id: String,
-    access_rules: serde_json::Value,
-    inherit_parent: bool,
-) -> Result<bool, String> {
-    cfms_service::files::access_batches::validate_rules(&access_rules)?;
+    dacl: String,
+    allow_self_lockout: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    cfms_service::files::access_batches::validate_dacl_source(&dacl)?;
+    let allow_lockout = allow_self_lockout.unwrap_or(false);
     match object_type.as_str() {
         "document" => {
-            server_action_bool(
+            server_action_json(
                 &state,
-                "core.document.access_rule.set",
+                "core.document.dacl.set",
                 serde_json::json!({
                     "document_id": object_id,
-                    "access_rules": access_rules,
-                    "inherit_parent": inherit_parent,
+                    "dacl": dacl,
+                    "allow_self_lockout": allow_lockout,
                 }),
             )
             .await
         }
         "directory" => {
-            server_action_bool(
+            server_action_json(
                 &state,
-                "core.directory.access_rule.set",
+                "core.directory.dacl.set",
                 serde_json::json!({
                     "directory_id": object_id,
-                    "access_rules": access_rules,
-                    "inherit_parent": inherit_parent,
+                    "dacl": dacl,
+                    "allow_self_lockout": allow_lockout,
                 }),
             )
             .await

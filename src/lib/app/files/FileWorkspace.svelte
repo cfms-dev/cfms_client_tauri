@@ -5,7 +5,6 @@
   import FileAddressBar from '$lib/features/files/FileAddressBar.svelte';
   import AccessDeniedDialog from '$lib/features/access/AccessDeniedDialog.svelte';
   import AccessDeniedNotice from '$lib/features/access/AccessDeniedNotice.svelte';
-  import AuthorizeAccessDialog from '$lib/features/access/AuthorizeAccessDialog.svelte';
   import AccessRulesManager from '$lib/features/access/AccessRulesManager.svelte';
   import BatchAccessRulesDialog from '$lib/features/access/BatchAccessRulesDialog.svelte';
   import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
@@ -21,7 +20,6 @@
   import MoveTargetDialog from '$lib/features/files/MoveTargetDialog.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import { accessEntrySubject } from '$lib/features/access/access-entries';
   import { formatBytes, formatDate } from '$lib/shared/format/values';
   import { laneX } from '$lib/features/files/revision-graph';
   import type { SortField } from '$lib/features/files/sorting';
@@ -367,7 +365,7 @@
       onBlankContextMenu={workspace.showCurrentDirectoryContextMenu}
       onFolderContextMenu={workspace.showFolderContextMenu}
       onDocumentContextMenu={workspace.showDocumentContextMenu}
-      canMoveItems={workspace.hasPermission('move')}
+      canMoveItems={true}
       onDragSelection={workspace.handleDragSelection}
       onMoveItems={workspace.handleDropMove}
       emptyContent={workspace.directoryAccessDenied ? deniedDirectoryContent : undefined}
@@ -924,29 +922,6 @@
   </ModalFrame>
 {/if}
 
-{#if workspace.authorizeDialog}
-  <ModalFrame
-    title={workspace.authorizeDialog.title}
-    maxWidth="max-w-2xl"
-    resizable
-    maximizable
-    minWidth={520}
-    minHeight={480}
-    closeLabel={$t('common.close')}
-    onClose={() => (workspace.authorizeDialog = null)}
-  >
-    <AuthorizeAccessDialog
-      targetName={workspace.authorizeDialog.targetName}
-      targetType={workspace.authorizeDialog.targetType}
-      canListUsers={authStore.permissions.includes('list_users')}
-      canListGroups={authStore.permissions.includes('list_groups')}
-      saving={workspace.authorizeDialog.saving}
-      onSubmit={workspace.handleSubmitAuthorize}
-      onCancel={() => (workspace.authorizeDialog = null)}
-    />
-  </ModalFrame>
-{/if}
-
 {#if workspace.moveTargetDialog}
   <MoveTargetDialog
     objectType={workspace.moveTargetDialog.objectType}
@@ -977,73 +952,12 @@
   />
 {/if}
 
-{#if workspace.accessEntriesDialog}
-  <ModalFrame
-    title={workspace.accessEntriesDialog.title}
-    maxWidth="max-w-5xl"
-    resizable
-    maximizable
-    minWidth={720}
-    minHeight={360}
-    closeLabel={$t('common.close')}
-    onClose={() => (workspace.accessEntriesDialog = null)}
-  >
-      <div class="h-full max-h-[70vh] overflow-auto p-5">
-        {#if workspace.accessEntriesDialog.entries.length === 0}
-          <p class="text-sm text-md3-on-surface-variant text-center py-8">
-            {$t('files.noAccessEntries')}
-          </p>
-        {:else}
-          <table class="min-w-[860px] w-full text-left text-sm">
-            <thead class="text-xs uppercase text-md3-on-surface-variant">
-              <tr>
-                <th class="px-3 py-2">{$t('files.id')}</th>
-                <th class="px-3 py-2">{$t('files.entityType')}</th>
-                <th class="px-3 py-2">{$t('files.entityName')}</th>
-                <th class="px-3 py-2">{$t('files.accessType')}</th>
-                <th class="px-3 py-2">{$t('files.startTime')}</th>
-                <th class="px-3 py-2">{$t('files.endTime')}</th>
-                <th class="px-3 py-2 text-right">{$t('files.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each workspace.accessEntriesDialog.entries as entry (entry.id)}
-                {@const subject = accessEntrySubject(entry)}
-                <tr class="border-t border-md3-outline/50">
-                  <td class="px-3 py-2 text-xs text-md3-on-surface-variant">{entry.id}</td>
-                  <td class="px-3 py-2">{subject.type || '—'}</td>
-                  <td class="px-3 py-2">{subject.name || '—'}</td>
-                  <td class="px-3 py-2">{entry.access_type}</td>
-                  <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.start_time)}</td>
-                  <td class="px-3 py-2 whitespace-nowrap">{formatDate(entry.end_time)}</td>
-                  <td class="px-3 py-2 text-right">
-                    <FluentButton data-fluent-owner="routes-home-files-page"
-                      title={$t('files.revoke')}
-                      aria-label={$t('files.revoke')}
-                      onclick={() => workspace.handleRevokeAccess(entry.id)}
-                      type="button"
-                      appearance="subtle"
-                      tone="danger"
-                      class="rounded bg-md3-error-container p-2 text-md3-on-error-container transition-all "
-                      iconOnly
-                    >
-                      <Icon name="delete" size="17px" />
-                    </FluentButton>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        {/if}
-      </div>
-  </ModalFrame>
-{/if}
-
 {#if workspace.batchAccessRulesDialog}
   <BatchAccessRulesDialog
     targets={workspace.batchAccessRulesDialog.targets}
     initialTemplateKey={workspace.batchAccessRulesDialog.initialTemplateKey}
-    canReadTemplate={workspace.hasPermission('view_access_rules')}
+    canListUsers={authStore.permissions.includes('list_users')}
+    canListGroups={authStore.permissions.includes('list_groups')}
     checkGuard={workspace.batchAccessRulesGuard}
     onApplied={workspace.refreshAfterBatchAccessRules}
     onClose={workspace.closeBatchAccessRules}
@@ -1062,8 +976,12 @@
     onClose={() => (workspace.accessRulesDialog = null)}
   >
     <AccessRulesManager
-      rules={workspace.accessRulesDialog.rules}
-      inheritParent={workspace.accessRulesDialog.inheritParent}
+      dacl={workspace.accessRulesDialog.dacl}
+      annotatedDacl={workspace.accessRulesDialog.annotatedDacl}
+      targetObjectType={workspace.accessRulesDialog.objectType}
+      serverDiagnostics={workspace.accessRulesDialog.serverDiagnostics}
+      canListUsers={authStore.permissions.includes('list_users')}
+      canListGroups={authStore.permissions.includes('list_groups')}
       saving={workspace.accessRulesDialog.saving}
       onSave={workspace.handleSaveAccessRules}
       onCancel={() => (workspace.accessRulesDialog = null)}
@@ -1253,6 +1171,7 @@
                     <FluentButton data-fluent-owner="routes-home-files-page"
                       title={$t('files.deleteRevision')}
                       onclick={() => workspace.handleDeleteRevision(row.revision)}
+                      disabled={!authStore.permissions.includes('delete_revision')}
                       type="button"
                       appearance="subtle"
                       tone="danger"

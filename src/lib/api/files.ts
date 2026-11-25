@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
-import type { AccessEntry, AccessEntityType, AccessType } from './types/access';
+import type { NodeDaclResponse, SetNodeDaclResponse } from './types/access';
 import type { BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, SelectedUploadDirectory, UploadConflictStrategy, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types/transfers';
 import type { ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
 
@@ -166,59 +166,25 @@ export async function setDocumentTags(
   return invoke("set_document_tags", { documentId, tags });
 }
 
-export async function viewAccessEntries(
-  objectType: ServerObjectType,
-  objectIdentifier: string,
-): Promise<AccessEntry[]> {
-  const data = await invoke<{ result?: AccessEntry[] }>("view_access_entries", {
-    objectType,
-    objectIdentifier,
-  });
-  return data.result ?? [];
-}
-
-export async function revokeAccess(entryId: number): Promise<boolean> {
-  return invoke("revoke_access", { entryId });
-}
-
-export async function grantAccess(
-  entityIdentifier: string,
-  entityType: AccessEntityType,
-  targetType: ServerObjectType,
-  targetIdentifier: string,
-  accessTypes: AccessType[],
-  startTime: number,
-  endTime: number,
-): Promise<boolean> {
-  return invoke("grant_access", {
-    entityIdentifier,
-    entityType,
-    targetType,
-    targetIdentifier,
-    accessTypes,
-    startTime,
-    endTime,
-  });
-}
-
-export async function getAccessRules(
+export async function getNodeDacl(
   objectType: ServerObjectType,
   objectId: string,
-): Promise<{ rules: unknown; inherit: boolean }> {
-  return invoke("get_access_rules", { objectType, objectId });
+  annotateUsers = false,
+): Promise<NodeDaclResponse> {
+  return invoke("get_node_dacl", { objectType, objectId, annotateUsers });
 }
 
-export async function setAccessRules(
+export async function setNodeDacl(
   objectType: ServerObjectType,
   objectId: string,
-  accessRules: unknown,
-  inheritParent: boolean,
-): Promise<boolean> {
-  return invoke("set_access_rules", {
+  dacl: string,
+  allowSelfLockout = false,
+): Promise<SetNodeDaclResponse> {
+  return invoke("set_node_dacl", {
     objectType,
     objectId,
-    accessRules,
-    inheritParent,
+    dacl,
+    allowSelfLockout,
   });
 }
 

@@ -41,23 +41,6 @@ export interface ManagedGroup {
   members?: string[];
 }
 
-export interface UserBlockTarget {
-  type: "all" | "directory" | "document";
-  id?: string;
-}
-
-export interface UserBlock {
-  user_id: string;
-  block_id: string;
-  block_types: string[];
-  target_type?: string;
-  target_id?: string | null;
-  timestamp?: number | null;
-  not_before?: number | null;
-  not_after?: number | null;
-  reason: string | null;
-}
-
 export interface LockdownState {
   status: boolean;
   reason: string | null;

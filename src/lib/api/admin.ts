@@ -1,6 +1,6 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
-import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, UnlockAuthLockoutsResult, UserBlock, UserBlockTarget } from './types/administration';
+import type { AuditLogsResponse, AuthLockout, AuthLockoutSelector, BannedSubnet, BannedSubnetStatus, LockdownState, ManagedGroup, ManagedUser, ManagedUserInfo, ManagedUserStatus, ManagedUserStatusUpdate, UnlockAuthLockoutsResult } from './types/administration';
 import type { PermissionEntry } from './types/access';
 import type { ServerDiagnostics } from './types/diagnostics';
 import type { AuthStatus, TwoFactorStatus, UserKeyDetails, UserKeyMetadata } from './types/authentication';
@@ -187,37 +187,6 @@ export async function manageUserStatus(
 
 export async function setLockdown(status: boolean, reason?: string | null): Promise<LockdownState> {
   return invoke("set_lockdown", { status, reason: reason ?? null });
-}
-
-export async function blockUser(
-  userId: string,
-  blockTypes: string[],
-  target: UserBlockTarget,
-  notAfter?: number | null,
-  reason?: string | null,
-): Promise<UserBlock> {
-  return invoke("block_user", {
-    userId,
-    blockTypes,
-    target,
-    notAfter: notAfter ?? null,
-    reason: reason ?? null,
-  });
-}
-
-export async function listUserBlocks(userId: string): Promise<UserBlock[]> {
-  const data = await invoke<{ blocks?: UserBlock[] }>("list_user_blocks", {
-    userId,
-  });
-  return data.blocks ?? [];
-}
-
-export async function unblockUser(blockId: string): Promise<boolean> {
-  return invoke("unblock_user", { blockId });
-}
-
-export async function updateUserBlock(blockId: string, reason: string | null): Promise<UserBlock> {
-  return invoke("update_user_block", { blockId, reason });
 }
 
 export async function getManagedTwoFactorStatus(userId: string): Promise<TwoFactorStatus> {

@@ -90,7 +90,7 @@ impl Peer {
         *state.user_id.write().await = Some("alice-id".into());
         *state.server_address.write().await = Some(format!("ws://{address}"));
         *state.token.write().await = Some(crate::sensitive::SecretString::new("test-token".into()));
-        *state.permissions.write().await = vec!["set_access_rules".into()];
+        *state.permissions.write().await = vec![];
         Self {
             state,
             requests,

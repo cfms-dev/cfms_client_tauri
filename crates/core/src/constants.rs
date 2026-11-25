@@ -21,6 +21,9 @@ pub const fn is_supported_protocol_version(version: u32) -> bool {
     version == PROTOCOL_VERSION
 }
 
+/// Maximum CACL DACL source text length accepted by the server (`DACL_SOURCE_MAX_LENGTH`).
+pub const DACL_SOURCE_MAX_LENGTH: usize = 65_536;
+
 /// Protocol 25 conclusion codes returned when a file task cannot be claimed.
 pub mod file_task_claim_code {
     pub const INVALID: u32 = 46_000;

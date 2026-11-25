@@ -12,7 +12,6 @@
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import BlockUserDialog from '$lib/features/administration/BlockUserDialog.svelte';
   import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
   import PermissionEntriesDialog from '$lib/features/access/PermissionEntriesDialog.svelte';
   import ResetUserPasswordDialog from '$lib/features/authentication/ResetUserPasswordDialog.svelte';
@@ -174,8 +173,6 @@
                   {@render ActionButton('passwordReset', $t('manage.resetPassword'), () => workspace.handleResetPassword(user), !workspace.canResetPassword(user) || workspace.busyKey !== null)}
                   {#if workspace.canReadUserAuthentication(user)}{@render ActionButton('passkey', $t('authManagement.title'), () => { workspace.activeDialog = { kind: 'user-authentication', user }; }, workspace.busyKey !== null)}{/if}
                   {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => workspace.handleManageAccount(user), (!workspace.canManageUserStatus && !workspace.canManage2fa && !workspace.canReadUserAuthentication(user)) || workspace.busyKey !== null)}
-                  {@render ActionButton('block', $t('manage.blockUser'), () => workspace.handleBlockUser(user), !workspace.canBlock || workspace.busyKey !== null)}
-                  {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => workspace.handleListBlocks(user), !workspace.canListBlocks || workspace.busyKey !== null)}
                   {@render ActionButton('delete', $t('common.delete'), () => workspace.handleDeleteUser(user), workspace.busyKey !== null, true)}
                 </div>
                 {#if workspace.expandedActionRow === actionKey}
@@ -190,8 +187,6 @@
                       {@render ActionButton('passwordReset', $t('manage.resetPassword'), () => workspace.handleResetPassword(user), !workspace.canResetPassword(user) || workspace.busyKey !== null)}
                       {#if workspace.canReadUserAuthentication(user)}{@render ActionButton('passkey', $t('authManagement.title'), () => { workspace.activeDialog = { kind: 'user-authentication', user }; }, workspace.busyKey !== null)}{/if}
                       {@render ActionButton('manageAccounts', $t('manage.accountManagement'), () => workspace.handleManageAccount(user), (!workspace.canManageUserStatus && !workspace.canManage2fa && !workspace.canReadUserAuthentication(user)) || workspace.busyKey !== null)}
-                      {@render ActionButton('block', $t('manage.blockUser'), () => workspace.handleBlockUser(user), !workspace.canBlock || workspace.busyKey !== null)}
-                      {@render ActionButton('manageAccounts', $t('manage.viewBlocks'), () => workspace.handleListBlocks(user), !workspace.canListBlocks || workspace.busyKey !== null)}
                       {@render ActionButton('delete', $t('common.delete'), () => workspace.handleDeleteUser(user), workspace.busyKey !== null, true)}
                     </div>
                   </div>
@@ -646,12 +641,6 @@
       {/if}
     </div>
   </ModalFrame>
-{:else if workspace.activeDialog?.kind === 'block-user'}
-  <BlockUserDialog
-    username={workspace.activeDialog.user.username}
-    onSave={workspace.saveActiveBlockUser}
-    onClose={() => (workspace.activeDialog = null)}
-  />
 {:else if workspace.activeDialog?.kind === 'group-permissions'}
   <PermissionEntriesDialog
     title={$t('manage.editGroupPermissionsTitle', { values: { group: workspace.activeDialog.group.name } })}
@@ -678,61 +667,6 @@
           <span class="text-md3-on-surface break-words">{row.value || '-'}</span>
         </div>
       {/each}
-    </div>
-  </ModalFrame>
-{/if}
-
-{#if workspace.blocksDialog}
-  <ModalFrame
-    title={$t('manage.blocksFor', { values: { username: workspace.blocksDialog.username } })}
-    maxWidth="max-w-2xl"
-    resizable
-    maximizable
-    minWidth={480}
-    minHeight={360}
-    closeLabel={$t('common.close')}
-    onClose={() => (workspace.blocksDialog = null)}
-  >
-    <div class="h-full max-h-[70vh] space-y-3 overflow-auto p-5">
-      {#if workspace.blocksDialog.blocks.length === 0}
-        <p class="text-sm text-md3-on-surface-variant">{$t('manage.noActiveBlocks')}</p>
-      {:else}
-        {#each workspace.blocksDialog.blocks as block (block.block_id)}
-          <div class="border border-md3-outline rounded-xl p-3 space-y-2">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-md3-on-surface truncate">
-                  {$t('manage.blockRecordTitle', {
-                    values: {
-                      types: workspace.formatList(block.block_types),
-                      target: workspace.formatBlockTarget(block),
-                    },
-                  })}
-                </p>
-                <p class="text-xs text-md3-on-surface-variant break-all">
-                  {$t('manage.idWithValue', { values: { id: block.block_id } })}
-                </p>
-              </div>
-              <div class="flex flex-none gap-1">
-                {@render ActionButton('edit', $t('common.edit'), () => workspace.handleEditBlockReason(block), workspace.busyKey !== null)}
-                {@render ActionButton('delete', $t('files.revoke'), () => workspace.handleUnblock(block.block_id), workspace.busyKey !== null, true)}
-              </div>
-            </div>
-            <p class="text-xs text-md3-on-surface-variant">
-              {$t('manage.blockRecordPeriod', {
-                values: {
-                  created: workspace.formatDate(block.timestamp),
-                  start: workspace.formatDate(block.not_before),
-                  end: block.not_after === -1 ? $t('manage.permanent') : workspace.formatDate(block.not_after),
-                },
-              })}
-            </p>
-            <p class="whitespace-pre-wrap break-words text-xs text-md3-on-surface-variant">
-              {$t('manage.blockRecordReason', { values: { reason: block.reason ?? $t('manage.noReason') } })}
-            </p>
-          </div>
-        {/each}
-      {/if}
     </div>
   </ModalFrame>
 {/if}

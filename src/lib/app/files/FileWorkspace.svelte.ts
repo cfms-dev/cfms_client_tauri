@@ -18,30 +18,28 @@ import {
   deleteDirectory,
   deleteDocument,
   deleteRevision,
-  getAccessRules,
   getDirectoryInfo,
   getDocumentInfo,
-  grantAccess,
+  getNodeDacl,
   listRevisions,
   moveDirectory,
   moveDocument,
+  parseCaclSaveError,
   renameDirectory,
   renameDocument,
   resolveNodeTarget,
-  revokeAccess,
-  setAccessRules,
   setCurrentRevision,
   setDocumentTags,
+  setNodeDacl,
   searchFiles,
   uploadNewRevision,
-  viewAccessEntries,
-  type AccessEntry,
   type ListDirectoryResponse,
   type DirectoryFileConflictResolution,
   type RevisionEntry,
   type SearchDirectoryEntry,
   type SearchDocumentEntry,
   type SearchFilesResponse,
+  type ServerCaclDiagnostic,
   type UploadConflictStrategy,
   type UploadRevisionProgressEvent,
   type UploadEnqueueRequest,
@@ -53,8 +51,7 @@ import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarge
 import { accessRulesTemplateKey } from '$lib/features/access/access-rules-edit';
 
 import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '$lib/features/files/FileTable.svelte';
-import type { AccessGrantFormValue } from '$lib/features/access/access-grants';
-import type { AccessRulesRecord } from '$lib/features/access/access-rules';
+import type { CaclDraftState } from '$lib/features/access/AccessRulesManager.svelte';
 import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import { pickDirectory, type SelectedDirectory } from '$lib/shared/platform/directory-picker';
@@ -72,7 +69,6 @@ import {
   formatBytes,
   formatDate,
   formatError,
-  formatUnknown,
   isPickerCancel,
 } from '$lib/shared/format/values';
 import { graphWidth, buildRevisionRows } from '$lib/features/files/revision-graph';
@@ -322,28 +318,15 @@ export function createFileWorkspace() {
 
   let detailRows = $state<Array<{ label: string; value: string }>>([]);
 
-  let accessEntriesDialog = $state<{
-    title: string;
-    objectType: ServerObjectType;
-    objectId: string;
-    entries: AccessEntry[];
-  } | null>(null);
-
-  let authorizeDialog = $state<{
-    title: string;
-    targetType: ServerObjectType;
-    targetIdentifier: string;
-    targetName: string;
-    saving: boolean;
-  } | null>(null);
-
   let accessRulesDialog = $state<{
     title: string;
     objectType: ServerObjectType;
     objectId: string;
-    rules: unknown;
-    inheritParent: boolean;
+    dacl: string;
+    annotatedDacl: string | null;
+    fingerprint: string | null;
     saving: boolean;
+    serverDiagnostics: ServerCaclDiagnostic[];
   } | null>(null);
 
   let batchAccessRulesDialog = $state<{
@@ -1372,7 +1355,7 @@ export function createFileWorkspace() {
       label: translator.current('files.rename'),
       icon: 'edit',
       visible: totalSelected === 1,
-      disabled: batchBusy || !canRenameSelected(),
+      disabled: batchBusy || totalSelected !== 1,
       run: handleRenameSelected,
     },
     {
@@ -1380,7 +1363,7 @@ export function createFileWorkspace() {
       label: translator.current('files.moveSelected'),
       icon: 'driveFileMove',
       visible: totalSelected > 0,
-      disabled: batchBusy || !hasPermission('move'),
+      disabled: batchBusy,
       run: handleMoveSelected,
     },
     {
@@ -1388,7 +1371,7 @@ export function createFileWorkspace() {
       label: translator.current('files.setPermissions'),
       icon: 'settings',
       visible: totalSelected > 1 || !!selectedFolder,
-      disabled: batchBusy || loading || !hasPermission('set_access_rules'),
+      disabled: batchBusy || loading,
       run: handleBatchAccessRules,
     },
     {
@@ -1397,7 +1380,7 @@ export function createFileWorkspace() {
       icon: 'delete',
       tone: 'danger',
       visible: totalSelected > 0,
-      disabled: batchBusy || !canDeleteSelection(),
+      disabled: batchBusy,
       run: handleDeleteSelected,
     },
     {
@@ -1439,7 +1422,7 @@ export function createFileWorkspace() {
       icon: 'deleteSweep',
       compact: true,
       dividerBefore: true,
-      disabled: batchBusy || !hasPermission('list_deleted_items'),
+      disabled: batchBusy,
       run: handleNavigateTrash,
     },
   ]);
@@ -1580,10 +1563,10 @@ export function createFileWorkspace() {
     } else if (shortcut === 'clear-selection' && totalSelected > 0) {
       event.preventDefault();
       deselectAll();
-    } else if (shortcut === 'delete-selection' && totalSelected > 0 && canDeleteSelection()) {
+    } else if (shortcut === 'delete-selection' && totalSelected > 0) {
       event.preventDefault();
       void handleDeleteSelected();
-    } else if (shortcut === 'rename-selection' && totalSelected === 1 && canRenameSelected()) {
+    } else if (shortcut === 'rename-selection' && totalSelected === 1) {
       event.preventDefault();
       void handleRenameSelected();
     }
@@ -1591,15 +1574,6 @@ export function createFileWorkspace() {
 
   function hasPermission(...permissions: string[]) {
     return permissions.some((permission) => authStore.permissions.includes(permission));
-  }
-
-  function canRenameSelected() {
-    return selectedFolder ? hasPermission('rename_directory') : selectedDocument ? hasPermission('rename_document') : false;
-  }
-
-  function canDeleteSelection() {
-    return (selectedFolderIds.size === 0 || hasPermission('delete_directory'))
-      && (selectedDocumentIds.size === 0 || hasPermission('delete_document'));
   }
 
   async function handleRenameSelected() {
@@ -1733,7 +1707,7 @@ export function createFileWorkspace() {
           id: 'move-selection',
           label: translator.current('files.moveSelected'),
           icon: 'driveFileMove',
-          disabled: batchBusy || !hasPermission('move'),
+          disabled: batchBusy,
           onSelect: handleMoveSelected,
         },
         {
@@ -1741,7 +1715,6 @@ export function createFileWorkspace() {
           label: translator.current('files.setPermissions'),
           icon: 'settings',
           disabled: batchBusy || loading,
-          requiredPermissions: ['set_access_rules'],
           onSelect: () => handleBatchAccessRules(targetKey),
         },
         { type: 'divider' },
@@ -1750,7 +1723,7 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.delete,
           label: translator.current('common.delete'),
           icon: 'delete',
-          disabled: batchBusy || !canDeleteSelection(),
+          disabled: batchBusy,
           danger: true,
           onSelect: handleDeleteSelected,
         },
@@ -1792,24 +1765,9 @@ export function createFileWorkspace() {
         },
         { type: 'divider' },
         {
-          id: 'authorize-current-directory',
-          label: translator.current('files.authorize'),
-          icon: 'lockPerson',
-          requiredPermissions: ['manage_access'],
-          onSelect: () => handleAuthorize('directory', directoryId, directoryName),
-        },
-        {
-          id: 'view-current-directory-access',
-          label: translator.current('files.viewAccessEntries'),
-          icon: 'listAlt',
-          requiredPermissions: ['view_access_entries'],
-          onSelect: () => handleViewAccessEntries('directory', directoryId, directoryName),
-        },
-        {
           id: 'current-directory-rules',
           label: translator.current('files.setPermissions'),
           icon: 'settings',
-          requiredPermissions: ['set_access_rules'],
           onSelect: () => handleSetAccessRules('directory', directoryId, directoryName),
         },
         { type: 'divider' },
@@ -1849,14 +1807,12 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.rename,
           label: translator.current('files.rename'),
           icon: 'edit',
-          requiredPermissions: ['rename_document'],
           onSelect: () => handleRenameDocument(doc),
         },
         {
           id: 'move-document',
           label: translator.current('files.move'),
           icon: 'driveFileMove',
-          requiredPermissions: ['move'],
           onSelect: () => handleMoveDocument(doc),
         },
         {
@@ -1864,37 +1820,20 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.delete,
           label: translator.current('common.delete'),
           icon: 'delete',
-          requiredPermissions: ['delete_document'],
           onSelect: () => handleDeleteSingle('document', doc),
           danger: true,
         },
         { type: 'divider' },
         {
-          id: 'authorize-document',
-          label: translator.current('files.authorize'),
-          icon: 'lockPerson',
-          requiredPermissions: ['manage_access'],
-          onSelect: () => handleAuthorize('document', doc.id, doc.title),
-        },
-        {
-          id: 'view-document-access',
-          label: translator.current('files.viewAccessEntries'),
-          icon: 'listAlt',
-          requiredPermissions: ['view_access_entries'],
-          onSelect: () => handleViewAccessEntries('document', doc.id, doc.title),
-        },
-        {
           id: 'document-rules',
           label: translator.current('files.setPermissions'),
           icon: 'settings',
-          requiredPermissions: ['set_access_rules'],
           onSelect: () => handleSetAccessRules('document', doc.id, doc.title),
         },
         {
           id: 'edit-document-tags',
           label: translator.current('files.editTags'),
           icon: 'label',
-          requiredPermissions: ['view_metadata', 'set_metadata_tags'],
           onSelect: () => handleEditDocumentTags(doc),
         },
         { type: 'divider' },
@@ -1908,7 +1847,6 @@ export function createFileWorkspace() {
           id: 'view-document-revisions',
           label: translator.current('files.viewRevisions'),
           icon: 'history',
-          requiredPermissions: ['list_revisions'],
           onSelect: () => handleViewRevisions(doc),
         },
         { type: 'divider' },
@@ -1952,14 +1890,12 @@ export function createFileWorkspace() {
         shortcuts: FILE_SHORTCUTS.rename,
         label: translator.current('files.rename'),
         icon: 'edit',
-        requiredPermissions: ['rename_directory'],
         onSelect: () => handleRenameFolder(folder),
       },
       {
         id: 'move-folder',
         label: translator.current('files.move'),
         icon: 'driveFileMove',
-        requiredPermissions: ['move'],
         onSelect: () => handleMoveFolder(folder),
       },
       {
@@ -1967,30 +1903,14 @@ export function createFileWorkspace() {
         shortcuts: FILE_SHORTCUTS.delete,
         label: translator.current('common.delete'),
         icon: 'delete',
-        requiredPermissions: ['delete_directory'],
         onSelect: () => handleDeleteSingle('folder', folder),
         danger: true,
       },
       { type: 'divider' },
       {
-        id: 'authorize-folder',
-        label: translator.current('files.authorize'),
-        icon: 'lockPerson',
-        requiredPermissions: ['manage_access'],
-        onSelect: () => handleAuthorize('directory', folder.id, folder.name),
-      },
-      {
-        id: 'view-folder-access',
-        label: translator.current('files.viewAccessEntries'),
-        icon: 'listAlt',
-        requiredPermissions: ['view_access_entries'],
-        onSelect: () => handleViewAccessEntries('directory', folder.id, folder.name),
-      },
-      {
         id: 'folder-rules',
         label: translator.current('files.setPermissions'),
         icon: 'settings',
-        requiredPermissions: ['set_access_rules'],
         onSelect: () => handleSetAccessRules('directory', folder.id, folder.name),
       },
       { type: 'divider' },
@@ -2142,7 +2062,6 @@ export function createFileWorkspace() {
   async function handleDropMove(items: FileTableDragItems, targetFolderId: string) {
     if (
       dropMoveBusy
-      || !hasPermission('move')
       || items.folderIds.includes(targetFolderId)
       || items.folderIds.length + items.documentIds.length === 0
     ) return;
@@ -2182,7 +2101,6 @@ export function createFileWorkspace() {
         { label: translator.current('files.creator'), value: info.metadata?.creator ?? '-' },
         { label: translator.current('files.lastModifiedBy'), value: info.metadata?.last_modified_by ?? '-' },
         { label: translator.current('files.tags'), value: formatList(info.metadata?.tags) },
-        { label: translator.current('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
       ];
     });
   }
@@ -2241,87 +2159,8 @@ export function createFileWorkspace() {
         { label: translator.current('files.childCount'), value: String(info.count_of_child ?? '-') },
         { label: translator.current('files.created'), value: formatDate(info.created_time ?? fallbackCreatedTime) },
         { label: translator.current('files.parentId'), value: info.parent_id ?? '-' },
-        { label: translator.current('files.accessRules'), value: formatUnknown(info.info_code ? null : info.access_rules) },
       ];
     });
-  }
-
-  async function handleViewAccessEntries(
-    objectType: ServerObjectType,
-    objectId: string,
-    objectName: string,
-  ) {
-    await runFileAction(async () => {
-      const entries = await viewAccessEntries(objectType, objectId);
-      accessEntriesDialog = {
-        title: translator.current('files.accessEntriesFor', { values: { name: objectName } }),
-        objectType,
-        objectId,
-        entries,
-      };
-    });
-  }
-
-  async function handleRevokeAccess(entryId: number) {
-    if (!accessEntriesDialog) return;
-    const refreshTarget = captureDirectoryRefreshTarget();
-    await runFileAction(async () => {
-      await revokeAccess(entryId);
-      accessEntriesDialog = {
-        ...accessEntriesDialog!,
-        entries: await viewAccessEntries(
-          accessEntriesDialog!.objectType,
-          accessEntriesDialog!.objectId,
-        ),
-      };
-      status = translator.current('files.accessRevoked');
-      await refreshDirectory(refreshTarget);
-    });
-  }
-
-  async function handleAuthorize(
-    targetType: ServerObjectType,
-    targetIdentifier: string,
-    targetName: string,
-  ) {
-    authorizeDialog = {
-      title: translator.current('files.authorizeTitle', { values: { name: targetName } }),
-      targetType,
-      targetIdentifier,
-      targetName,
-      saving: false,
-    };
-  }
-
-  async function handleSubmitAuthorize(value: AccessGrantFormValue) {
-    if (!authorizeDialog) return;
-    const refreshTarget = captureDirectoryRefreshTarget();
-    const dialog = authorizeDialog;
-    authorizeDialog = { ...dialog, saving: true };
-    error = null;
-
-    try {
-      await grantAccess(
-        value.entityIdentifier,
-        value.entityType,
-        dialog.targetType,
-        dialog.targetIdentifier,
-        value.accessTypes,
-        value.startTime,
-        value.endTime,
-      );
-      authorizeDialog = null;
-      status = translator.current('files.accessGrantedTo', {
-        values: {
-          entity: value.entityIdentifier,
-          name: dialog.targetName,
-        },
-      });
-      await refreshDirectory(refreshTarget);
-    } catch (err) {
-      error = formatError(err);
-      authorizeDialog = { ...dialog, saving: false };
-    }
   }
 
   function handleBatchAccessRules(contextItemKey: string | null = null) {
@@ -2342,7 +2181,7 @@ export function createFileWorkspace() {
   }
 
   function openBatchAccessRules(targets: BatchRulesTarget[], contextItemKey: string | null = null) {
-    if (!targets.length || batchBusy || loading || !hasPermission('set_access_rules')) return;
+    if (!targets.length || batchBusy || loading) return;
     batchAccessRulesDialog = {
       targets,
       identity: { server: serverStateStore.remoteAddress, userId: authStore.userId },
@@ -2358,7 +2197,6 @@ export function createFileWorkspace() {
       server: serverStateStore.remoteAddress,
       userId: authStore.userId,
       loggedIn: authStore.isLoggedIn,
-      permitted: hasPermission('set_access_rules'),
       connected: serverStateStore.connected,
       lockdown: serverStateStore.lockdown,
       bypassLockdown: hasPermission('bypass_lockdown'),
@@ -2388,41 +2226,83 @@ export function createFileWorkspace() {
       return;
     }
     await runFileAction(async () => {
-      const current = await getAccessRules(objectType, objectId);
+      const current = await getNodeDacl(objectType, objectId, true);
       accessRulesDialog = {
         title: translator.current('files.ruleManagerTitle', { values: { name: objectName } }),
         objectType,
         objectId,
-        rules: current.rules ?? {},
-        inheritParent: Boolean(current.inherit),
+        dacl: current.dacl ?? '',
+        annotatedDacl: current.annotated_dacl ?? null,
+        fingerprint: current.fingerprint ?? null,
         saving: false,
+        serverDiagnostics: [],
       };
     });
   }
 
-  async function handleSaveAccessRules(
-    accessRules: AccessRulesRecord,
-    inheritParent: boolean,
-  ) {
+  async function handleSaveAccessRules(dacl: string, _intent?: 'ok' | 'apply') {
     if (!accessRulesDialog) return;
     const refreshTarget = captureDirectoryRefreshTarget();
     const dialog = accessRulesDialog;
-    accessRulesDialog = { ...dialog, saving: true };
+    accessRulesDialog = { ...dialog, saving: true, serverDiagnostics: [] };
     error = null;
 
-    try {
-      await setAccessRules(
-        dialog.objectType,
-        dialog.objectId,
-        accessRules,
-        inheritParent,
-      );
+    const commitDacl = async (allowSelfLockout: boolean) => {
+      const result = await setNodeDacl(dialog.objectType, dialog.objectId, dacl, allowSelfLockout);
+      const warningDiags = result.diagnostics?.filter((d) => d.severity !== 'error') ?? [];
+      if (warningDiags.length > 0) {
+        notificationStore.warning(warningDiags.map((d) => d.message).join('; '));
+      }
       accessRulesDialog = null;
       status = translator.current('files.accessRulesSaved');
       await refreshDirectory(refreshTarget);
+    };
+
+    try {
+      await commitDacl(false);
     } catch (err) {
-      error = formatError(err);
-      accessRulesDialog = { ...dialog, saving: false };
+      const parsed = parseCaclSaveError(err);
+      if (parsed?.isSelfLockout) {
+        const confirmed = await dialogStore.confirm({
+          title: translator.current('files.cacl.selfLockoutTitle'),
+          message: translator.current('files.cacl.selfLockoutMessage'),
+          confirmLabel: translator.current('files.cacl.selfLockoutConfirm'),
+          cancelLabel: translator.current('common.cancel'),
+          danger: true,
+        });
+        if (!confirmed) {
+          accessRulesDialog = {
+            ...dialog,
+            dacl,
+            saving: false,
+            serverDiagnostics: parsed.diagnostics,
+          };
+          return;
+        }
+        try {
+          await commitDacl(true);
+          return;
+        } catch (retryErr) {
+          const retryParsed = parseCaclSaveError(retryErr);
+          error = formatError(retryErr);
+          accessRulesDialog = {
+            ...dialog,
+            dacl,
+            saving: false,
+            serverDiagnostics: retryParsed?.diagnostics ?? [],
+          };
+          return;
+        }
+      }
+      if (!parsed || parsed.diagnostics.length === 0) {
+        error = formatError(err);
+      }
+      accessRulesDialog = {
+        ...dialog,
+        dacl,
+        saving: false,
+        serverDiagnostics: parsed?.diagnostics ?? [],
+      };
     }
   }
 
@@ -3043,8 +2923,6 @@ export function createFileWorkspace() {
   function hasBlockingFilesDialog() {
     return Boolean(
       detailTitle
-      || accessEntriesDialog
-      || authorizeDialog
       || accessRulesDialog
       || batchAccessRulesDialog
       || moveTargetDialog
@@ -3601,7 +3479,7 @@ export function createFileWorkspace() {
         group: () => translator.current('files.title'),
         shortcuts: FILE_SHORTCUTS.delete,
         scope: 'page',
-        enabled: () => totalSelected > 0 && canDeleteSelection() && !hasBlockingFilesDialog(),
+        enabled: () => totalSelected > 0 && !hasBlockingFilesDialog(),
         handler: (event) => executeFileManagerShortcut('delete-selection', event),
       },
       {
@@ -3610,7 +3488,7 @@ export function createFileWorkspace() {
         group: () => translator.current('files.title'),
         shortcuts: FILE_SHORTCUTS.rename,
         scope: 'page',
-        enabled: () => totalSelected === 1 && canRenameSelected() && !hasBlockingFilesDialog(),
+        enabled: () => totalSelected === 1 && !hasBlockingFilesDialog(),
         handler: (event) => executeFileManagerShortcut('rename-selection', event),
       },
     ]);
@@ -3729,8 +3607,6 @@ export function createFileWorkspace() {
   return {
 
     get SORT_FIELDS() { return SORT_FIELDS; },
-    get accessEntriesDialog() { return accessEntriesDialog; },
-    set accessEntriesDialog(value) { accessEntriesDialog = value; },
     get accessRulesDialog() { return accessRulesDialog; },
     set accessRulesDialog(value) { accessRulesDialog = value; },
     get addressBar() { return addressBar; },
@@ -3738,8 +3614,6 @@ export function createFileWorkspace() {
     get addressLookupError() { return addressLookupError; },
     set addressLookupError(value) { addressLookupError = value; },
     applyMarqueeSelection,
-    get authorizeDialog() { return authorizeDialog; },
-    set authorizeDialog(value) { authorizeDialog = value; },
     get batchAccessRulesDialog() { return batchAccessRulesDialog; },
     set batchAccessRulesDialog(value) { batchAccessRulesDialog = value; },
     batchAccessRulesGuard,
@@ -3808,13 +3682,11 @@ export function createFileWorkspace() {
     handleHtmlDrop,
     handleMoveToTarget,
     handleReturnFromDeniedDirectory,
-    handleRevokeAccess,
     handleSaveAccessRules,
     handleSearchInput,
     handleSearchKeydown,
     handleSearchPreviewScroll,
     handleSetCurrentRevision,
-    handleSubmitAuthorize,
     hasPermission,
     hideContextMenu,
     get knownAddressPath() { return knownAddressPath; },

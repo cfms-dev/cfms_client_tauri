@@ -41,7 +41,6 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
 
-  const canRestore = $derived(authStore.permissions.includes('restore'));
   const canPurge = $derived(authStore.permissions.includes('purge'));
   const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
   const totalVisibleSelectable = $derived(folders.length + documents.length);
@@ -393,7 +392,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
           icon="restoreFromTrash"
           label={$t('trash.restoreSelected')}
           tone="primary"
-          disabled={totalSelected === 0 || batchBusy || !canRestore}
+          disabled={totalSelected === 0 || batchBusy}
           onclick={handleRestoreSelected}
         />
         <TaskActionButton
@@ -414,7 +413,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     </div>
   {/if}
 
-  {#if !canRestore && !canPurge}
+  {#if !canPurge}
     <div class="permission-note">
       <Icon name="info" size="17px" />
       {$t('trash.noPermission')}
@@ -493,7 +492,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
                     label={$t('trash.restore')}
                     tone="primary"
                     onclick={() => handleRestore(item.kind, item.id, item.name)}
-                    disabled={!canRestore || busyItemId === item.id}
+                    disabled={busyItemId === item.id}
                   />
                   <TaskActionButton
                     icon="deleteForever"
