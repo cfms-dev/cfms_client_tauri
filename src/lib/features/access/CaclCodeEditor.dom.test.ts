@@ -104,4 +104,41 @@ describe('CaclCodeEditor', () => {
     document.documentElement.dataset.theme = 'light';
     await waitFor(() => expect(editor?.className).not.toBe(darkThemeClasses));
   });
+
+  it('applies distinct syntax highlight classes to CACL tokens', async () => {
+    const { container } = render(CaclCodeEditor, {
+      props: {
+        value: 'inherit off;\nallow [TRAVERSE, READ_CONTENT] to any remark "test";\n',
+        ariaLabel: 'Highlighted CACL Policy',
+        loadingLabel: 'Loading CACL editor…',
+        onChange: vi.fn(),
+      },
+    });
+
+    await screen.findByLabelText('Highlighted CACL Policy', {}, { timeout: 4000 });
+    await waitFor(() => {
+      const spans = Array.from(container.querySelectorAll('.cm-line span[class]'));
+      const classByToken = new Map<string, string>();
+      for (const span of spans) {
+        const text = span.textContent ?? '';
+        if (text && span.className) {
+          classByToken.set(text, span.className);
+        }
+      }
+
+      const inheritClass = classByToken.get('inherit');
+      const allowClass = classByToken.get('allow');
+      const traverseClass = classByToken.get('TRAVERSE');
+      const remarkStrClass = classByToken.get('"test"');
+
+      expect(inheritClass).toBeTruthy();
+      expect(allowClass).toBeTruthy();
+      expect(traverseClass).toBeTruthy();
+      expect(remarkStrClass).toBeTruthy();
+
+      expect(inheritClass).not.toBe(allowClass);
+      expect(allowClass).not.toBe(traverseClass);
+      expect(allowClass).not.toBe(remarkStrClass);
+    });
+  });
 });
