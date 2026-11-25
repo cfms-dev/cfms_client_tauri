@@ -447,11 +447,13 @@
           <div class="batch-rules-editor-footer">
             {#if roots.some((target) => target.objectType === 'directory')}
               <div class="recursive-block">
-                <label class="batch-rules-choice">
+                <label class="batch-rules-choice recursive-choice">
                   <MdCheckbox bind:checked={recursive} disabled={!initialized || templateLoading} ariaLabel={$t('files.batchRules.recursive')} />
-                  <span>{$t('files.batchRules.recursive')}</span>
+                  <span class="recursive-copy">
+                    <span class="recursive-label">{$t('files.batchRules.recursive')}</span>
+                    <span class="batch-rules-muted recursive-hint">{$t('files.cacl.recursiveInheritanceHint')}</span>
+                  </span>
                 </label>
-                <p class="batch-rules-muted recursive-hint">{$t('files.cacl.recursiveInheritanceHint')}</p>
               </div>
             {/if}
             <div class="batch-rules-actions">
@@ -573,14 +575,17 @@
   .batch-rules-template { min-width: 0; flex-wrap: wrap; margin-block: 0.5rem; }
   .batch-rules-choice { font-size: 12px; cursor: pointer; }
   .batch-rules-choice > span { min-width: 0; }
-  .recursive-block { display: grid; gap: 4px; margin: 0.6rem 1.25rem 0; }
-  .recursive-hint { margin: 0; padding-inline-start: 28px; }
+  .recursive-block { flex: 1 1 20rem; min-width: 0; }
+  .recursive-choice { align-items: flex-start; gap: 8px; }
+  .recursive-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding-top: 4px; }
+  .recursive-label { color: var(--colorNeutralForeground1); font: 400 13px/20px var(--fontFamilyBase); }
+  .recursive-hint { margin: 0; font: 400 12px/16px var(--fontFamilyBase); }
   select { max-width: 100%; min-height: 2rem; min-width: 0; border: 1px solid var(--colorNeutralStroke1); border-radius: var(--borderRadiusMedium); padding: 0.3rem 0.5rem; background: var(--colorNeutralBackground1); color: var(--colorNeutralForeground1); }
   .batch-rules-template select { max-width: 22rem; }
   .batch-rules-editor { display: flex; min-height: 0; flex: 1; flex-direction: column; }
   .batch-rules-editor[hidden] { display: none; }
-  .batch-rules-editor-footer { flex: none; border-top: 1px solid var(--colorNeutralStroke2); }
-  .batch-rules-editor-footer .batch-rules-actions { border: 0; }
+  .batch-rules-editor-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 20px; border-top: 1px solid var(--colorNeutralStroke2); }
+  .batch-rules-editor-footer .batch-rules-actions { flex: none; margin-inline-start: auto; padding: 0; border: 0; }
   .batch-rules-filter { flex: none; padding: 0.6rem 1.25rem; }
   .batch-rules-layout :global(.batch-rules-results) { flex: 1; min-height: 100px; max-height: 38vh; overflow: auto; }
   .batch-rules-result { display: flex; align-items: flex-start; gap: 12px; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--colorNeutralStroke2); }
@@ -601,13 +606,13 @@
   summary { cursor: pointer; font-weight: 600; }
   @media (max-width: 640px) {
     .batch-rules-layout { max-height: 82vh; }
-    .batch-rules-context, .batch-rules-summary, .batch-rules-actions, .batch-rules-recovery, .batch-rules-confirmation { padding: 0.75rem; }
-    .recursive-block { margin-inline: 0.75rem; }
+    .batch-rules-context, .batch-rules-summary, .batch-rules-actions, .batch-rules-recovery, .batch-rules-confirmation, .batch-rules-editor-footer { padding: 0.75rem; }
     .batch-rules-template select { flex: 1; }
     .batch-rules-result { padding-inline: 0.75rem; }
     .batch-rules-result > span { max-width: 5rem; overflow-wrap: anywhere; }
   }
   @media (pointer: coarse) {
     select, .batch-rules-choice { min-height: 2.5rem; }
+    .recursive-copy { padding-top: 12px; }
   }
 </style>

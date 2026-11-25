@@ -4,6 +4,12 @@
   import type { Compartment as CompartmentType, Extension } from '@codemirror/state';
   import type { ObjectType } from 'codemirror-lang-cacl';
   import type { ServerCaclDiagnostic } from '$lib/api/types';
+  import CodeEditorContextMenu from '$lib/shared/ui/CodeEditorContextMenu.svelte';
+  import {
+    createFormatKeymapExtension,
+    getEditorContextMenuAnchor,
+  } from '$lib/shared/ui/code-editor-commands';
+  import { shortcutMatches } from '$lib/shared/ui/keyboard';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
 
   interface Props {
@@ -15,6 +21,7 @@
     ariaLabel: string;
     loadingLabel: string;
     onChange: (value: string) => void;
+    onFormat?: () => void;
   }
 
   let {
@@ -26,6 +33,7 @@
     ariaLabel,
     loadingLabel,
     onChange,
+    onFormat,
   }: Props = $props();
 
   let host: HTMLDivElement;
@@ -39,6 +47,9 @@
   let colorSchemeObserver: MutationObserver | null = null;
   let forceLinting: ((view: EditorViewType) => void) | null = null;
   let loadFailed = $state(false);
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
 
   function usesDarkColorScheme(): boolean {
     return document.documentElement.dataset.theme !== 'light';
@@ -116,6 +127,7 @@
           linterCompartment.of(buildLinterExtension(targetObjectType)),
           editableCompartment.of(editableExtension(disabled)),
           colorSchemeCompartment.of(colorSchemeExtension(usesDarkColorScheme())),
+          createFormatKeymapExtension(() => onFormat, () => disabled),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             'aria-label': ariaLabel,
@@ -189,9 +201,28 @@
     serverDiagnostics;
     if (editorView && forceLinting) forceLinting(editorView);
   });
+
+  function handleContextMenu(event: MouseEvent) {
+    if (!editorView) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const anchor = getEditorContextMenuAnchor(event, editorView);
+    contextMenuX = anchor.x;
+    contextMenuY = anchor.y;
+    contextMenuOpen = true;
+  }
+
+  function handleTextareaKeydown(event: KeyboardEvent) {
+    if (!onFormat || disabled) return;
+    if (shortcutMatches(event, { key: 'f', shift: true, alt: true })) {
+      event.preventDefault();
+      onFormat();
+    }
+  }
 </script>
 
-<div class="cacl-code-editor" class:disabled>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="cacl-code-editor" class:disabled oncontextmenu={handleContextMenu}>
   <div bind:this={host}></div>
   {#if !editorView && !loadFailed}
     <div class="editor-loading" aria-live="polite">{loadingLabel}</div>
@@ -202,9 +233,21 @@
       disabled={disabled}
       spellcheck="false"
       oninput={(event) => onChange(event.currentTarget.value)}
+      onkeydown={handleTextareaKeydown}
     ></textarea>
   {/if}
 </div>
+
+<CodeEditorContextMenu
+  open={contextMenuOpen}
+  x={contextMenuX}
+  y={contextMenuY}
+  {editorView}
+  {disabled}
+  sourceElement={editorView?.contentDOM ?? null}
+  {onFormat}
+  onClose={() => { contextMenuOpen = false; }}
+/>
 
 <style>
   .cacl-code-editor {

@@ -219,7 +219,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     use:portal
-    class="fixed inset-0 z-40"
+    class="context-menu-backdrop fixed inset-0"
     role="presentation"
     transition:fade={{ duration: 90 }}
     onclick={closeMenu}
@@ -231,7 +231,7 @@
   <div
     bind:this={menuEl}
     use:portal
-    class="context-menu-surface cfms-acrylic-surface cfms-menu-surface fixed z-50"
+    class="context-menu-surface cfms-acrylic-surface cfms-menu-surface fixed"
     style="left: {menuX}px; top: {menuY}px; transform-origin: {originX} {originY};"
     transition:menuScale={{ duration: 140 }}
     role="menu"
@@ -295,7 +295,11 @@
 {/if}
 
 <style>
+  .context-menu-backdrop {
+    z-index: 60;
+  }
   .context-menu-surface {
+    z-index: 65;
     display: flex;
     flex-direction: column;
     width: max-content;
@@ -346,7 +350,7 @@
   .context-menu-separator { grid-column: 1 / -1; margin-block: 4px; border-top: 1px solid var(--colorNeutralStroke2); }
   .context-menu-reason {
     position: fixed;
-    z-index: 60;
+    z-index: 70;
     box-sizing: border-box;
     width: max-content;
     max-width: min(320px, calc(100vw - 16px));

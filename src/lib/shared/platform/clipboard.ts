@@ -19,3 +19,13 @@ export async function copyText(value: string): Promise<void> {
     if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
   }
 }
+
+/** Read plain text from the system clipboard when available and permitted. */
+export async function readClipboardText(): Promise<string | null> {
+  if (!navigator.clipboard?.readText) return null;
+  try {
+    return await navigator.clipboard.readText();
+  } catch {
+    return null;
+  }
+}

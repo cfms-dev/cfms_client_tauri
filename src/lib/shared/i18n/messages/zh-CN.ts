@@ -233,6 +233,15 @@ export const zh_CN = {
   contextMenu: {
     elevationRequired: '此操作需要提权，选择后将验证身份。',
   },
+  codeEditor: {
+    undo: '撤销',
+    redo: '重做',
+    cut: '剪切',
+    copy: '复制',
+    paste: '粘贴',
+    selectAll: '全选',
+    format: '格式化',
+  },
   common: {
     back: '返回',
     loading: '加载中...',
@@ -784,7 +793,6 @@ export const zh_CN = {
       insertPrincipal: '插入主体',
       templatePicker: '规则模板',
       insertTemplate: '插入模板',
-      formatPolicy: '格式化',
       annotateUsers: '注释用户 UUID',
       lengthExceeded: '策略超出 {max} 个字符限制（当前 {length} 个字符）。',
       diagnosticsErrors: '{count} 个错误',

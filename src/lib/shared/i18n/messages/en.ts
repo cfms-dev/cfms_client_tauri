@@ -233,6 +233,15 @@ export const en = {
   contextMenu: {
     elevationRequired: 'This action requires elevated privileges. Select it to verify your identity.',
   },
+  codeEditor: {
+    undo: 'Undo',
+    redo: 'Redo',
+    cut: 'Cut',
+    copy: 'Copy',
+    paste: 'Paste',
+    selectAll: 'Select all',
+    format: 'Format',
+  },
   common: {
     back: 'Back',
     loading: 'Loading...',
@@ -790,7 +799,6 @@ export const en = {
       insertPrincipal: 'Insert principal',
       templatePicker: 'Rule template',
       insertTemplate: 'Insert template',
-      formatPolicy: 'Format',
       annotateUsers: 'Annotate user UUIDs',
       lengthExceeded: 'Policy exceeds {max} characters ({length} used).',
       diagnosticsErrors: '{count} error(s)',

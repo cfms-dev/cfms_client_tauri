@@ -12,6 +12,7 @@
   import CaclCodeEditor from './CaclCodeEditor.svelte';
   import CaclPrincipalPicker from './CaclPrincipalPicker.svelte';
   import CaclVisualEditor from './CaclVisualEditor.svelte';
+  import { formatCaclSource } from './cacl-formatter';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
   import {
     DACL_SOURCE_MAX_LENGTH,
@@ -206,20 +207,16 @@
 
   function formatSource() {
     if (saving) return;
-    const parsed = parseCaclToModel(sourceText);
-    if (!parsed.ok) {
-      switchError = parsed.error;
+    const formatted = formatCaclSource(sourceText);
+    if (!formatted.ok) {
+      switchError = formatted.error;
       showDiagnosticsPanel = true;
       return;
     }
-    onEdit?.();
-    visualDoc = {
-      ...parsed.document,
-      userHints: { ...visualDoc.userHints, ...parsed.document.userHints },
-    };
-    sourceText = serializeModelToCacl(visualDoc, {
-      annotateUsers: annotateUsersInCode,
-    });
+    if (formatted.text !== sourceText) {
+      onEdit?.();
+      sourceText = formatted.text;
+    }
     switchError = null;
   }
 
@@ -339,7 +336,7 @@
       </div>
     {/if}
 
-    <div class="dacl-workspace">
+    <div class="dacl-workspace" class:dacl-workspace--source={activeView === 'source'}>
       {#if activeView === 'visual'}
         <CaclVisualEditor
           document={visualDoc}
@@ -360,7 +357,8 @@
                 data-fluent-owner="cacl-access-manager"
                 type="button"
                 appearance="subtle"
-                class="source-tool-btn"
+                class={'source-tool-btn ' + (showPrincipalInsert ? 'source-tool-btn--active' : '')}
+                aria-expanded={showPrincipalInsert}
                 disabled={saving}
                 onclick={() => { showPrincipalInsert = !showPrincipalInsert; }}
               >
@@ -368,50 +366,44 @@
                 <span>{$t('files.cacl.insertPrincipal')}</span>
               </FluentButton>
 
-              <select
-                class="cfms-native-field code-template-select"
-                bind:value={selectedCodeTemplateId}
-                disabled={saving}
-                aria-label={$t('files.cacl.templatePicker')}
-              >
-                {#each CACL_RULE_TEMPLATES as tpl (tpl.id)}
-                  <option value={tpl.id}>{$t(tpl.labelKey)}</option>
-                {/each}
-              </select>
-              <FluentButton
-                data-fluent-owner="cacl-access-manager"
-                type="button"
-                appearance="subtle"
-                class="source-tool-btn"
-                disabled={saving}
-                onclick={insertCodeTemplate}
-              >
-                <Icon name="add" size="15px" />
-                <span>{$t('files.cacl.insertTemplate')}</span>
-              </FluentButton>
+              <span class="toolbar-divider" aria-hidden="true"></span>
 
-              <FluentButton
-                data-fluent-owner="cacl-access-manager"
-                type="button"
-                appearance="subtle"
-                class="source-tool-btn"
-                disabled={saving}
-                onclick={formatSource}
-              >
-                <Icon name="wandStars" size="15px" />
-                <span>{$t('files.cacl.formatPolicy')}</span>
-              </FluentButton>
+              <div class="template-insert-group">
+                <select
+                  class="cfms-native-field code-template-select"
+                  bind:value={selectedCodeTemplateId}
+                  disabled={saving}
+                  aria-label={$t('files.cacl.templatePicker')}
+                >
+                  {#each CACL_RULE_TEMPLATES as tpl (tpl.id)}
+                    <option value={tpl.id}>{$t(tpl.labelKey)}</option>
+                  {/each}
+                </select>
+                <FluentButton
+                  data-fluent-owner="cacl-access-manager"
+                  type="button"
+                  appearance="subtle"
+                  class="source-tool-btn"
+                  disabled={saving}
+                  onclick={insertCodeTemplate}
+                >
+                  <Icon name="add" size="15px" />
+                  <span>{$t('files.cacl.insertTemplate')}</span>
+                </FluentButton>
+              </div>
             </div>
 
-            <label class="annotate-toggle">
-              <MdSwitch
-                checked={annotateUsersInCode}
-                disabled={saving}
-                onChange={toggleAnnotateUsers}
-                ariaLabel={$t('files.cacl.annotateUsers')}
-              />
-              <span>{$t('files.cacl.annotateUsers')}</span>
-            </label>
+            <div class="source-toolbar-right">
+              <label class="annotate-toggle">
+                <MdSwitch
+                  checked={annotateUsersInCode}
+                  disabled={saving}
+                  onChange={toggleAnnotateUsers}
+                  ariaLabel={$t('files.cacl.annotateUsers')}
+                />
+                <span>{$t('files.cacl.annotateUsers')}</span>
+              </label>
+            </div>
           </div>
 
           {#if showPrincipalInsert}
@@ -437,6 +429,7 @@
               ariaLabel={$t('files.accessRules')}
               loadingLabel={$t('files.accessRulesEditorLoading')}
               onChange={changeSource}
+              onFormat={formatSource}
             />
           </div>
 
@@ -667,8 +660,16 @@
     padding: 16px 20px;
   }
 
+  .dacl-workspace--source {
+    display: flex;
+    flex-direction: column;
+  }
+
   .source-pane {
-    display: grid;
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+    min-height: 100%;
     gap: 10px;
   }
 
@@ -677,14 +678,40 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 8px 12px;
+    padding: 6px 10px;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusMedium, 6px);
+    background: var(--colorNeutralBackground2);
   }
 
   .source-toolbar-left {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .source-toolbar-right {
+    display: flex;
+    align-items: center;
+    margin-inline-start: auto;
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--colorNeutralStroke2);
+    flex: none;
+  }
+
+  .template-insert-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
+    min-width: 0;
   }
 
   :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]) {
@@ -693,11 +720,22 @@
     gap: 6px;
     min-height: 32px;
     padding: 4px 10px;
-    border: 1px solid var(--colorNeutralStroke1);
+    border: 1px solid transparent;
     border-radius: var(--borderRadiusMedium, 4px);
-    background: var(--colorNeutralBackground2);
+    background: transparent;
     color: var(--colorNeutralForeground1);
     font: 400 12px/16px var(--fontFamilyBase);
+  }
+
+  :global(.source-tool-btn[data-fluent-owner="cacl-access-manager"]:hover:not(:is(:disabled, [disabled]))) {
+    background: var(--colorSubtleBackgroundHover);
+  }
+
+  :global(.source-tool-btn--active[data-fluent-owner="cacl-access-manager"]) {
+    background: var(--colorBrandBackground2);
+    border-color: var(--colorBrandStroke2, transparent);
+    color: var(--colorBrandForeground2);
+    font-weight: 600;
   }
 
   .code-template-select {
@@ -718,19 +756,47 @@
     color: var(--colorNeutralForeground2);
     font: 400 12px/16px var(--fontFamilyBase);
     cursor: pointer;
+    white-space: nowrap;
   }
 
   .principal-popover {
+    flex: none;
     padding: 12px;
     border: 1px solid var(--colorNeutralStroke1);
     border-radius: var(--borderRadiusLarge, 8px);
     background: var(--colorNeutralBackground2);
   }
 
-  .source-editor-wrap :global(.cm-editor),
+  .source-editor-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 18rem;
+    min-height: 14rem;
+  }
+
+  .source-editor-wrap :global(.cacl-code-editor) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 14rem;
+  }
+
+  .source-editor-wrap :global(.cacl-code-editor > div:first-child),
+  .source-editor-wrap :global(.cm-editor) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 14rem;
+    height: 100%;
+  }
+
+  .source-editor-wrap :global(.cm-scroller) {
+    overflow: auto;
+  }
+
   .source-editor-wrap :global(.editor-loading),
   .source-editor-wrap :global(textarea) {
-    height: 44vh;
+    flex: 1;
     min-height: 14rem;
   }
 
@@ -739,6 +805,7 @@
   }
 
   .source-help {
+    flex: none;
     margin: 0;
     color: var(--colorNeutralForeground3);
     font: 400 12px/16px var(--fontFamilyBase);

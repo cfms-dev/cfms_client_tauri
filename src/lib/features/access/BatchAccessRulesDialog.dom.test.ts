@@ -200,6 +200,7 @@ describe('BatchAccessRulesDialog', () => {
   it('confirms recursive scope and discovers with CACL policy string', async () => {
     const view = setup();
     await initialized('Documents');
+    expect(screen.getByText(/Inheritance controls whether each target inherits/)).toBeTruthy();
     await fireEvent.click(screen.getByRole('checkbox', { name: recursiveLabel }));
     await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     await screen.findByRole('dialog', { name: scopeTitle });

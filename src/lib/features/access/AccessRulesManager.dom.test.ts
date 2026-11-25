@@ -2,12 +2,26 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import AccessRulesManager from '$lib/features/access/AccessRulesManager.svelte';
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
 const rangeRect = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect');
+
+beforeEach(() => {
+  stubInstantAnimations();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(Range.prototype, 'getClientRects', { configurable: true, value: () => [] });
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0, x: 0, y: 0, toJSON: () => ({}) }),
+  });
+});
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -146,5 +160,57 @@ describe('AccessRulesManager', () => {
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'files.inheritParentRules' }).getAttribute('aria-checked')).toBe('true');
     });
+  });
+
+  it('removes the standalone format button from the toolbar and formats via context menu and Shift+Alt+F', async () => {
+    render(AccessRulesManager, {
+      dacl: 'inherit on;\n',
+      targetObjectType: 'directory',
+      onSave: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'files.sourceCode' }));
+    const editorDom = await screen.findByLabelText('files.accessRules');
+    expect(screen.queryByRole('button', { name: 'files.cacl.formatPolicy' })).toBeNull();
+
+    const cmView = EditorView.findFromDOM(editorDom)!;
+    const raw = [
+      'inherit off;',
+      '',
+      '# keep comment',
+      'allow [TRAVERSE, CREATE_DOCUMENT] on self to group("all_employees") remark "Blind dropbox submission entry point";',
+    ].join('\n');
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: raw } });
+    await tick();
+
+    await fireEvent.contextMenu(editorDom, { clientX: 20, clientY: 20 });
+    const formatMenuItem = await screen.findByRole('menuitem', { name: /codeEditor\.format/ });
+    await fireEvent.click(formatMenuItem);
+
+    await waitFor(() => {
+      expect(cmView.state.doc.toString()).toBe([
+        'inherit off;',
+        '',
+        '# keep comment',
+        'allow [TRAVERSE, CREATE_DOCUMENT] on self',
+        '  to group("all_employees")',
+        '  remark "Blind dropbox submission entry point";',
+        '',
+      ].join('\n'));
+    });
+
+    // Shift+Alt+F formats valid source and shows alert banner on syntax errors
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: 'inherit on;\n  allow [PRESET_READ] to any;\n' } });
+    await tick();
+    await fireEvent.keyDown(editorDom, { key: 'F', shiftKey: true, altKey: true });
+    await waitFor(() => {
+      expect(cmView.state.doc.toString()).toBe('inherit on;\nallow [PRESET_READ] to any;\n');
+    });
+
+    cmView.dispatch({ changes: { from: 0, to: cmView.state.doc.length, insert: 'not valid cacl' } });
+    await tick();
+    await fireEvent.keyDown(editorDom, { key: 'F', shiftKey: true, altKey: true });
+    await screen.findByRole('alert');
   });
 });

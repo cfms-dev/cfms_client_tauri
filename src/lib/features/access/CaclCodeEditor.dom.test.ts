@@ -1,12 +1,25 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
+import '$lib/shared/i18n';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { locale } from 'svelte-i18n';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CaclCodeEditor from '$lib/features/access/CaclCodeEditor.svelte';
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');
 const rangeRect = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect');
+const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+beforeEach(() => {
+  stubInstantAnimations();
+  locale.set('en');
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
 
 afterEach(() => {
   cleanup();
@@ -15,6 +28,8 @@ afterEach(() => {
   else Reflect.deleteProperty(Range.prototype, 'getClientRects');
   if (rangeRect) Object.defineProperty(Range.prototype, 'getBoundingClientRect', rangeRect);
   else Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+  else Reflect.deleteProperty(navigator, 'clipboard');
 });
 
 describe('CaclCodeEditor', () => {
@@ -140,5 +155,75 @@ describe('CaclCodeEditor', () => {
       expect(allowClass).not.toBe(traverseClass);
       expect(allowClass).not.toBe(remarkStrClass);
     });
+  });
+
+  it('opens a context menu with editing actions and Format (Shift+Alt+F) when onFormat is provided', async () => {
+    const onFormat = vi.fn();
+    const onChange = vi.fn();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const readText = vi.fn().mockResolvedValue('inherit off;\n');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText, readText },
+    });
+
+    render(CaclCodeEditor, {
+      props: {
+        value: 'inherit on;\nallow [READ_CONTENT] to any;\n',
+        ariaLabel: 'Menu CACL Policy',
+        loadingLabel: 'Loading CACL editor…',
+        onChange,
+        onFormat,
+      },
+    });
+
+    const content = await screen.findByLabelText('Menu CACL Policy', {}, { timeout: 4000 });
+    const cmView = EditorView.findFromDOM(content)!;
+
+    await fireEvent.contextMenu(content, { clientX: 40, clientY: 60 });
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: /Undo/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Redo/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Cut/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Copy/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Paste/ })).toBeTruthy();
+    expect(within(menu).getByRole('menuitem', { name: /Select all/ })).toBeTruthy();
+
+    const formatItem = within(menu).getByRole('menuitem', { name: /Format/ });
+    expect(within(formatItem).getByText('Alt+Shift+F')).toBeTruthy();
+
+    await fireEvent.click(formatItem);
+    expect(onFormat).toHaveBeenCalledTimes(1);
+
+    // Select All + Copy through the context menu
+    await fireEvent.contextMenu(content, { clientX: 40, clientY: 60 });
+    await fireEvent.click(await screen.findByRole('menuitem', { name: /Select all/ }));
+    expect(cmView.state.selection.main.from).toBe(0);
+    expect(cmView.state.selection.main.to).toBe(cmView.state.doc.length);
+
+    await fireEvent.contextMenu(content, { clientX: 40, clientY: 60 });
+    await fireEvent.click(await screen.findByRole('menuitem', { name: /Copy/ }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('inherit on;\nallow [READ_CONTENT] to any;\n'));
+
+    // Shift+Alt+F triggers onFormat directly
+    await fireEvent.keyDown(content, { key: 'F', shiftKey: true, altKey: true });
+    expect(onFormat).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits Format from the context menu when onFormat is not provided', async () => {
+    render(CaclCodeEditor, {
+      props: {
+        value: 'inherit on;\n',
+        ariaLabel: 'No Format CACL Policy',
+        loadingLabel: 'Loading CACL editor…',
+        onChange: vi.fn(),
+      },
+    });
+
+    const content = await screen.findByLabelText('No Format CACL Policy', {}, { timeout: 4000 });
+    await fireEvent.contextMenu(content, { clientX: 24, clientY: 24 });
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: /Copy/ })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: /Format/ })).toBeNull();
   });
 });

@@ -1,9 +1,20 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ICONS } from '$lib/shared/ui/icons';
+import '$lib/shared/i18n';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { locale } from 'svelte-i18n';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JsonCodeEditor from '$lib/shared/ui/JsonCodeEditor.svelte';
+import { stubInstantAnimations } from '../../../test/dom-fixtures';
+
+beforeEach(() => {
+  stubInstantAnimations();
+  locale.set('en');
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
 
 afterEach(() => {
   cleanup();
@@ -73,5 +84,34 @@ describe('JsonCodeEditor', () => {
       expect(marker?.innerHTML).toContain('viewBox="0 0 24 24"');
       expect(marker?.getAttribute('title')).toBe('Fold line');
     });
+  });
+
+  it('opens a context menu without Format by default and shows Format when onFormat is supplied', async () => {
+    const onFormat = vi.fn();
+    const props = {
+      value: '{"enabled": true}',
+      diagnostics: [],
+      disabled: false,
+      ariaLabel: 'Context menu JSON',
+      loadingLabel: 'Loading JSON editor…',
+      onChange: vi.fn(),
+    };
+    const view = render(JsonCodeEditor, { props });
+
+    const content = await screen.findByLabelText('Context menu JSON');
+    await fireEvent.contextMenu(content, { clientX: 30, clientY: 30 });
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: /Select all/ })).toBeTruthy();
+    expect(within(menu).queryByRole('menuitem', { name: /Format/ })).toBeNull();
+
+    await fireEvent.keyDown(menu, { key: 'Escape' });
+    await view.rerender({ ...props, onFormat });
+    await fireEvent.contextMenu(content, { clientX: 30, clientY: 30 });
+    const formatItem = await screen.findByRole('menuitem', { name: /Format/ });
+    await fireEvent.click(formatItem);
+    expect(onFormat).toHaveBeenCalledTimes(1);
+
+    await fireEvent.keyDown(content, { key: 'F', shiftKey: true, altKey: true });
+    expect(onFormat).toHaveBeenCalledTimes(2);
   });
 });
