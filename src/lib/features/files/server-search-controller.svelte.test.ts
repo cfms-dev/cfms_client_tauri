@@ -3,11 +3,13 @@ import type { SearchFilesResponse } from '$lib/api';
 
 const mocks = vi.hoisted(() => ({
   searchFiles: vi.fn(),
+  getDirectoryInfo: vi.fn(),
 }));
 
 vi.mock('$lib/api', async (original) => ({
   ...(await original<typeof import('$lib/api')>()),
   searchFiles: mocks.searchFiles,
+  getDirectoryInfo: mocks.getDirectoryInfo,
 }));
 
 import {
@@ -29,6 +31,7 @@ function deferred<T>() {
 describe('server-search-controller', () => {
   beforeEach(() => {
     mocks.searchFiles.mockReset();
+    mocks.getDirectoryInfo.mockReset();
   });
 
   it('maps between type filter tabs and search API boolean flags', () => {
@@ -159,5 +162,50 @@ describe('server-search-controller', () => {
     await vi.waitFor(() => expect(onPermissionDenied).toHaveBeenCalledOnce());
     expect(controller.open).toBe(false);
     expect(controller.loading).toBe(false);
+  });
+
+  it('retains resolved parent directory names across filter/sort changes and resets them when search closes', async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.searchFiles.mockResolvedValue({
+        items: [{ type: 'document', id: 'doc-1', title: 'Spec', parent_id: 'dir-spec' }],
+        total_count: 1,
+        page_size: 128,
+        next_cursor: null,
+        has_more: false,
+      });
+      mocks.getDirectoryInfo.mockResolvedValue({
+        directory_id: 'dir-spec',
+        name: 'Specifications',
+      });
+
+      const controller = createServerSearchController({ canSearch: () => true });
+      controller.openSearch({ query: 'Spec', runImmediately: true });
+      await vi.waitFor(() => expect(controller.results?.total_count).toBe(1));
+
+      const release = controller.observeParentDirectory('dir-spec');
+      await vi.advanceTimersByTimeAsync(250);
+      await vi.waitFor(() =>
+        expect(controller.parentDirectoryResolutions['dir-spec']).toEqual({
+          status: 'resolved',
+          name: 'Specifications',
+          revealed: false,
+        }),
+      );
+
+      controller.setFilter('documents');
+      await vi.waitFor(() => expect(mocks.searchFiles).toHaveBeenCalledTimes(2));
+      expect(controller.parentDirectoryResolutions['dir-spec']).toEqual({
+        status: 'resolved',
+        name: 'Specifications',
+        revealed: false,
+      });
+
+      release();
+      controller.closeSearch();
+      expect(controller.parentDirectoryResolutions).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

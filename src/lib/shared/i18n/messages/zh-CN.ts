@@ -615,6 +615,7 @@ export const zh_CN = {
     searchResultCountCompact: '{count} 条结果',
     searchResultCountCompactSingular: '{count} 条结果',
     searchOpenParentDirectory: '打开父目录 {id}',
+    searchInaccessibleParentDirectory: '无法访问的父目录 {id}',
     searchOpenedParent: '已打开 {name} 所在的父文件夹。',
     searchPermissionRequired: '你没有搜索文件的权限。',
     selectAll: '全选',

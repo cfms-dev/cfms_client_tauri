@@ -3228,7 +3228,7 @@ export function createFileWorkspace() {
     }
   }
 
-  async function navigateToSearchParentDirectory(parentId: string) {
+  async function navigateToSearchParentDirectory(parentId: string, parentName?: string) {
     if (navigationUnavailable) return;
     closeSearchPreview();
     closeSearchView(false);
@@ -3236,7 +3236,7 @@ export function createFileWorkspace() {
     await navigateDirectory({
       folderId: target,
       navigationRootId: target,
-      navigationRootLabel: target === null ? null : shortIdentifier(target),
+      navigationRootLabel: target === null ? null : (parentName?.trim() || shortIdentifier(target)),
       navHistory: [],
     });
   }

@@ -41,6 +41,7 @@
     sortOrder={workspace.searchView.sortOrder}
     loading={workspace.searchView.loading}
     results={workspace.searchView.results}
+    parentDirectoryResolutions={workspace.searchView.parentDirectoryResolutions}
     onClose={() => workspace.closeSearchView(true)}
     onSubmit={workspace.searchView.runSearch}
     onFilterChange={workspace.searchView.setFilter}
@@ -48,6 +49,8 @@
     onSelectParentDirectory={workspace.navigateToSearchParentDirectory}
     onSelectDirectory={workspace.navigateToSearchDirectory}
     onSelectDocument={workspace.navigateToSearchDocument}
+    onObserveParentDirectory={workspace.searchView.observeParentDirectory}
+    onParentDirectoryRevealed={workspace.searchView.markParentDirectoryRevealed}
   />
 {:else}
 <div

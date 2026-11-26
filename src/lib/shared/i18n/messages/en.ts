@@ -621,6 +621,7 @@ export const en = {
     searchResultCountCompact: '{count} results',
     searchResultCountCompactSingular: '1 result',
     searchOpenParentDirectory: 'Open parent directory {id}',
+    searchInaccessibleParentDirectory: 'Inaccessible parent directory {id}',
     searchOpenedParent: 'Opened the parent folder for {name}.',
     searchPermissionRequired: 'You do not have permission to search files.',
     selectAll: 'Select all',

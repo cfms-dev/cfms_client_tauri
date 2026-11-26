@@ -165,4 +165,118 @@ describe('ServerSearchView', () => {
     await fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('animates newly resolved parent directory names from ID to name and notifies reveal completion', async () => {
+    delete document.documentElement.dataset.reduceMotion;
+    const onSelectParentDirectory = vi.fn();
+    const onParentDirectoryRevealed = vi.fn();
+    const results: SearchFilesResponse = {
+      items: [
+        { type: 'document', id: 'doc-1', title: 'Alpha', parent_id: 'bf96e54aa15c7a4c', size: 10 },
+      ],
+      total_count: 1,
+      page_size: 128,
+      next_cursor: null,
+      has_more: false,
+    };
+
+    const { container, rerender } = render(ServerSearchView, {
+      props: baseProps({
+        results,
+        parentDirectoryResolutions: {},
+        onSelectParentDirectory,
+        onParentDirectoryRevealed,
+      }),
+    });
+
+    expect(container.querySelector('[data-search-group-label]')?.textContent).toBe('bf96e54aa15c7a4c');
+    expect(container.querySelector('[data-search-group-revealing]')).toBeNull();
+
+    // Directory info resolves -> enters left-to-right slide-over transition
+    await rerender(baseProps({
+      results,
+      parentDirectoryResolutions: {
+        bf96e54aa15c7a4c: { status: 'resolved', name: 'Project Docs', revealed: false },
+      },
+      onSelectParentDirectory,
+      onParentDirectoryRevealed,
+    }));
+
+    expect(container.querySelector('[data-search-group-revealing="true"]')).not.toBeNull();
+    const enteringLabel = container.querySelector<HTMLElement>('[data-search-group-label]')!;
+    expect(enteringLabel.textContent).toBe('Project Docs');
+
+    // Animation finishes -> exits transition and marks revealed
+    await fireEvent.animationEnd(enteringLabel);
+    expect(onParentDirectoryRevealed).toHaveBeenCalledWith('bf96e54aa15c7a4c');
+    expect(container.querySelector('[data-search-group-revealing]')).toBeNull();
+    expect(container.querySelector('[data-search-group-label]')?.textContent).toBe('Project Docs');
+
+    // Clicking the resolved header passes both parentId and resolved name
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('[data-search-group-header="bf96e54aa15c7a4c"]')!);
+    expect(onSelectParentDirectory).toHaveBeenCalledWith('bf96e54aa15c7a4c', 'Project Docs');
+  });
+
+  it('skips reveal animation when reduced motion is enabled or directory was already revealed', async () => {
+    const onParentDirectoryRevealed = vi.fn();
+    const results: SearchFilesResponse = {
+      items: [
+        { type: 'document', id: 'doc-1', title: 'Alpha', parent_id: 'dir-1', size: 10 },
+        { type: 'document', id: 'doc-2', title: 'Beta', parent_id: 'dir-2', size: 20 },
+      ],
+      total_count: 2,
+      page_size: 128,
+      next_cursor: null,
+      has_more: false,
+    };
+
+    // Reduced motion is enabled in beforeEach
+    const { container } = render(ServerSearchView, {
+      props: baseProps({
+        results,
+        parentDirectoryResolutions: {
+          'dir-1': { status: 'resolved', name: 'Folder One', revealed: false },
+          'dir-2': { status: 'resolved', name: 'Folder Two', revealed: true },
+        },
+        onParentDirectoryRevealed,
+      }),
+    });
+
+    expect(container.querySelector('[data-search-group-revealing]')).toBeNull();
+    expect(onParentDirectoryRevealed).toHaveBeenCalledWith('dir-1');
+    expect(onParentDirectoryRevealed).not.toHaveBeenCalledWith('dir-2');
+    expect(screen.getByText('Folder One')).toBeTruthy();
+    expect(screen.getByText('Folder Two')).toBeTruthy();
+  });
+
+  it('strikes through inaccessible parent directory IDs and blocks navigation clicks', async () => {
+    const onSelectParentDirectory = vi.fn();
+    const results: SearchFilesResponse = {
+      items: [
+        { type: 'document', id: 'doc-1', title: 'Secret', parent_id: 'denied-dir-id', size: 10 },
+      ],
+      total_count: 1,
+      page_size: 128,
+      next_cursor: null,
+      has_more: false,
+    };
+
+    const { container } = render(ServerSearchView, {
+      props: baseProps({
+        results,
+        parentDirectoryResolutions: {
+          'denied-dir-id': { status: 'inaccessible' },
+        },
+        onSelectParentDirectory,
+      }),
+    });
+
+    const header = container.querySelector<HTMLButtonElement>('[data-search-group-header="denied-dir-id"]')!;
+    expect(header.dataset.searchGroupState).toBe('inaccessible');
+    expect(header.getAttribute('aria-disabled')).toBe('true');
+    expect(header.querySelector('.search-group-text--inaccessible')?.textContent).toBe('denied-dir-id');
+
+    await fireEvent.click(header);
+    expect(onSelectParentDirectory).not.toHaveBeenCalled();
+  });
 });

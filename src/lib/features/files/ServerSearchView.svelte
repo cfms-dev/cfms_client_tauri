@@ -14,6 +14,9 @@
     toSearchResultRows,
     type SearchDisplayRow,
   } from '$lib/features/files/search-grouping';
+  import { ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
+  import type { ParentDirectoryResolution } from '$lib/features/files/search-parent-directory-resolver.svelte.ts';
+  import SearchGroupHeader from '$lib/features/files/SearchGroupHeader.svelte';
   import type { SearchTypeFilter } from '$lib/features/files/server-search-controller.svelte.ts';
   import type { SortDirection, SortField } from '$lib/features/files/sorting';
   import { isReducedMotionEnabled } from '$lib/shared/appearance';
@@ -31,14 +34,17 @@
     sortOrder: SortDirection;
     loading: boolean;
     results: SearchFilesResponse | null;
+    parentDirectoryResolutions?: Readonly<Record<string, ParentDirectoryResolution>>;
     inputElement?: HTMLInputElement | null;
     onClose: () => void;
     onSubmit: () => void;
     onFilterChange: (filter: SearchTypeFilter) => void;
     onSelectSort: (field: SortField) => void;
-    onSelectParentDirectory: (parentId: string) => void;
+    onSelectParentDirectory: (parentId: string, parentName?: string) => void;
     onSelectDirectory: (directory: SearchDirectoryEntry) => void;
     onSelectDocument: (document: SearchDocumentEntry) => void;
+    onObserveParentDirectory?: (parentId: string) => (() => void) | void;
+    onParentDirectoryRevealed?: (parentId: string) => void;
   }
 
   let {
@@ -49,6 +55,7 @@
     sortOrder,
     loading,
     results,
+    parentDirectoryResolutions = {},
     inputElement = $bindable(null),
     onClose,
     onSubmit,
@@ -57,6 +64,8 @@
     onSelectParentDirectory,
     onSelectDirectory,
     onSelectDocument,
+    onObserveParentDirectory,
+    onParentDirectoryRevealed,
   }: Props = $props();
 
   const FILTER_TABS: readonly { id: SearchTypeFilter; labelKey: string }[] = [
@@ -164,12 +173,94 @@
     void tick().then(syncTabIndicator);
   });
 
+  type ObservedHeaderRecord = {
+    parentId: string;
+    cleanup: (() => void) | null;
+  };
+
+  const observedHeaderNodes = new Map<HTMLElement, ObservedHeaderRecord>();
+  let headerVisibilityObserver: IntersectionObserver | null = null;
+  let headerObserverRoot: Element | null = null;
+
+  function ensureHeaderVisibilityObserver(root: Element | null): IntersectionObserver | null {
+    if (typeof IntersectionObserver === 'undefined') return null;
+    if (headerVisibilityObserver && headerObserverRoot === root) {
+      return headerVisibilityObserver;
+    }
+    headerVisibilityObserver?.disconnect();
+    headerObserverRoot = root;
+    headerVisibilityObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const record = observedHeaderNodes.get(entry.target as HTMLElement);
+          if (!record) continue;
+          if (entry.isIntersecting) {
+            if (!record.cleanup) {
+              record.cleanup = onObserveParentDirectory?.(record.parentId) ?? null;
+            }
+          } else if (record.cleanup) {
+            const release = record.cleanup;
+            record.cleanup = null;
+            release();
+          }
+        }
+      },
+      { root, rootMargin: '120px 0px', threshold: 0 },
+    );
+    for (const node of observedHeaderNodes.keys()) {
+      headerVisibilityObserver.observe(node);
+    }
+    return headerVisibilityObserver;
+  }
+
+  function registerGroupHeaderVisibility(node: HTMLElement, parentId: string): () => void {
+    if (!onObserveParentDirectory || parentId === ROOT_DIRECTORY_ID) return () => {};
+    const root = node.closest('.search-view-list-viewport');
+    const observer = ensureHeaderVisibilityObserver(root);
+    if (!observer) {
+      const cleanup = onObserveParentDirectory(parentId) ?? null;
+      return () => {
+        cleanup?.();
+      };
+    }
+
+    const record: ObservedHeaderRecord = {
+      parentId,
+      cleanup: null,
+    };
+    observedHeaderNodes.set(node, record);
+    observer.observe(node);
+
+    return () => {
+      observer.unobserve(node);
+      observedHeaderNodes.delete(node);
+      if (record.cleanup) {
+        const release = record.cleanup;
+        record.cleanup = null;
+        release();
+      }
+    };
+  }
+
   onMount(() => {
     void tick().then(syncTabIndicator);
-    if (!tabListElement || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(syncTabIndicator);
-    observer.observe(tabListElement);
-    return () => observer.disconnect();
+    const resizeObserver =
+      tabListElement && typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(syncTabIndicator)
+        : null;
+    if (tabListElement && resizeObserver) {
+      resizeObserver.observe(tabListElement);
+    }
+    return () => {
+      resizeObserver?.disconnect();
+      headerVisibilityObserver?.disconnect();
+      headerVisibilityObserver = null;
+      headerObserverRoot = null;
+      for (const record of observedHeaderNodes.values()) {
+        record.cleanup?.();
+      }
+      observedHeaderNodes.clear();
+    };
   });
 
   function handleSearchBoxFocusIn() {
@@ -407,26 +498,14 @@
             >
               {#snippet children(row)}
                 {#if row.kind === 'group-header'}
-                  <div
-                    class="search-group-header-wrap"
-                    class:search-group-header-wrap--spaced={!row.firstGroup}
-                  >
-                    <button
-                      type="button"
-                      class="search-group-header"
-                      data-search-group-header={row.parentId}
-                      title={row.parentId}
-                      aria-label={$t('files.searchOpenParentDirectory', {
-                        values: { id: row.parentId },
-                      })}
-                      onclick={() => onSelectParentDirectory(row.parentId)}
-                    >
-                      <span class="search-group-chevron">
-                        <Icon name="navigateNext" size="14px" />
-                      </span>
-                      <span class="search-group-id">{row.parentId}</span>
-                    </button>
-                  </div>
+                  <SearchGroupHeader
+                    parentId={row.parentId}
+                    firstGroup={row.firstGroup}
+                    resolution={parentDirectoryResolutions[row.parentId]}
+                    registerVisibility={registerGroupHeaderVisibility}
+                    onSelect={onSelectParentDirectory}
+                    onRevealComplete={onParentDirectoryRevealed}
+                  />
                 {:else if row.kind === 'directory'}
                   <button
                     type="button"
@@ -875,67 +954,6 @@
     padding-bottom: 24px;
   }
 
-  .search-group-header-wrap {
-    display: flex;
-    align-items: center;
-    padding-top: 2px;
-    padding-bottom: 4px;
-  }
-
-  .search-group-header-wrap--spaced {
-    padding-top: 16px;
-  }
-
-  .search-group-header {
-    display: inline-flex;
-    max-width: 100%;
-    min-height: 28px;
-    align-items: center;
-    gap: 6px;
-    border: 0;
-    border-radius: var(--borderRadiusMedium);
-    padding: 4px 8px 4px 2px;
-    color: var(--colorNeutralForeground2);
-    background: transparent;
-    text-align: left;
-    font: 400 12px/16px var(--fontFamilyBase);
-    transition:
-      color var(--durationFaster) var(--curveEasyEase),
-      background-color var(--durationFaster) var(--curveEasyEase);
-  }
-
-  .search-group-header:hover {
-    color: var(--colorNeutralForeground1);
-    background: var(--colorNeutralBackground1Hover);
-  }
-
-  .search-group-header:active {
-    background: var(--colorNeutralBackground1Pressed);
-  }
-
-  .search-group-chevron {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    color: var(--colorNeutralForeground3);
-    transition:
-      transform 140ms var(--curveEasyEase),
-      color var(--durationFaster) var(--curveEasyEase);
-  }
-
-  .search-group-header:hover .search-group-chevron {
-    color: var(--colorNeutralForeground1);
-    transform: translate3d(2px, 0, 0);
-  }
-
-  .search-group-id {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .search-result-row {
     display: grid;
     width: 100%;
@@ -1042,8 +1060,7 @@
   @media (pointer: coarse) {
     .search-view-back,
     .search-filter-tab,
-    .search-sort-field,
-    .search-group-header {
+    .search-sort-field {
       min-height: 44px;
     }
     .search-view-box {
@@ -1066,8 +1083,7 @@
     }
     .search-view-back-icon,
     .search-box-submit-icon,
-    .search-filter-indicator,
-    .search-group-chevron {
+    .search-filter-indicator {
       transition: none;
     }
   }
@@ -1080,8 +1096,7 @@
 
   :global(html[data-reduce-motion='true']) .search-view-back-icon,
   :global(html[data-reduce-motion='true']) .search-box-submit-icon,
-  :global(html[data-reduce-motion='true']) .search-filter-indicator,
-  :global(html[data-reduce-motion='true']) .search-group-chevron {
+  :global(html[data-reduce-motion='true']) .search-filter-indicator {
     transition: none;
   }
 
@@ -1104,8 +1119,7 @@
     .search-sort-field--active {
       color: Highlight;
     }
-    .search-result-row:hover,
-    .search-group-header:hover {
+    .search-result-row:hover {
       outline: 1px solid Highlight;
     }
   }

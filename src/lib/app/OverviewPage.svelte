@@ -520,12 +520,16 @@
     }
   }
 
-  async function navigateToSearchParentDirectory(parentId: string) {
+  async function navigateToSearchParentDirectory(parentId: string, parentName?: string) {
     closeSearchView(false);
     const parent = normalizeDirectoryId(parentId);
     const params = new URLSearchParams({
       folder: parent ?? ROOT_DIRECTORY_ID,
     });
+    const label = parentName?.trim();
+    if (parent !== null && label) {
+      params.set('name', label);
+    }
     await goto(`/home/files?${params.toString()}`);
   }
 
@@ -687,6 +691,7 @@
     sortOrder={searchView.sortOrder}
     loading={searchView.loading}
     results={searchView.results}
+    parentDirectoryResolutions={searchView.parentDirectoryResolutions}
     onClose={() => closeSearchView(true)}
     onSubmit={searchView.runSearch}
     onFilterChange={searchView.setFilter}
@@ -694,6 +699,8 @@
     onSelectParentDirectory={navigateToSearchParentDirectory}
     onSelectDirectory={navigateToSearchDirectory}
     onSelectDocument={navigateToSearchDocument}
+    onObserveParentDirectory={searchView.observeParentDirectory}
+    onParentDirectoryRevealed={searchView.markParentDirectoryRevealed}
   />
 {:else}
 <div

@@ -1,6 +1,10 @@
 import { searchFiles, type SearchFilesResponse } from '$lib/api';
 import { serverErrorStatus } from '$lib/api/server-errors';
 import { mergeSearchResponses } from './search-grouping';
+import {
+  createSearchParentDirectoryResolver,
+  type ParentDirectoryResolution,
+} from './search-parent-directory-resolver.svelte.ts';
 import type { SortDirection, SortField } from './sorting';
 
 export type SearchTypeFilter = 'all' | 'documents' | 'directories';
@@ -48,6 +52,7 @@ export interface ServerSearchControllerOptions {
 
 export function createServerSearchController(options: ServerSearchControllerOptions) {
   const pageSize = options.pageSize ?? SERVER_SEARCH_PAGE_SIZE;
+  const parentDirectoryResolver = createSearchParentDirectoryResolver();
 
   let open = $state(false);
   let query = $state('');
@@ -73,6 +78,7 @@ export function createServerSearchController(options: ServerSearchControllerOpti
     if (!options.canSearch()) return;
     const nextQuery = openOptions.query ?? '';
     runId += 1;
+    parentDirectoryResolver.reset();
     open = true;
     query = nextQuery;
     resultQuery = '';
@@ -89,12 +95,14 @@ export function createServerSearchController(options: ServerSearchControllerOpti
 
   function closeSearch() {
     runId += 1;
+    parentDirectoryResolver.reset();
     open = false;
     loading = false;
   }
 
   function cancel() {
     runId += 1;
+    parentDirectoryResolver.cancelPending();
     loading = false;
   }
 
@@ -127,6 +135,7 @@ export function createServerSearchController(options: ServerSearchControllerOpti
     }
 
     const activeRunId = ++runId;
+    parentDirectoryResolver.cancelPending();
     const { searchDocuments, searchDirectories } = searchFlagsFromFilter(filter);
     const sortParam = searchSortByParam(sortBy);
     const activeSortOrder = sortOrder;
@@ -186,6 +195,11 @@ export function createServerSearchController(options: ServerSearchControllerOpti
     get sortOrder() { return sortOrder; },
     get loading() { return loading; },
     get results() { return results; },
+    get parentDirectoryResolutions(): Readonly<Record<string, ParentDirectoryResolution>> {
+      return parentDirectoryResolver.resolutions;
+    },
+    observeParentDirectory: parentDirectoryResolver.observe,
+    markParentDirectoryRevealed: parentDirectoryResolver.markRevealed,
     openSearch,
     closeSearch,
     cancel,
