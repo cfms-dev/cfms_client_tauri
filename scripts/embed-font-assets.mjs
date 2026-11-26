@@ -12,6 +12,7 @@ const specs = [
   ['noto-serif', 'Noto Serif', 'notoserif'],
   ['noto-serif-sc', 'Noto Serif SC', 'notoserifsc'],
   ['jetbrains-mono', 'JetBrains Mono', 'jetbrainsmono'],
+  ['google-sans-flex', 'Google Sans Flex', 'googlesansflex'],
 ];
 
 async function fetchBytes(url) {
@@ -24,7 +25,7 @@ const assets = new Map();
 const chunks = [];
 for (const [name, family, licensePath] of specs) {
   const url = new URL('https://fonts.googleapis.com/css2');
-  const minimumWeight = name === 'noto-sans' || name === 'noto-sans-sc' ? 300 : 400;
+  const minimumWeight = name === 'noto-sans' || name === 'noto-sans-sc' || name === 'google-sans-flex' ? 300 : 400;
   url.searchParams.set('family', `${family}:wght@${minimumWeight}..800`);
   url.searchParams.set('display', 'swap');
   let css = (await fetchBytes(url)).toString('utf8');

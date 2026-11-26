@@ -57,7 +57,7 @@
       <span class="blueprint-panel-icon {iconClass}">
         <Icon name={icon} size="20px" />
       </span>
-      <h2 class="truncate text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-serif);">
+      <h2 class="truncate text-sm font-semibold text-md3-on-surface" style="font-family: var(--font-md3-sans);">
         {title}
       </h2>
     </div>

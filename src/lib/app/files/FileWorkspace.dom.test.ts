@@ -9,6 +9,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
 import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
 import { fileManagerNavigationStore } from '$lib/features/files/file-manager-navigation';
+import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
 import FilesPage from '$lib/app/files/FileWorkspace.svelte';
 import { deferred } from '../../../test/deferred';
@@ -16,7 +17,7 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 import { directoryPage } from '../../../test/directory-fixtures';
 
 const mocks = vi.hoisted(() => ({
-  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
+  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), getDocumentInfo: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
   classifyUploadPath: vi.fn(), inspectUploadDirectoryConflicts: vi.fn(), goto: vi.fn(),
   events: new Map<string, (event: { payload: unknown }) => void>(),
   drop: null as ((event: { payload: unknown }) => void) | null,
@@ -38,6 +39,7 @@ vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false,
 vi.mock('$lib/api', async (original) => ({
   ...await original<typeof import('$lib/api')>(),
   listDirectoryPage: mocks.listDirectoryPage, listDirectory: mocks.listDirectory,
+  getDocumentInfo: mocks.getDocumentInfo,
   loadUserPreference: async () => ({}), classifyUploadPath: mocks.classifyUploadPath,
   mutateFilePreferences: async () => ({ recent_visits: [] }),
   inspectUploadDirectoryConflicts: mocks.inspectUploadDirectoryConflicts,
@@ -80,6 +82,7 @@ beforeEach(() => {
   mocks.drop = null;
   mocks.listDirectoryPage.mockReset().mockResolvedValue(page(['alpha', 'beta']));
   mocks.listDirectory.mockReset().mockResolvedValue({ folders: [], documents: [], parent_id: null });
+  mocks.getDocumentInfo.mockReset();
   mocks.open.mockReset().mockResolvedValue(['C:/uploads/new.txt']);
   mocks.pickDirectory.mockReset().mockResolvedValue({ path: 'C:/uploads/folder', name: 'folder' });
   mocks.classifyUploadPath.mockReset().mockResolvedValue('file');
@@ -297,5 +300,45 @@ describe('background directory updates', () => {
     await vi.waitFor(() => expect(screen.queryByText('alpha.txt')).toBeNull());
     expect(screen.getByText('You do not currently have permission to view the contents of this directory.')).toBeTruthy();
     expect(notificationStore.entries).toHaveLength(0);
+  });
+});
+
+describe('jump to directory or document by ID', () => {
+  it('falls back to document info on directory 404, opens parent directory, and selects the document', async () => {
+    await openFiles();
+    vi.spyOn(dialogStore, 'prompt').mockResolvedValueOnce('doc-target');
+    mocks.listDirectoryPage
+      .mockRejectedValueOnce(new Error('Server returned 404: Not found'))
+      .mockResolvedValueOnce(page(['other', 'doc-target']));
+    mocks.getDocumentInfo.mockResolvedValueOnce({
+      document_id: 'doc-target',
+      title: 'doc-target.txt',
+      parent_id: 'parent-dir',
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Jump to directory' }));
+
+    await vi.waitFor(() => expect(mocks.getDocumentInfo).toHaveBeenCalledWith('doc-target'));
+    await vi.waitFor(() => expect(screen.getByText('doc-target.txt')).toBeTruthy());
+    const targetRow = screen.getByText('doc-target.txt').closest<HTMLElement>('[data-file-row-index]')!;
+    expect(targetRow.getAttribute('aria-pressed')).toBe('true');
+    expect(notificationStore.entries.at(-1)?.text).toBe('Located doc-target.txt.');
+  });
+
+  it('reports unavailable error and preserves current listing when both directory and document return 404', async () => {
+    await openFiles();
+    vi.spyOn(dialogStore, 'prompt').mockResolvedValueOnce('missing-object');
+    mocks.listDirectoryPage.mockRejectedValueOnce(new Error('Server returned 404: Not found'));
+    mocks.getDocumentInfo.mockRejectedValueOnce(new Error('Server returned 404: Not found'));
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Jump to directory' }));
+
+    await vi.waitFor(() => expect(notificationStore.entries).toHaveLength(1));
+    expect(notificationStore.entries[0].type).toBe('error');
+    expect(notificationStore.entries[0].text).toBe(
+      'The object does not exist or you do not have permission to access it.',
+    );
+    expect(screen.getByText('alpha.txt')).toBeTruthy();
+    expect(screen.getByText('beta.txt')).toBeTruthy();
   });
 });

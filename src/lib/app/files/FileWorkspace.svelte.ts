@@ -914,6 +914,7 @@ export function createFileWorkspace() {
     folderId: string | null,
     preserveOnError = false,
     returnNavigation?: DirectoryNavigationSnapshot,
+    options?: { suppressNotFoundError?: boolean; onError?: (cause: unknown) => void },
   ): Promise<boolean> {
     if (!directorySorter) return false;
     directoryRefresh.setBlocked(true);
@@ -931,6 +932,13 @@ export function createFileWorkspace() {
     directoryGeneration = generation;
     activeDirectoryReturnNavigation = deniedReturnNavigation;
     const revision = ++sortRevision;
+    const previousLoadedCount = directoryLoadedCount;
+    const previousNextCursor = directoryNextCursor;
+    const previousPhase = directoryLoadPhase;
+    const previousFolders = folders;
+    const previousDocuments = documents;
+    const previousSelectedFolders = new Set(selectedFolderIds);
+    const previousSelectedDocuments = new Set(selectedDocumentIds);
     loading = true;
     directoryLoadPhase = 'initial-loading';
     directoryLoadError = null;
@@ -941,10 +949,10 @@ export function createFileWorkspace() {
     directoryAccessDenied = null;
     commitSelection(new Set(), new Set());
     try {
-      directorySorter?.reset(generation, revision, sortField, sortDirection);
       markFilePerformance('files:list-request-start');
       const resp = await directoryLoader.requestPage(generation, normalizedFolderId, null, DIRECTORY_PAGE_SIZE);
       if (!resp || generation !== directoryGeneration) return false;
+      directorySorter?.reset(generation, revision, sortField, sortDirection);
       directoryNextCursor = resp.next_cursor;
       const firstSnapshot = new Promise<boolean>((resolve) => {
         firstDirectorySnapshotGeneration = generation;
@@ -962,6 +970,20 @@ export function createFileWorkspace() {
       return true;
     } catch (e) {
       if (generation !== directoryGeneration) return false;
+      options?.onError?.(e);
+      if (options?.suppressNotFoundError && serverErrorStatus(e) === 404) {
+        if (preserveOnError) {
+          folders = previousFolders;
+          documents = previousDocuments;
+          directoryLoadedCount = previousLoadedCount;
+          directoryNextCursor = previousNextCursor;
+          directoryLoadPhase = previousPhase === 'initial-loading' ? 'complete' : previousPhase;
+          commitSelection(previousSelectedFolders, previousSelectedDocuments);
+        } else {
+          directoryLoadPhase = 'idle';
+        }
+        return false;
+      }
       directoryLoadError = formatDirectoryLoadError(e);
       directoryLoadPhase = 'partial-error';
       if (isAccessDeniedError(e)) {
@@ -986,13 +1008,17 @@ export function createFileWorkspace() {
 
   const canGoForward = $derived(navigationTimeline.cursor + 1 < navigationTimeline.entries.length);
 
-  async function navigateDirectory(snapshot: DirectoryNavigationSnapshot, historyCursor?: number): Promise<boolean> {
+  async function navigateDirectory(
+    snapshot: DirectoryNavigationSnapshot,
+    historyCursor?: number,
+    options?: { suppressNotFoundError?: boolean; onError?: (cause: unknown) => void },
+  ): Promise<boolean> {
     if (navigationBusy) return false;
     navigationBusy = true;
     closeSearchPreview();
     const previous = captureDirectoryNavigation();
     try {
-      const request = loadDirectory(snapshot.folderId, true, previous);
+      const request = loadDirectory(snapshot.folderId, true, previous, options);
       const generation = directoryGeneration;
       const visit = await resolveDirectoryVisit(
         navigationTimeline, snapshot,
@@ -1184,6 +1210,71 @@ export function createFileWorkspace() {
     if (directoryAccessDenied) await navigateDirectory(directoryAccessDenied.returnNavigation);
   }
 
+  async function jumpToTargetId(rawValue: string): Promise<boolean> {
+    const target = normalizeDirectoryId(rawValue);
+    if (target === null) {
+      const ok = await navigateDirectory({
+        folderId: null,
+        navigationRootId: null,
+        navigationRootLabel: null,
+        navHistory: [],
+      });
+      if (ok) status = translator.current('files.jumpToDirectorySuccess');
+      return ok;
+    }
+
+    let directoryError: unknown = null;
+    const ok = await navigateDirectory(
+      {
+        folderId: target,
+        navigationRootId: target,
+        navigationRootLabel: shortIdentifier(target),
+        navHistory: [],
+      },
+      undefined,
+      {
+        suppressNotFoundError: true,
+        onError: (cause) => {
+          directoryError = cause;
+        },
+      },
+    );
+    if (ok) {
+      status = translator.current('files.jumpToDirectorySuccess');
+      return true;
+    }
+    if (serverErrorStatus(directoryError) !== 404) {
+      return false;
+    }
+
+    try {
+      const docInfo = await getDocumentInfo(target);
+      const parent = normalizeDirectoryId(docInfo.parent_id);
+      const docLabel = docInfo.title?.trim() || shortIdentifier(target);
+      const parentOk = await navigateDirectory({
+        folderId: parent,
+        navigationRootId: parent,
+        navigationRootLabel: parent === null ? null : shortIdentifier(parent),
+        navHistory: [],
+      });
+      if (!parentOk) return false;
+      pendingAddressDocument = {
+        id: target,
+        label: docLabel,
+        parentId: parent,
+      };
+      await revealPendingAddressDocument(directoryLoadPhase === 'complete');
+      return true;
+    } catch (docError) {
+      if (serverErrorStatus(docError) === 404) {
+        error = translator.current('files.jumpObjectUnavailable');
+      } else {
+        error = formatDirectoryLoadError(docError);
+      }
+      return false;
+    }
+  }
+
   async function handleJumpToDirectory() {
     if (navigationUnavailable) return;
     const value = await dialogStore.prompt({
@@ -1195,12 +1286,7 @@ export function createFileWorkspace() {
       selectOnOpen: true,
     });
     if (value === null) return;
-    const target = normalizeDirectoryId(value);
-    const ok = await navigateDirectory({
-      folderId: target, navigationRootId: target,
-      navigationRootLabel: target === null ? null : shortIdentifier(target), navHistory: [],
-    });
-    if (ok) status = translator.current('files.jumpToDirectorySuccess');
+    await jumpToTargetId(value);
   }
 
   function sumSelectedDocumentSize(ids: ReadonlySet<string>) {
@@ -1404,7 +1490,7 @@ export function createFileWorkspace() {
     {
       id: 'jump',
       label: translator.current('files.jumpToDirectory'),
-      icon: 'folderEye',
+      icon: 'arrowStepIn',
       compact: true,
       run: handleJumpToDirectory,
     },
@@ -3553,6 +3639,8 @@ export function createFileWorkspace() {
     const hasRequestedFolder = page.url.searchParams.has('folder');
     const requestedFolder = normalizeDirectoryId(page.url.searchParams.get('folder'));
     const requestedName = page.url.searchParams.get('name');
+    const requestedDocumentId = page.url.searchParams.get('document')?.trim() || null;
+    const requestedDocumentName = page.url.searchParams.get('documentName')?.trim() || null;
     navigationScope = currentFilePreferenceScope();
     const rememberedTimeline = fileManagerNavigationStore.restoreTimeline(navigationScope.serverAddress, navigationScope.userId);
     const initialNavigation = rememberedTimeline?.entries[rememberedTimeline.cursor] ?? {
@@ -3569,7 +3657,19 @@ export function createFileWorkspace() {
       });
       const generation = directoryGeneration;
       void visit.then((ok) => {
-        if (ok || disposed || generation !== directoryGeneration || isDeniedDirectory(requestedFolder)) return;
+        if (disposed || generation !== directoryGeneration) return;
+        if (ok) {
+          if (requestedDocumentId) {
+            pendingAddressDocument = {
+              id: requestedDocumentId,
+              label: requestedDocumentName || shortIdentifier(requestedDocumentId),
+              parentId: requestedFolder,
+            };
+            void revealPendingAddressDocument(directoryLoadPhase === 'complete');
+          }
+          return;
+        }
+        if (isDeniedDirectory(requestedFolder)) return;
         // This route has no cached rows yet. Reload the previous location when
         // an explicit URL/favorite cannot be opened, without recording a visit.
         if (navigationTimeline.entries.length === 0) navigationTimeline = recordDirectoryVisit(navigationTimeline, initialNavigation);

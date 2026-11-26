@@ -287,256 +287,258 @@ import svg284 from '@fluentui/svg-icons/icons/folder_arrow_up_24_regular.svg?raw
 import svg285 from '@fluentui/svg-icons/icons/folder_arrow_up_24_filled.svg?raw';
 import svg286 from '@fluentui/svg-icons/icons/folder_arrow_up_20_regular.svg?raw';
 import svg287 from '@fluentui/svg-icons/icons/folder_arrow_up_20_filled.svg?raw';
-import svg288 from '@fluentui/svg-icons/icons/notebook_eye_20_regular.svg?raw';
-import svg289 from '@fluentui/svg-icons/icons/notebook_eye_20_filled.svg?raw';
-import svg290 from '@fluentui/svg-icons/icons/arrow_up_24_regular.svg?raw';
-import svg291 from '@fluentui/svg-icons/icons/arrow_up_24_filled.svg?raw';
-import svg292 from '@fluentui/svg-icons/icons/arrow_up_20_regular.svg?raw';
-import svg293 from '@fluentui/svg-icons/icons/arrow_up_20_filled.svg?raw';
-import svg294 from '@fluentui/svg-icons/icons/arrow_down_24_regular.svg?raw';
-import svg295 from '@fluentui/svg-icons/icons/arrow_down_24_filled.svg?raw';
-import svg296 from '@fluentui/svg-icons/icons/arrow_down_20_regular.svg?raw';
-import svg297 from '@fluentui/svg-icons/icons/arrow_down_20_filled.svg?raw';
-import svg298 from '@fluentui/svg-icons/icons/text_sort_ascending_24_regular.svg?raw';
-import svg299 from '@fluentui/svg-icons/icons/text_sort_ascending_24_filled.svg?raw';
-import svg300 from '@fluentui/svg-icons/icons/text_sort_ascending_20_regular.svg?raw';
-import svg301 from '@fluentui/svg-icons/icons/text_sort_ascending_20_filled.svg?raw';
-import svg302 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_24_regular.svg?raw';
-import svg303 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_24_filled.svg?raw';
-import svg304 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_20_regular.svg?raw';
-import svg305 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_20_filled.svg?raw';
-import svg306 from '@fluentui/svg-icons/icons/arrow_sort_24_regular.svg?raw';
-import svg307 from '@fluentui/svg-icons/icons/arrow_sort_24_filled.svg?raw';
-import svg308 from '@fluentui/svg-icons/icons/arrow_sort_20_regular.svg?raw';
-import svg309 from '@fluentui/svg-icons/icons/arrow_sort_20_filled.svg?raw';
-import svg310 from '@fluentui/svg-icons/icons/lock_closed_24_regular.svg?raw';
-import svg311 from '@fluentui/svg-icons/icons/lock_closed_24_filled.svg?raw';
-import svg312 from '@fluentui/svg-icons/icons/lock_closed_20_regular.svg?raw';
-import svg313 from '@fluentui/svg-icons/icons/lock_closed_20_filled.svg?raw';
-import svg314 from '@fluentui/svg-icons/icons/person_lock_24_regular.svg?raw';
-import svg315 from '@fluentui/svg-icons/icons/person_lock_24_filled.svg?raw';
-import svg316 from '@fluentui/svg-icons/icons/person_lock_20_regular.svg?raw';
-import svg317 from '@fluentui/svg-icons/icons/person_lock_20_filled.svg?raw';
-import svg318 from '@fluentui/svg-icons/icons/history_24_regular.svg?raw';
-import svg319 from '@fluentui/svg-icons/icons/history_24_filled.svg?raw';
-import svg320 from '@fluentui/svg-icons/icons/history_20_regular.svg?raw';
-import svg321 from '@fluentui/svg-icons/icons/history_20_filled.svg?raw';
-import svg322 from '@fluentui/svg-icons/icons/document_arrow_up_24_regular.svg?raw';
-import svg323 from '@fluentui/svg-icons/icons/document_arrow_up_24_filled.svg?raw';
-import svg324 from '@fluentui/svg-icons/icons/document_arrow_up_20_regular.svg?raw';
-import svg325 from '@fluentui/svg-icons/icons/document_arrow_up_20_filled.svg?raw';
-import svg326 from '@fluentui/svg-icons/icons/tag_24_regular.svg?raw';
-import svg327 from '@fluentui/svg-icons/icons/tag_24_filled.svg?raw';
-import svg328 from '@fluentui/svg-icons/icons/tag_20_regular.svg?raw';
-import svg329 from '@fluentui/svg-icons/icons/tag_20_filled.svg?raw';
-import svg330 from '@fluentui/svg-icons/icons/shield_24_regular.svg?raw';
-import svg331 from '@fluentui/svg-icons/icons/shield_24_filled.svg?raw';
-import svg332 from '@fluentui/svg-icons/icons/shield_20_regular.svg?raw';
-import svg333 from '@fluentui/svg-icons/icons/shield_20_filled.svg?raw';
-import svg334 from '@fluentui/svg-icons/icons/shield_error_24_regular.svg?raw';
-import svg335 from '@fluentui/svg-icons/icons/shield_error_24_filled.svg?raw';
-import svg336 from '@fluentui/svg-icons/icons/shield_error_20_regular.svg?raw';
-import svg337 from '@fluentui/svg-icons/icons/shield_error_20_filled.svg?raw';
-import svg338 from '@fluentui/svg-icons/icons/warning_24_regular.svg?raw';
-import svg339 from '@fluentui/svg-icons/icons/warning_24_filled.svg?raw';
-import svg340 from '@fluentui/svg-icons/icons/warning_20_regular.svg?raw';
-import svg341 from '@fluentui/svg-icons/icons/warning_20_filled.svg?raw';
-import svg342 from '@fluentui/svg-icons/icons/people_team_24_regular.svg?raw';
-import svg343 from '@fluentui/svg-icons/icons/people_team_24_filled.svg?raw';
-import svg344 from '@fluentui/svg-icons/icons/people_team_20_regular.svg?raw';
-import svg345 from '@fluentui/svg-icons/icons/people_team_20_filled.svg?raw';
-import svg346 from '@fluentui/svg-icons/icons/shield_settings_24_regular.svg?raw';
-import svg347 from '@fluentui/svg-icons/icons/shield_settings_24_filled.svg?raw';
-import svg348 from '@fluentui/svg-icons/icons/shield_settings_20_regular.svg?raw';
-import svg349 from '@fluentui/svg-icons/icons/shield_settings_20_filled.svg?raw';
-import svg350 from '@fluentui/svg-icons/icons/document_text_24_regular.svg?raw';
-import svg351 from '@fluentui/svg-icons/icons/document_text_24_filled.svg?raw';
-import svg352 from '@fluentui/svg-icons/icons/document_text_20_regular.svg?raw';
-import svg353 from '@fluentui/svg-icons/icons/document_text_20_filled.svg?raw';
-import svg354 from '@fluentui/svg-icons/icons/people_24_regular.svg?raw';
-import svg355 from '@fluentui/svg-icons/icons/people_24_filled.svg?raw';
-import svg356 from '@fluentui/svg-icons/icons/people_20_regular.svg?raw';
-import svg357 from '@fluentui/svg-icons/icons/people_20_filled.svg?raw';
-import svg358 from '@fluentui/svg-icons/icons/people_add_24_regular.svg?raw';
-import svg359 from '@fluentui/svg-icons/icons/people_add_24_filled.svg?raw';
-import svg360 from '@fluentui/svg-icons/icons/people_add_20_regular.svg?raw';
-import svg361 from '@fluentui/svg-icons/icons/people_add_20_filled.svg?raw';
-import svg362 from '@fluentui/svg-icons/icons/person_24_regular.svg?raw';
-import svg363 from '@fluentui/svg-icons/icons/person_24_filled.svg?raw';
-import svg364 from '@fluentui/svg-icons/icons/person_20_regular.svg?raw';
-import svg365 from '@fluentui/svg-icons/icons/person_20_filled.svg?raw';
-import svg366 from '@fluentui/svg-icons/icons/prohibited_24_regular.svg?raw';
-import svg367 from '@fluentui/svg-icons/icons/prohibited_24_filled.svg?raw';
-import svg368 from '@fluentui/svg-icons/icons/prohibited_20_regular.svg?raw';
-import svg369 from '@fluentui/svg-icons/icons/prohibited_20_filled.svg?raw';
-import svg370 from '@fluentui/svg-icons/icons/eye_24_regular.svg?raw';
-import svg371 from '@fluentui/svg-icons/icons/eye_24_filled.svg?raw';
-import svg372 from '@fluentui/svg-icons/icons/eye_20_regular.svg?raw';
-import svg373 from '@fluentui/svg-icons/icons/eye_20_filled.svg?raw';
-import svg374 from '@fluentui/svg-icons/icons/edit_24_regular.svg?raw';
-import svg375 from '@fluentui/svg-icons/icons/edit_24_filled.svg?raw';
-import svg376 from '@fluentui/svg-icons/icons/edit_20_regular.svg?raw';
-import svg377 from '@fluentui/svg-icons/icons/edit_20_filled.svg?raw';
-import svg378 from '@fluentui/svg-icons/icons/calendar_24_regular.svg?raw';
-import svg379 from '@fluentui/svg-icons/icons/calendar_24_filled.svg?raw';
-import svg380 from '@fluentui/svg-icons/icons/calendar_20_regular.svg?raw';
-import svg381 from '@fluentui/svg-icons/icons/calendar_20_filled.svg?raw';
-import svg382 from '@fluentui/svg-icons/icons/chevron_right_24_regular.svg?raw';
-import svg383 from '@fluentui/svg-icons/icons/chevron_right_24_filled.svg?raw';
-import svg384 from '@fluentui/svg-icons/icons/chevron_right_20_regular.svg?raw';
-import svg385 from '@fluentui/svg-icons/icons/chevron_right_20_filled.svg?raw';
-import svg386 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_24_regular.svg?raw';
-import svg387 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_24_filled.svg?raw';
-import svg388 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_20_regular.svg?raw';
-import svg389 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_20_filled.svg?raw';
-import svg390 from '@fluentui/svg-icons/icons/people_subtract_24_regular.svg?raw';
-import svg391 from '@fluentui/svg-icons/icons/people_subtract_24_filled.svg?raw';
-import svg392 from '@fluentui/svg-icons/icons/people_subtract_20_regular.svg?raw';
-import svg393 from '@fluentui/svg-icons/icons/people_subtract_20_filled.svg?raw';
-import svg394 from '@fluentui/svg-icons/icons/local_language_globe_20_regular.svg?raw';
-import svg395 from '@fluentui/svg-icons/icons/local_language_globe_20_filled.svg?raw';
-import svg396 from '@fluentui/svg-icons/icons/color_24_regular.svg?raw';
-import svg397 from '@fluentui/svg-icons/icons/color_24_filled.svg?raw';
-import svg398 from '@fluentui/svg-icons/icons/color_20_regular.svg?raw';
-import svg399 from '@fluentui/svg-icons/icons/color_20_filled.svg?raw';
-import svg400 from '@fluentui/svg-icons/icons/weather_sunny_24_regular.svg?raw';
-import svg401 from '@fluentui/svg-icons/icons/weather_sunny_24_filled.svg?raw';
-import svg402 from '@fluentui/svg-icons/icons/weather_sunny_20_regular.svg?raw';
-import svg403 from '@fluentui/svg-icons/icons/weather_sunny_20_filled.svg?raw';
-import svg404 from '@fluentui/svg-icons/icons/weather_moon_24_regular.svg?raw';
-import svg405 from '@fluentui/svg-icons/icons/weather_moon_24_filled.svg?raw';
-import svg406 from '@fluentui/svg-icons/icons/weather_moon_20_regular.svg?raw';
-import svg407 from '@fluentui/svg-icons/icons/weather_moon_20_filled.svg?raw';
-import svg408 from '@fluentui/svg-icons/icons/desktop_24_regular.svg?raw';
-import svg409 from '@fluentui/svg-icons/icons/desktop_24_filled.svg?raw';
-import svg410 from '@fluentui/svg-icons/icons/desktop_20_regular.svg?raw';
-import svg411 from '@fluentui/svg-icons/icons/desktop_20_filled.svg?raw';
-import svg412 from '@fluentui/svg-icons/icons/slide_transition_24_regular.svg?raw';
-import svg413 from '@fluentui/svg-icons/icons/slide_transition_24_filled.svg?raw';
-import svg414 from '@fluentui/svg-icons/icons/slide_transition_20_regular.svg?raw';
-import svg415 from '@fluentui/svg-icons/icons/slide_transition_20_filled.svg?raw';
-import svg416 from '@fluentui/svg-icons/icons/accessibility_24_regular.svg?raw';
-import svg417 from '@fluentui/svg-icons/icons/accessibility_24_filled.svg?raw';
-import svg418 from '@fluentui/svg-icons/icons/accessibility_20_regular.svg?raw';
-import svg419 from '@fluentui/svg-icons/icons/accessibility_20_filled.svg?raw';
-import svg420 from '@fluentui/svg-icons/icons/database_24_regular.svg?raw';
-import svg421 from '@fluentui/svg-icons/icons/database_24_filled.svg?raw';
-import svg422 from '@fluentui/svg-icons/icons/database_20_regular.svg?raw';
-import svg423 from '@fluentui/svg-icons/icons/database_20_filled.svg?raw';
-import svg424 from '@fluentui/svg-icons/icons/shield_lock_24_regular.svg?raw';
-import svg425 from '@fluentui/svg-icons/icons/shield_lock_24_filled.svg?raw';
-import svg426 from '@fluentui/svg-icons/icons/shield_lock_20_regular.svg?raw';
-import svg427 from '@fluentui/svg-icons/icons/shield_lock_20_filled.svg?raw';
-import svg428 from '@fluentui/svg-icons/icons/person_square_checkmark_24_regular.svg?raw';
-import svg429 from '@fluentui/svg-icons/icons/person_square_checkmark_24_filled.svg?raw';
-import svg430 from '@fluentui/svg-icons/icons/person_square_checkmark_20_regular.svg?raw';
-import svg431 from '@fluentui/svg-icons/icons/person_square_checkmark_20_filled.svg?raw';
-import svg432 from '@fluentui/svg-icons/icons/person_arrow_right_24_regular.svg?raw';
-import svg433 from '@fluentui/svg-icons/icons/person_arrow_right_24_filled.svg?raw';
-import svg434 from '@fluentui/svg-icons/icons/person_arrow_right_20_regular.svg?raw';
-import svg435 from '@fluentui/svg-icons/icons/person_arrow_right_20_filled.svg?raw';
-import svg436 from '@fluentui/svg-icons/icons/qr_code_24_regular.svg?raw';
-import svg437 from '@fluentui/svg-icons/icons/qr_code_24_filled.svg?raw';
-import svg438 from '@fluentui/svg-icons/icons/qr_code_20_regular.svg?raw';
-import svg439 from '@fluentui/svg-icons/icons/qr_code_20_filled.svg?raw';
-import svg440 from '@fluentui/svg-icons/icons/window_arrow_up_24_regular.svg?raw';
-import svg441 from '@fluentui/svg-icons/icons/window_arrow_up_24_filled.svg?raw';
-import svg442 from '@fluentui/svg-icons/icons/window_arrow_up_20_regular.svg?raw';
-import svg443 from '@fluentui/svg-icons/icons/window_arrow_up_20_filled.svg?raw';
-import svg444 from '@fluentui/svg-icons/icons/puzzle_piece_24_regular.svg?raw';
-import svg445 from '@fluentui/svg-icons/icons/puzzle_piece_24_filled.svg?raw';
-import svg446 from '@fluentui/svg-icons/icons/puzzle_piece_20_regular.svg?raw';
-import svg447 from '@fluentui/svg-icons/icons/puzzle_piece_20_filled.svg?raw';
-import svg448 from '@fluentui/svg-icons/icons/hand_draw_24_regular.svg?raw';
-import svg449 from '@fluentui/svg-icons/icons/hand_draw_24_filled.svg?raw';
-import svg450 from '@fluentui/svg-icons/icons/hand_draw_20_regular.svg?raw';
-import svg451 from '@fluentui/svg-icons/icons/hand_draw_20_filled.svg?raw';
-import svg452 from '@fluentui/svg-icons/icons/shield_question_24_regular.svg?raw';
-import svg453 from '@fluentui/svg-icons/icons/shield_question_24_filled.svg?raw';
-import svg454 from '@fluentui/svg-icons/icons/shield_question_20_regular.svg?raw';
-import svg455 from '@fluentui/svg-icons/icons/shield_question_20_filled.svg?raw';
-import svg456 from '@fluentui/svg-icons/icons/panel_left_24_regular.svg?raw';
-import svg457 from '@fluentui/svg-icons/icons/panel_left_24_filled.svg?raw';
-import svg458 from '@fluentui/svg-icons/icons/panel_left_20_regular.svg?raw';
-import svg459 from '@fluentui/svg-icons/icons/panel_left_20_filled.svg?raw';
-import svg460 from '@fluentui/svg-icons/icons/chevron_down_24_regular.svg?raw';
-import svg461 from '@fluentui/svg-icons/icons/chevron_down_24_filled.svg?raw';
-import svg462 from '@fluentui/svg-icons/icons/chevron_down_20_regular.svg?raw';
-import svg463 from '@fluentui/svg-icons/icons/chevron_down_20_filled.svg?raw';
-import svg464 from '@fluentui/svg-icons/icons/chevron_up_24_regular.svg?raw';
-import svg465 from '@fluentui/svg-icons/icons/chevron_up_24_filled.svg?raw';
-import svg466 from '@fluentui/svg-icons/icons/chevron_up_20_regular.svg?raw';
-import svg467 from '@fluentui/svg-icons/icons/chevron_up_20_filled.svg?raw';
-import svg468 from '@fluentui/svg-icons/icons/person_prohibited_24_regular.svg?raw';
-import svg469 from '@fluentui/svg-icons/icons/person_prohibited_24_filled.svg?raw';
-import svg470 from '@fluentui/svg-icons/icons/person_prohibited_20_regular.svg?raw';
-import svg471 from '@fluentui/svg-icons/icons/person_prohibited_20_filled.svg?raw';
-import svg472 from '@fluentui/svg-icons/icons/arrow_right_24_regular.svg?raw';
-import svg473 from '@fluentui/svg-icons/icons/arrow_right_24_filled.svg?raw';
-import svg474 from '@fluentui/svg-icons/icons/arrow_right_20_regular.svg?raw';
-import svg475 from '@fluentui/svg-icons/icons/arrow_right_20_filled.svg?raw';
-import svg476 from '@fluentui/svg-icons/icons/copy_24_regular.svg?raw';
-import svg477 from '@fluentui/svg-icons/icons/copy_24_filled.svg?raw';
-import svg478 from '@fluentui/svg-icons/icons/copy_20_regular.svg?raw';
-import svg479 from '@fluentui/svg-icons/icons/copy_20_filled.svg?raw';
-import svg480 from '@fluentui/svg-icons/icons/person_passkey_24_regular.svg?raw';
-import svg481 from '@fluentui/svg-icons/icons/person_passkey_24_filled.svg?raw';
-import svg482 from '@fluentui/svg-icons/icons/person_passkey_20_regular.svg?raw';
-import svg483 from '@fluentui/svg-icons/icons/person_passkey_20_filled.svg?raw';
-import svg484 from '@fluentui/svg-icons/icons/laptop_briefcase_24_regular.svg?raw';
-import svg485 from '@fluentui/svg-icons/icons/laptop_briefcase_24_filled.svg?raw';
-import svg486 from '@fluentui/svg-icons/icons/laptop_briefcase_20_regular.svg?raw';
-import svg487 from '@fluentui/svg-icons/icons/laptop_briefcase_20_filled.svg?raw';
-import svg488 from '@fluentui/svg-icons/icons/password_reset_48_regular.svg?raw';
-import svg489 from '@fluentui/svg-icons/icons/password_reset_48_filled.svg?raw';
-import svg490 from '@fluentui/svg-icons/icons/pin_24_regular.svg?raw';
-import svg491 from '@fluentui/svg-icons/icons/pin_24_filled.svg?raw';
-import svg492 from '@fluentui/svg-icons/icons/pin_20_regular.svg?raw';
-import svg493 from '@fluentui/svg-icons/icons/pin_20_filled.svg?raw';
-import svg494 from '@fluentui/svg-icons/icons/contact_card_24_regular.svg?raw';
-import svg495 from '@fluentui/svg-icons/icons/contact_card_24_filled.svg?raw';
-import svg496 from '@fluentui/svg-icons/icons/contact_card_20_regular.svg?raw';
-import svg497 from '@fluentui/svg-icons/icons/contact_card_20_filled.svg?raw';
-import svg498 from '@fluentui/svg-icons/icons/person_key_24_regular.svg?raw';
-import svg499 from '@fluentui/svg-icons/icons/person_key_24_filled.svg?raw';
-import svg500 from '@fluentui/svg-icons/icons/person_key_20_regular.svg?raw';
-import svg501 from '@fluentui/svg-icons/icons/person_key_20_filled.svg?raw';
-import svg502 from '@fluentui/svg-icons/icons/stop_24_regular.svg?raw';
-import svg503 from '@fluentui/svg-icons/icons/stop_24_filled.svg?raw';
-import svg504 from '@fluentui/svg-icons/icons/stop_20_regular.svg?raw';
-import svg505 from '@fluentui/svg-icons/icons/stop_20_filled.svg?raw';
-import svg506 from '@fluentui/svg-icons/icons/document_dismiss_24_regular.svg?raw';
-import svg507 from '@fluentui/svg-icons/icons/document_dismiss_24_filled.svg?raw';
-import svg508 from '@fluentui/svg-icons/icons/document_dismiss_20_regular.svg?raw';
-import svg509 from '@fluentui/svg-icons/icons/document_dismiss_20_filled.svg?raw';
-import svg510 from '@fluentui/svg-icons/icons/broom_24_regular.svg?raw';
-import svg511 from '@fluentui/svg-icons/icons/broom_24_filled.svg?raw';
-import svg512 from '@fluentui/svg-icons/icons/broom_20_regular.svg?raw';
-import svg513 from '@fluentui/svg-icons/icons/broom_20_filled.svg?raw';
-import svg514 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_regular.svg?raw';
-import svg515 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_filled.svg?raw';
-import svg516 from '@fluentui/svg-icons/icons/apps_settings_20_regular.svg?raw';
-import svg517 from '@fluentui/svg-icons/icons/apps_settings_20_filled.svg?raw';
-import svg518 from '@fluentui/svg-icons/icons/tag_reset_24_regular.svg?raw';
-import svg519 from '@fluentui/svg-icons/icons/tag_reset_24_filled.svg?raw';
-import svg520 from '@fluentui/svg-icons/icons/tag_reset_20_regular.svg?raw';
-import svg521 from '@fluentui/svg-icons/icons/tag_reset_20_filled.svg?raw';
-import svg522 from '@fluentui/svg-icons/icons/eraser_24_regular.svg?raw';
-import svg523 from '@fluentui/svg-icons/icons/eraser_24_filled.svg?raw';
-import svg524 from '@fluentui/svg-icons/icons/eraser_20_regular.svg?raw';
-import svg525 from '@fluentui/svg-icons/icons/eraser_20_filled.svg?raw';
-import svg526 from '@fluentui/svg-icons/icons/person_edit_24_regular.svg?raw';
-import svg527 from '@fluentui/svg-icons/icons/person_edit_24_filled.svg?raw';
-import svg528 from '@fluentui/svg-icons/icons/person_edit_20_regular.svg?raw';
-import svg529 from '@fluentui/svg-icons/icons/person_edit_20_filled.svg?raw';
-import svg530 from '@fluentui/svg-icons/icons/vault_24_regular.svg?raw';
-import svg531 from '@fluentui/svg-icons/icons/vault_24_filled.svg?raw';
-import svg532 from '@fluentui/svg-icons/icons/vault_20_regular.svg?raw';
-import svg533 from '@fluentui/svg-icons/icons/vault_20_filled.svg?raw';
-import svg534 from '@fluentui/svg-icons/icons/lock_closed_key_24_regular.svg?raw';
-import svg535 from '@fluentui/svg-icons/icons/lock_closed_key_24_filled.svg?raw';
-import svg536 from '@fluentui/svg-icons/icons/lock_closed_key_20_regular.svg?raw';
-import svg537 from '@fluentui/svg-icons/icons/lock_closed_key_20_filled.svg?raw';
+import svg288 from '@fluentui/svg-icons/icons/arrow_step_in_24_regular.svg?raw';
+import svg289 from '@fluentui/svg-icons/icons/arrow_step_in_24_filled.svg?raw';
+import svg290 from '@fluentui/svg-icons/icons/arrow_step_in_20_regular.svg?raw';
+import svg291 from '@fluentui/svg-icons/icons/arrow_step_in_20_filled.svg?raw';
+import svg292 from '@fluentui/svg-icons/icons/arrow_up_24_regular.svg?raw';
+import svg293 from '@fluentui/svg-icons/icons/arrow_up_24_filled.svg?raw';
+import svg294 from '@fluentui/svg-icons/icons/arrow_up_20_regular.svg?raw';
+import svg295 from '@fluentui/svg-icons/icons/arrow_up_20_filled.svg?raw';
+import svg296 from '@fluentui/svg-icons/icons/arrow_down_24_regular.svg?raw';
+import svg297 from '@fluentui/svg-icons/icons/arrow_down_24_filled.svg?raw';
+import svg298 from '@fluentui/svg-icons/icons/arrow_down_20_regular.svg?raw';
+import svg299 from '@fluentui/svg-icons/icons/arrow_down_20_filled.svg?raw';
+import svg300 from '@fluentui/svg-icons/icons/text_sort_ascending_24_regular.svg?raw';
+import svg301 from '@fluentui/svg-icons/icons/text_sort_ascending_24_filled.svg?raw';
+import svg302 from '@fluentui/svg-icons/icons/text_sort_ascending_20_regular.svg?raw';
+import svg303 from '@fluentui/svg-icons/icons/text_sort_ascending_20_filled.svg?raw';
+import svg304 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_24_regular.svg?raw';
+import svg305 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_24_filled.svg?raw';
+import svg306 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_20_regular.svg?raw';
+import svg307 from '@fluentui/svg-icons/icons/arrow_sort_down_lines_20_filled.svg?raw';
+import svg308 from '@fluentui/svg-icons/icons/arrow_sort_24_regular.svg?raw';
+import svg309 from '@fluentui/svg-icons/icons/arrow_sort_24_filled.svg?raw';
+import svg310 from '@fluentui/svg-icons/icons/arrow_sort_20_regular.svg?raw';
+import svg311 from '@fluentui/svg-icons/icons/arrow_sort_20_filled.svg?raw';
+import svg312 from '@fluentui/svg-icons/icons/lock_closed_24_regular.svg?raw';
+import svg313 from '@fluentui/svg-icons/icons/lock_closed_24_filled.svg?raw';
+import svg314 from '@fluentui/svg-icons/icons/lock_closed_20_regular.svg?raw';
+import svg315 from '@fluentui/svg-icons/icons/lock_closed_20_filled.svg?raw';
+import svg316 from '@fluentui/svg-icons/icons/person_lock_24_regular.svg?raw';
+import svg317 from '@fluentui/svg-icons/icons/person_lock_24_filled.svg?raw';
+import svg318 from '@fluentui/svg-icons/icons/person_lock_20_regular.svg?raw';
+import svg319 from '@fluentui/svg-icons/icons/person_lock_20_filled.svg?raw';
+import svg320 from '@fluentui/svg-icons/icons/history_24_regular.svg?raw';
+import svg321 from '@fluentui/svg-icons/icons/history_24_filled.svg?raw';
+import svg322 from '@fluentui/svg-icons/icons/history_20_regular.svg?raw';
+import svg323 from '@fluentui/svg-icons/icons/history_20_filled.svg?raw';
+import svg324 from '@fluentui/svg-icons/icons/document_arrow_up_24_regular.svg?raw';
+import svg325 from '@fluentui/svg-icons/icons/document_arrow_up_24_filled.svg?raw';
+import svg326 from '@fluentui/svg-icons/icons/document_arrow_up_20_regular.svg?raw';
+import svg327 from '@fluentui/svg-icons/icons/document_arrow_up_20_filled.svg?raw';
+import svg328 from '@fluentui/svg-icons/icons/tag_24_regular.svg?raw';
+import svg329 from '@fluentui/svg-icons/icons/tag_24_filled.svg?raw';
+import svg330 from '@fluentui/svg-icons/icons/tag_20_regular.svg?raw';
+import svg331 from '@fluentui/svg-icons/icons/tag_20_filled.svg?raw';
+import svg332 from '@fluentui/svg-icons/icons/shield_24_regular.svg?raw';
+import svg333 from '@fluentui/svg-icons/icons/shield_24_filled.svg?raw';
+import svg334 from '@fluentui/svg-icons/icons/shield_20_regular.svg?raw';
+import svg335 from '@fluentui/svg-icons/icons/shield_20_filled.svg?raw';
+import svg336 from '@fluentui/svg-icons/icons/shield_error_24_regular.svg?raw';
+import svg337 from '@fluentui/svg-icons/icons/shield_error_24_filled.svg?raw';
+import svg338 from '@fluentui/svg-icons/icons/shield_error_20_regular.svg?raw';
+import svg339 from '@fluentui/svg-icons/icons/shield_error_20_filled.svg?raw';
+import svg340 from '@fluentui/svg-icons/icons/warning_24_regular.svg?raw';
+import svg341 from '@fluentui/svg-icons/icons/warning_24_filled.svg?raw';
+import svg342 from '@fluentui/svg-icons/icons/warning_20_regular.svg?raw';
+import svg343 from '@fluentui/svg-icons/icons/warning_20_filled.svg?raw';
+import svg344 from '@fluentui/svg-icons/icons/people_team_24_regular.svg?raw';
+import svg345 from '@fluentui/svg-icons/icons/people_team_24_filled.svg?raw';
+import svg346 from '@fluentui/svg-icons/icons/people_team_20_regular.svg?raw';
+import svg347 from '@fluentui/svg-icons/icons/people_team_20_filled.svg?raw';
+import svg348 from '@fluentui/svg-icons/icons/shield_settings_24_regular.svg?raw';
+import svg349 from '@fluentui/svg-icons/icons/shield_settings_24_filled.svg?raw';
+import svg350 from '@fluentui/svg-icons/icons/shield_settings_20_regular.svg?raw';
+import svg351 from '@fluentui/svg-icons/icons/shield_settings_20_filled.svg?raw';
+import svg352 from '@fluentui/svg-icons/icons/document_text_24_regular.svg?raw';
+import svg353 from '@fluentui/svg-icons/icons/document_text_24_filled.svg?raw';
+import svg354 from '@fluentui/svg-icons/icons/document_text_20_regular.svg?raw';
+import svg355 from '@fluentui/svg-icons/icons/document_text_20_filled.svg?raw';
+import svg356 from '@fluentui/svg-icons/icons/people_24_regular.svg?raw';
+import svg357 from '@fluentui/svg-icons/icons/people_24_filled.svg?raw';
+import svg358 from '@fluentui/svg-icons/icons/people_20_regular.svg?raw';
+import svg359 from '@fluentui/svg-icons/icons/people_20_filled.svg?raw';
+import svg360 from '@fluentui/svg-icons/icons/people_add_24_regular.svg?raw';
+import svg361 from '@fluentui/svg-icons/icons/people_add_24_filled.svg?raw';
+import svg362 from '@fluentui/svg-icons/icons/people_add_20_regular.svg?raw';
+import svg363 from '@fluentui/svg-icons/icons/people_add_20_filled.svg?raw';
+import svg364 from '@fluentui/svg-icons/icons/person_24_regular.svg?raw';
+import svg365 from '@fluentui/svg-icons/icons/person_24_filled.svg?raw';
+import svg366 from '@fluentui/svg-icons/icons/person_20_regular.svg?raw';
+import svg367 from '@fluentui/svg-icons/icons/person_20_filled.svg?raw';
+import svg368 from '@fluentui/svg-icons/icons/prohibited_24_regular.svg?raw';
+import svg369 from '@fluentui/svg-icons/icons/prohibited_24_filled.svg?raw';
+import svg370 from '@fluentui/svg-icons/icons/prohibited_20_regular.svg?raw';
+import svg371 from '@fluentui/svg-icons/icons/prohibited_20_filled.svg?raw';
+import svg372 from '@fluentui/svg-icons/icons/eye_24_regular.svg?raw';
+import svg373 from '@fluentui/svg-icons/icons/eye_24_filled.svg?raw';
+import svg374 from '@fluentui/svg-icons/icons/eye_20_regular.svg?raw';
+import svg375 from '@fluentui/svg-icons/icons/eye_20_filled.svg?raw';
+import svg376 from '@fluentui/svg-icons/icons/edit_24_regular.svg?raw';
+import svg377 from '@fluentui/svg-icons/icons/edit_24_filled.svg?raw';
+import svg378 from '@fluentui/svg-icons/icons/edit_20_regular.svg?raw';
+import svg379 from '@fluentui/svg-icons/icons/edit_20_filled.svg?raw';
+import svg380 from '@fluentui/svg-icons/icons/calendar_24_regular.svg?raw';
+import svg381 from '@fluentui/svg-icons/icons/calendar_24_filled.svg?raw';
+import svg382 from '@fluentui/svg-icons/icons/calendar_20_regular.svg?raw';
+import svg383 from '@fluentui/svg-icons/icons/calendar_20_filled.svg?raw';
+import svg384 from '@fluentui/svg-icons/icons/chevron_right_24_regular.svg?raw';
+import svg385 from '@fluentui/svg-icons/icons/chevron_right_24_filled.svg?raw';
+import svg386 from '@fluentui/svg-icons/icons/chevron_right_20_regular.svg?raw';
+import svg387 from '@fluentui/svg-icons/icons/chevron_right_20_filled.svg?raw';
+import svg388 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_24_regular.svg?raw';
+import svg389 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_24_filled.svg?raw';
+import svg390 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_20_regular.svg?raw';
+import svg391 from '@fluentui/svg-icons/icons/text_bullet_list_ltr_20_filled.svg?raw';
+import svg392 from '@fluentui/svg-icons/icons/people_subtract_24_regular.svg?raw';
+import svg393 from '@fluentui/svg-icons/icons/people_subtract_24_filled.svg?raw';
+import svg394 from '@fluentui/svg-icons/icons/people_subtract_20_regular.svg?raw';
+import svg395 from '@fluentui/svg-icons/icons/people_subtract_20_filled.svg?raw';
+import svg396 from '@fluentui/svg-icons/icons/local_language_globe_20_regular.svg?raw';
+import svg397 from '@fluentui/svg-icons/icons/local_language_globe_20_filled.svg?raw';
+import svg398 from '@fluentui/svg-icons/icons/color_24_regular.svg?raw';
+import svg399 from '@fluentui/svg-icons/icons/color_24_filled.svg?raw';
+import svg400 from '@fluentui/svg-icons/icons/color_20_regular.svg?raw';
+import svg401 from '@fluentui/svg-icons/icons/color_20_filled.svg?raw';
+import svg402 from '@fluentui/svg-icons/icons/weather_sunny_24_regular.svg?raw';
+import svg403 from '@fluentui/svg-icons/icons/weather_sunny_24_filled.svg?raw';
+import svg404 from '@fluentui/svg-icons/icons/weather_sunny_20_regular.svg?raw';
+import svg405 from '@fluentui/svg-icons/icons/weather_sunny_20_filled.svg?raw';
+import svg406 from '@fluentui/svg-icons/icons/weather_moon_24_regular.svg?raw';
+import svg407 from '@fluentui/svg-icons/icons/weather_moon_24_filled.svg?raw';
+import svg408 from '@fluentui/svg-icons/icons/weather_moon_20_regular.svg?raw';
+import svg409 from '@fluentui/svg-icons/icons/weather_moon_20_filled.svg?raw';
+import svg410 from '@fluentui/svg-icons/icons/desktop_24_regular.svg?raw';
+import svg411 from '@fluentui/svg-icons/icons/desktop_24_filled.svg?raw';
+import svg412 from '@fluentui/svg-icons/icons/desktop_20_regular.svg?raw';
+import svg413 from '@fluentui/svg-icons/icons/desktop_20_filled.svg?raw';
+import svg414 from '@fluentui/svg-icons/icons/slide_transition_24_regular.svg?raw';
+import svg415 from '@fluentui/svg-icons/icons/slide_transition_24_filled.svg?raw';
+import svg416 from '@fluentui/svg-icons/icons/slide_transition_20_regular.svg?raw';
+import svg417 from '@fluentui/svg-icons/icons/slide_transition_20_filled.svg?raw';
+import svg418 from '@fluentui/svg-icons/icons/accessibility_24_regular.svg?raw';
+import svg419 from '@fluentui/svg-icons/icons/accessibility_24_filled.svg?raw';
+import svg420 from '@fluentui/svg-icons/icons/accessibility_20_regular.svg?raw';
+import svg421 from '@fluentui/svg-icons/icons/accessibility_20_filled.svg?raw';
+import svg422 from '@fluentui/svg-icons/icons/database_24_regular.svg?raw';
+import svg423 from '@fluentui/svg-icons/icons/database_24_filled.svg?raw';
+import svg424 from '@fluentui/svg-icons/icons/database_20_regular.svg?raw';
+import svg425 from '@fluentui/svg-icons/icons/database_20_filled.svg?raw';
+import svg426 from '@fluentui/svg-icons/icons/shield_lock_24_regular.svg?raw';
+import svg427 from '@fluentui/svg-icons/icons/shield_lock_24_filled.svg?raw';
+import svg428 from '@fluentui/svg-icons/icons/shield_lock_20_regular.svg?raw';
+import svg429 from '@fluentui/svg-icons/icons/shield_lock_20_filled.svg?raw';
+import svg430 from '@fluentui/svg-icons/icons/person_square_checkmark_24_regular.svg?raw';
+import svg431 from '@fluentui/svg-icons/icons/person_square_checkmark_24_filled.svg?raw';
+import svg432 from '@fluentui/svg-icons/icons/person_square_checkmark_20_regular.svg?raw';
+import svg433 from '@fluentui/svg-icons/icons/person_square_checkmark_20_filled.svg?raw';
+import svg434 from '@fluentui/svg-icons/icons/person_arrow_right_24_regular.svg?raw';
+import svg435 from '@fluentui/svg-icons/icons/person_arrow_right_24_filled.svg?raw';
+import svg436 from '@fluentui/svg-icons/icons/person_arrow_right_20_regular.svg?raw';
+import svg437 from '@fluentui/svg-icons/icons/person_arrow_right_20_filled.svg?raw';
+import svg438 from '@fluentui/svg-icons/icons/qr_code_24_regular.svg?raw';
+import svg439 from '@fluentui/svg-icons/icons/qr_code_24_filled.svg?raw';
+import svg440 from '@fluentui/svg-icons/icons/qr_code_20_regular.svg?raw';
+import svg441 from '@fluentui/svg-icons/icons/qr_code_20_filled.svg?raw';
+import svg442 from '@fluentui/svg-icons/icons/window_arrow_up_24_regular.svg?raw';
+import svg443 from '@fluentui/svg-icons/icons/window_arrow_up_24_filled.svg?raw';
+import svg444 from '@fluentui/svg-icons/icons/window_arrow_up_20_regular.svg?raw';
+import svg445 from '@fluentui/svg-icons/icons/window_arrow_up_20_filled.svg?raw';
+import svg446 from '@fluentui/svg-icons/icons/puzzle_piece_24_regular.svg?raw';
+import svg447 from '@fluentui/svg-icons/icons/puzzle_piece_24_filled.svg?raw';
+import svg448 from '@fluentui/svg-icons/icons/puzzle_piece_20_regular.svg?raw';
+import svg449 from '@fluentui/svg-icons/icons/puzzle_piece_20_filled.svg?raw';
+import svg450 from '@fluentui/svg-icons/icons/hand_draw_24_regular.svg?raw';
+import svg451 from '@fluentui/svg-icons/icons/hand_draw_24_filled.svg?raw';
+import svg452 from '@fluentui/svg-icons/icons/hand_draw_20_regular.svg?raw';
+import svg453 from '@fluentui/svg-icons/icons/hand_draw_20_filled.svg?raw';
+import svg454 from '@fluentui/svg-icons/icons/shield_question_24_regular.svg?raw';
+import svg455 from '@fluentui/svg-icons/icons/shield_question_24_filled.svg?raw';
+import svg456 from '@fluentui/svg-icons/icons/shield_question_20_regular.svg?raw';
+import svg457 from '@fluentui/svg-icons/icons/shield_question_20_filled.svg?raw';
+import svg458 from '@fluentui/svg-icons/icons/panel_left_24_regular.svg?raw';
+import svg459 from '@fluentui/svg-icons/icons/panel_left_24_filled.svg?raw';
+import svg460 from '@fluentui/svg-icons/icons/panel_left_20_regular.svg?raw';
+import svg461 from '@fluentui/svg-icons/icons/panel_left_20_filled.svg?raw';
+import svg462 from '@fluentui/svg-icons/icons/chevron_down_24_regular.svg?raw';
+import svg463 from '@fluentui/svg-icons/icons/chevron_down_24_filled.svg?raw';
+import svg464 from '@fluentui/svg-icons/icons/chevron_down_20_regular.svg?raw';
+import svg465 from '@fluentui/svg-icons/icons/chevron_down_20_filled.svg?raw';
+import svg466 from '@fluentui/svg-icons/icons/chevron_up_24_regular.svg?raw';
+import svg467 from '@fluentui/svg-icons/icons/chevron_up_24_filled.svg?raw';
+import svg468 from '@fluentui/svg-icons/icons/chevron_up_20_regular.svg?raw';
+import svg469 from '@fluentui/svg-icons/icons/chevron_up_20_filled.svg?raw';
+import svg470 from '@fluentui/svg-icons/icons/person_prohibited_24_regular.svg?raw';
+import svg471 from '@fluentui/svg-icons/icons/person_prohibited_24_filled.svg?raw';
+import svg472 from '@fluentui/svg-icons/icons/person_prohibited_20_regular.svg?raw';
+import svg473 from '@fluentui/svg-icons/icons/person_prohibited_20_filled.svg?raw';
+import svg474 from '@fluentui/svg-icons/icons/arrow_right_24_regular.svg?raw';
+import svg475 from '@fluentui/svg-icons/icons/arrow_right_24_filled.svg?raw';
+import svg476 from '@fluentui/svg-icons/icons/arrow_right_20_regular.svg?raw';
+import svg477 from '@fluentui/svg-icons/icons/arrow_right_20_filled.svg?raw';
+import svg478 from '@fluentui/svg-icons/icons/copy_24_regular.svg?raw';
+import svg479 from '@fluentui/svg-icons/icons/copy_24_filled.svg?raw';
+import svg480 from '@fluentui/svg-icons/icons/copy_20_regular.svg?raw';
+import svg481 from '@fluentui/svg-icons/icons/copy_20_filled.svg?raw';
+import svg482 from '@fluentui/svg-icons/icons/person_passkey_24_regular.svg?raw';
+import svg483 from '@fluentui/svg-icons/icons/person_passkey_24_filled.svg?raw';
+import svg484 from '@fluentui/svg-icons/icons/person_passkey_20_regular.svg?raw';
+import svg485 from '@fluentui/svg-icons/icons/person_passkey_20_filled.svg?raw';
+import svg486 from '@fluentui/svg-icons/icons/laptop_briefcase_24_regular.svg?raw';
+import svg487 from '@fluentui/svg-icons/icons/laptop_briefcase_24_filled.svg?raw';
+import svg488 from '@fluentui/svg-icons/icons/laptop_briefcase_20_regular.svg?raw';
+import svg489 from '@fluentui/svg-icons/icons/laptop_briefcase_20_filled.svg?raw';
+import svg490 from '@fluentui/svg-icons/icons/password_reset_48_regular.svg?raw';
+import svg491 from '@fluentui/svg-icons/icons/password_reset_48_filled.svg?raw';
+import svg492 from '@fluentui/svg-icons/icons/pin_24_regular.svg?raw';
+import svg493 from '@fluentui/svg-icons/icons/pin_24_filled.svg?raw';
+import svg494 from '@fluentui/svg-icons/icons/pin_20_regular.svg?raw';
+import svg495 from '@fluentui/svg-icons/icons/pin_20_filled.svg?raw';
+import svg496 from '@fluentui/svg-icons/icons/contact_card_24_regular.svg?raw';
+import svg497 from '@fluentui/svg-icons/icons/contact_card_24_filled.svg?raw';
+import svg498 from '@fluentui/svg-icons/icons/contact_card_20_regular.svg?raw';
+import svg499 from '@fluentui/svg-icons/icons/contact_card_20_filled.svg?raw';
+import svg500 from '@fluentui/svg-icons/icons/person_key_24_regular.svg?raw';
+import svg501 from '@fluentui/svg-icons/icons/person_key_24_filled.svg?raw';
+import svg502 from '@fluentui/svg-icons/icons/person_key_20_regular.svg?raw';
+import svg503 from '@fluentui/svg-icons/icons/person_key_20_filled.svg?raw';
+import svg504 from '@fluentui/svg-icons/icons/stop_24_regular.svg?raw';
+import svg505 from '@fluentui/svg-icons/icons/stop_24_filled.svg?raw';
+import svg506 from '@fluentui/svg-icons/icons/stop_20_regular.svg?raw';
+import svg507 from '@fluentui/svg-icons/icons/stop_20_filled.svg?raw';
+import svg508 from '@fluentui/svg-icons/icons/document_dismiss_24_regular.svg?raw';
+import svg509 from '@fluentui/svg-icons/icons/document_dismiss_24_filled.svg?raw';
+import svg510 from '@fluentui/svg-icons/icons/document_dismiss_20_regular.svg?raw';
+import svg511 from '@fluentui/svg-icons/icons/document_dismiss_20_filled.svg?raw';
+import svg512 from '@fluentui/svg-icons/icons/broom_24_regular.svg?raw';
+import svg513 from '@fluentui/svg-icons/icons/broom_24_filled.svg?raw';
+import svg514 from '@fluentui/svg-icons/icons/broom_20_regular.svg?raw';
+import svg515 from '@fluentui/svg-icons/icons/broom_20_filled.svg?raw';
+import svg516 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_regular.svg?raw';
+import svg517 from '@fluentui/svg-icons/icons/text_bullet_list_dismiss_20_filled.svg?raw';
+import svg518 from '@fluentui/svg-icons/icons/apps_settings_20_regular.svg?raw';
+import svg519 from '@fluentui/svg-icons/icons/apps_settings_20_filled.svg?raw';
+import svg520 from '@fluentui/svg-icons/icons/tag_reset_24_regular.svg?raw';
+import svg521 from '@fluentui/svg-icons/icons/tag_reset_24_filled.svg?raw';
+import svg522 from '@fluentui/svg-icons/icons/tag_reset_20_regular.svg?raw';
+import svg523 from '@fluentui/svg-icons/icons/tag_reset_20_filled.svg?raw';
+import svg524 from '@fluentui/svg-icons/icons/eraser_24_regular.svg?raw';
+import svg525 from '@fluentui/svg-icons/icons/eraser_24_filled.svg?raw';
+import svg526 from '@fluentui/svg-icons/icons/eraser_20_regular.svg?raw';
+import svg527 from '@fluentui/svg-icons/icons/eraser_20_filled.svg?raw';
+import svg528 from '@fluentui/svg-icons/icons/person_edit_24_regular.svg?raw';
+import svg529 from '@fluentui/svg-icons/icons/person_edit_24_filled.svg?raw';
+import svg530 from '@fluentui/svg-icons/icons/person_edit_20_regular.svg?raw';
+import svg531 from '@fluentui/svg-icons/icons/person_edit_20_filled.svg?raw';
+import svg532 from '@fluentui/svg-icons/icons/vault_24_regular.svg?raw';
+import svg533 from '@fluentui/svg-icons/icons/vault_24_filled.svg?raw';
+import svg534 from '@fluentui/svg-icons/icons/vault_20_regular.svg?raw';
+import svg535 from '@fluentui/svg-icons/icons/vault_20_filled.svg?raw';
+import svg536 from '@fluentui/svg-icons/icons/lock_closed_key_24_regular.svg?raw';
+import svg537 from '@fluentui/svg-icons/icons/lock_closed_key_24_filled.svg?raw';
+import svg538 from '@fluentui/svg-icons/icons/lock_closed_key_20_regular.svg?raw';
+import svg539 from '@fluentui/svg-icons/icons/lock_closed_key_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -636,78 +638,78 @@ export const ICON_VARIANTS = {
   selectAll: { regular: svg276, filled: svg277, small: svg278, smallFilled: svg279 },
   checklist: { regular: svg280, filled: svg281, small: svg282, smallFilled: svg283 },
   folderUpload: { regular: svg284, filled: svg285, small: svg286, smallFilled: svg287, duotone: duotone6, smallDuotone: duotone7, primaryTone: 'neutral' },
-  folderEye: { regular: svg288, filled: svg289, small: svg288, smallFilled: svg289 },
-  arrowUpward: { regular: svg290, filled: svg291, small: svg292, smallFilled: svg293 },
-  arrowDownward: { regular: svg294, filled: svg295, small: svg296, smallFilled: svg297 },
-  sortByAlpha: { regular: svg298, filled: svg299, small: svg300, smallFilled: svg301 },
-  sort: { regular: svg302, filled: svg303, small: svg304, smallFilled: svg305 },
-  swapVert: { regular: svg306, filled: svg307, small: svg308, smallFilled: svg309 },
-  lock: { regular: svg310, filled: svg311, small: svg312, smallFilled: svg313 },
-  lockPerson: { regular: svg314, filled: svg315, small: svg316, smallFilled: svg317 },
-  history: { regular: svg318, filled: svg319, small: svg320, smallFilled: svg321 },
+  arrowStepIn: { regular: svg288, filled: svg289, small: svg290, smallFilled: svg291 },
+  arrowUpward: { regular: svg292, filled: svg293, small: svg294, smallFilled: svg295 },
+  arrowDownward: { regular: svg296, filled: svg297, small: svg298, smallFilled: svg299 },
+  sortByAlpha: { regular: svg300, filled: svg301, small: svg302, smallFilled: svg303 },
+  sort: { regular: svg304, filled: svg305, small: svg306, smallFilled: svg307 },
+  swapVert: { regular: svg308, filled: svg309, small: svg310, smallFilled: svg311 },
+  lock: { regular: svg312, filled: svg313, small: svg314, smallFilled: svg315 },
+  lockPerson: { regular: svg316, filled: svg317, small: svg318, smallFilled: svg319 },
+  history: { regular: svg320, filled: svg321, small: svg322, smallFilled: svg323 },
   listAlt: { regular: svg160, filled: svg161, small: svg162, smallFilled: svg163 },
-  uploadFile: { regular: svg322, filled: svg323, small: svg324, smallFilled: svg325 },
-  label: { regular: svg326, filled: svg327, small: svg328, smallFilled: svg329 },
-  guardian: { regular: svg330, filled: svg331, small: svg332, smallFilled: svg333 },
-  emergencyHome: { regular: svg334, filled: svg335, small: svg336, smallFilled: svg337 },
-  warning: { regular: svg338, filled: svg339, small: svg340, smallFilled: svg341 },
-  supervisorAccount: { regular: svg342, filled: svg343, small: svg344, smallFilled: svg345 },
-  adminPanelSettings: { regular: svg346, filled: svg347, small: svg348, smallFilled: svg349, duotone: duotone8, smallDuotone: duotone9, primaryTone: 'neutral' },
-  article: { regular: svg350, filled: svg351, small: svg352, smallFilled: svg353 },
-  groups: { regular: svg354, filled: svg355, small: svg356, smallFilled: svg357 },
-  groupAdd: { regular: svg358, filled: svg359, small: svg360, smallFilled: svg361 },
-  manageAccounts: { regular: svg362, filled: svg363, small: svg364, smallFilled: svg365 },
-  block: { regular: svg366, filled: svg367, small: svg368, smallFilled: svg369 },
-  visibility: { regular: svg370, filled: svg371, small: svg372, smallFilled: svg373 },
-  edit: { regular: svg374, filled: svg375, small: svg376, smallFilled: svg377 },
-  calendarToday: { regular: svg378, filled: svg379, small: svg380, smallFilled: svg381 },
+  uploadFile: { regular: svg324, filled: svg325, small: svg326, smallFilled: svg327 },
+  label: { regular: svg328, filled: svg329, small: svg330, smallFilled: svg331 },
+  guardian: { regular: svg332, filled: svg333, small: svg334, smallFilled: svg335 },
+  emergencyHome: { regular: svg336, filled: svg337, small: svg338, smallFilled: svg339 },
+  warning: { regular: svg340, filled: svg341, small: svg342, smallFilled: svg343 },
+  supervisorAccount: { regular: svg344, filled: svg345, small: svg346, smallFilled: svg347 },
+  adminPanelSettings: { regular: svg348, filled: svg349, small: svg350, smallFilled: svg351, duotone: duotone8, smallDuotone: duotone9, primaryTone: 'neutral' },
+  article: { regular: svg352, filled: svg353, small: svg354, smallFilled: svg355 },
+  groups: { regular: svg356, filled: svg357, small: svg358, smallFilled: svg359 },
+  groupAdd: { regular: svg360, filled: svg361, small: svg362, smallFilled: svg363 },
+  manageAccounts: { regular: svg364, filled: svg365, small: svg366, smallFilled: svg367 },
+  block: { regular: svg368, filled: svg369, small: svg370, smallFilled: svg371 },
+  visibility: { regular: svg372, filled: svg373, small: svg374, smallFilled: svg375 },
+  edit: { regular: svg376, filled: svg377, small: svg378, smallFilled: svg379 },
+  calendarToday: { regular: svg380, filled: svg381, small: svg382, smallFilled: svg383 },
   navigateBefore: { regular: svg36, filled: svg37, small: svg38, smallFilled: svg39 },
-  navigateNext: { regular: svg382, filled: svg383, small: svg384, smallFilled: svg385 },
-  formatListBulleted: { regular: svg386, filled: svg387, small: svg388, smallFilled: svg389 },
-  groupRemove: { regular: svg390, filled: svg391, small: svg392, smallFilled: svg393 },
-  language: { regular: svg394, filled: svg395, small: svg394, smallFilled: svg395 },
-  appearance: { regular: svg396, filled: svg397, small: svg398, smallFilled: svg399 },
-  lightMode: { regular: svg400, filled: svg401, small: svg402, smallFilled: svg403 },
-  darkMode: { regular: svg404, filled: svg405, small: svg406, smallFilled: svg407 },
-  systemTheme: { regular: svg408, filled: svg409, small: svg410, smallFilled: svg411 },
-  motion: { regular: svg412, filled: svg413, small: svg414, smallFilled: svg415 },
-  motionOff: { regular: svg416, filled: svg417, small: svg418, smallFilled: svg419 },
-  storage: { regular: svg420, filled: svg421, small: svg422, smallFilled: svg423 },
-  security: { regular: svg424, filled: svg425, small: svg426, smallFilled: svg427 },
-  verifiedUser: { regular: svg428, filled: svg429, small: svg430, smallFilled: svg431 },
-  approvalDelegation: { regular: svg432, filled: svg433, small: svg434, smallFilled: svg435 },
-  qrCode: { regular: svg436, filled: svg437, small: svg438, smallFilled: svg439 },
-  browserUpdated: { regular: svg440, filled: svg441, small: svg442, smallFilled: svg443 },
-  extensions: { regular: svg444, filled: svg445, small: svg446, smallFilled: svg447 },
-  touchApp: { regular: svg448, filled: svg449, small: svg450, smallFilled: svg451 },
-  privacy: { regular: svg330, filled: svg331, small: svg332, smallFilled: svg333 },
-  privacyTip: { regular: svg452, filled: svg453, small: svg454, smallFilled: svg455 },
-  sidebarToggle: { regular: svg456, filled: svg457, small: svg458, smallFilled: svg459 },
-  breadcrumbSep: { regular: svg382, filled: svg383, small: svg384, smallFilled: svg385 },
-  expandMore: { regular: svg460, filled: svg461, small: svg462, smallFilled: svg463 },
-  expandLess: { regular: svg464, filled: svg465, small: svg466, smallFilled: svg467 },
-  warningAmber: { regular: svg338, filled: svg339, small: svg340, smallFilled: svg341 },
-  supervisedUserCircleOff: { regular: svg468, filled: svg469, small: svg470, smallFilled: svg471 },
+  navigateNext: { regular: svg384, filled: svg385, small: svg386, smallFilled: svg387 },
+  formatListBulleted: { regular: svg388, filled: svg389, small: svg390, smallFilled: svg391 },
+  groupRemove: { regular: svg392, filled: svg393, small: svg394, smallFilled: svg395 },
+  language: { regular: svg396, filled: svg397, small: svg396, smallFilled: svg397 },
+  appearance: { regular: svg398, filled: svg399, small: svg400, smallFilled: svg401 },
+  lightMode: { regular: svg402, filled: svg403, small: svg404, smallFilled: svg405 },
+  darkMode: { regular: svg406, filled: svg407, small: svg408, smallFilled: svg409 },
+  systemTheme: { regular: svg410, filled: svg411, small: svg412, smallFilled: svg413 },
+  motion: { regular: svg414, filled: svg415, small: svg416, smallFilled: svg417 },
+  motionOff: { regular: svg418, filled: svg419, small: svg420, smallFilled: svg421 },
+  storage: { regular: svg422, filled: svg423, small: svg424, smallFilled: svg425 },
+  security: { regular: svg426, filled: svg427, small: svg428, smallFilled: svg429 },
+  verifiedUser: { regular: svg430, filled: svg431, small: svg432, smallFilled: svg433 },
+  approvalDelegation: { regular: svg434, filled: svg435, small: svg436, smallFilled: svg437 },
+  qrCode: { regular: svg438, filled: svg439, small: svg440, smallFilled: svg441 },
+  browserUpdated: { regular: svg442, filled: svg443, small: svg444, smallFilled: svg445 },
+  extensions: { regular: svg446, filled: svg447, small: svg448, smallFilled: svg449 },
+  touchApp: { regular: svg450, filled: svg451, small: svg452, smallFilled: svg453 },
+  privacy: { regular: svg332, filled: svg333, small: svg334, smallFilled: svg335 },
+  privacyTip: { regular: svg454, filled: svg455, small: svg456, smallFilled: svg457 },
+  sidebarToggle: { regular: svg458, filled: svg459, small: svg460, smallFilled: svg461 },
+  breadcrumbSep: { regular: svg384, filled: svg385, small: svg386, smallFilled: svg387 },
+  expandMore: { regular: svg462, filled: svg463, small: svg464, smallFilled: svg465 },
+  expandLess: { regular: svg466, filled: svg467, small: svg468, smallFilled: svg469 },
+  warningAmber: { regular: svg340, filled: svg341, small: svg342, smallFilled: svg343 },
+  supervisedUserCircleOff: { regular: svg470, filled: svg471, small: svg472, smallFilled: svg473 },
   ifl: { regular: svg176, filled: svg177, small: svg178, smallFilled: svg179 },
   api: { regular: svg0, filled: svg1, small: svg2, smallFilled: svg3 },
-  arrowForward: { regular: svg472, filled: svg473, small: svg474, smallFilled: svg475 },
-  contentCopy: { regular: svg476, filled: svg477, small: svg478, smallFilled: svg479, duotone: duotone10, smallDuotone: duotone11, primaryTone: 'brand' },
-  personPasskey: { regular: svg480, filled: svg481, small: svg482, smallFilled: svg483 },
-  laptopBriefcase: { regular: svg484, filled: svg485, small: svg486, smallFilled: svg487 },
-  passwordReset: { regular: svg488, filled: svg489, small: svg488, smallFilled: svg489, duotone: duotone12, smallDuotone: duotone13, primaryTone: 'neutral' },
-  pushPin: { regular: svg490, filled: svg491, small: svg492, smallFilled: svg493 },
-  contactCard: { regular: svg494, filled: svg495, small: svg496, smallFilled: svg497 },
-  personKey: { regular: svg498, filled: svg499, small: svg500, smallFilled: svg501 },
-  stop: { regular: svg502, filled: svg503, small: svg504, smallFilled: svg505 },
-  stopTransfer: { regular: svg502, filled: svg503, small: svg504, smallFilled: svg505 },
-  removeTransferRecord: { regular: svg506, filled: svg507, small: svg508, smallFilled: svg509 },
-  clearTransferRecords: { regular: svg510, filled: svg511, small: svg512, smallFilled: svg513 },
-  stopAndClearTransfers: { regular: svg514, filled: svg515, small: svg514, smallFilled: svg515 },
+  arrowForward: { regular: svg474, filled: svg475, small: svg476, smallFilled: svg477 },
+  contentCopy: { regular: svg478, filled: svg479, small: svg480, smallFilled: svg481, duotone: duotone10, smallDuotone: duotone11, primaryTone: 'brand' },
+  personPasskey: { regular: svg482, filled: svg483, small: svg484, smallFilled: svg485 },
+  laptopBriefcase: { regular: svg486, filled: svg487, small: svg488, smallFilled: svg489 },
+  passwordReset: { regular: svg490, filled: svg491, small: svg490, smallFilled: svg491, duotone: duotone12, smallDuotone: duotone13, primaryTone: 'neutral' },
+  pushPin: { regular: svg492, filled: svg493, small: svg494, smallFilled: svg495 },
+  contactCard: { regular: svg496, filled: svg497, small: svg498, smallFilled: svg499 },
+  personKey: { regular: svg500, filled: svg501, small: svg502, smallFilled: svg503 },
+  stop: { regular: svg504, filled: svg505, small: svg506, smallFilled: svg507 },
+  stopTransfer: { regular: svg504, filled: svg505, small: svg506, smallFilled: svg507 },
+  removeTransferRecord: { regular: svg508, filled: svg509, small: svg510, smallFilled: svg511 },
+  clearTransferRecords: { regular: svg512, filled: svg513, small: svg514, smallFilled: svg515 },
+  stopAndClearTransfers: { regular: svg516, filled: svg517, small: svg516, smallFilled: svg517 },
   cancelledTransfer: { regular: svg268, filled: svg269, small: svg270, smallFilled: svg271 },
-  appsSettings: { regular: svg516, filled: svg517, small: svg516, smallFilled: svg517 },
-  tagReset: { regular: svg518, filled: svg519, small: svg520, smallFilled: svg521 },
-  eraser: { regular: svg522, filled: svg523, small: svg524, smallFilled: svg525 },
-  personEdit: { regular: svg526, filled: svg527, small: svg528, smallFilled: svg529 },
-  vault: { regular: svg530, filled: svg531, small: svg532, smallFilled: svg533 },
-  lockClosedKey: { regular: svg534, filled: svg535, small: svg536, smallFilled: svg537 },
+  appsSettings: { regular: svg518, filled: svg519, small: svg518, smallFilled: svg519 },
+  tagReset: { regular: svg520, filled: svg521, small: svg522, smallFilled: svg523 },
+  eraser: { regular: svg524, filled: svg525, small: svg526, smallFilled: svg527 },
+  personEdit: { regular: svg528, filled: svg529, small: svg530, smallFilled: svg531 },
+  vault: { regular: svg532, filled: svg533, small: svg534, smallFilled: svg535 },
+  lockClosedKey: { regular: svg536, filled: svg537, small: svg538, smallFilled: svg539 },
 } as const;

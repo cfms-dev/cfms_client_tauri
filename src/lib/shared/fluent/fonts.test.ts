@@ -15,16 +15,16 @@ describe('bundled offline typography', () => {
     for (const filename of urls) {
       expect(readFileSync(resolve(directory, filename)).toString('ascii', 0, 4)).toBe('wOF2');
     }
-    for (const family of ['noto-sans', 'noto-sans-sc', 'noto-serif', 'noto-serif-sc', 'jetbrains-mono']) {
+    for (const family of ['noto-sans', 'noto-sans-sc', 'noto-serif', 'noto-serif-sc', 'jetbrains-mono', 'google-sans-flex']) {
       expect(existsSync(resolve(directory, `${family}-OFL.txt`))).toBe(true);
     }
   });
 
-  it.each(['Noto Sans', 'Noto Sans SC', 'Noto Serif', 'Noto Serif SC', 'JetBrains Mono'])(
+  it.each(['Noto Sans', 'Noto Sans SC', 'Noto Serif', 'Noto Serif SC', 'JetBrains Mono', 'Google Sans Flex'])(
     '%s has real regular, semibold and bold weights', family => {
       const familyFaces = faces.filter(face => face.includes(`font-family: '${family}';`));
       expect(familyFaces.length).toBeGreaterThan(0);
-      const minimumWeight = family === 'Noto Sans' || family === 'Noto Sans SC' ? 300 : 400;
+      const minimumWeight = family === 'Noto Sans' || family === 'Noto Sans SC' || family === 'Google Sans Flex' ? 300 : 400;
       expect(familyFaces.every(face => face.includes(`font-weight: ${minimumWeight} 800;`))).toBe(true);
     },
   );

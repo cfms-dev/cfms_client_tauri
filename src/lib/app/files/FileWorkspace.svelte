@@ -18,6 +18,7 @@
   import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/features/files/MoveTargetDialog.svelte';
+  import ServerSearchDialog from '$lib/features/files/ServerSearchDialog.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
   import { formatBytes, formatDate } from '$lib/shared/format/values';
@@ -527,98 +528,6 @@
     }
   }
 
-  :global(.server-search-list-viewport) {
-    min-height: 0;
-    flex: 1 1 auto;
-    max-height: calc(52vh - 2.25rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .server-search-form {
-    --files-field-height: 32px;
-    display: flex;
-    height: 100%;
-    min-height: 0;
-    flex-direction: column;
-    gap: 16px;
-    padding: 20px;
-    color: var(--colorNeutralForeground1);
-  }
-  .server-search-query {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
-    flex: none;
-  }
-  .server-search-controls {
-    display: flex;
-    flex: none;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-    color: var(--colorNeutralForeground2);
-    font: 400 14px/20px var(--fontFamilyBase);
-  }
-  :global(.server-search-action[data-fluent-owner="routes-home-files-page"]) { font-weight: 400; }
-  .server-search-results {
-    container-type: inline-size;
-    display: flex;
-    min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid var(--colorNeutralStroke2);
-    border-radius: var(--borderRadiusLarge);
-  }
-  .server-search-summary {
-    display: flex;
-    flex: none;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 12px;
-    border-bottom: 1px solid var(--colorNeutralStroke2);
-    padding: 8px 12px;
-    color: var(--colorNeutralForeground2);
-    font: 400 12px/16px var(--fontFamilyBase);
-  }
-  .server-search-result {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    min-height: var(--search-row-height);
-    border: 0;
-    border-bottom: 1px solid var(--colorNeutralStroke2);
-    border-radius: 0;
-    padding: 8px 12px;
-    background: transparent;
-    color: var(--colorNeutralForeground1);
-    text-align: left;
-    font: 400 14px/20px var(--fontFamilyBase);
-    transition: background-color var(--durationFaster) var(--curveEasyEase);
-  }
-  .server-search-result:hover { background: var(--colorNeutralBackground1Hover); }
-  .server-search-result:active { background: var(--colorNeutralBackground1Pressed); }
-  .server-search-result:focus-visible { outline-offset: -2px; }
-  .server-search-result--last { border-bottom: 0; }
-  .server-search-result-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .server-search-result-detail { color: var(--colorNeutralForeground2); text-align: right; font: 400 12px/16px var(--fontFamilyBase); }
-
-  @container (max-width: 480px) {
-    .server-search-result { gap: 4px 12px; }
-    .server-search-result > :first-child { grid-row: span 2; }
-    .server-search-result-name { grid-column: 2 / -1; }
-    .server-search-result-detail { grid-column: 2 / -1; text-align: left; }
-  }
-
-  :global(.modal-positioner--sized .server-search-list-viewport),
-  :global(.modal-positioner--maximized .server-search-list-viewport) {
-    max-height: none;
-  }
-
   :global(.search-preview-virtual-viewport) {
     max-height: 360px;
     overflow-y: auto;
@@ -640,7 +549,6 @@
 
   @media (pointer: coarse) {
     .files-search-input { font-size: 16px; }
-    .server-search-form { --files-field-height: 44px; }
     .search-sort-option { min-height: 44px; }
   }
   @media (forced-colors: active) {
@@ -747,167 +655,24 @@
   />
 {/if}
 
-{#if workspace.searchDialog.open}
-  <ModalFrame
-    title={$t('files.searchTitle')}
-    maxWidth="max-w-3xl"
-    resizable
-    maximizable
-    minWidth={520}
-    minHeight={360}
-    closeLabel={$t('common.close')}
-    onClose={workspace.closeSearchDialog}
-  >
-    <form class="server-search-form" style:--search-row-height={`${workspace.searchRowHeight}px`} onsubmit={(e) => { e.preventDefault(); workspace.runServerSearch(); }}>
-      <div class="server-search-query">
-        <div class="files-search-field cfms-field-surface" data-search-box>
-        <input
-          class="files-search-input cfms-native-field"
-          data-focus-ring="delegated"
-          bind:value={workspace.searchDialog.query}
-          bind:this={workspace.searchDialogInput}
-          placeholder={$t('files.searchPlaceholder')}
-          aria-label={$t('files.searchPlaceholder')}
-          disabled={workspace.searchDialog.loading}
-        />
-        {#if workspace.searchDialog.query}
-          <FluentButton data-fluent-owner="routes-home-files-page"
-            type="button"
-            appearance="subtle"
-            class="files-search-clear"
-            iconOnly
-            aria-label={$t('common.clear')}
-            disabled={workspace.searchDialog.loading}
-            onclick={() => {
-              workspace.searchDialog.query = '';
-              workspace.searchDialogInput?.focus({ preventScroll: true });
-            }}
-          >
-            <Icon name="close" size="16px" />
-          </FluentButton>
-        {/if}
-        </div>
-        <FluentButton data-fluent-owner="routes-home-files-page"
-          type="submit"
-          disabled={workspace.searchDialog.loading}
-          appearance="primary"
-          class="server-search-action"
-        >
-          <Icon name="search" size="16px" />
-          {$t('files.serverSearch')}
-        </FluentButton>
-      </div>
-
-      <div class="server-search-controls">
-        <label class="flex items-center gap-2">
-          <MdCheckbox
-            bind:checked={workspace.searchDialog.searchDocuments}
-            ariaLabel={$t('files.searchDocuments')}
-            disabled={workspace.searchDialog.loading}
-          />
-          {$t('files.searchDocuments')}
-        </label>
-        <label class="flex items-center gap-2">
-          <MdCheckbox
-            bind:checked={workspace.searchDialog.searchDirectories}
-            ariaLabel={$t('files.searchDirectories')}
-            disabled={workspace.searchDialog.loading}
-          />
-          {$t('files.searchDirectories')}
-        </label>
-
-        <div class="search-sort" role="toolbar" tabindex="-1" aria-label={$t('workspace.sort')} onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, { selector: '[data-search-sort]', orientation: 'horizontal' })}>
-          {#each ['name', 'size', 'modified'] as field}
-            <button data-fluent-owner="routes-home-files-page"
-              data-search-sort
-              tabindex={workspace.searchDialog.sortBy === field ? 0 : -1}
-              type="button"
-              class="search-sort-option"
-              aria-pressed={workspace.searchDialog.sortBy === field}
-              disabled={workspace.searchDialog.loading}
-              onclick={() => workspace.setSearchDialogSort(field as SortField)}
-            >
-              {workspace.searchSortLabel(field as SortField)}
-            </button>
-          {/each}
-        </div>
-        <FluentButton data-fluent-owner="routes-home-files-page"
-          type="button"
-          disabled={workspace.searchDialog.loading}
-          title={workspace.searchDialog.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
-          onclick={workspace.toggleSearchDialogSortOrder}
-          appearance="outline"
-          class="server-search-action"
-        >
-          <Icon name={workspace.searchDialog.sortOrder === 'asc' ? 'arrowUpward' : 'arrowDownward'} size="16px" />
-          {workspace.searchDialog.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
-        </FluentButton>
-      </div>
-
-      {#if workspace.searchDialog.results}
-        <div class="server-search-results">
-          <div class="server-search-summary" role="status">
-            <span>
-              {workspace.searchDialog.results.total_count === 0 && !workspace.searchDialog.loading
-                ? $t('files.searchNoResults', { values: { query: workspace.searchDialog.resultQuery } })
-                : $t('files.searchResultCount', { values: { count: workspace.searchDialog.results.total_count, query: workspace.searchDialog.resultQuery } })}
-            </span>
-            {#if workspace.searchDialog.loading}
-              <span class="inline-flex shrink-0 items-center gap-2">
-                <ProgressRing size={14} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-                {$t('common.loadingEllipsis')}
-              </span>
-            {/if}
-          </div>
-          <VirtualList
-            items={workspace.searchResultRows}
-            keyOf={(row) => row.kind === 'directory'
-              ? `directory:${row.directory.id}`
-              : `document:${row.document.id}`}
-            estimateSize={workspace.searchRowHeight}
-            overscan={10}
-            threshold={120}
-            resetKey={workspace.searchDialogResetKey}
-            viewportClass="server-search-list-viewport"
-            keyboardNavigation
-            keyboardTargetSelector="button"
-          >
-            {#snippet children(row, index)}
-              {#if row.kind === 'directory'}
-                <button
-                  type="button"
-                  onclick={() => workspace.navigateToSearchDirectory(row.directory)}
-                  class="server-search-result"
-                  class:server-search-result--last={index === workspace.searchResultRows.length - 1}
-                >
-                  <span class="text-md3-primary-emphasis"><Icon name="folder" size="20px" /></span>
-                  <span class="server-search-result-name">{row.directory.name}</span>
-                  <span class="server-search-result-detail">{formatDate(row.directory.created_time)}</span>
-                </button>
-              {:else}
-                <button
-                  type="button"
-                  onclick={() => workspace.navigateToSearchDocument(row.document)}
-                  class="server-search-result"
-                  class:server-search-result--last={index === workspace.searchResultRows.length - 1}
-                >
-                  <span class="text-md3-on-surface-variant"><Icon name="filePresent" size="20px" /></span>
-                  <span class="server-search-result-name">{row.document.name ?? row.document.title}</span>
-                  <span class="server-search-result-detail">{formatBytes(row.document.size)}</span>
-                </button>
-              {/if}
-            {/snippet}
-          </VirtualList>
-        </div>
-      {:else if workspace.searchDialog.loading}
-        <div class="flex items-center gap-2 py-6 text-sm text-md3-on-surface-variant">
-          <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-          {$t('common.loadingEllipsis')}
-        </div>
-      {/if}
-    </form>
-  </ModalFrame>
-{/if}
+<ServerSearchDialog
+  open={workspace.searchDialog.open}
+  bind:query={workspace.searchDialog.query}
+  bind:inputElement={workspace.searchDialogInput}
+  resultQuery={workspace.searchDialog.resultQuery}
+  bind:searchDocuments={workspace.searchDialog.searchDocuments}
+  bind:searchDirectories={workspace.searchDialog.searchDirectories}
+  sortBy={workspace.searchDialog.sortBy}
+  sortOrder={workspace.searchDialog.sortOrder}
+  loading={workspace.searchDialog.loading}
+  results={workspace.searchDialog.results}
+  onClose={workspace.closeSearchDialog}
+  onSubmit={workspace.runServerSearch}
+  onSortField={workspace.setSearchDialogSort}
+  onToggleSortOrder={workspace.toggleSearchDialogSortOrder}
+  onSelectDirectory={workspace.navigateToSearchDirectory}
+  onSelectDocument={workspace.navigateToSearchDocument}
+/>
 
 {#if workspace.detailTitle}
   <ModalFrame title={workspace.detailTitle} maxWidth="max-w-lg" closeLabel={$t('common.close')} onClose={() => (workspace.detailTitle = null)}>

@@ -83,7 +83,7 @@ export const ICON_MAP = {
   "selectAll": "select_all_on",
   "checklist": "task_list_square_ltr",
   "folderUpload": "folder_arrow_up",
-  "folderEye": "notebook_eye",
+  "arrowStepIn": "arrow_step_in",
   "arrowUpward": "arrow_up",
   "arrowDownward": "arrow_down",
   "sortByAlpha": "text_sort_ascending",
