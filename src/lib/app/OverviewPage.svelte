@@ -15,8 +15,8 @@
   } from '$lib/api';
   import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
   import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import HomeRecordPanel from '$lib/features/files/HomeRecordPanel.svelte';
+  import SearchPreviewList from '$lib/features/files/SearchPreviewList.svelte';
   import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
   import {
     mergeSearchResponses,
@@ -50,7 +50,7 @@
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { isReducedMotionEnabled } from '$lib/shared/appearance';
   import { shortIdentifier } from '$lib/shared/format/identifiers';
-  import { formatBytes, formatDate, formatError } from '$lib/shared/format/values';
+  import { formatError } from '$lib/shared/format/values';
 
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
   const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
@@ -65,6 +65,7 @@
 
   let preferredMode = $state<'search' | 'jump'>('search');
   let query = $state('');
+  let searchBoxFocused = $state(false);
   let previewDismissed = $state(false);
   let overviewElement = $state<HTMLDivElement | null>(null);
   let stageElement = $state<HTMLDivElement | null>(null);
@@ -103,7 +104,11 @@
   const activeMode = $derived<'search' | 'jump'>(canUseServerSearch ? preferredMode : 'jump');
   const hasQuery = $derived(query.trim().length > 0);
   const previewActive = $derived(
-    activeMode === 'search' && canUseServerSearch && hasQuery && !previewDismissed,
+    activeMode === 'search'
+      && canUseServerSearch
+      && searchBoxFocused
+      && hasQuery
+      && !previewDismissed,
   );
 
   const searchView = createServerSearchController({
@@ -313,13 +318,28 @@
     boxInput?.focus({ preventScroll: true });
   }
 
-  function handleBoxFocus() {
-    if (activeMode === 'search' && canUseServerSearch && query.trim().length > 0 && previewDismissed) {
+  function handleSearchBoxFocusIn() {
+    const wasFocused = searchBoxFocused;
+    searchBoxFocused = true;
+    if (
+      !wasFocused
+      && activeMode === 'search'
+      && canUseServerSearch
+      && query.trim().length > 0
+    ) {
       previewDismissed = false;
       if (!searchPreview.results || searchPreview.query !== query.trim()) {
         scheduleSearchPreview(true);
       }
     }
+  }
+
+  function handleSearchBoxFocusOut(event: FocusEvent) {
+    const container = event.currentTarget as HTMLElement;
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && container.contains(nextTarget)) return;
+    searchBoxFocused = false;
+    searchPreviewActiveIndex = -1;
   }
 
   function handleBoxInput() {
@@ -487,12 +507,6 @@
     }
   }
 
-  function searchResultDate(row: SearchResultRow) {
-    return row.kind === 'directory'
-      ? formatDate(row.directory.created_time)
-      : formatDate(row.document.last_modified ?? null);
-  }
-
   function handleSearchPermissionError(searchError: unknown): boolean {
     if (serverErrorStatus(searchError) !== 403) return false;
     searchDeniedByServer = true;
@@ -504,6 +518,8 @@
   function openSearchView(runImmediately = false) {
     if (!canUseServerSearch) return;
     const initialQuery = query.trim() ? query.trim() : searchPreview.query;
+    searchBoxFocused = false;
+    searchPreviewActiveIndex = -1;
     searchView.openSearch({
       query: initialQuery,
       filter: 'all',
@@ -717,6 +733,8 @@
           class="home-search-card cfms-field-surface"
           class:home-search-card--expanded={previewActive}
           data-search-box
+          onfocusin={handleSearchBoxFocusIn}
+          onfocusout={handleSearchBoxFocusOut}
         >
           <form class="home-search-row" onsubmit={handleBoxSubmit}>
             <button
@@ -738,7 +756,6 @@
               bind:this={boxInput}
               placeholder={activeMode === 'search' ? $t('files.searchPlaceholder') : $t('home.jumpPlaceholder')}
               aria-label={activeMode === 'search' ? $t('files.searchPlaceholder') : $t('home.jumpPlaceholder')}
-              onfocus={handleBoxFocus}
               oninput={handleBoxInput}
               onkeydown={handleBoxKeydown}
               role={activeMode === 'search' ? 'combobox' : undefined}
@@ -765,75 +782,22 @@
           </form>
 
           {#if previewActive}
-            <div
+            <SearchPreviewList
               id="home-search-preview-list"
-              class="home-search-preview-list"
-              role="listbox"
-              aria-label={$t('files.searchPreviewResults')}
-              onscroll={handleSearchPreviewScroll}
-            >
-              {#if searchPreview.error}
-                <p class="home-search-preview-status home-search-preview-status--error">
-                  {searchPreview.error}
-                </p>
-              {:else if searchPreview.results && searchPreviewRows.length === 0 && !searchPreview.loading}
-                <p class="home-search-preview-status">
-                  {$t('files.searchNoResults', { values: { query: searchPreview.query } })}
-                </p>
-              {:else if searchPreviewRows.length > 0}
-                {#each searchPreviewRows as row, index (row.kind === 'directory' ? `dir:${row.directory.id}` : `doc:${row.document.id}`)}
-                  <button
-                    id={`home-search-preview-option-${index}`}
-                    type="button"
-                    class="home-search-preview-row"
-                    class:home-search-preview-row--active={searchPreviewActiveIndex === index}
-                    class:home-search-preview-row--last={index === searchPreviewRows.length - 1 && !searchPreview.loadingMore}
-                    role="option"
-                    aria-selected={searchPreviewActiveIndex === index}
-                    tabindex="-1"
-                    onmouseenter={() => (searchPreviewActiveIndex = index)}
-                    onclick={() =>
-                      row.kind === 'directory'
-                        ? navigateToSearchDirectory(row.directory)
-                        : navigateToSearchDocument(row.document)}
-                  >
-                    <span
-                      class="home-search-preview-icon"
-                      class:home-search-preview-icon--directory={row.kind === 'directory'}
-                    >
-                      <Icon name={row.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
-                    </span>
-                    <span class="home-search-preview-main">
-                      <span
-                        class="home-search-preview-title"
-                        class:home-search-preview-title--directory={row.kind === 'directory'}
-                      >
-                        {row.kind === 'directory'
-                          ? row.directory.name
-                          : (row.document.name ?? row.document.title)}
-                      </span>
-                      <span class="home-search-preview-meta">
-                        {row.kind === 'directory'
-                          ? $t('files.searchDirectories')
-                          : formatBytes(row.document.size)}
-                      </span>
-                    </span>
-                    <span class="home-search-preview-date">{searchResultDate(row)}</span>
-                  </button>
-                {/each}
-                {#if searchPreview.loadingMore}
-                  <div class="home-search-preview-loading-more">
-                    <ProgressRing size={15} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
-                    <span>{$t('common.loadingEllipsis')}</span>
-                  </div>
-                {/if}
-              {:else if searchPreview.loading}
-                <div class="home-search-preview-status home-search-preview-loading">
-                  <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-                  <span>{$t('common.loadingEllipsis')}</span>
-                </div>
-              {/if}
-            </div>
+              optionIdPrefix="home-search-preview-option"
+              rows={searchPreviewRows}
+              query={searchPreview.query}
+              loading={searchPreview.loading}
+              loadingMore={searchPreview.loadingMore}
+              error={searchPreview.error}
+              activeIndex={searchPreviewActiveIndex}
+              borderTop
+              animateExpand
+              onActiveIndexChange={(index) => (searchPreviewActiveIndex = index)}
+              onSelectDirectory={navigateToSearchDirectory}
+              onSelectDocument={navigateToSearchDocument}
+              onScroll={handleSearchPreviewScroll}
+            />
           {/if}
         </div>
       </div>
@@ -1022,127 +986,6 @@
     opacity: 1;
   }
 
-  .home-search-preview-list {
-    max-height: min(364px, 52vh);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border-top: 1px solid var(--colorNeutralStroke2);
-    animation: home-preview-expand var(--motion-duration-medium1)
-      var(--motion-easing-emphasized-decelerate) both;
-  }
-
-  @keyframes home-preview-expand {
-    from {
-      opacity: 0;
-      transform: translate3d(0, -6px, 0);
-    }
-    to {
-      opacity: 1;
-      transform: translate3d(0, 0, 0);
-    }
-  }
-
-  .home-search-preview-row {
-    display: grid;
-    width: 100%;
-    min-height: 52px;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 12px;
-    border: 0;
-    border-bottom: 1px solid var(--colorNeutralStroke2);
-    padding: 8px 16px;
-    color: var(--colorNeutralForeground1);
-    background: transparent;
-    text-align: left;
-    transition: background-color var(--durationFaster) var(--curveEasyEase);
-  }
-
-  .home-search-preview-row:hover,
-  .home-search-preview-row--active {
-    background: var(--colorNeutralBackground1Hover);
-  }
-
-  .home-search-preview-row:active {
-    background: var(--colorNeutralBackground1Pressed);
-  }
-
-  .home-search-preview-row--last {
-    border-bottom: 0;
-  }
-
-  .home-search-preview-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--colorNeutralForeground3);
-  }
-
-  .home-search-preview-icon--directory {
-    color: var(--colorBrandForeground1);
-  }
-
-  .home-search-preview-main {
-    display: grid;
-    min-width: 0;
-    gap: 2px;
-  }
-
-  .home-search-preview-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--colorNeutralForeground1);
-    font: 500 14px/20px var(--fontFamilyBase);
-  }
-
-  .home-search-preview-title--directory {
-    color: var(--colorBrandForeground1);
-  }
-
-  .home-search-preview-meta {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--colorNeutralForeground3);
-    font: 400 12px/16px var(--fontFamilyBase);
-  }
-
-  .home-search-preview-date {
-    color: var(--colorNeutralForeground3);
-    font: 400 12px/16px var(--fontFamilyBase);
-    white-space: nowrap;
-  }
-
-  .home-search-preview-status {
-    margin: 0;
-    padding: 1.75rem 1rem;
-    color: var(--colorNeutralForeground3);
-    font: 400 14px/20px var(--fontFamilyBase);
-    text-align: center;
-  }
-
-  .home-search-preview-status--error {
-    color: var(--colorStatusDangerForeground1);
-  }
-
-  .home-search-preview-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .home-search-preview-loading-more {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 16px;
-    color: var(--colorNeutralForeground3);
-    font: 400 12px/16px var(--fontFamilyBase);
-  }
-
   .home-panels {
     display: grid;
     width: 100%;
@@ -1207,11 +1050,6 @@
     [data-search-box]:has([data-focus-ring='delegated']:focus) {
       outline: 2px solid Highlight;
       outline-offset: -2px;
-    }
-    .home-search-preview-row:hover,
-    .home-search-preview-row--active {
-      color: HighlightText;
-      background: Highlight;
     }
   }
 </style>

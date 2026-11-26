@@ -90,8 +90,6 @@ import {
 } from '$lib/features/files/search-grouping';
 import {
   createServerSearchController,
-  searchFilterFromFlags,
-  searchSortByParam,
 } from '$lib/features/files/server-search-controller.svelte.ts';
 import { isAccessDeniedError, serverAvailability, serverErrorStatus } from '$lib/api/server-errors';
 import {
@@ -205,6 +203,12 @@ export function createFileWorkspace() {
   let searchPreviewRoot = $state<HTMLDivElement | null>(null);
 
   let searchPreviewPanelStyle = $state('');
+
+  let searchPreviewListMaxHeight = $state('min(364px, 52vh)');
+
+  let searchBoxFocused = $state(false);
+
+  let searchPreviewDismissed = $state(false);
 
   let navigationRootId = $state<string | null>(null);
 
@@ -393,23 +397,13 @@ export function createFileWorkspace() {
   let lastDropBatchAt = 0;
 
   let searchPreview = $state<{
-    open: boolean;
     query: string;
-    searchDocuments: boolean;
-    searchDirectories: boolean;
-    sortBy: SortField;
-    sortOrder: SortDirection;
     loading: boolean;
     loadingMore: boolean;
     results: SearchFilesResponse | null;
     error: string | null;
   }>({
-    open: false,
     query: '',
-    searchDocuments: true,
-    searchDirectories: true,
-    sortBy: 'name',
-    sortOrder: 'asc',
     loading: false,
     loadingMore: false,
     results: null,
@@ -528,14 +522,11 @@ export function createFileWorkspace() {
     },
   });
 
-  const searchPreviewCanSearch = $derived(
+  const searchPreviewOpen = $derived(
     canUseServerSearch
+    && searchBoxFocused
     && searchPreviewHasQuery
-    && (searchPreview.searchDocuments || searchPreview.searchDirectories),
-  );
-
-  const searchPreviewResetKey = $derived(
-    `${searchPreview.query}:${searchPreview.sortBy}:${searchPreview.sortOrder}:${searchPreview.searchDocuments}:${searchPreview.searchDirectories}`,
+    && !searchPreviewDismissed,
   );
 
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
@@ -590,15 +581,25 @@ export function createFileWorkspace() {
       searchView.cancel();
       searchPreviewRunId += 1;
       searchView.closeSearch();
+      searchBoxFocused = false;
+      searchPreviewDismissed = false;
       searchPreview = {
         ...searchPreview,
-        open: false,
         loading: false,
         loadingMore: false,
         results: null,
+        error: null,
       };
       searchPreviewActiveIndex = -1;
     });
+  });
+
+  $effect(() => {
+    if (searchPreviewOpen) {
+      queueSearchPreviewPanelPosition();
+    } else {
+      clearSearchPreviewPanelPosition();
+    }
   });
 
   $effect(() => {
@@ -2904,18 +2905,25 @@ export function createFileWorkspace() {
   function updateSearchPreviewPanelPosition() {
     if (!searchPreviewRoot || typeof window === 'undefined') {
       searchPreviewPanelStyle = '';
+      searchPreviewListMaxHeight = 'min(364px, 52vh)';
       return;
     }
 
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
     const margin = 16;
-    const width = Math.max(0, Math.min(720, viewportWidth - margin * 2));
     const rect = searchPreviewRoot.getBoundingClientRect();
+    const preferredWidth = Math.max(rect.width, 460);
+    const width = Math.max(0, Math.min(preferredWidth, viewportWidth - margin * 2));
     const maxLeft = Math.max(margin, viewportWidth - width - margin);
     const left = Math.min(Math.max(rect.right - width, margin), maxLeft);
-    const top = rect.bottom + 8;
+    const top = rect.bottom + 6;
+    const availableHeight = viewportHeight > 0
+      ? Math.max(160, Math.min(364, Math.floor(viewportHeight - top - margin)))
+      : 364;
 
     searchPreviewPanelStyle = `left: ${Math.round(left)}px; top: ${Math.round(top)}px; width: ${Math.round(width)}px;`;
+    searchPreviewListMaxHeight = `${availableHeight}px`;
   }
 
   function queueSearchPreviewPanelPosition() {
@@ -2928,7 +2936,7 @@ export function createFileWorkspace() {
     if (searchPreviewPositionFrame !== null) return;
     searchPreviewPositionFrame = requestAnimationFrame(() => {
       searchPreviewPositionFrame = null;
-      if (searchPreview.open) updateSearchPreviewPanelPosition();
+      if (searchPreviewOpen) updateSearchPreviewPanelPosition();
     });
   }
 
@@ -2938,27 +2946,48 @@ export function createFileWorkspace() {
     searchPreviewPositionFrame = null;
   }
 
-  function closeSearchPreview() {
+  function closeSearchPreview(dismiss = false) {
     clearSearchPreviewDebounce();
     clearSearchPreviewPanelPosition();
     searchPreviewRunId += 1;
-    searchPreview.open = false;
+    if (dismiss) {
+      searchPreviewDismissed = true;
+    } else {
+      searchBoxFocused = false;
+      searchPreviewDismissed = false;
+    }
     searchPreview.loading = false;
     searchPreview.loadingMore = false;
     searchPreviewActiveIndex = -1;
   }
 
   function resetSearchPreviewResults() {
+    searchPreviewRunId += 1;
+    searchPreview.query = '';
     searchPreview.results = null;
     searchPreview.error = null;
     searchPreview.loadingMore = false;
+    searchPreviewActiveIndex = -1;
   }
 
-  function openSearchPreview() {
+  function handleSearchBoxFocusIn() {
     if (!canUseServerSearch) return;
-    searchPreview.open = true;
-    queueSearchPreviewPanelPosition();
-    scheduleSearchPreview();
+    const wasFocused = searchBoxFocused;
+    searchBoxFocused = true;
+    if (!wasFocused && searchPreviewHasQuery) {
+      searchPreviewDismissed = false;
+      queueSearchPreviewPanelPosition();
+      if (!searchPreview.results || searchPreview.query !== searchQuery.trim()) {
+        scheduleSearchPreview(true);
+      }
+    }
+  }
+
+  function handleSearchBoxFocusOut(event: FocusEvent) {
+    const container = event.currentTarget as HTMLElement;
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && container.contains(nextTarget)) return;
+    closeSearchPreview();
   }
 
   function focusFilesSearchInput() {
@@ -2966,9 +2995,6 @@ export function createFileWorkspace() {
     const target = searchView.open ? searchViewInput : searchInput;
     target?.focus({ preventScroll: true });
     target?.select();
-    if (!searchView.open) {
-      openSearchPreview();
-    }
   }
 
   function hasBlockingFilesDialog() {
@@ -2996,13 +3022,14 @@ export function createFileWorkspace() {
     if (event?.currentTarget instanceof HTMLInputElement) {
       searchQuery = event.currentTarget.value;
     }
+    searchPreviewDismissed = false;
+    searchPreviewActiveIndex = -1;
     if (!searchPreviewHasQuery) {
+      clearSearchPreviewDebounce();
       resetSearchPreviewResults();
-      searchPreview.open = false;
       searchPreview.loading = false;
       return;
     }
-    searchPreview.open = true;
     queueSearchPreviewPanelPosition();
     scheduleSearchPreview();
   }
@@ -3010,13 +3037,16 @@ export function createFileWorkspace() {
   function handleSearchKeydown(event: KeyboardEvent) {
     if (!canUseServerSearch) return;
     if (event.key === 'Escape') {
-      closeSearchPreview();
+      if (searchPreviewOpen) {
+        event.preventDefault();
+        closeSearchPreview(true);
+      }
       return;
     }
 
-    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && searchPreviewRows.length > 0) {
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && searchPreviewHasQuery && searchPreviewRows.length > 0) {
       event.preventDefault();
-      if (!searchPreview.open) openSearchPreview();
+      searchPreviewDismissed = false;
       const delta = event.key === 'ArrowDown' ? 1 : -1;
       const start = searchPreviewActiveIndex < 0 ? (delta > 0 ? -1 : 0) : searchPreviewActiveIndex;
       searchPreviewActiveIndex = (start + delta + searchPreviewRows.length) % searchPreviewRows.length;
@@ -3024,7 +3054,7 @@ export function createFileWorkspace() {
       return;
     }
 
-    if ((event.key === 'Home' || event.key === 'End') && searchPreview.open && searchPreviewRows.length > 0) {
+    if ((event.key === 'Home' || event.key === 'End') && searchPreviewOpen && searchPreviewRows.length > 0) {
       event.preventDefault();
       searchPreviewActiveIndex = event.key === 'Home' ? 0 : searchPreviewRows.length - 1;
       document.getElementById(`files-search-preview-option-${searchPreviewActiveIndex}`)?.scrollIntoView({ block: 'nearest' });
@@ -3033,7 +3063,7 @@ export function createFileWorkspace() {
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (searchPreview.open && searchPreviewActiveIndex >= 0) {
+      if (searchPreviewOpen && searchPreviewActiveIndex >= 0) {
         const row = searchPreviewRows[searchPreviewActiveIndex];
         if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
         else void navigateToSearchDocument(row.document);
@@ -3060,19 +3090,10 @@ export function createFileWorkspace() {
       return;
     }
 
-    if (!searchPreview.searchDocuments && !searchPreview.searchDirectories) {
-      searchPreview.loading = false;
-      searchPreview.loadingMore = false;
-      searchPreview.error = translator.current('files.searchTypeRequired');
-      return;
-    }
-
     const runId = ++searchPreviewRunId;
     const shouldLoadImmediately = immediate || (!hadSettledResults && !hadPendingPreview);
-    searchPreview.open = true;
-    queueSearchPreviewPanelPosition();
     searchPreview.error = null;
-    searchPreview.loading = shouldLoadImmediately ? searchPreview.loading : !hadSettledResults;
+    searchPreview.loading = shouldLoadImmediately ? true : !hadSettledResults;
     searchPreview.loadingMore = false;
     const load = () => {
       searchPreviewDebounce = null;
@@ -3097,16 +3118,11 @@ export function createFileWorkspace() {
   }) {
     if (!canUseServerSearch) return;
     const query = searchQuery.trim();
-    if (!query || (!searchPreview.searchDocuments && !searchPreview.searchDirectories)) {
+    if (!query) {
       searchPreview.loading = false;
       searchPreview.loadingMore = false;
       return;
     }
-
-    const searchDocuments = searchPreview.searchDocuments;
-    const searchDirectories = searchPreview.searchDirectories;
-    const sortBy = searchSortByParam(searchPreview.sortBy);
-    const sortOrder = searchPreview.sortOrder;
 
     if (reset) {
       searchPreview.loading = true;
@@ -3119,10 +3135,10 @@ export function createFileWorkspace() {
       const page = await searchFiles(query, {
         pageSize: SEARCH_PREVIEW_PAGE_SIZE,
         cursor,
-        sortBy,
-        sortOrder,
-        searchDocuments,
-        searchDirectories,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        searchDocuments: true,
+        searchDirectories: true,
       });
       if (runId !== searchPreviewRunId) return;
 
@@ -3167,47 +3183,15 @@ export function createFileWorkspace() {
     }
   }
 
-  function updateSearchPreviewOptions() {
-    if (!canUseServerSearch) return;
-    if (!searchPreview.open && searchPreviewHasQuery) {
-      searchPreview.open = true;
-    }
-    scheduleSearchPreview(true);
-  }
-
-  function setSearchPreviewSort(field: SortField) {
-    searchPreview.sortBy = field;
-    updateSearchPreviewOptions();
-  }
-
-  function toggleSearchPreviewSortOrder() {
-    searchPreview.sortOrder = searchPreview.sortOrder === 'asc' ? 'desc' : 'asc';
-    updateSearchPreviewOptions();
-  }
-
-  function searchSortLabel(field: SortField) {
-    return field === 'name'
-      ? translator.current('files.searchSortName')
-      : field === 'size'
-        ? translator.current('files.searchSortSize')
-        : translator.current('files.searchSortModified');
-  }
-
-  function searchResultDate(row: SearchResultRow) {
-    return row.kind === 'directory'
-      ? formatDate(row.directory.created_time)
-      : formatDate(row.document.last_modified ?? null);
-  }
-
   function openSearchView(runImmediately = false) {
     if (!canUseServerSearch) return;
     const query = searchQuery.trim() ? searchQuery : searchPreview.query;
     closeSearchPreview();
     searchView.openSearch({
       query,
-      filter: searchFilterFromFlags(searchPreview.searchDocuments, searchPreview.searchDirectories),
-      sortBy: searchPreview.sortBy,
-      sortOrder: searchPreview.sortOrder,
+      filter: 'all',
+      sortBy: 'name',
+      sortOrder: 'asc',
       runImmediately,
     });
   }
@@ -3463,13 +3447,13 @@ export function createFileWorkspace() {
       marqueeSelectionEnabled = !coarsePointer;
     }
     const handleOutsidePointerDown = (event: PointerEvent) => {
-      if (!searchPreview.open || !searchPreviewRoot || !(event.target instanceof Node)) return;
+      if (!searchPreviewOpen || !searchPreviewRoot || !(event.target instanceof Node)) return;
       if (!searchPreviewRoot.contains(event.target)) {
         closeSearchPreview();
       }
     };
     const handleSearchPreviewViewportChange = () => {
-      if (searchPreview.open) queueSearchPreviewPanelPosition();
+      if (searchPreviewOpen) queueSearchPreviewPanelPosition();
     };
 
     document.addEventListener('pointerdown', handleOutsidePointerDown, true);
@@ -3662,6 +3646,8 @@ export function createFileWorkspace() {
     handleMoveToTarget,
     handleReturnFromDeniedDirectory,
     handleSaveAccessRules,
+    handleSearchBoxFocusIn,
+    handleSearchBoxFocusOut,
     handleSearchInput,
     handleSearchKeydown,
     handleSearchPreviewScroll,
@@ -3684,7 +3670,6 @@ export function createFileWorkspace() {
     set navigationRootId(value) { navigationRootId = value; },
     get navigationUnavailable() { return navigationUnavailable; },
     get nodeLookupEnabled() { return nodeLookupEnabled; },
-    openSearchPreview,
     openSearchView,
     refreshAfterBatchAccessRules,
     refreshDocumentTagsEditorData,
@@ -3700,18 +3685,16 @@ export function createFileWorkspace() {
     set searchPreview(value) { searchPreview = value; },
     get searchPreviewActiveIndex() { return searchPreviewActiveIndex; },
     set searchPreviewActiveIndex(value) { searchPreviewActiveIndex = value; },
-    get searchPreviewCanSearch() { return searchPreviewCanSearch; },
     get searchPreviewHasQuery() { return searchPreviewHasQuery; },
+    get searchPreviewListMaxHeight() { return searchPreviewListMaxHeight; },
+    get searchPreviewOpen() { return searchPreviewOpen; },
     get searchPreviewPanelStyle() { return searchPreviewPanelStyle; },
     set searchPreviewPanelStyle(value) { searchPreviewPanelStyle = value; },
-    get searchPreviewResetKey() { return searchPreviewResetKey; },
     get searchPreviewRoot() { return searchPreviewRoot; },
     set searchPreviewRoot(value) { searchPreviewRoot = value; },
     get searchPreviewRows() { return searchPreviewRows; },
     get searchQuery() { return searchQuery; },
     set searchQuery(value) { searchQuery = value; },
-    searchResultDate,
-    searchSortLabel,
     get searchView() { return searchView; },
     get searchViewInput() { return searchViewInput; },
     set searchViewInput(value) { searchViewInput = value; },
@@ -3722,7 +3705,6 @@ export function createFileWorkspace() {
     get selectedFolderIds() { return selectedFolderIds; },
     set selectedFolderIds(value) { selectedFolderIds = value; },
     get selectedItemsLabel() { return selectedItemsLabel; },
-    setSearchPreviewSort,
     setSort,
     showCurrentDirectoryContextMenu,
     showDocumentContextMenu,
@@ -3737,8 +3719,6 @@ export function createFileWorkspace() {
     sortTitle,
     get statusBarPrimary() { return statusBarPrimary; },
     get statusBarSecondary() { return statusBarSecondary; },
-    toggleSearchPreviewSortOrder,
-    updateSearchPreviewOptions,
     get uploadProgress() { return uploadProgress; },
     set uploadProgress(value) { uploadProgress = value; },
 

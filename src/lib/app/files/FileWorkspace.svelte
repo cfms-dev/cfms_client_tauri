@@ -14,14 +14,12 @@
   import ExplorerDetailsPane from '$lib/features/files/ExplorerDetailsPane.svelte';
   import ExplorerStatusBar from '$lib/features/files/ExplorerStatusBar.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdCheckbox from '$lib/shared/ui/MdCheckbox.svelte';
   import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/features/files/MoveTargetDialog.svelte';
+  import SearchPreviewList from '$lib/features/files/SearchPreviewList.svelte';
   import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import { formatBytes, formatDate } from '$lib/shared/format/values';
+  import { formatDate } from '$lib/shared/format/values';
   import { laneX } from '$lib/features/files/revision-graph';
   import type { SortField } from '$lib/features/files/sorting';
   import { focusRovingItem } from '$lib/shared/ui/keyboard';
@@ -107,7 +105,12 @@
   {#snippet serverSearch()}
     <!-- Search -->
     {#if workspace.canUseServerSearch}
-      <div bind:this={workspace.searchPreviewRoot} class="files-search relative">
+      <div
+        bind:this={workspace.searchPreviewRoot}
+        class="files-search relative"
+        onfocusin={workspace.handleSearchBoxFocusIn}
+        onfocusout={workspace.handleSearchBoxFocusOut}
+      >
       <form
         class="files-search-field cfms-field-surface"
         data-search-box
@@ -120,16 +123,15 @@
             placeholder={workspace.directorySearchPlaceholder}
             bind:value={workspace.searchQuery}
             bind:this={workspace.searchInput}
-            onfocus={workspace.openSearchPreview}
             oninput={workspace.handleSearchInput}
             onkeydown={workspace.handleSearchKeydown}
             role="combobox"
-            aria-expanded={workspace.searchPreview.open}
+            aria-expanded={workspace.searchPreviewOpen}
             aria-controls="files-search-preview-list"
             aria-label={workspace.directorySearchPlaceholder}
             aria-keyshortcuts="Control+F Meta+F"
             aria-autocomplete="list"
-            aria-activedescendant={workspace.searchPreview.open && workspace.searchPreviewActiveIndex >= 0
+            aria-activedescendant={workspace.searchPreviewOpen && workspace.searchPreviewActiveIndex >= 0
               ? `files-search-preview-option-${workspace.searchPreviewActiveIndex}`
               : undefined}
           />
@@ -162,154 +164,27 @@
         </FluentButton>
       </form>
 
-      {#if workspace.searchPreview.open}
+      {#if workspace.searchPreviewOpen}
         <div
           id="files-search-preview-panel"
           class="search-preview-panel cfms-acrylic-surface fixed z-40 overflow-hidden"
           style={workspace.searchPreviewPanelStyle}
         >
-          <div class="border-b border-md3-outline px-4 py-3">
-            <div class="search-preview-controls">
-              <label class="inline-flex items-center gap-1.5 text-sm text-md3-on-surface-variant">
-                <MdCheckbox
-                  bind:checked={workspace.searchPreview.searchDocuments}
-                  ariaLabel={$t('files.searchDocuments')}
-                  onChange={workspace.updateSearchPreviewOptions}
-                />
-                {$t('files.searchDocuments')}
-              </label>
-              <label class="inline-flex items-center gap-1.5 text-sm text-md3-on-surface-variant">
-                <MdCheckbox
-                  bind:checked={workspace.searchPreview.searchDirectories}
-                  ariaLabel={$t('files.searchDirectories')}
-                  onChange={workspace.updateSearchPreviewOptions}
-                />
-                {$t('files.searchDirectories')}
-              </label>
-
-              <div class="search-sort" role="toolbar" tabindex="-1" aria-label={$t('workspace.sort')} onkeydown={(event) => focusRovingItem(event, event.currentTarget as HTMLElement, { selector: '[data-search-sort]', orientation: 'horizontal' })}>
-                {#each ['name', 'size', 'modified'] as field}
-                  <button data-fluent-owner="routes-home-files-page"
-                    data-search-sort
-                    tabindex={workspace.searchPreview.sortBy === field ? 0 : -1}
-                    type="button"
-                    class="search-sort-option"
-                    aria-pressed={workspace.searchPreview.sortBy === field}
-                    onclick={() => workspace.setSearchPreviewSort(field as SortField)}
-                  >
-                    {workspace.searchSortLabel(field as SortField)}
-                  </button>
-                {/each}
-              </div>
-              <FluentButton data-fluent-owner="routes-home-files-page"
-                type="button"
-                title={workspace.searchPreview.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
-                onclick={workspace.toggleSearchPreviewSortOrder}
-                appearance="outline"
-                class="search-preview-action"
-              >
-                <Icon name={workspace.searchPreview.sortOrder === 'asc' ? 'arrowUpward' : 'arrowDownward'} size="16px" />
-                {workspace.searchPreview.sortOrder === 'asc' ? $t('files.ascending') : $t('files.descending')}
-              </FluentButton>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-xs text-md3-on-surface-variant">
-            <span>{$t('files.searchPreviewResults')}</span>
-            {#if workspace.searchPreview.loading || workspace.searchPreview.loadingMore}
-              <span class="inline-flex items-center gap-2 normal-case">
-                <ProgressRing size={13} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-                {$t('common.loadingEllipsis')}
-              </span>
-            {/if}
-          </div>
-
-          <div
+          <SearchPreviewList
             id="files-search-preview-list"
-            class="search-preview-list border-y border-md3-outline/60"
-            role="listbox"
-            aria-label={$t('files.searchPreviewResults')}
-          >
-            {#if workspace.searchPreview.error}
-              <p class="px-4 py-8 text-center text-sm text-md3-error">{workspace.searchPreview.error}</p>
-            {:else if !workspace.searchPreviewHasQuery}
-              <p class="px-4 py-8 text-center text-sm text-md3-on-surface-variant">{$t('files.searchPreviewEmpty')}</p>
-            {:else if workspace.searchPreview.results && workspace.searchPreviewRows.length === 0 && !workspace.searchPreview.loading}
-              <p class="px-4 py-8 text-center text-sm text-md3-on-surface-variant">
-                {$t('files.searchNoResults', { values: { query: workspace.searchPreview.query } })}
-              </p>
-            {:else if workspace.searchPreviewRows.length > 0}
-              <VirtualList
-                items={workspace.searchPreviewRows}
-                keyOf={(row) => row.kind === 'directory'
-                  ? `preview-directory:${row.directory.id}`
-                  : `preview-document:${row.document.id}`}
-                estimateSize={48}
-                overscan={8}
-                threshold={80}
-                resetKey={workspace.searchPreviewResetKey}
-                viewportClass="search-preview-virtual-viewport"
-                onScroll={workspace.handleSearchPreviewScroll}
-              >
-                {#snippet children(row, index)}
-                  <button data-fluent-owner="routes-home-files-page"
-                    id={`files-search-preview-option-${index}`}
-                    type="button"
-                    class="grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-md3-outline/45 px-4 py-2 text-left transition-colors hover:bg-md3-primary-container/15 {workspace.searchPreviewActiveIndex === index ? 'bg-md3-primary-container/15' : ''}"
-                    class:border-b-0={index === workspace.searchPreviewRows.length - 1}
-                    role="option"
-                    aria-selected={workspace.searchPreviewActiveIndex === index}
-                    tabindex="-1"
-                    onmouseenter={() => (workspace.searchPreviewActiveIndex = index)}
-                    onclick={() => row.kind === 'directory'
-                      ? workspace.navigateToSearchDirectory(row.directory)
-                      : workspace.navigateToSearchDocument(row.document)}
-                  >
-                    <span class={row.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface-variant'}>
-                      <Icon name={row.kind === 'directory' ? 'folder' : 'filePresent'} size="20px" />
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block truncate text-sm font-medium {row.kind === 'directory' ? 'text-md3-primary-emphasis' : 'text-md3-on-surface'}">
-                        {row.kind === 'directory' ? row.directory.name : (row.document.name ?? row.document.title)}
-                      </span>
-                      <span class="block truncate text-xs text-md3-on-surface-variant">
-                        {row.kind === 'directory' ? $t('files.searchDirectories') : formatBytes(row.document.size)}
-                      </span>
-                    </span>
-                    <span class="text-xs text-md3-on-surface-variant">{workspace.searchResultDate(row)}</span>
-                  </button>
-                {/snippet}
-              </VirtualList>
-            {:else if workspace.searchPreview.loading}
-              <div class="flex items-center justify-center gap-2 px-4 py-8 text-sm text-md3-on-surface-variant">
-                <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
-                {$t('common.loadingEllipsis')}
-              </div>
-            {/if}
-          </div>
-
-          <div class="search-preview-footer">
-            <FluentButton data-fluent-owner="routes-home-files-page"
-              type="button"
-              disabled={!workspace.searchPreviewCanSearch}
-              onclick={() => workspace.openSearchView(true)}
-              appearance="subtle"
-              class="search-preview-action"
-            >
-              <Icon name="filterList" size="16px" />
-              {$t('files.advancedSearch')}
-            </FluentButton>
-            <FluentButton data-fluent-owner="routes-home-files-page"
-              type="button"
-              disabled={!workspace.searchPreviewCanSearch}
-              onclick={() => workspace.openSearchView(true)}
-              appearance="outline"
-              class="search-preview-action"
-            >
-              <Icon name="search" size="16px" />
-              {$t('files.allResults')}
-            </FluentButton>
-          </div>
+            optionIdPrefix="files-search-preview-option"
+            rows={workspace.searchPreviewRows}
+            query={workspace.searchPreview.query}
+            loading={workspace.searchPreview.loading}
+            loadingMore={workspace.searchPreview.loadingMore}
+            error={workspace.searchPreview.error}
+            activeIndex={workspace.searchPreviewActiveIndex}
+            maxHeight={workspace.searchPreviewListMaxHeight}
+            onActiveIndexChange={(index) => (workspace.searchPreviewActiveIndex = index)}
+            onSelectDirectory={workspace.navigateToSearchDirectory}
+            onSelectDocument={workspace.navigateToSearchDocument}
+            onScroll={workspace.handleSearchPreviewScroll}
+          />
         </div>
       {/if}
       </div>
@@ -551,28 +426,18 @@
     }
   }
 
-  :global(.search-preview-virtual-viewport) {
-    max-height: 360px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
   .search-preview-panel {
     animation: search-preview-in 180ms var(--motion-easing-emphasized-decelerate) both;
   }
 
-  .search-preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-  .search-sort { display: flex; max-width: 100%; flex-wrap: wrap; gap: 2px; border: 1px solid var(--colorNeutralStroke1); border-radius: var(--borderRadiusMedium); padding: 2px; }
-  .search-sort-option { min-height: 32px; border-radius: var(--borderRadiusMedium); padding: 4px 12px; color: var(--colorNeutralForeground2); font: 400 14px/20px var(--fontFamilyBase); transition: background-color var(--durationFaster) var(--curveEasyEase); }
-  .search-sort-option:hover:not(:disabled) { background: var(--colorNeutralBackground1Hover); }
-  .search-sort-option[aria-pressed="true"] { color: var(--colorBrandForeground1); background: var(--colorBrandBackground2); box-shadow: inset 0 -2px var(--colorBrandStroke1); }
-  .search-sort-option:disabled { color: var(--colorNeutralForegroundDisabled); }
-  :global(.search-preview-action[data-fluent-owner="routes-home-files-page"]) { font-weight: 400; }
-  .search-preview-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+  @media (prefers-reduced-motion: reduce) {
+    .search-preview-panel {
+      animation: none;
+    }
+  }
 
   @media (pointer: coarse) {
     .files-search-input { font-size: 16px; }
-    .search-sort-option { min-height: 44px; }
   }
   @media (forced-colors: active) {
     :global(html[data-window-backdrop]) .files-page,
@@ -580,7 +445,6 @@
     :global(html[data-window-backdrop]) .files-page :global(.explorer-status-bar) { background: Canvas; }
     .files-search-field { color: FieldText; background: Field; border-color: ButtonText; }
     [data-search-box]:has([data-focus-ring="delegated"]:focus) { outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
-    .search-sort-option[aria-pressed="true"] { color: HighlightText; background: Highlight; box-shadow: none; outline: 1px solid Highlight; }
   }
 
   .revision-graph-row {

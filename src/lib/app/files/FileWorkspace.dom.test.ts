@@ -17,7 +17,7 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 import { directoryPage } from '../../../test/directory-fixtures';
 
 const mocks = vi.hoisted(() => ({
-  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), getDocumentInfo: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
+  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), getDocumentInfo: vi.fn(), searchFiles: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
   classifyUploadPath: vi.fn(), inspectUploadDirectoryConflicts: vi.fn(), goto: vi.fn(),
   events: new Map<string, (event: { payload: unknown }) => void>(),
   drop: null as ((event: { payload: unknown }) => void) | null,
@@ -40,6 +40,7 @@ vi.mock('$lib/api', async (original) => ({
   ...await original<typeof import('$lib/api')>(),
   listDirectoryPage: mocks.listDirectoryPage, listDirectory: mocks.listDirectory,
   getDocumentInfo: mocks.getDocumentInfo,
+  searchFiles: mocks.searchFiles,
   loadUserPreference: async () => ({}), classifyUploadPath: mocks.classifyUploadPath,
   mutateFilePreferences: async () => ({ recent_visits: [] }),
   inspectUploadDirectoryConflicts: mocks.inspectUploadDirectoryConflicts,
@@ -83,6 +84,16 @@ beforeEach(() => {
   mocks.listDirectoryPage.mockReset().mockResolvedValue(page(['alpha', 'beta']));
   mocks.listDirectory.mockReset().mockResolvedValue({ folders: [], documents: [], parent_id: null });
   mocks.getDocumentInfo.mockReset();
+  mocks.searchFiles.mockReset().mockResolvedValue({
+    items: [
+      { type: 'directory', id: 'dir-sys', name: '111', parent_id: null, created_time: 1_795_665_643 },
+      { type: 'document', id: 'doc-crc', title: 'crc16.c', parent_id: null, size: 4_506, last_modified: 1_795_697_176 },
+    ],
+    total_count: 2,
+    page_size: 24,
+    next_cursor: null,
+    has_more: false,
+  });
   mocks.open.mockReset().mockResolvedValue(['C:/uploads/new.txt']);
   mocks.pickDirectory.mockReset().mockResolvedValue({ path: 'C:/uploads/folder', name: 'folder' });
   mocks.classifyUploadPath.mockReset().mockResolvedValue('file');
@@ -340,5 +351,88 @@ describe('jump to directory or document by ID', () => {
     );
     expect(screen.getByText('alpha.txt')).toBeTruthy();
     expect(screen.getByText('beta.txt')).toBeTruthy();
+  });
+});
+
+describe('toolbar search preview', () => {
+  beforeEach(() => {
+    authStore.apply({
+      user_id: 'self',
+      username: 'alice',
+      nickname: 'Alice',
+      has_token: true,
+      token_exp: 1_900_000_000,
+      permissions: ['search'],
+      groups: [],
+    });
+  });
+
+  it('stays closed on empty focus and renders a minimal Home-style preview list on non-empty input', async () => {
+    const { container } = await openFiles();
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+
+    // Focusing an empty search field must not pop up an empty preview box
+    input.focus();
+    await tick();
+    expect(container.querySelector('#files-search-preview-panel')).toBeNull();
+    expect(mocks.searchFiles).not.toHaveBeenCalled();
+
+    // Entering a query shows the minimal preview panel without redundant filter, sort, or footer controls
+    await fireEvent.input(input, { target: { value: '1' } });
+    await vi.waitFor(() => expect(mocks.searchFiles).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(screen.getByText('crc16.c')).toBeTruthy());
+
+    expect(mocks.searchFiles).toHaveBeenCalledWith('1', {
+      pageSize: 24,
+      cursor: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+      searchDocuments: true,
+      searchDirectories: true,
+    });
+
+    const panel = container.querySelector<HTMLElement>('#files-search-preview-panel')!;
+    expect(panel).not.toBeNull();
+    expect(panel.querySelector('#files-search-preview-list')).not.toBeNull();
+    expect(panel.querySelectorAll('[role="checkbox"]')).toHaveLength(0);
+    expect(panel.querySelectorAll('[data-search-sort]')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Advanced search' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'All results' })).toBeNull();
+    expect(screen.getByText('111')).toBeTruthy();
+    expect(screen.getByText('crc16.c')).toBeTruthy();
+  });
+
+  it('hides on blur, reopens on refocus, supports keyboard navigation, and opens ServerSearchView on Enter', async () => {
+    const { container } = await openFiles();
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+
+    input.focus();
+    await fireEvent.input(input, { target: { value: '1' } });
+    await vi.waitFor(() => expect(screen.getByText('crc16.c')).toBeTruthy());
+
+    // Leaving focus hides the preview while keeping the typed query
+    input.blur();
+    await tick();
+    expect(container.querySelector('#files-search-preview-panel')).toBeNull();
+    expect(input.value).toBe('1');
+
+    // Refocusing restores the preview immediately
+    input.focus();
+    await tick();
+    expect(container.querySelector('#files-search-preview-panel')).not.toBeNull();
+
+    // Escape dismisses while focused; ArrowDown reopens and highlights the first option
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(container.querySelector('#files-search-preview-panel')).toBeNull();
+
+    await fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await tick();
+    expect(container.querySelector('#files-search-preview-panel')).not.toBeNull();
+    expect(input.getAttribute('aria-activedescendant')).toBe('files-search-preview-option-0');
+
+    // Submitting via Enter without an active option opens the full ServerSearchView
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).not.toBeNull());
   });
 });

@@ -168,6 +168,7 @@ describe('OverviewPage redesign', () => {
     await tick();
 
     const input = screen.getByRole('combobox') as HTMLInputElement;
+    input.focus();
     await fireEvent.input(input, { target: { value: '122' } });
 
     await vi.waitFor(() => expect(mocks.searchFiles).toHaveBeenCalledOnce());
@@ -209,11 +210,53 @@ describe('OverviewPage redesign', () => {
     await vi.waitFor(() => expect(container.querySelector('.home-overview')).not.toBeNull());
   });
 
+  it('only shows the search preview dropdown while the search box is focused', async () => {
+    const { container } = render(OverviewPage);
+    await tick();
+
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    const root = container.querySelector('.home-overview')!;
+    const panels = container.querySelector('.home-panels')!;
+
+    // Input value without focus does not open the preview dropdown
+    await fireEvent.input(input, { target: { value: '122' } });
+    expect(container.querySelector('#home-search-preview-list')).toBeNull();
+    expect(root.classList.contains('home-overview--preview')).toBe(false);
+    expect(panels.classList.contains('home-panels--hidden')).toBe(false);
+
+    // Focusing the search box opens the dropdown and hides home panels
+    input.focus();
+    await vi.waitFor(() => expect(screen.getByText('Hello World')).toBeTruthy());
+    expect(container.querySelector('#home-search-preview-list')).not.toBeNull();
+    expect(root.classList.contains('home-overview--preview')).toBe(true);
+    expect(panels.classList.contains('home-panels--hidden')).toBe(true);
+
+    // Moving focus to another control inside the search card keeps the dropdown open
+    const submitBtn = container.querySelector<HTMLButtonElement>('[data-home-submit]')!;
+    await fireEvent.focusOut(input, { relatedTarget: submitBtn });
+    expect(container.querySelector('#home-search-preview-list')).not.toBeNull();
+
+    // Leaving focus hides the dropdown, preserves query text, and restores home panels
+    input.blur();
+    await tick();
+    expect(container.querySelector('#home-search-preview-list')).toBeNull();
+    expect(input.value).toBe('122');
+    expect(root.classList.contains('home-overview--preview')).toBe(false);
+    expect(panels.classList.contains('home-panels--hidden')).toBe(false);
+
+    // Refocusing restores the dropdown with the preserved query
+    input.focus();
+    await tick();
+    expect(container.querySelector('#home-search-preview-list')).not.toBeNull();
+    expect(screen.getByText('Hello World')).toBeTruthy();
+  });
+
   it('navigates to folder or document parent when clicking a search preview item', async () => {
     render(OverviewPage);
     await tick();
 
-    const input = screen.getByRole('combobox');
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    input.focus();
     await fireEvent.input(input, { target: { value: '122' } });
     await vi.waitFor(() => expect(screen.getByText('Hello World')).toBeTruthy());
 
@@ -298,6 +341,7 @@ describe('OverviewPage redesign', () => {
       expect(panels.classList.contains('home-panels--hidden')).toBe(false);
       expect(panels.classList.contains('home-panels--collapsed')).toBe(false);
 
+      input.focus();
       await fireEvent.input(input, { target: { value: '111' } });
       expect(panels.classList.contains('home-panels--hidden')).toBe(true);
       expect(panels.classList.contains('home-panels--collapsed')).toBe(false);
