@@ -24,10 +24,12 @@ describe('native public-key bridge', () => {
   });
   it('queries, selects, and generates device-managed authentication keypairs', async () => {
     await getManagedAuthKeys();
-    expect(invoke).toHaveBeenNthCalledWith(1, 'get_managed_auth_keys');
+    expect(invoke).toHaveBeenNthCalledWith(1, 'get_managed_auth_keys', { username: null });
+    await getManagedAuthKeys('alice');
+    expect(invoke).toHaveBeenNthCalledWith(2, 'get_managed_auth_keys', { username: 'alice' });
     await selectManagedAuthKey('managed-1');
-    expect(invoke).toHaveBeenNthCalledWith(2, 'select_managed_auth_key', { keyId: 'managed-1' });
+    expect(invoke).toHaveBeenNthCalledWith(3, 'select_managed_auth_key', { keyId: 'managed-1' });
     await generateUserAuthPublicKey('Laptop TPM');
-    expect(invoke).toHaveBeenNthCalledWith(3, 'generate_user_auth_public_key', { label: 'Laptop TPM' });
+    expect(invoke).toHaveBeenNthCalledWith(4, 'generate_user_auth_public_key', { label: 'Laptop TPM' });
   });
 });

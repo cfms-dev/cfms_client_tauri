@@ -45,10 +45,9 @@ pub fn probe_capability<R: Runtime>(app: &AppHandle<R>) -> (bool, bool) {
     (os_store::is_available(app), false)
 }
 
-pub fn list_inventory<R: Runtime>(
+pub fn load_records_and_capability<R: Runtime>(
     app: &AppHandle<R>,
-    current_server: Option<&str>,
-) -> Result<ManagedKeyInventory, String> {
+) -> Result<(bool, bool, Vec<ManagedKeyRecord>), String> {
     let (storage_available, hardware_backed) = probe_capability(app);
     let records = match app_index(app)?.read_records() {
         Ok(records) => records,
@@ -57,15 +56,37 @@ pub fn list_inventory<R: Runtime>(
             Vec::new()
         }
     };
+    Ok((storage_available, hardware_backed, records))
+}
+
+pub fn build_inventory(
+    storage_available: bool,
+    hardware_backed: bool,
+    records: &[ManagedKeyRecord],
+    current_server: Option<&str>,
+    username: Option<&str>,
+) -> ManagedKeyInventory {
     let current_hash = current_server.map(cfms_core::get_server_hash);
     let (bound_keys, rescue_keys) =
-        store::partition_records_for_server(&records, current_hash.as_deref());
-    Ok(ManagedKeyInventory {
+        store::partition_records_for_server(records, current_hash.as_deref(), username);
+    ManagedKeyInventory {
         storage_available,
         hardware_backed,
         bound_keys,
         rescue_keys,
-    })
+    }
+}
+
+pub fn migrate_legacy_index<R: Runtime>(app: &AppHandle<R>) {
+    let Ok(index) = app_index(app) else {
+        return;
+    };
+    if !index.path().exists() {
+        return;
+    }
+    if let Err(err) = index.read_records() {
+        tracing::warn!("Failed to migrate managed auth key index: {err}");
+    }
 }
 
 pub fn find_record<R: Runtime>(

@@ -41,7 +41,7 @@ export interface ManagedAuthKeySummary {
   fingerprint: string;
   hardwareBacked: boolean;
   serverAddress: string;
-  username: string;
+  usernameMatches: boolean;
   credentialId: string | null;
   createdAt: number;
 }
@@ -54,7 +54,8 @@ export interface ManagedAuthKeyInventory {
 }
 
 export type PublicKeyInteraction = { kind: 'signing' } | { kind: 'select_key'; interaction_id: string };
-export const getManagedAuthKeys = (): Promise<ManagedAuthKeyInventory> => invoke('get_managed_auth_keys');
+export const getManagedAuthKeys = (username?: string | null): Promise<ManagedAuthKeyInventory> =>
+  invoke('get_managed_auth_keys', { username: username ?? null });
 export const selectManagedAuthKey = (keyId: string): Promise<AuthPrivateKeyInfo> => invoke('select_managed_auth_key', { keyId });
 export const pickAuthPrivateKey = (): Promise<AuthPrivateKeyInfo | null> => invoke('pick_auth_private_key');
 export const releaseAuthPrivateKey = (keyRef: string): Promise<void> => invoke('release_auth_private_key', { keyRef });

@@ -78,7 +78,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   async function refreshManagedKeys() {
     if (managed) { managedKeys = null; return; }
     try {
-      const next = await getManagedAuthKeys();
+      const next = await getManagedAuthKeys(authStore.username);
       if (next && typeof next.storageAvailable === 'boolean') managedKeys = next;
     } catch {
       managedKeys = { storageAvailable: false, hardwareBacked: false, boundKeys: [], rescueKeys: [] };
@@ -265,7 +265,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       {/each}
     </div>
     <div id="auth-panel-methods" role="tabpanel" aria-labelledby="auth-tab-methods" hidden={tab !== 'methods'}>
-      <AuthenticationMethods {inventory} {managedKeys} currentUsername={authStore.username} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
+      <AuthenticationMethods {inventory} {managedKeys} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
         {#snippet authenticator()}
           <AuthenticatorSettings bind:this={authenticatorSettings} {userId} bind:busy={methodBusy} disabled={busy || loading || !authStore.isLoggedIn} beforeChange={beforeMethodChange} onChanged={load} />
         {/snippet}

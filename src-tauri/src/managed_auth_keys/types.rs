@@ -24,7 +24,7 @@ pub struct ManagedKeyRecord {
     pub server_hash: String,
     pub server_address: String,
     pub user_id: String,
-    pub username: String,
+    pub username_hash: String,
     pub credential_id: Option<String>,
     pub created_at: u64,
 }
@@ -38,13 +38,16 @@ pub struct ManagedKeySummary {
     pub fingerprint: String,
     pub hardware_backed: bool,
     pub server_address: String,
-    pub username: String,
+    pub username_matches: bool,
     pub credential_id: Option<String>,
     pub created_at: u64,
 }
 
-impl From<&ManagedKeyRecord> for ManagedKeySummary {
-    fn from(record: &ManagedKeyRecord) -> Self {
+impl ManagedKeySummary {
+    pub fn from_record(record: &ManagedKeyRecord, username: Option<&str>) -> Self {
+        let username_matches = username.is_some_and(|candidate| {
+            cfms_crypto::verify_username(&record.username_hash, candidate)
+        });
         Self {
             key_id: record.key_id.clone(),
             label: record.label.clone(),
@@ -52,7 +55,7 @@ impl From<&ManagedKeyRecord> for ManagedKeySummary {
             fingerprint: record.fingerprint.clone(),
             hardware_backed: record.hardware_backed,
             server_address: record.server_address.clone(),
-            username: record.username.clone(),
+            username_matches,
             credential_id: record.credential_id.clone(),
             created_at: record.created_at,
         }

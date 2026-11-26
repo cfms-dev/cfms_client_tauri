@@ -22,9 +22,11 @@ pub mod config;
 pub mod dek;
 pub mod kdf;
 pub mod pin;
+pub mod username_hash;
 
 // Re-exports for convenience.
 pub use aead::{open as aead_open, seal as aead_seal};
 pub use config::{decrypt_config, encrypt_config, is_encrypted};
 pub use dek::{decrypt_dek, encrypt_dek, generate_dek};
 pub use kdf::{derive_kek, generate_salt};
+pub use username_hash::{hash_username, verify_username};

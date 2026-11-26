@@ -8,10 +8,9 @@
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
 
-  let { inventory, managedKeys = null, currentUsername = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
+  let { inventory, managedKeys = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
     inventory: UserAuthentication;
     managedKeys?: ManagedAuthKeyInventory | null;
-    currentUsername?: string | null;
     writable: boolean;
     busy: boolean;
     canChangePassword: boolean;
@@ -41,7 +40,7 @@
     return managedKeys.boundKeys.find(
       (k) => !k.credentialId
         && k.fingerprint === credential.key_identity
-        && (!currentUsername || k.username === currentUsername),
+        && k.usernameMatches,
     );
   }
   async function register(event: SubmitEvent) {

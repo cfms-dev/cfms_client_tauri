@@ -95,8 +95,20 @@ fn normalize_public_key_label(label: Option<String>) -> Result<Option<String>, S
 pub async fn get_managed_auth_keys<R: Runtime>(
     app: tauri::AppHandle<R>,
     state: tauri::State<'_, AppHandleState>,
+    username: Option<String>,
 ) -> Result<crate::managed_auth_keys::ManagedKeyInventory, String> {
     let current_server = state.inner.server_address.read().await.clone();
+    let effective_username = match username {
+        Some(explicit) => {
+            let trimmed = explicit.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        None => state.inner.username.read().await.clone(),
+    };
     if app
         .state::<crate::local_data_reset::LocalDataResetRuntime>()
         .in_progress
@@ -109,10 +121,22 @@ pub async fn get_managed_auth_keys<R: Runtime>(
             rescue_keys: Vec::new(),
         });
     }
-    run_managed_vault_op(&app, true, crate::secure_store::UNAVAILABLE, move |app| {
-        crate::managed_auth_keys::list_inventory(app, current_server.as_deref())
+    let (storage_available, hardware_backed, records) =
+        run_managed_vault_op(&app, true, crate::secure_store::UNAVAILABLE, |app| {
+            crate::managed_auth_keys::load_records_and_capability(app)
+        })
+        .await?;
+    tokio::task::spawn_blocking(move || {
+        crate::managed_auth_keys::build_inventory(
+            storage_available,
+            hardware_backed,
+            &records,
+            current_server.as_deref(),
+            effective_username.as_deref(),
+        )
     })
     .await
+    .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())
 }
 
 #[tauri::command]
@@ -196,6 +220,10 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
         .map(String::from)
         .unwrap_or_else(|| generated.fingerprint.clone());
 
+    let username_hash = tokio::task::spawn_blocking(move || cfms_crypto::hash_username(&username))
+        .await
+        .map_err(|_| crate::secure_store::UNAVAILABLE.to_string())?;
+
     let record = crate::managed_auth_keys::ManagedKeyRecord {
         key_id: generated.key_id.clone(),
         backend: generated.backend,
@@ -207,7 +235,7 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
         server_hash: cfms_core::get_server_hash(&identity.server),
         server_address: crate::managed_auth_keys::display_server_address(&identity.server),
         user_id: identity.user_id.clone(),
-        username,
+        username_hash,
         credential_id: credential_id.clone(),
         created_at: unix_now().max(0) as u64,
     };

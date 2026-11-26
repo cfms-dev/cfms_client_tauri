@@ -97,6 +97,7 @@ export const en = {
     rescueTitle: "Use another managed key (rescue)",
     rescueHelp: "Use this when the server address has changed. After verification succeeds, the key will automatically bind to this server.",
     rescueServerMeta: "Server: {server} · Account: {username}",
+    rescueServerOnlyMeta: "Server: {server}",
     rescueOtherAccounts: "Keys bound to other usernames ({count})",
     rescueSelectedNotice: "Selected from rescue ({server}). It will bind to the current server after sign-in.",
   },

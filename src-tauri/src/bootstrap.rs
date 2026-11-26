@@ -219,6 +219,23 @@ pub(crate) fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
     if !reset_recovery_mode {
         let handle = app.handle().clone();
         tauri::async_runtime::spawn(commands::upload_tasks::run_upload_queue(handle));
+
+        let migrate_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = tokio::task::spawn_blocking(move || {
+                let vault = migrate_handle.state::<managed_auth_keys::ManagedAuthKeys>();
+                let _guard = vault.operation.lock().unwrap_or_else(|e| e.into_inner());
+                if migrate_handle
+                    .state::<local_data_reset::LocalDataResetRuntime>()
+                    .in_progress
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    return;
+                }
+                managed_auth_keys::migrate_legacy_index(&migrate_handle);
+            })
+            .await;
+        });
     }
 
     let main_window_config = app

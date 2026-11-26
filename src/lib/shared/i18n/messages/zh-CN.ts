@@ -97,6 +97,7 @@ export const zh_CN = {
     rescueTitle: "使用其他受管密钥（救援入口）",
     rescueHelp: "当服务器地址发生变更等特殊情况时使用。验证成功后，该密钥将自动更新绑定至当前服务器。",
     rescueServerMeta: "原服务器：{server} · 账户：{username}",
+    rescueServerOnlyMeta: "原服务器：{server}",
     rescueOtherAccounts: "其他账户绑定的密钥（{count}）",
     rescueSelectedNotice: "已从救援入口选择（原绑定：{server}），验证通过后将自动绑定至当前服务器。",
   },

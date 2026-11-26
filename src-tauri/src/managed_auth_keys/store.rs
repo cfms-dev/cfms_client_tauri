@@ -1,9 +1,33 @@
 //! Atomic JSON index persistence and server/user-scoped queries for managed keys.
-use super::types::{ManagedKeyRecord, ManagedKeySummary, display_server_address};
+use super::types::{
+    ManagedKeyBackend, ManagedKeyRecord, ManagedKeySummary, display_server_address,
+};
+use serde::Deserialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const INDEX_FILENAME: &str = "managed-auth-keys.json";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredManagedKeyRecord {
+    key_id: String,
+    backend: ManagedKeyBackend,
+    hardware_backed: bool,
+    algorithm: String,
+    fingerprint: String,
+    public_key: String,
+    label: Option<String>,
+    server_hash: String,
+    server_address: String,
+    user_id: String,
+    #[serde(default)]
+    username_hash: Option<String>,
+    #[serde(default, rename = "username")]
+    legacy_username: Option<String>,
+    credential_id: Option<String>,
+    created_at: u64,
+}
 
 /// Path-scoped persistence store for managed key metadata records.
 pub struct ManagedKeyIndex {
@@ -27,7 +51,44 @@ impl ManagedKeyIndex {
             return Ok(Vec::new());
         }
         let bytes = std::fs::read(path).map_err(|_| crate::secure_store::UNAVAILABLE)?;
-        serde_json::from_slice(&bytes).map_err(|_| crate::secure_store::UNAVAILABLE.into())
+        let stored_records: Vec<StoredManagedKeyRecord> =
+            serde_json::from_slice(&bytes).map_err(|_| crate::secure_store::UNAVAILABLE)?;
+        let mut needs_migration = false;
+        let mut records = Vec::with_capacity(stored_records.len());
+        for stored in stored_records {
+            if stored.legacy_username.is_some() {
+                needs_migration = true;
+            }
+            let username_hash = match stored.username_hash.filter(|hash| !hash.trim().is_empty()) {
+                Some(hash) => hash,
+                None => match stored.legacy_username {
+                    Some(legacy) => {
+                        needs_migration = true;
+                        cfms_crypto::hash_username(&legacy)
+                    }
+                    None => String::new(),
+                },
+            };
+            records.push(ManagedKeyRecord {
+                key_id: stored.key_id,
+                backend: stored.backend,
+                hardware_backed: stored.hardware_backed,
+                algorithm: stored.algorithm,
+                fingerprint: stored.fingerprint,
+                public_key: stored.public_key,
+                label: stored.label,
+                server_hash: stored.server_hash,
+                server_address: stored.server_address,
+                user_id: stored.user_id,
+                username_hash,
+                credential_id: stored.credential_id,
+                created_at: stored.created_at,
+            });
+        }
+        if needs_migration && let Err(err) = self.write_records(&records) {
+            tracing::warn!("Failed to persist migrated managed auth key index: {err}");
+        }
+        Ok(records)
     }
 
     pub fn write_records(&self, records: &[ManagedKeyRecord]) -> Result<(), String> {
@@ -72,7 +133,7 @@ impl ManagedKeyIndex {
                 record.server_hash = new_hash.clone();
                 record.server_address = new_display.clone();
                 if !username.trim().is_empty() {
-                    record.username = username.trim().to_string();
+                    record.username_hash = cfms_crypto::hash_username(username);
                 }
                 if let Some(uid) = user_id.filter(|u| !u.is_empty()) {
                     record.user_id = uid.to_string();
@@ -130,14 +191,16 @@ pub fn record_matches_credential(
 pub fn partition_records_for_server(
     records: &[ManagedKeyRecord],
     current_server_hash: Option<&str>,
+    username: Option<&str>,
 ) -> (Vec<ManagedKeySummary>, Vec<ManagedKeySummary>) {
     let mut bound_keys = Vec::new();
     let mut rescue_keys = Vec::new();
     for record in records {
+        let summary = ManagedKeySummary::from_record(record, username);
         if current_server_hash.is_some_and(|hash| hash == record.server_hash) {
-            bound_keys.push(ManagedKeySummary::from(record));
+            bound_keys.push(summary);
         } else {
-            rescue_keys.push(ManagedKeySummary::from(record));
+            rescue_keys.push(summary);
         }
     }
     (bound_keys, rescue_keys)
@@ -206,7 +269,7 @@ mod tests {
             server_hash: cfms_core::get_server_hash(server),
             server_address: display_server_address(server),
             user_id: format!("uid-{username}"),
-            username: username.into(),
+            username_hash: cfms_crypto::hash_username(username),
             credential_id: Some(format!("cred-{key_id}")),
             created_at: 1_700_000_000,
         }
@@ -216,38 +279,124 @@ mod tests {
     fn partitions_bound_and_rescue_keys_by_server_hash_and_rebinds_on_rescue_success() {
         let dir = tempfile::tempdir().unwrap();
         let store = ManagedKeyIndex::new(dir.path());
-        let records = vec![
-            sample_record("k1_valid_id", "wss://alpha.example.com:443", "alice"),
-            sample_record("k2_valid_id", "wss://beta.example.com:5104", "bob"),
-        ];
+        let mut r1 = sample_record("k1_valid_id", "wss://alpha.example.com:443", "alice");
+        r1.user_id = "00000000-0000-4000-8000-000000000001".into();
+        let mut r2 = sample_record("k2_valid_id", "wss://beta.example.com:5104", "bob");
+        r2.user_id = "00000000-0000-4000-8000-000000000002".into();
+        let records = vec![r1, r2];
         store.write_records(&records).unwrap();
+
+        let raw_json = std::fs::read_to_string(store.path()).unwrap();
+        assert!(!raw_json.contains("\"username\""));
+        assert!(!raw_json.contains("alice"));
+        assert!(!raw_json.contains("bob"));
 
         let loaded = store.read_records().unwrap();
         let alpha_hash = cfms_core::get_server_hash("wss://alpha.example.com:443");
-        let (bound, rescue) = partition_records_for_server(&loaded, Some(&alpha_hash));
+        let (bound, rescue) =
+            partition_records_for_server(&loaded, Some(&alpha_hash), Some("alice"));
         assert_eq!(bound.len(), 1);
         assert_eq!(bound[0].key_id, "k1_valid_id");
+        assert!(bound[0].username_matches);
         assert_eq!(rescue.len(), 1);
         assert_eq!(rescue[0].key_id, "k2_valid_id");
+        assert!(!rescue[0].username_matches);
         assert_eq!(rescue[0].server_address, "beta.example.com:5104");
+
+        let (bound_none, rescue_none) =
+            partition_records_for_server(&loaded, Some(&alpha_hash), None);
+        assert!(!bound_none[0].username_matches);
+        assert!(!rescue_none[0].username_matches);
 
         let rebound = store
             .rebind_records(
                 &["k2_valid_id".to_string()],
                 "wss://alpha.example.com:443",
-                Some("uid-alice-new"),
+                Some("00000000-0000-4000-8000-000000000003"),
                 "alice",
             )
             .unwrap();
         assert!(rebound);
 
+        let after_rebind_json = std::fs::read_to_string(store.path()).unwrap();
+        assert!(!after_rebind_json.contains("alice"));
+        assert!(!after_rebind_json.contains("\"username\""));
+
         let after = store.read_records().unwrap();
-        let (bound_after, rescue_after) = partition_records_for_server(&after, Some(&alpha_hash));
+        let (bound_after, rescue_after) =
+            partition_records_for_server(&after, Some(&alpha_hash), Some("alice"));
         assert_eq!(bound_after.len(), 2);
+        assert!(bound_after.iter().all(|summary| summary.username_matches));
         assert!(rescue_after.is_empty());
         let moved = after.iter().find(|r| r.key_id == "k2_valid_id").unwrap();
-        assert_eq!(moved.user_id, "uid-alice-new");
-        assert_eq!(moved.username, "alice");
+        assert_eq!(moved.user_id, "00000000-0000-4000-8000-000000000003");
+        assert!(cfms_crypto::verify_username(&moved.username_hash, "alice"));
+        assert!(!cfms_crypto::verify_username(&moved.username_hash, "bob"));
+    }
+
+    #[test]
+    fn migrates_legacy_plaintext_username_records_and_strips_plaintext_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ManagedKeyIndex::new(dir.path());
+        let legacy_json = serde_json::json!([
+            {
+                "keyId": "legacy_key_01",
+                "backend": "os_secure_store",
+                "hardwareBacked": false,
+                "algorithm": "ssh-ed25519",
+                "fingerprint": "fp-legacy",
+                "publicKey": "ssh-ed25519 AAAA",
+                "label": "Legacy Key",
+                "serverHash": cfms_core::get_server_hash("wss://alpha.example.com:443"),
+                "serverAddress": "alpha.example.com:443",
+                "userId": "00000000-0000-4000-8000-000000000001",
+                "username": "alice",
+                "credentialId": "cred-legacy",
+                "createdAt": 1700000000u64
+            },
+            {
+                "keyId": "mixed_key_02",
+                "backend": "os_secure_store",
+                "hardwareBacked": false,
+                "algorithm": "ssh-ed25519",
+                "fingerprint": "fp-mixed",
+                "publicKey": "ssh-ed25519 BBBB",
+                "label": "Mixed Key",
+                "serverHash": cfms_core::get_server_hash("wss://alpha.example.com:443"),
+                "serverAddress": "alpha.example.com:443",
+                "userId": "00000000-0000-4000-8000-000000000002",
+                "username": "bob",
+                "usernameHash": cfms_crypto::hash_username("bob"),
+                "credentialId": "cred-mixed",
+                "createdAt": 1700000001u64
+            }
+        ]);
+        std::fs::write(store.path(), serde_json::to_vec(&legacy_json).unwrap()).unwrap();
+
+        let migrated = store.read_records().unwrap();
+        assert_eq!(migrated.len(), 2);
+        assert!(cfms_crypto::verify_username(
+            &migrated[0].username_hash,
+            "alice"
+        ));
+        assert!(!cfms_crypto::verify_username(
+            &migrated[0].username_hash,
+            "bob"
+        ));
+        assert!(cfms_crypto::verify_username(
+            &migrated[1].username_hash,
+            "bob"
+        ));
+        assert!(!cfms_crypto::verify_username(
+            &migrated[1].username_hash,
+            "alice"
+        ));
+
+        let rewritten = std::fs::read_to_string(store.path()).unwrap();
+        assert!(!rewritten.contains("\"username\""));
+        assert!(!rewritten.contains("alice"));
+        assert!(!rewritten.contains("bob"));
+        assert!(rewritten.contains("\"usernameHash\""));
     }
 
     #[test]

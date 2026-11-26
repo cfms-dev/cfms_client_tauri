@@ -238,7 +238,7 @@ mod tests {
             server_hash: cfms_core::get_server_hash(server),
             server_address: crate::managed_auth_keys::display_server_address(server),
             user_id: "uid-1".into(),
-            username: "alice".into(),
+            username_hash: cfms_crypto::hash_username("alice"),
             credential_id: Some("cred-1".into()),
             created_at: 1,
         }

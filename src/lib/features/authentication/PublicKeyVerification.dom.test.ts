@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { tick } from 'svelte';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { locale } from 'svelte-i18n';
@@ -66,8 +67,8 @@ describe('public-key verification', () => {
     mocks.managedKeys.mockResolvedValue({
       storageAvailable: true,
       hardwareBacked: true,
-      boundKeys: [{ keyId: 'bound-1', label: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'alice', credentialId: 'c1', createdAt: 1 }],
-      rescueKeys: [{ keyId: 'rescue-1', label: 'Migrated Key', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'alice', credentialId: 'c2', createdAt: 2 }],
+      boundKeys: [{ keyId: 'bound-1', label: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', usernameMatches: true, credentialId: 'c1', createdAt: 1 }],
+      rescueKeys: [{ keyId: 'rescue-1', label: 'Migrated Key', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', usernameMatches: true, credentialId: 'c2', createdAt: 2 }],
     });
     mocks.selectManaged
       .mockResolvedValueOnce({ keyRef: 'bound-ref', filename: 'Primary TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), encrypted: false, source: 'managed', keyId: 'bound-1', hardwareBacked: true, rescue: false, boundServer: 'current.example.com:443' })
@@ -105,30 +106,33 @@ describe('public-key verification', () => {
     await waitFor(() => expect(verify).toHaveBeenCalledWith('rescue-ref', '', expect.any(Function)));
   });
   it('hides all managed keys when username is empty, filters bound keys, and folds other-account rescue keys', async () => {
-    mocks.managedKeys.mockResolvedValue({
+    mocks.managedKeys.mockImplementation(async (username?: string | null) => ({
       storageAvailable: true,
       hardwareBacked: true,
       boundKeys: [
-        { keyId: 'alice-bound', label: 'Alice TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'alice', credentialId: 'c1', createdAt: 1 },
-        { keyId: 'bob-bound', label: 'Bob TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '33'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', username: 'bob', credentialId: 'c3', createdAt: 3 },
+        { keyId: 'alice-bound', label: 'Alice TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '11'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', usernameMatches: username === 'alice', credentialId: 'c1', createdAt: 1 },
+        { keyId: 'bob-bound', label: 'Bob TPM', algorithm: 'ecdsa-sha2-nistp256', fingerprint: '33'.repeat(32), hardwareBacked: true, serverAddress: 'current.example.com:443', usernameMatches: username === 'bob', credentialId: 'c3', createdAt: 3 },
       ],
       rescueKeys: [
-        { keyId: 'alice-rescue', label: 'Alice Old', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'alice', credentialId: 'c2', createdAt: 2 },
-        { keyId: 'bob-rescue', label: 'Bob Old', algorithm: 'ssh-ed25519', fingerprint: '44'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', username: 'bob', credentialId: 'c4', createdAt: 4 },
+        { keyId: 'alice-rescue', label: 'Alice Old', algorithm: 'ssh-ed25519', fingerprint: '22'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', usernameMatches: username === 'alice', credentialId: 'c2', createdAt: 2 },
+        { keyId: 'bob-rescue', label: 'Other Account Old', algorithm: 'ssh-ed25519', fingerprint: '44'.repeat(32), hardwareBacked: false, serverAddress: 'old.example.com:443', usernameMatches: username === 'bob', credentialId: 'c4', createdAt: 4 },
       ],
-    });
+    }));
     const emptyView = render(PrivateKeyField, { username: '' });
-    await waitFor(() => expect(mocks.managedKeys).toHaveBeenCalledTimes(1));
+    await tick();
+    expect(mocks.managedKeys).not.toHaveBeenCalled();
     expect(screen.queryByText('Alice TPM')).toBeNull();
     expect(screen.queryByText('Bob TPM')).toBeNull();
     expect(screen.queryByText(/Use another managed key/)).toBeNull();
     emptyView.unmount();
 
     const scopedView = render(PrivateKeyField, { username: 'alice', invalid: true });
+    await waitFor(() => expect(mocks.managedKeys).toHaveBeenCalledWith('alice'));
     const aliceBound = await screen.findByRole('button', { name: /Alice TPM/ });
     expect(screen.queryByText('Bob TPM')).toBeNull();
     expect(screen.getByText('Alice Old')).toBeTruthy();
     expect(screen.getByText('Keys bound to other usernames (1)')).toBeTruthy();
+    expect(scopedView.container.textContent?.toLowerCase()).not.toContain('bob');
     const chooseBtn = screen.getByRole('button', { name: /Choose private key/ });
     expect(chooseBtn.classList.contains('invalid')).toBe(true);
 
@@ -148,6 +152,7 @@ describe('public-key verification', () => {
     await waitFor(() => expect(chooseBtn.classList.contains('invalid')).toBe(false));
 
     await scopedView.rerender({ username: 'bob', invalid: false });
+    await waitFor(() => expect(mocks.managedKeys).toHaveBeenCalledWith('bob'));
     await waitFor(() => expect(mocks.release).toHaveBeenCalledWith('alice-ref'));
     expect(await screen.findByRole('button', { name: /Bob TPM/ })).toBeTruthy();
     expect(screen.queryByText('Alice TPM')).toBeNull();

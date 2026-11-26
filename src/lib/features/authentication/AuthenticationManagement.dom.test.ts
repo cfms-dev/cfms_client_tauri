@@ -152,7 +152,7 @@ describe('authentication management', () => {
       .mockResolvedValueOnce({
         storageAvailable: true,
         hardwareBacked: true,
-        boundKeys: [{ keyId: 'k1', label: 'Device TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: 'fp-generated', hardwareBacked: true, serverAddress: 'example.test:443', username: 'alice', credentialId: 'gen-id', createdAt: 1 }],
+        boundKeys: [{ keyId: 'k1', label: 'Device TPM Key', algorithm: 'ecdsa-sha2-nistp256', fingerprint: 'fp-generated', hardwareBacked: true, serverAddress: 'example.test:443', usernameMatches: true, credentialId: 'gen-id', createdAt: 1 }],
         rescueKeys: [],
       });
     const view = render(AuthenticationManagement);
@@ -199,7 +199,7 @@ describe('authentication management', () => {
         storageAvailable: true,
         hardwareBacked: true,
         boundKeys: [
-          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', username: 'bob', credentialId: null, createdAt: 1 },
+          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', usernameMatches: false, credentialId: null, createdAt: 1 },
         ],
         rescueKeys: [],
       })
@@ -207,8 +207,8 @@ describe('authentication management', () => {
         storageAvailable: true,
         hardwareBacked: true,
         boundKeys: [
-          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', username: 'bob', credentialId: null, createdAt: 1 },
-          { keyId: 'alice-k', label: 'Fallback Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-fallback', hardwareBacked: false, serverAddress: 'example.test:443', username: 'alice', credentialId: 'cred-fallback', createdAt: 2 },
+          { keyId: 'bob-k', label: 'Bob Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-shared', hardwareBacked: false, serverAddress: 'example.test:443', usernameMatches: false, credentialId: null, createdAt: 1 },
+          { keyId: 'alice-k', label: 'Fallback Key', algorithm: 'ssh-ed25519', fingerprint: 'fp-fallback', hardwareBacked: false, serverAddress: 'example.test:443', usernameMatches: true, credentialId: 'cred-fallback', createdAt: 2 },
         ],
         rescueKeys: [],
       });

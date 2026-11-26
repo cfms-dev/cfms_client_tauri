@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick, untrack } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { getManagedAuthKeys, pickAuthPrivateKey, releaseAuthPrivateKey, selectManagedAuthKey, type AuthPrivateKeyInfo, type ManagedAuthKeySummary } from '$lib/api';
   import { shortKeyIdentity } from '$lib/features/authentication/auth-policy-editor';
@@ -18,28 +18,38 @@
   let error = $state('');
   let input = $state<HTMLInputElement>();
   let alive = true;
+  let loadSeq = 0;
 
   const trimmedUsername = $derived((username ?? '').trim());
   const visibleBoundKeys = $derived(
-    trimmedUsername ? boundKeys.filter((key) => key.username === trimmedUsername) : [],
+    trimmedUsername ? boundKeys.filter((key) => key.usernameMatches) : [],
   );
   const matchingRescueKeys = $derived(
-    trimmedUsername ? rescueKeys.filter((key) => key.username === trimmedUsername) : [],
+    trimmedUsername ? rescueKeys.filter((key) => key.usernameMatches) : [],
   );
   const otherRescueKeys = $derived(
-    trimmedUsername ? rescueKeys.filter((key) => key.username !== trimmedUsername) : [],
+    trimmedUsername ? rescueKeys.filter((key) => !key.usernameMatches) : [],
   );
   const totalRescueCount = $derived(matchingRescueKeys.length + otherRescueKeys.length);
   const externalSelected = $derived(Boolean(selection && selection.source !== 'managed'));
-
-  onMount(() => {
-    void loadManagedKeys();
-  });
 
   onDestroy(() => {
     alive = false;
     if (selection) void releaseAuthPrivateKey(selection.keyRef).catch(() => {});
     passphrase = '';
+  });
+
+  $effect(() => {
+    const targetUsername = trimmedUsername;
+    const seq = ++loadSeq;
+    if (!targetUsername) {
+      boundKeys = [];
+      rescueKeys = [];
+      inventoryLoaded = true;
+      return;
+    }
+    inventoryLoaded = false;
+    void loadManagedKeys(targetUsername, seq);
   });
 
   $effect(() => {
@@ -55,18 +65,18 @@
     }
   });
 
-  async function loadManagedKeys() {
+  async function loadManagedKeys(targetUsername: string, seq: number) {
     try {
-      const inventory = await getManagedAuthKeys();
-      if (!alive || !inventory) return;
+      const inventory = await getManagedAuthKeys(targetUsername);
+      if (!alive || seq !== loadSeq || !inventory) return;
       boundKeys = Array.isArray(inventory.boundKeys) ? inventory.boundKeys : [];
       rescueKeys = Array.isArray(inventory.rescueKeys) ? inventory.rescueKeys : [];
     } catch {
-      if (!alive) return;
+      if (!alive || seq !== loadSeq) return;
       boundKeys = [];
       rescueKeys = [];
     } finally {
-      if (alive) inventoryLoaded = true;
+      if (alive && seq === loadSeq) inventoryLoaded = true;
     }
   }
 
@@ -132,9 +142,13 @@
       </span>
       <span class="key-picker-meta">
         {#if isRescue}
-          {$t('publicKey.rescueServerMeta', { values: { server: key.serverAddress, username: key.username } })}
+          {#if key.usernameMatches}
+            {$t('publicKey.rescueServerMeta', { values: { server: key.serverAddress, username: trimmedUsername } })}
+          {:else}
+            {$t('publicKey.rescueServerOnlyMeta', { values: { server: key.serverAddress } })}
+          {/if}
         {:else}
-          @{key.username} · {key.algorithm}
+          @{trimmedUsername} · {key.algorithm}
         {/if}
         · <code>{shortKeyIdentity(key.fingerprint)}</code>
       </span>
