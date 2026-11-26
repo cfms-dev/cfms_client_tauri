@@ -2,6 +2,25 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
+import { ICON_VARIANTS } from '$lib/shared/ui/icons';
+
+const MASK_BASE = {
+  maskRepeat: 'no-repeat',
+  maskPosition: 'center',
+  maskSize: 'contain',
+  WebkitMaskRepeat: 'no-repeat',
+  WebkitMaskPosition: 'center',
+  WebkitMaskSize: 'contain',
+} as const;
+
+function maskIconStyle(svg: string, color: string) {
+  const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  return {
+    backgroundColor: color,
+    maskImage: url,
+    WebkitMaskImage: url,
+  };
+}
 
 interface CaclSyntaxPalette {
   controlKeyword: string;
@@ -128,6 +147,45 @@ export function caclCodeEditorTheme(dark: boolean): Extension {
         color: 'var(--colorNeutralForeground1, var(--color-md3-on-surface))',
       },
       '.cm-foldGutter svg': { width: '16px', height: '16px' },
+      '.cm-gutter-lint': {
+        width: '1.5rem',
+      },
+      '.cm-gutter-lint .cm-gutterElement': {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0',
+      },
+      '.cm-lint-marker': {
+        content: 'normal',
+        display: 'block',
+        width: '16px',
+        height: '16px',
+        flexShrink: '0',
+        cursor: 'pointer',
+        ...MASK_BASE,
+      },
+      '.cm-lint-marker-warning': {
+        content: 'normal',
+        ...maskIconStyle(
+          ICON_VARIANTS.warning.smallFilled,
+          'var(--colorStatusWarningForeground1, #bc4b09)',
+        ),
+      },
+      '.cm-lint-marker-error': {
+        content: 'normal',
+        ...maskIconStyle(
+          ICON_VARIANTS.errorFilled.smallFilled,
+          'var(--colorStatusDangerForeground1, var(--color-md3-error))',
+        ),
+      },
+      '.cm-lint-marker-info': {
+        content: 'normal',
+        ...maskIconStyle(
+          ICON_VARIANTS.info.smallFilled,
+          'var(--colorBrandForeground1, var(--color-md3-primary))',
+        ),
+      },
       '.cm-activeLine': {
         backgroundColor: dark
           ? 'color-mix(in srgb, var(--colorNeutralForeground1, #ffffff) 6%, transparent)'
@@ -176,28 +234,72 @@ export function caclCodeEditorTheme(dark: boolean): Extension {
         color: 'var(--colorNeutralForeground1, var(--color-md3-on-surface))',
         boxShadow: 'var(--shadow16)',
       },
+      '.cm-tooltip': {
+        zIndex: '55',
+      },
+      '.cm-tooltip-autocomplete > ul': {
+        borderRadius: '8px',
+        overflow: 'hidden',
+      },
       '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
         backgroundColor: 'var(--colorBrandBackground2, var(--color-md3-primary-container))',
         color: 'var(--colorBrandForeground2, var(--color-md3-on-primary-container))',
       },
       '.cm-tooltip-lint': {
         maxWidth: 'min(34rem, 90vw)',
+        borderRadius: '8px',
+        overflow: 'hidden',
       },
       '.cm-diagnostic': {
-        padding: '6px 10px',
+        position: 'relative',
+        marginLeft: '0',
+        borderLeft: 'none',
+        padding: '8px 12px 8px 34px',
         fontFamily: 'var(--fontFamilyBase, var(--font-md3-sans))',
         fontSize: '12px',
         lineHeight: '16px',
       },
-      '.cm-diagnostic-error': {
-        borderLeft: '1px solid var(--colorStatusDangerForeground1, var(--color-md3-error))',
+      '.cm-diagnostic + .cm-diagnostic': {
+        borderTop: '1px solid var(--colorNeutralStroke2, var(--color-md3-outline))',
       },
-      '.cm-diagnostic-warning': {
-        borderLeft: '1px solid var(--colorStatusWarningForeground1, #bc4b09)',
+      '.cm-diagnostic::before': {
+        content: '""',
+        position: 'absolute',
+        left: '10px',
+        top: '8px',
+        width: '16px',
+        height: '16px',
+        pointerEvents: 'none',
+        ...MASK_BASE,
+      },
+      '.cm-diagnostic-error, .cm-diagnostic-warning, .cm-diagnostic-info, .cm-diagnostic-hint': {
+        borderLeft: 'none',
+      },
+      '.cm-diagnostic-error::before': maskIconStyle(
+        ICON_VARIANTS.errorFilled.smallFilled,
+        'var(--colorStatusDangerForeground1, var(--color-md3-error))',
+      ),
+      '.cm-diagnostic-warning::before': maskIconStyle(
+        ICON_VARIANTS.warning.smallFilled,
+        'var(--colorStatusWarningForeground1, #bc4b09)',
+      ),
+      '.cm-diagnostic-info::before': maskIconStyle(
+        ICON_VARIANTS.info.smallFilled,
+        'var(--colorBrandForeground1, var(--color-md3-primary))',
+      ),
+      '.cm-diagnostic-hint::before': maskIconStyle(
+        ICON_VARIANTS.info.smallFilled,
+        'var(--colorNeutralForeground3, var(--color-md3-on-surface-variant))',
+      ),
+      '.cm-diagnosticSource': {
+        marginTop: '4px',
+        fontSize: '11px',
+        lineHeight: '14px',
+        color: 'var(--colorNeutralForeground3, var(--color-md3-on-surface-variant))',
+        opacity: '1',
       },
       '.cm-diagnosticAction': {
-        marginTop: '4px',
-        marginRight: '6px',
+        margin: '6px 6px 0 0',
         padding: '2px 8px',
         borderRadius: '4px',
         border: '1px solid var(--colorNeutralStroke1, var(--color-md3-outline))',

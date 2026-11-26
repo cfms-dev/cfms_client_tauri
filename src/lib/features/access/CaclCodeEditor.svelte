@@ -98,7 +98,7 @@
     ]) => {
       if (disposed) return;
       const { EditorState, Compartment } = stateModule;
-      const { EditorView } = viewModule;
+      const { EditorView, tooltips } = viewModule;
       const { lintGutter } = lintModule;
       const { cacl, caclLanguage } = caclModule;
 
@@ -123,6 +123,9 @@
           caclLanguage.data.of({
             autocomplete: extModule.createDynamicCaclCompletionSource(() => principalDirectory),
           }),
+          ...(typeof document !== 'undefined' && document.body
+            ? [tooltips({ parent: document.body })]
+            : []),
           lintGutter(),
           linterCompartment.of(buildLinterExtension(targetObjectType)),
           editableCompartment.of(editableExtension(disabled)),
@@ -278,4 +281,10 @@
     font: 400 13px/1.55 var(--fontFamilyMonospace, var(--font-md3-mono));
   }
   :global(.cacl-code-editor .cm-editor) { min-height: 14rem; }
+  @media (forced-colors: active) {
+    :global(.cacl-code-editor .cm-lint-marker),
+    :global(.cm-tooltip-lint .cm-diagnostic::before) {
+      background-color: CanvasText !important;
+    }
+  }
 </style>

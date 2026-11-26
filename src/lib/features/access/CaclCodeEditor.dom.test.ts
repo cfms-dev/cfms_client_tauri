@@ -257,4 +257,72 @@ describe('CaclCodeEditor', () => {
       expect(css).toMatch(/\.cm-activeLine\s*\{[^}]*#242424\)\s*5%/);
     });
   });
+
+  it('portals tooltips to document.body and styles lint markers and diagnostics without left border bars', async () => {
+    Object.defineProperty(Range.prototype, 'getClientRects', {
+      configurable: true,
+      value: () => [{ bottom: 20, height: 16, left: 10, right: 40, top: 4, width: 30, x: 10, y: 4, toJSON: () => ({}) }],
+    });
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 20, height: 16, left: 10, right: 40, top: 4, width: 30, x: 10, y: 4, toJSON: () => ({}) }),
+    });
+
+    document.documentElement.dataset.theme = 'dark';
+    const { container, unmount } = render(CaclCodeEditor, {
+      props: {
+        value: 'inherit on;\ndeny [PRESET_RW] on self to any;\n',
+        targetObjectType: 'directory',
+        ariaLabel: 'Tooltip Style CACL Policy',
+        loadingLabel: 'Loading CACL editor…',
+        onChange: vi.fn(),
+      },
+    });
+
+    const content = await screen.findByLabelText('Tooltip Style CACL Policy', {}, { timeout: 4000 });
+    const editor = content.closest('.cm-editor')!;
+    const editorHost = container.querySelector('.cacl-code-editor')!;
+    const themeClasses = editor.className.split(/\s+/).filter((cls) => cls && cls !== 'cm-editor');
+
+    const marker = await waitFor(() => {
+      const found = container.querySelector('.cm-lint-marker-warning');
+      expect(found).toBeTruthy();
+      return found as HTMLElement;
+    });
+
+    await fireEvent.mouseOver(marker);
+
+    const tooltipLint = await waitFor(() => {
+      const found = document.body.querySelector('.cm-tooltip-lint');
+      expect(found).toBeTruthy();
+      return found as HTMLElement;
+    }, { timeout: 2000 });
+
+    expect(editorHost.contains(tooltipLint)).toBe(false);
+    const tooltipContainer = tooltipLint.closest('.cm-tooltip')?.parentElement;
+    expect(tooltipContainer).toBeTruthy();
+    expect(tooltipContainer?.parentElement).toBe(document.body);
+    for (const cls of themeClasses) {
+      expect(tooltipContainer?.classList.contains(cls)).toBe(true);
+    }
+
+    const css = Array.from(document.head.querySelectorAll('style'))
+      .map((styleEl) => styleEl.textContent ?? '')
+      .join('\n');
+
+    expect(css).toMatch(/\.cm-lint-marker\s*\{[^}]*content:\s*normal/);
+    expect(css).toMatch(/\.cm-lint-marker-warning\s*\{[^}]*--colorStatusWarningForeground1/);
+    expect(css).toMatch(/\.cm-lint-marker-warning\s*\{[^}]*mask-image:\s*url\("data:image\/svg\+xml,/);
+    expect(css).toMatch(/\.cm-diagnostic\s*\{[^}]*border-left:\s*none/);
+    expect(css).toMatch(/\.cm-diagnostic\s*\{[^}]*margin-left:\s*0/);
+    expect(css).toMatch(/\.cm-diagnostic-warning::before\s*\{[^}]*--colorStatusWarningForeground1/);
+    expect(css).toMatch(/\.cm-tooltip,\s*[^}]*\.cm-panels\s*\{[^}]*border-radius:\s*8px/);
+    expect(css).toMatch(/\.cm-tooltip-lint\s*\{[^}]*border-radius:\s*8px/);
+    expect(css).toMatch(/\.cm-tooltip-lint\s*\{[^}]*overflow:\s*hidden/);
+
+    unmount();
+    await waitFor(() => {
+      expect(document.body.contains(tooltipContainer!)).toBe(false);
+    });
+  });
 });
