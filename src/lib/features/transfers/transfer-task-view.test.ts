@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
 import {
   downloadCapabilities, downloadPhaseMessageKey, downloadSection, downloadStatusMessageKey,
-  matchesTransferQuery, sortSectionTasks, uploadCapabilities, uploadSection, uploadStatusMessageKey,
+  matchesTransferQuery, uploadCapabilities, uploadSection, uploadStatusMessageKey,
 } from '$lib/features/transfers/transfer-task-view';
 
 const download = (status: DownloadTaskDto['status']): DownloadTaskDto => ({
@@ -64,15 +64,6 @@ describe('transfer task projection', () => {
   it('searches names and paths case-insensitively', () => {
     expect(matchesTransferQuery(download('completed'), 'files/report')).toBe(true);
     expect(matchesTransferQuery(upload('completed'), 'REPORT.PDF')).toBe(true);
-  });
-
-  it('sorts live work oldest-first and history newest-first', () => {
-    const older = { ...download('completed'), task_id: 'older', created_at: 1 };
-    const newer = { ...download('completed'), task_id: 'newer', created_at: 9 };
-    expect(sortSectionTasks([newer, older], 'active').map((task) => task.task_id))
-      .toEqual(['older', 'newer']);
-    expect(sortSectionTasks([older, newer], 'history').map((task) => task.task_id))
-      .toEqual(['newer', 'older']);
   });
 
   it.each([

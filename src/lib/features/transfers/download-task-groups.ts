@@ -2,7 +2,7 @@ import type { DownloadTaskDto } from '$lib/api';
 import { serverAvailability } from '$lib/api/server-errors';
 import type { DownloadBatchSnapshot } from '$lib/features/transfers/download-batch-control';
 import {
-  TRANSFER_SECTION_ORDER, compareTransferEntries, compareTransferIds, isTransferInProgress, downloadSection, matchesTransferQuery, type TransferSectionKey,
+  compareTransferEntries, compareTransferIds, isTransferInProgress,
 } from '$lib/features/transfers/transfer-task-view';
 
 export type DownloadTaskRow =
@@ -37,12 +37,6 @@ export interface DownloadTaskGroup {
   preparing: boolean;
   batchPaused: boolean;
   phase: DownloadBatchSnapshot['phase'] | null;
-}
-
-export interface DownloadTaskSection {
-  section: TransferSectionKey;
-  count: number;
-  rows: DownloadTaskRow[];
 }
 
 const RUNNING_STATUSES = new Set(['downloading', 'decrypting', 'verifying']);
@@ -107,73 +101,6 @@ export function buildDownloadTaskRows(
   }
 
   return rows;
-}
-
-export function buildDownloadTaskSections(
-  tasks: DownloadTaskDto[],
-  expandedGroups: ReadonlySet<string>,
-  activeBatches: DownloadBatchSnapshot[] = [],
-  query = '',
-): DownloadTaskSection[] {
-  const sections = new Map<TransferSectionKey, DownloadTaskSection>(
-    TRANSFER_SECTION_ORDER.map((section) => [section, { section, count: 0, rows: [] }]),
-  );
-  const groupSections = new Map<string, TransferSectionKey>();
-
-  const taskRows = buildDownloadTaskRows(tasks, expandedGroups, activeBatches);
-  for (const row of filterDownloadTaskRows(taskRows, query)) {
-    let section: TransferSectionKey;
-    if (row.kind === 'group') {
-      section = downloadTaskGroupSection(row.group);
-      groupSections.set(row.group.id, section);
-      sections.get(section)!.count += row.group.total;
-    } else if (row.kind === 'group-task') {
-      section = groupSections.get(row.group.id) ?? downloadTaskGroupSection(row.group);
-    } else {
-      section = downloadSection(row.task);
-      sections.get(section)!.count += 1;
-    }
-    sections.get(section)!.rows.push(row);
-  }
-
-  return TRANSFER_SECTION_ORDER
-    .map((section) => sections.get(section)!)
-    .filter((section) => section.rows.length > 0);
-}
-
-export function filterDownloadTaskRows(rows: DownloadTaskRow[], query: string): DownloadTaskRow[] {
-  const normalized = query.trim().toLocaleLowerCase();
-  if (!normalized) return rows;
-
-  const matchingGroupNames = new Set(
-    rows
-      .filter((row): row is Extract<DownloadTaskRow, { kind: 'group' }> => row.kind === 'group')
-      .filter((row) => row.group.name.toLocaleLowerCase().includes(normalized))
-      .map((row) => row.group.id),
-  );
-  const visibleGroupIds = new Set(matchingGroupNames);
-  for (const row of rows) {
-    if (row.kind === 'group-task' && matchesTransferQuery(row.task, query)) {
-      visibleGroupIds.add(row.group.id);
-    } else if (row.kind === 'group' && row.group.tasks.some((task) => matchesTransferQuery(task, query))) {
-      visibleGroupIds.add(row.group.id);
-    }
-  }
-
-  return rows.filter((row) => {
-    if (row.kind === 'task') return matchesTransferQuery(row.task, query);
-    if (row.kind === 'group') return visibleGroupIds.has(row.group.id);
-    return visibleGroupIds.has(row.group.id)
-      && (matchingGroupNames.has(row.group.id) || matchesTransferQuery(row.task, query));
-  });
-}
-
-export function downloadTaskGroupSection(group: DownloadTaskGroup): TransferSectionKey {
-  const childSections = new Set(group.tasks.map(downloadSection));
-  if (childSections.has('attention')) return 'attention';
-  if (group.preparing || childSections.has('active')) return 'active';
-  if (childSections.has('waiting')) return 'waiting';
-  return 'history';
 }
 
 export function isRunningDownloadTask(task: DownloadTaskDto) {

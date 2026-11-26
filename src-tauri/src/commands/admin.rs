@@ -46,32 +46,39 @@ fn current_user_nickname_update(
     (current_id == Some(user_id)).then(|| nickname.unwrap_or(username).to_string())
 }
 
-#[tauri::command]
-pub async fn list_users(
-    state: tauri::State<'_, AppHandleState>,
+async fn fetch_all_offset_pages(
+    state: &AppHandleState,
+    action: &str,
+    items_key: &str,
+    label: &str,
+    extra: Option<serde_json::Map<String, serde_json::Value>>,
 ) -> Result<serde_json::Value, String> {
-    let mut users = Vec::new();
+    let mut items = Vec::new();
     let mut offset = 0u32;
     let mut total = 0u32;
 
     loop {
-        let page = server_action_json(
-            &state,
-            "core.user.list",
-            serde_json::json!({ "offset": offset, "count": SERVER_CURSOR_PAGE_SIZE }),
-        )
-        .await?;
+        let mut data = serde_json::Map::new();
+        data.insert("offset".into(), serde_json::json!(offset));
+        data.insert("count".into(), serde_json::json!(SERVER_CURSOR_PAGE_SIZE));
+        if let Some(extra_fields) = &extra {
+            for (k, v) in extra_fields {
+                data.insert(k.clone(), v.clone());
+            }
+        }
+
+        let page = server_action_json(state, action, serde_json::Value::Object(data)).await?;
         total = page
             .get("total")
             .and_then(|value| value.as_u64())
             .unwrap_or(total as u64) as u32;
-        let page_users = page
-            .get("users")
+        let page_items = page
+            .get(items_key)
             .and_then(|value| value.as_array())
             .cloned()
             .unwrap_or_default();
-        let count = page_users.len() as u32;
-        users.extend(page_users);
+        let count = page_items.len() as u32;
+        items.extend(page_items);
 
         if !page
             .get("has_more")
@@ -81,19 +88,26 @@ pub async fn list_users(
             break;
         }
         if count == 0 {
-            return Err("list_users reported more pages without users".to_string());
+            return Err(format!("{label} reported more pages without {items_key}"));
         }
         offset += count;
     }
 
-    let count = users.len();
+    let count = items.len();
     Ok(serde_json::json!({
-        "users": users,
+        items_key: items,
         "total": total,
         "offset": 0,
         "count": count,
         "has_more": false,
     }))
+}
+
+#[tauri::command]
+pub async fn list_users(
+    state: tauri::State<'_, AppHandleState>,
+) -> Result<serde_json::Value, String> {
+    fetch_all_offset_pages(&state, "core.user.list", "users", "list_users", None).await
 }
 
 #[tauri::command]
@@ -661,50 +675,7 @@ mod operation_reason_tests {
 pub async fn list_groups(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
-    let mut groups = Vec::new();
-    let mut offset = 0u32;
-    let mut total = 0u32;
-
-    loop {
-        let page = server_action_json(
-            &state,
-            "core.group.list",
-            serde_json::json!({ "offset": offset, "count": SERVER_CURSOR_PAGE_SIZE }),
-        )
-        .await?;
-        total = page
-            .get("total")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(total as u64) as u32;
-        let page_groups = page
-            .get("groups")
-            .and_then(|value| value.as_array())
-            .cloned()
-            .unwrap_or_default();
-        let count = page_groups.len() as u32;
-        groups.extend(page_groups);
-
-        if !page
-            .get("has_more")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-        {
-            break;
-        }
-        if count == 0 {
-            return Err("list_groups reported more pages without groups".to_string());
-        }
-        offset += count;
-    }
-
-    let count = groups.len();
-    Ok(serde_json::json!({
-        "groups": groups,
-        "total": total,
-        "offset": 0,
-        "count": count,
-        "has_more": false,
-    }))
+    fetch_all_offset_pages(&state, "core.group.list", "groups", "list_groups", None).await
 }
 
 #[tauri::command]
@@ -832,53 +803,19 @@ pub async fn list_user_keys(
     state: tauri::State<'_, AppHandleState>,
     user_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let mut keys = Vec::new();
-    let mut offset = 0u32;
-    let mut total = 0u32;
-
-    loop {
-        let mut data = serde_json::json!({
-            "offset": offset,
-            "count": SERVER_CURSOR_PAGE_SIZE,
-        });
-        if let Some(user_id) = user_id.as_deref() {
-            data["user_id"] = serde_json::Value::String(user_id.to_string());
-        }
-
-        let page = server_action_json(&state, "core.user.key.list", data).await?;
-        total = page
-            .get("total")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(total as u64) as u32;
-        let page_keys = page
-            .get("keys")
-            .and_then(|value| value.as_array())
-            .cloned()
-            .unwrap_or_default();
-        let count = page_keys.len() as u32;
-        keys.extend(page_keys);
-
-        if !page
-            .get("has_more")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-        {
-            break;
-        }
-        if count == 0 {
-            return Err("list_user_keys reported more pages without keys".to_string());
-        }
-        offset += count;
-    }
-
-    let count = keys.len();
-    Ok(serde_json::json!({
-        "keys": keys,
-        "total": total,
-        "offset": 0,
-        "count": count,
-        "has_more": false,
-    }))
+    let extra = user_id.map(|id| {
+        let mut map = serde_json::Map::new();
+        map.insert("user_id".into(), serde_json::Value::String(id));
+        map
+    });
+    fetch_all_offset_pages(
+        &state,
+        "core.user.key.list",
+        "keys",
+        "list_user_keys",
+        extra,
+    )
+    .await
 }
 
 #[tauri::command]

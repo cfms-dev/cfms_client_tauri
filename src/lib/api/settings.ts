@@ -1,20 +1,11 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { invoke } from '@tauri-apps/api/core';
 import type { CaCertificateStatus, CaCertificateUpdateResult, ConnectionSettings } from './types/connection';
-import type { FileEntry } from './types/files';
 import { loadUserPreference, updateUserPreferences } from './preferences';
 
 export type RootBackButtonBehavior = 'background' | 'exit';
 
 export const DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR: RootBackButtonBehavior = 'exit';
-
-/** Scan a local directory recursively. */
-export async function scanDirectory(
-  path: string,
-  pattern?: string,
-): Promise<FileEntry[]> {
-  return invoke("scan_directory", { path, pattern: pattern ?? null });
-}
 
 // ---------------------------------------------------------------------------
 // User settings

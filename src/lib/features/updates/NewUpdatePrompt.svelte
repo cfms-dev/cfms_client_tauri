@@ -5,7 +5,7 @@
   import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
   import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
-  import type { UpdateNotificationCopy } from '$lib/features/updates/update-notifications';
+  import { createUpdateNotificationCopy } from '$lib/features/updates/update-notifications';
   import { openUrl } from '$lib/shared/platform/native-opener';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
@@ -59,7 +59,7 @@
 
     try {
       await goto('/home/about');
-      await appUpdateState.install(createUpdateNotificationCopy());
+      await appUpdateState.install(createUpdateNotificationCopy($t, installCompleteMessage));
     } catch (err) {
       if (!appUpdateState.installError) {
         notificationStore.error(err instanceof Error ? err.message : String(err));
@@ -86,17 +86,6 @@
   function isVersionNewerThanPrompted(candidate: string, prompted: string | null): boolean {
     if (!prompted) return true;
     return compareAppVersions(candidate, prompted) > 0;
-  }
-
-  function createUpdateNotificationCopy(): UpdateNotificationCopy {
-    return {
-      title: $t('about.softwareUpdate'),
-      preparingDownload: $t('settings.updates.preparingDownload'),
-      installing: $t('settings.updates.installing'),
-      installed: installCompleteMessage,
-      downloadProgress: (values) => $t('settings.updates.downloadProgress', { values }),
-      downloadedBytes: (values) => $t('settings.updates.downloadedBytes', { values }),
-    };
   }
 </script>
 

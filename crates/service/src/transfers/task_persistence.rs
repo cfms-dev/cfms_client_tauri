@@ -87,16 +87,7 @@ pub fn exists(app_data: &Path, server_hash: &str, user_id: &str) -> bool {
 /// Delete the persisted task file for a user, if one exists.
 pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> {
     let path = file_path(app_data, server_hash, user_id);
-    if !path.exists() {
-        return Ok(());
-    }
-
-    std::fs::remove_file(&path).map_err(|e| {
-        cfms_core::Error::Other(format!(
-            "Failed to delete task file {}: {e}",
-            path.display()
-        ))
-    })
+    crate::account_storage::discard_file(&path, "task file")
 }
 
 /// Load the task list from the encrypted JSON persistence file.
@@ -133,28 +124,8 @@ pub fn load(
         }
     };
 
-    let raw = std::fs::read(&path).map_err(|e| {
-        cfms_core::Error::Other(format!("Failed to read task file {}: {e}", path.display()))
-    })?;
-
-    if !cfms_crypto::is_encrypted(&raw) {
-        return Err(cfms_core::Error::Other(format!(
-            "Task file is not encrypted (unexpected): {}",
-            path.display()
-        )));
-    }
-
-    let plaintext =
-        zeroize::Zeroizing::new(cfms_crypto::decrypt_config(&raw, dek).map_err(|e| {
-            cfms_core::Error::Other(format!(
-                "Failed to decrypt task file {}: {e}",
-                path.display()
-            ))
-        })?);
-
-    let tasks_data: TasksJson = serde_json::from_slice(&plaintext).map_err(|e| {
-        cfms_core::Error::Other(format!("Invalid task data in {}: {e}", path.display()))
-    })?;
+    let tasks_data: TasksJson =
+        crate::account_storage::read_encrypted_json(&path, dek, "task file")?;
 
     let tasks: Vec<DownloadTaskDto> = tasks_data
         .into_values()
@@ -273,28 +244,8 @@ pub fn save(
         })
         .collect();
 
-    let plaintext = zeroize::Zeroizing::new(
-        serde_json::to_vec(&tasks_json)
-            .map_err(|e| cfms_core::Error::Other(format!("Failed to serialize tasks: {e}")))?,
-    );
-
-    let encrypted = cfms_crypto::encrypt_config(&plaintext, dek)
-        .map_err(|e| cfms_core::Error::Other(format!("Failed to encrypt tasks: {e}")))?;
-
     let path = file_path(app_data, server_hash, user_id);
-
-    // Ensure the directory exists.
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            cfms_core::Error::Other(format!("Failed to create download_tasks dir: {e}"))
-        })?;
-    }
-
-    std::fs::write(&path, &encrypted).map_err(|e| {
-        cfms_core::Error::Other(format!("Failed to write task file {}: {e}", path.display()))
-    })?;
-
-    Ok(())
+    crate::account_storage::write_encrypted_json(&path, dek, &tasks_json, "task file")
 }
 
 // ---------------------------------------------------------------------------

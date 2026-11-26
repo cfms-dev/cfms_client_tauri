@@ -1,4 +1,3 @@
-import { spring } from "svelte/motion";
 import { flip } from "svelte/animate";
 import { cubicIn, cubicOut } from "svelte/easing";
 import type { AnimationConfig } from "svelte/animate";
@@ -14,11 +13,6 @@ export interface FlyScaleParams {
 
 export interface StaggeredListParams extends FlyScaleParams {
   step?: number;
-}
-
-export interface PopScaleParams {
-  duration?: number;
-  delay?: number;
 }
 
 export interface MenuScaleParams {
@@ -90,40 +84,6 @@ export function staggeredList(
   return {
     ...rest,
     delay: isReducedMotionEnabled() ? 0 : delay + index * step,
-  };
-}
-
-export function popScale(
-  node: HTMLElement,
-  params: PopScaleParams = {},
-): TransitionConfig {
-  if (isReducedMotionEnabled()) return instant();
-
-  const { duration = 360, delay = 0 } = params;
-  const scale = spring(0.95, { stiffness: 0.18, damping: 0.48, precision: 0.001 });
-  const unsubscribe = scale.subscribe((value) => {
-    node.style.transform = `scale(${value})`;
-  });
-
-  let started = false;
-
-  return {
-    delay,
-    duration,
-    tick: (t) => {
-      if (!started && t > 0) {
-        started = true;
-        void scale.set(1.08).then(() => scale.set(1));
-      }
-
-      node.style.opacity = `${t}`;
-
-      if (t === 1) {
-        unsubscribe();
-        node.style.transform = "";
-        node.style.opacity = "";
-      }
-    },
   };
 }
 

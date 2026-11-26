@@ -17,37 +17,6 @@ export function parseFileSelectionKey(key: string): { kind: FileSelectionKind; i
   return { kind, id: key.slice(separator + 1) };
 }
 
-export function selectFileRange(
-  orderedKeys: readonly string[],
-  anchorKey: string,
-  targetKey: string,
-  existing: FileSelectionSets = { folders: new Set(), documents: new Set() },
-  preserveExisting = false,
-): FileSelectionSets {
-  const anchorIndex = orderedKeys.indexOf(anchorKey);
-  const targetIndex = orderedKeys.indexOf(targetKey);
-  if (anchorIndex < 0 || targetIndex < 0) {
-    return {
-      folders: new Set(existing.folders),
-      documents: new Set(existing.documents),
-    };
-  }
-
-  const folders = preserveExisting ? new Set(existing.folders) : new Set<string>();
-  const documents = preserveExisting ? new Set(existing.documents) : new Set<string>();
-  const start = Math.min(anchorIndex, targetIndex);
-  const end = Math.max(anchorIndex, targetIndex);
-
-  for (const key of orderedKeys.slice(start, end + 1)) {
-    const item = parseFileSelectionKey(key);
-    if (!item) continue;
-    if (item.kind === 'folder') folders.add(item.id);
-    else documents.add(item.id);
-  }
-
-  return { folders, documents };
-}
-
 export function isAllVisibleSelected(
   folderCount: number,
   documentCount: number,

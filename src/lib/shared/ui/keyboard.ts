@@ -291,45 +291,6 @@ export function isFindShortcut(event: KeyboardEvent): boolean {
   return shortcutMatchesAnyPrimary(event, 'f');
 }
 
-export function isAppLockShortcut(event: KeyboardEvent): boolean {
-  return shortcutMatchesAnyPrimary(event, 'l');
-}
-
-export type FileManagerShortcut =
-  | 'go-parent'
-  | 'refresh'
-  | 'create-folder'
-  | 'select-all'
-  | 'clear-selection'
-  | 'delete-selection'
-  | 'rename-selection';
-
-/** Maps desktop file-manager key conventions to semantic actions. */
-export function fileManagerShortcutFor(event: KeyboardEvent): FileManagerShortcut | null {
-  const primaryModifier = event.ctrlKey || event.metaKey;
-  const key = event.key.toLowerCase();
-
-  if (!event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
-    if (event.key === 'Backspace') return 'go-parent';
-    if (event.key === 'F5') return 'refresh';
-    if (event.key === 'Escape') return 'clear-selection';
-    if (event.key === 'Delete') return 'delete-selection';
-    if (event.key === 'F2') return 'rename-selection';
-  }
-
-  if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key === 'ArrowUp') {
-    return 'go-parent';
-  }
-
-  if (primaryModifier && !event.altKey) {
-    if (!event.shiftKey && key === 'r') return 'refresh';
-    if (!event.shiftKey && key === 'a') return 'select-all';
-    if (event.shiftKey && key === 'n') return 'create-folder';
-  }
-
-  return null;
-}
-
 function compareRegisteredCommands(a: RegisteredCommand, b: RegisteredCommand): number {
   return (SCOPE_PRIORITY[b.scope] + (b.priority ?? 0))
     - (SCOPE_PRIORITY[a.scope] + (a.priority ?? 0))

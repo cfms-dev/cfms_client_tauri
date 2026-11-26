@@ -1,10 +1,5 @@
 
 
-export interface ServiceStatusInfo {
-  name: string;
-  running: boolean;
-}
-
 /** Permission-protected static server diagnostics introduced in protocol 22. */
 export interface ServerDiagnostics {
   schema_version: 1;

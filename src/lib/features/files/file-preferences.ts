@@ -55,10 +55,6 @@ export function directoryToRecord(
   };
 }
 
-export function getRecentVisits(scope: FilePreferenceScope): RecentFileRecord[] {
-  return getLegacyRecentVisits(scope);
-}
-
 export async function loadRecentVisits(scope: FilePreferenceScope): Promise<RecentFileRecord[]> {
   if (!hasFilePreferenceScope(scope)) return [];
 

@@ -25,6 +25,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
   import { registerKeyboardCommands } from '$lib/shared/ui/keyboard';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { formatDate } from '$lib/shared/format/values';
 
   type TrashKind = 'directory' | 'document';
 
@@ -104,7 +105,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       selectedFolderIds = new Set();
       selectedDocumentIds = new Set();
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       folders = [];
       documents = [];
     } finally {
@@ -134,7 +135,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       status = kind === 'document' ? $t('trash.restoreDocumentSuccess') : $t('trash.restoreDirectorySuccess');
       await loadItems(currentFolderId);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       busyItemId = null;
     }
@@ -161,7 +162,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       status = kind === 'document' ? $t('trash.purgeDocumentSuccess') : $t('trash.purgeDirectorySuccess');
       await loadItems(currentFolderId);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       busyItemId = null;
     }
@@ -170,15 +171,6 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   function normalizeFolderId(value: string) {
     const trimmed = value.trim();
     return trimmed || '/';
-  }
-
-  function formatDate(ts: number | null | undefined) {
-    if (!ts) return '-';
-    return new Date(ts * 1000).toLocaleString();
-  }
-
-  function formatError(err: unknown) {
-    return formatUserFacingError(err);
   }
 
   function toggleSelectFolder(id: string) {
@@ -255,7 +247,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       clearSelection();
       await loadItems(currentFolderId);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       batchBusy = false;
       floatingProgressStore.remove(progressId);
@@ -298,7 +290,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       clearSelection();
       await loadItems(currentFolderId);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       batchBusy = false;
       floatingProgressStore.remove(progressId);

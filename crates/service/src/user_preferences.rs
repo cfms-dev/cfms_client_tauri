@@ -27,16 +27,7 @@ pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> 
     let path = file_path(app_data, server_hash, user_id);
     let lock = preference_lock(&path);
     let _guard = lock.lock().unwrap();
-    if !path.exists() {
-        return Ok(());
-    }
-
-    std::fs::remove_file(&path).map_err(|e| {
-        cfms_core::Error::Other(format!(
-            "Failed to delete preference file {}: {e}",
-            path.display()
-        ))
-    })
+    crate::account_storage::discard_file(&path, "preference file")
 }
 
 /// Load preferences for a user, returning defaults when the file is absent.
@@ -47,42 +38,13 @@ pub fn load(
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
 ) -> Result<UserPreference> {
     let path = file_path(app_data, server_hash, user_id);
-
     if !path.exists() {
         return Ok(UserPreference::default());
     }
-
-    let raw = std::fs::read(&path).map_err(|e| {
-        cfms_core::Error::Other(format!(
-            "Failed to read preference file {}: {e}",
-            path.display()
-        ))
-    })?;
-
-    if !cfms_crypto::is_encrypted(&raw) {
-        return Err(cfms_core::Error::Other(format!(
-            "Preference file {} is not encrypted",
-            path.display()
-        )));
-    }
-
     let dek = dek.ok_or_else(|| {
         cfms_core::Error::Other("Encrypted preference file found but DEK is unavailable".into())
     })?;
-    let plaintext =
-        zeroize::Zeroizing::new(cfms_crypto::decrypt_config(&raw, dek).map_err(|e| {
-            cfms_core::Error::Other(format!(
-                "Failed to decrypt preference file {}: {e}",
-                path.display()
-            ))
-        })?);
-
-    serde_json::from_slice(&plaintext).map_err(|e| {
-        cfms_core::Error::Other(format!(
-            "Invalid preference data in {}: {e}",
-            path.display()
-        ))
-    })
+    crate::account_storage::read_encrypted_json(&path, dek, "preference file")
 }
 
 /// Save preferences encrypted with the user's DEK.
@@ -105,38 +67,11 @@ fn save_unlocked(
     dek: Option<&[u8; cfms_core::constants::KEY_LEN]>,
     preferences: &UserPreference,
 ) -> Result<()> {
-    let path = file_path(app_data, server_hash, user_id);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            cfms_core::Error::Other(format!(
-                "Failed to create preference directory {}: {e}",
-                parent.display()
-            ))
-        })?;
-    }
-
-    let plaintext =
-        zeroize::Zeroizing::new(serde_json::to_vec(preferences).map_err(|e| {
-            cfms_core::Error::Other(format!("Failed to serialize preferences: {e}"))
-        })?);
-
     let dek = dek.ok_or_else(|| {
         cfms_core::Error::Other("Cannot save user preferences without a DEK".into())
     })?;
-    let bytes = cfms_crypto::encrypt_config(&plaintext, dek)
-        .map_err(|e| cfms_core::Error::Other(format!("Failed to encrypt preference file: {e}")))?;
-
-    use std::io::Write;
-    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
-    file.write_all(&bytes)?;
-    file.as_file().sync_all()?;
-    file.persist(&path).map_err(|e| {
-        cfms_core::Error::Other(format!(
-            "Failed to write preference file {}: {e}",
-            path.display()
-        ))
-    })?;
-    Ok(())
+    let path = file_path(app_data, server_hash, user_id);
+    crate::account_storage::write_encrypted_json(&path, dek, preferences, "preference file")
 }
 
 fn preference_lock(path: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {

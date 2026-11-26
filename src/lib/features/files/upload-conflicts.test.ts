@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   createUploadConflictResolver,
   partitionUploadConflicts,
-  resolveUploadConflicts,
   type UploadCandidate,
 } from '$lib/features/files/upload-conflicts';
 
@@ -33,30 +32,6 @@ describe('partitionUploadConflicts', () => {
 
     expect(result.conflicting).toHaveLength(0);
     expect(result.available).toHaveLength(1);
-  });
-});
-
-describe('resolveUploadConflicts', () => {
-  it('prompts each item until a choice is applied to all remaining conflicts', async () => {
-    const prompted: string[] = [];
-    const decisions = await resolveUploadConflicts(candidates, async (candidate, index) => {
-      prompted.push(candidate.name);
-      return index === 0
-        ? { action: 'keep_both', applyToRemaining: false }
-        : { action: 'skip', applyToRemaining: true };
-    });
-
-    expect(prompted).toEqual(['report.pdf', 'photos']);
-    expect(decisions?.map(({ candidate, action }) => [candidate.name, action])).toEqual([
-      ['report.pdf', 'keep_both'],
-      ['photos', 'skip'],
-      ['new.txt', 'skip'],
-    ]);
-  });
-
-  it('cancels the unresolved batch without returning partial decisions', async () => {
-    const decisions = await resolveUploadConflicts(candidates, async () => null);
-    expect(decisions).toBeNull();
   });
 });
 

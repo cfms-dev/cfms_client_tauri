@@ -1,5 +1,6 @@
 import type { SyntaxNode } from '@lezer/common';
 import { analyzeCacl, parser } from 'codemirror-lang-cacl';
+import { childrenOf } from '$lib/features/access/cacl-model';
 
 export const CACL_FORMAT_MAX_LINE_LENGTH = 88;
 export const CACL_FORMAT_INDENT = '  ';
@@ -27,16 +28,6 @@ interface TokenizedItem {
   text: string;
   standaloneComments: string[];
   trailingComment: string | null;
-}
-
-function childrenOf(node: SyntaxNode): SyntaxNode[] {
-  const result: SyntaxNode[] = [];
-  let child = node.firstChild;
-  while (child) {
-    result.push(child);
-    child = child.nextSibling;
-  }
-  return result;
 }
 
 function findFirstSyntaxError(node: SyntaxNode): SyntaxNode | null {

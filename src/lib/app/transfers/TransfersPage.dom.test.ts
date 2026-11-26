@@ -35,8 +35,6 @@ vi.mock('$lib/api', () => ({
   resumeDownload: vi.fn(),
   retryDownload: vi.fn(),
   retryUploadTask: vi.fn(),
-  uploadDirectory: vi.fn(),
-  uploadDocumentFile: vi.fn(),
 }));
 
 vi.mock('$lib/features/transfers/download-state.svelte', () => ({

@@ -249,12 +249,7 @@ fn count_ca_certificates(ca_dir: &std::path::Path) -> Result<usize, String> {
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read CA directory entry: {e}"))?;
         let path = entry.path();
-        if path.is_file()
-            && path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(is_ca_certificate_filename)
-        {
+        if path.is_file() && cfms_transport::tls::is_openssl_hash_filename(&path) {
             count += 1;
         }
     }
@@ -275,10 +270,9 @@ fn build_local_ca_manifest(
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read CA directory entry: {e}"))?;
         let path = entry.path();
-        let Some(name) = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .filter(|name| is_ca_certificate_filename(name))
+        let Some(name) = cfms_transport::tls::is_openssl_hash_filename(&path)
+            .then(|| path.file_name().and_then(|n| n.to_str()))
+            .flatten()
         else {
             continue;
         };
@@ -330,7 +324,10 @@ async fn check_and_update_ca_certificates(
 
     let remote_files: std::collections::HashMap<String, GithubContentsEntry> = entries
         .into_iter()
-        .filter(|entry| entry.entry_type == "file" && is_ca_certificate_filename(&entry.name))
+        .filter(|entry| {
+            entry.entry_type == "file"
+                && cfms_transport::tls::is_openssl_hash_filename(std::path::Path::new(&entry.name))
+        })
         .map(|entry| (entry.name.clone(), entry))
         .collect();
 
@@ -400,7 +397,7 @@ async fn check_and_update_ca_certificates(
                 .then(|| path.file_name()?.to_str().map(ToOwned::to_owned))
                 .flatten()
         })
-        .filter(|name| is_ca_certificate_filename(name))
+        .filter(|name| cfms_transport::tls::is_openssl_hash_filename(std::path::Path::new(name)))
         .collect();
 
     let remote_names: std::collections::HashSet<String> = remote_files.keys().cloned().collect();
@@ -413,16 +410,6 @@ async fn check_and_update_ca_certificates(
 
     save_ca_manifest(ca_dir, &manifest)?;
     Ok(result)
-}
-
-fn is_ca_certificate_filename(name: &str) -> bool {
-    let bytes = name.as_bytes();
-    bytes.len() >= 10
-        && bytes[..8]
-            .iter()
-            .all(|&b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-        && bytes[8] == b'.'
-        && bytes[9..].iter().all(u8::is_ascii_digit)
 }
 
 fn git_blob_sha(content: &[u8]) -> String {

@@ -1,8 +1,8 @@
 // CFMS Client - typed Tauri IPC wrappers.
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { NodeDaclResponse, SetNodeDaclResponse } from './types/access';
-import type { BatchActionResult, DirectoryFileConflictResolution, DirectoryUploadConflict, SelectedUploadDirectory, UploadConflictStrategy, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types/transfers';
-import type { ListDirectoryPageResponse, ListDirectoryResponse, NodeLookupResponse, RevisionEntry, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
+import type { BatchActionResult, DirectoryUploadConflict, SelectedUploadDirectory, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types/transfers';
+import type { ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -39,10 +39,6 @@ export async function listDirectoryPage(
   return invoke("list_directory_page", { folderId, cursor, pageSize });
 }
 
-export async function resolveNodePath(path: string): Promise<NodeLookupResponse> {
-  return invoke('resolve_node_path', { path });
-}
-
 /** Request a document download from the CFMS server.
  *
  * Sends the `get_document` action, which creates a download task on the
@@ -67,18 +63,6 @@ export async function getDocument(
     batchCreatedAt: batch?.batchCreatedAt ?? null,
     batchEstimatedTotal: batch?.batchEstimatedTotal ?? null,
   });
-}
-
-/** Ensure a relative subdirectory exists under the local download root. */
-export async function ensureDownloadSubdirectory(
-  relativePath: string,
-): Promise<string> {
-  return invoke("ensure_download_subdirectory", { relativePath });
-}
-
-/** Delete a download task from the database and remove its file from disk. */
-export async function deleteDownload(taskId: string): Promise<boolean> {
-  return invoke("delete_download", { taskId });
 }
 
 /** Open a completed download with the platform's default application. */
@@ -237,53 +221,6 @@ export async function uploadNewRevision(
   return invoke("upload_new_revision", { documentId, filePath });
 }
 
-export async function uploadDocumentFile(
-  parentId: string | null,
-  filePath: string,
-  uploadId: string,
-  conflictStrategy: UploadConflictStrategy = "fail",
-  uploadName?: string,
-): Promise<{
-  upload_id: string;
-  task_id: string | null;
-  document_id: string | null;
-  file_name: string;
-  skipped: boolean;
-  overwritten: boolean;
-}> {
-  return invoke("upload_document_file", {
-    parentId,
-    filePath,
-    uploadId,
-    conflictStrategy,
-    uploadName: uploadName ?? null,
-  });
-}
-
-export async function uploadDirectory(
-  parentId: string | null,
-  directoryPath: string,
-  uploadId: string,
-  conflictStrategy: UploadConflictStrategy = "fail",
-  uploadName?: string,
-  conflictResolutions: DirectoryFileConflictResolution[] = [],
-): Promise<{
-  upload_id: string;
-  directory_id: string;
-  total_files: number;
-  uploaded_files: number;
-  skipped: boolean;
-}> {
-  return invoke("upload_directory", {
-    parentId,
-    directoryPath,
-    uploadId,
-    conflictStrategy,
-    conflictResolutions,
-    uploadName: uploadName ?? null,
-  });
-}
-
 export async function inspectUploadDirectoryConflicts(
   parentId: string | null,
   directoryPath: string,
@@ -348,20 +285,12 @@ export async function enqueueUploadBatch(requests: UploadEnqueueRequest[]): Prom
   return invoke("enqueue_upload_batch", { requests });
 }
 
-export async function enqueueUploadTask(request: UploadEnqueueRequest): Promise<UploadTaskDto> {
-  return invoke("enqueue_upload", { request });
-}
-
 export async function getUploadTasks(): Promise<UploadTaskDto[]> {
   return invoke("get_upload_tasks");
 }
 
 export async function retryUploadTask(uploadId: string, replacementSource?: string): Promise<UploadEnqueueRequest> {
   return invoke("retry_upload", { uploadId, replacementSource: replacementSource ?? null });
-}
-
-export async function removeUploadRecords(ids: string[]): Promise<BatchActionResult> {
-  return invoke("remove_upload_records", { ids });
 }
 
 export async function searchFiles(

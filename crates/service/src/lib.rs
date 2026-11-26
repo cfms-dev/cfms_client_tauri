@@ -11,7 +11,6 @@
 //! - [`authentication`], [`connection`], [`files`], [`transfers`] — business services.
 //! - [`rpc`] — authenticated request encoding and typed response decoding.
 //! - [`session`] — frontend-safe session snapshots, without tokens or keys.
-//! - [`scan`] — parallel local filesystem scanner using the `ignore` crate.
 
 #![forbid(unsafe_code)]
 
@@ -24,7 +23,6 @@ pub mod files;
 pub mod public_key_auth;
 pub mod rpc;
 pub mod runtime;
-pub mod scan;
 pub mod sensitive;
 
 pub mod session;

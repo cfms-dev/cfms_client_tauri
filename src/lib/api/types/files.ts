@@ -1,12 +1,5 @@
 import type { CursorPageMeta } from './common';
 
-export interface FileEntry {
-  path: string;
-  size: number;
-  is_dir: boolean;
-  modified: number | null;
-}
-
 /** A directory/folder entry returned by the server's list_directory action. */
 export interface ServerDirectoryEntry {
   id: string;
@@ -21,10 +14,6 @@ export interface ServerDocumentEntry {
   size: number | null;
   last_modified: number | null;
 }
-
-export type DirectoryListingItem =
-  | ({ type: "directory" } & ServerDirectoryEntry)
-  | ({ type: "document" } & ServerDocumentEntry);
 
 export interface ServerDocumentMetadata {
   tags: string[];
@@ -105,16 +94,6 @@ export interface DeletedDocumentEntry {
 export interface DeletedItemsResponse {
   folders: DeletedDirectoryEntry[];
   documents: DeletedDocumentEntry[];
-}
-
-export interface FileMetadata {
-  file_size: number | null;
-  chunk_size: number;
-  total_chunks: number;
-}
-
-export interface NodeLookupResponse {
-  node_ids: string[];
 }
 
 export interface FileShortcutValidationResult {

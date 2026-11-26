@@ -10,6 +10,7 @@
   import { _ as t } from 'svelte-i18n';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { estimatePasswordStrength, generateRandomPassword } from '$lib/shared/password';
 
   interface Props {
     /** The username whose password is being changed. */
@@ -40,58 +41,10 @@
 
   // Live strength estimate of the new password (purely advisory — the server
   // enforces the authoritative rules).
-  const strength = $derived(estimateStrength(newPassword));
-
-  function estimateStrength(pw: string): { score: number; label: string } {
-    if (!pw) return { score: 0, label: '' };
-    let score = 0;
-    if (pw.length >= 8) score++;
-    if (pw.length >= 12) score++;
-    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    const labels = [
-      $t('dialog.changePassword.veryWeak'),
-      $t('dialog.changePassword.weak'),
-      $t('dialog.changePassword.fair'),
-      $t('dialog.changePassword.good'),
-      $t('dialog.changePassword.strong'),
-      $t('dialog.changePassword.strong'),
-    ];
-    return { score, label: labels[score] };
-  }
-
-  /** Generate a strong random password that satisfies common rule sets
-   *  (lower + upper + digit + symbol, 16 chars). Mirrors the reference's
-   *  "dice" button which calls generate_random_password(). */
-  function generateRandomPassword(): string {
-    const lower = 'abcdefghijkmnpqrstuvwxyz';
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    const symbols = '!@#$%^&*()-_=+[]{}';
-    const all = lower + upper + digits + symbols;
-    const pick = (set: string) => set[randInt(set.length)];
-    const chars: string[] = [
-      pick(lower),
-      pick(upper),
-      pick(digits),
-      pick(symbols),
-    ];
-    for (let i = chars.length; i < 16; i++) chars.push(pick(all));
-    // Fisher–Yates shuffle so the guaranteed-class chars aren't always first.
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join('');
-  }
-
-  /** Cryptographically-strong integer in [0, max). */
-  function randInt(max: number): number {
-    const buf = new Uint32Array(1);
-    crypto.getRandomValues(buf);
-    return buf[0] % max;
-  }
+  const strength = $derived.by(() => {
+    const result = estimatePasswordStrength(newPassword);
+    return { score: result.score, label: result.labelKey ? $t(result.labelKey) : '' };
+  });
 
   function handleDice() {
     const pw = generateRandomPassword();
@@ -111,7 +64,7 @@
       await onSubmit(newPassword);
       // On success the parent closes the dialog.
     } catch (e) {
-      notificationStore.error(formatError(e));
+      notificationStore.error(formatUserFacingError(e));
     } finally {
       busy = false;
     }
@@ -119,10 +72,6 @@
 
   function handleCancel() {
     if (!busy) onCancel();
-  }
-
-  function formatError(err: unknown) {
-    return formatUserFacingError(err);
   }
 </script>
 

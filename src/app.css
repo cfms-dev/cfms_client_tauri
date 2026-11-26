@@ -58,45 +58,6 @@ html[data-theme="light"] { color-scheme: light; }
   -webkit-user-select: none;
 }
 
-/* Smooth page transitions */
-.page-enter {
-  animation: fadeIn 0.15s ease-out;
-}
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Progress bar stripe animation */
-@keyframes progressStripe {
-  0% {
-    background-position: 0 0;
-  }
-  100% {
-    background-position: 2rem 0;
-  }
-}
-.progress-stripe {
-  background-image: linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.15) 25%,
-    transparent 25%,
-    transparent 50%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.15) 75%,
-    transparent 75%,
-    transparent
-  );
-  background-size: 2rem 2rem;
-  animation: progressStripe 0.8s linear infinite;
-}
-
 /* ---------------------------------------------------------------------------
  * Motion layer — Fluent motion aliases and utilities
  * --------------------------------------------------------------------------- */
@@ -134,17 +95,6 @@ html[data-theme="light"] { color-scheme: light; }
   }
 }
 
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(0, -3px, 0);
-  }
-}
-
 @keyframes fade-scale-in {
   0% {
     opacity: 0;
@@ -170,11 +120,6 @@ html[data-theme="light"] { color-scheme: light; }
   will-change: transform;
 }
 
-.animate-float {
-  animation: float 2.4s var(--motion-easing-standard) infinite;
-  will-change: transform;
-}
-
 .animate-fade-scale-in {
   animation: fade-scale-in var(--motion-duration-medium2)
     var(--motion-easing-emphasized-decelerate) both;
@@ -196,21 +141,6 @@ html[data-theme="light"] { color-scheme: light; }
   background-size: 2rem 2rem;
   animation: progress-stripe 0.8s linear infinite;
   will-change: background-position;
-}
-
-
-.motion-reveal {
-  opacity: 0;
-  transform: translate3d(0, 10px, 0) scale(0.98);
-  transition:
-    opacity var(--motion-duration-medium3) var(--motion-easing-emphasized-decelerate),
-    transform var(--motion-duration-medium3) var(--motion-easing-emphasized-decelerate);
-  will-change: opacity, transform;
-}
-
-.motion-reveal.motion-revealed {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .safe-area-shell {
@@ -262,22 +192,6 @@ html[data-theme="light"] { color-scheme: light; }
   transform: translateX(-50%);
 }
 
-/* Floating tab bar entrance — gentle rise + fade on mount. */
-@keyframes navbar-in {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-.motion-navbar-in {
-  animation: navbar-in var(--motion-duration-medium2, 300ms)
-    var(--motion-easing-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1)) both;
-}
-
 html[data-reduce-motion="true"] *,
 html[data-reduce-motion="true"] *::before,
 html[data-reduce-motion="true"] *::after {
@@ -287,13 +201,6 @@ html[data-reduce-motion="true"] *::after {
   animation-iteration-count: 1 !important;
   transition-delay: 0s !important;
   transition-duration: 0.01ms !important;
-}
-
-/* Keep indeterminate loading feedback legible without fast or abrupt motion. */
-html[data-reduce-motion="true"] .md-progress-ring svg,
-html[data-reduce-motion="true"] .md-progress-ring__indicator {
-  animation-duration: 2.4s !important;
-  animation-iteration-count: infinite !important;
 }
 
 html[data-reduce-motion="true"] .context-menu-surface {

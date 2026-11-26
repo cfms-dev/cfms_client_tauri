@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { DownloadTaskDto } from '$lib/api';
 import type { DownloadBatchSnapshot } from '$lib/features/transfers/download-batch-control';
 import {
-  buildDownloadTaskRows, buildDownloadTaskSections, canDeleteDownloadTaskGroupFiles,
-  canRemoveDownloadTaskGroupRecords, downloadTaskGroupSection,
+  buildDownloadTaskRows, canDeleteDownloadTaskGroupFiles,
+  canRemoveDownloadTaskGroupRecords,
 } from '$lib/features/transfers/download-task-groups';
 
 function task(
@@ -82,32 +82,10 @@ describe('download task groups', () => {
   });
 
   it('counts remaining records after cleanup rather than a stale admission estimate', () => {
-    const [section] = buildDownloadTaskSections([
+    const rows = buildDownloadTaskRows([
       { ...task('remaining', 'completed'), batch_estimated_total: 67 },
     ], new Set());
-    expect(section.rows[0]).toMatchObject({ kind: 'group', group: { total: 1, completed: 1, progress: 1 } });
-  });
-  it('assigns a mixed-state batch to one highest-priority section', () => {
-    const sections = buildDownloadTaskSections([
-      task('failed', 'failed'),
-      task('running', 'downloading'),
-    ], new Set());
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toMatchObject({ section: 'attention', count: 2 });
-    expect(sections[0].rows.map((row) => row.kind)).toEqual(['group']);
-  });
-
-  it('keeps expanded children with their aggregate batch section', () => {
-    const sections = buildDownloadTaskSections([
-      task('complete', 'completed'),
-      task('paused', 'paused'),
-    ], new Set(['batch-1']));
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0].section).toBe('waiting');
-    expect(sections[0].rows.map((row) => row.kind))
-      .toEqual(['group', 'group-task', 'group-task']);
+    expect(rows[0]).toMatchObject({ kind: 'group', group: { total: 1, completed: 1, progress: 1 } });
   });
 
   it('keeps a 634-task expanded batch complete and ordered for virtualization', () => {
@@ -115,66 +93,21 @@ describe('download task groups', () => {
       ({ ...task(`task-${index}`, 'completed'), created_at: index }),
     );
 
-    const sections = buildDownloadTaskSections(tasks, new Set(['batch-1']));
+    const rows = buildDownloadTaskRows(tasks, new Set(['batch-1']));
 
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toMatchObject({ section: 'history', count: 634 });
-    expect(sections[0].rows).toHaveLength(635);
-    expect(sections[0].rows[0]).toMatchObject({ kind: 'group', group: { total: 634 } });
-    expect(sections[0].rows.slice(1).map((row) => row.kind))
+    expect(rows).toHaveLength(635);
+    expect(rows[0]).toMatchObject({ kind: 'group', group: { total: 634 } });
+    expect(rows.slice(1).map((row) => row.kind))
       .toEqual(Array.from({ length: 634 }, () => 'group-task'));
-    expect(sections[0].rows.slice(1).map((row) => row.kind === 'group-task' ? row.task.task_id : null))
+    expect(rows.slice(1).map((row) => row.kind === 'group-task' ? row.task.task_id : null))
       .toEqual(Array.from({ length: 634 }, (_, index) => `task-${index}`));
   });
 
-  it('places an active snapshot-only batch in progress exactly once', () => {
-    const sections = buildDownloadTaskSections([], new Set(), [snapshot]);
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toMatchObject({ section: 'active', count: 4 });
-    expect(sections[0].rows).toHaveLength(1);
-  });
-
-  it('filters batch visibility without recalculating its aggregate progress', () => {
-    const sections = buildDownloadTaskSections([
-      { ...task('match', 'completed'), filename: 'report.pdf' },
-      { ...task('hidden', 'downloading'), filename: 'notes.pdf' },
-    ], new Set(['batch-1']), [], 'report');
-
-    expect(sections).toHaveLength(1);
-    expect(sections[0]).toMatchObject({ section: 'active', count: 2 });
-    const [groupRow, childRow] = sections[0].rows;
-    expect(groupRow.kind).toBe('group');
-    if (groupRow.kind === 'group') {
-      expect(groupRow.group.total).toBe(2);
-      expect(groupRow.group.completed).toBe(1);
-      expect(groupRow.group.progress).toBe(0.75);
-    }
-    expect(childRow).toMatchObject({ kind: 'group-task', task: { task_id: 'match' } });
-    expect(sections[0].rows).toHaveLength(2);
-  });
-
-  it('searches snapshot-only batches by their displayed batch name', () => {
-    expect(buildDownloadTaskSections([], new Set(), [snapshot], 'live folder')).toHaveLength(1);
-    expect(buildDownloadTaskSections([], new Set(), [snapshot], 'report')).toEqual([]);
-  });
-
-  it('uses attention before active, then waiting and history', () => {
-    const sections = buildDownloadTaskSections([
-      task('failed', 'failed'),
-      task('active', 'downloading'),
-    ], new Set());
-    const row = sections[0].rows[0];
-    expect(row.kind).toBe('group');
-    if (row.kind === 'group') expect(downloadTaskGroupSection(row.group)).toBe('attention');
-  });
-
   it('keeps completed transfer progress after local files are deleted', () => {
-    const sections = buildDownloadTaskSections([
+    const row = buildDownloadTaskRows([
       task('available', 'completed'),
       task('removed', 'deleted'),
-    ], new Set());
-    const row = sections[0].rows[0];
+    ], new Set())[0];
 
     expect(row.kind).toBe('group');
     if (row.kind === 'group') {
@@ -182,10 +115,10 @@ describe('download task groups', () => {
       expect(canDeleteDownloadTaskGroupFiles(row.group)).toBe(true);
     }
 
-    const deletedOnlyRow = buildDownloadTaskSections([
+    const deletedOnlyRow = buildDownloadTaskRows([
       task('removed-1', 'deleted'),
       task('removed-2', 'deleted'),
-    ], new Set())[0].rows[0];
+    ], new Set())[0];
     expect(deletedOnlyRow.kind).toBe('group');
     if (deletedOnlyRow.kind === 'group') {
       expect(canDeleteDownloadTaskGroupFiles(deletedOnlyRow.group)).toBe(false);
@@ -199,12 +132,11 @@ describe('download task groups', () => {
       scheduled_time: 30,
     };
     const liveSnapshot = { ...snapshot, failed: 2, rateLimited: 2, rateLimitWaiting: true };
-    const sections = buildDownloadTaskSections(
+    const row = buildDownloadTaskRows(
       [rateLimitedTask],
       new Set(),
       [{ ...liveSnapshot, batchId: 'batch-1', batchName: 'Evidence bundle' }],
-    );
-    const row = sections[0].rows[0];
+    )[0];
 
     expect(row.kind).toBe('group');
     if (row.kind === 'group') {
@@ -219,10 +151,10 @@ describe('download task groups', () => {
   });
 
   it('allows terminal mixed-result batches to delete successful files or remove records', () => {
-    const row = buildDownloadTaskSections([
+    const row = buildDownloadTaskRows([
       task('available', 'completed'),
       task('failed', 'failed'),
-    ], new Set())[0].rows[0];
+    ], new Set())[0];
 
     expect(row.kind).toBe('group');
     if (row.kind === 'group') {
@@ -232,10 +164,10 @@ describe('download task groups', () => {
   });
 
   it('does not expose terminal batch cleanup while work is still pending', () => {
-    const row = buildDownloadTaskSections([
+    const row = buildDownloadTaskRows([
       task('available', 'completed'),
       task('pending', 'pending'),
-    ], new Set())[0].rows[0];
+    ], new Set())[0];
 
     expect(row.kind).toBe('group');
     if (row.kind === 'group') {

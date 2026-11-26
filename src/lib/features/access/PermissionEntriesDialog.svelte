@@ -12,8 +12,10 @@
     permissionEntryState,
     permissionEntrySuggestions,
     validatePermissionEntry,
+    type EndMode,
     type PermissionEntriesEditorData,
     type PermissionEntryFilter,
+    type StartMode,
   } from '$lib/features/access/permission-entries';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
@@ -22,9 +24,6 @@
   import PermissionEntryEditor from '$lib/features/access/PermissionEntryEditor.svelte';
   import PermissionEntryList from '$lib/features/access/PermissionEntryList.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-
-  type StartMode = 'immediate' | 'specified';
-  type EndMode = 'never' | 'specified';
 
   interface EditableEntry {
     key: string;

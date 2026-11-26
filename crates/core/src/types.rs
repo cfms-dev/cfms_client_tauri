@@ -43,37 +43,8 @@ pub struct Response<T = serde_json::Value> {
 }
 
 // ---------------------------------------------------------------------------
-// File metadata
+// Download phase
 // ---------------------------------------------------------------------------
-
-/// Metadata about a file, received from the server before transfer.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileMetadata {
-    /// Expected size of the plaintext file in bytes.
-    /// `None` for empty files.
-    pub file_size: Option<u64>,
-
-    /// Size of each encrypted chunk in bytes.
-    pub chunk_size: u32,
-
-    /// Total number of chunks that will be transferred.
-    pub total_chunks: u32,
-}
-
-// ---------------------------------------------------------------------------
-// Download progress
-// ---------------------------------------------------------------------------
-
-/// A progress update emitted during a download operation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct DownloadProgress {
-    /// Which phase of the download we are in.
-    pub phase: DownloadPhase,
-    /// Bytes processed so far (downloaded, decrypted, or verified).
-    pub current: u64,
-    /// Total bytes expected (`0` when unknown).
-    pub total: u64,
-}
 
 /// Logical phases of a download, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,19 +58,6 @@ pub enum DownloadPhase {
     Cleaning = 2,
     /// Verifying file integrity.
     Verifying = 3,
-}
-
-// ---------------------------------------------------------------------------
-// Upload progress
-// ---------------------------------------------------------------------------
-
-/// A progress update emitted during an upload operation.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct UploadProgress {
-    /// Bytes uploaded so far.
-    pub current: u64,
-    /// Total file size in bytes.
-    pub total: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -394,36 +352,6 @@ pub enum ServiceEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Service status (for diagnostics)
-// ---------------------------------------------------------------------------
-
-/// Summary status of a single background service.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceStatusInfo {
-    /// Service name (e.g. "token_refresh").
-    pub name: String,
-    /// Whether the service is currently running.
-    pub running: bool,
-}
-
-// ---------------------------------------------------------------------------
-// File scan entry
-// ---------------------------------------------------------------------------
-
-/// A single file or directory entry returned by the local disk scanner.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
-    /// Absolute path to the entry.
-    pub path: String,
-    /// File size in bytes (0 for directories).
-    pub size: u64,
-    /// Whether this entry is a directory.
-    pub is_dir: bool,
-    /// Last modification time as a Unix timestamp (seconds).
-    pub modified: Option<i64>,
-}
-
-// ---------------------------------------------------------------------------
 // Server-side directory / document entries (list_directory response)
 // ---------------------------------------------------------------------------
 
@@ -546,12 +474,6 @@ pub struct ServerInfo {
     /// Optional server extension capabilities advertised for this connection.
     #[serde(default)]
     pub extension_flags: Vec<String>,
-}
-
-/// Response returned by the optional `node_lookup` server extension.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NodeLookupResponse {
-    pub node_ids: Vec<String>,
 }
 
 /// Permission-protected static server diagnostics introduced in protocol 22.

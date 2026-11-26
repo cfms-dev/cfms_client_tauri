@@ -101,18 +101,6 @@ pub enum DirectoryUploadConflictEvent {
     Finished,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct UploadProgressEvent {
-    pub upload_id: String,
-    pub task_id: Option<String>,
-    pub file_name: String,
-    pub current_bytes: u64,
-    pub total_bytes: u64,
-    pub progress: f64,
-    pub status: String,
-    pub message: Option<String>,
-}
-
 #[derive(Debug, Clone)]
 pub(super) struct UploadFileResult {
     pub(super) upload_id: String,

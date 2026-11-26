@@ -52,6 +52,8 @@ export const KNOWN_GLOBAL_PERMISSIONS: readonly string[] = [
 export type PermissionEntryState = 'active' | 'scheduled' | 'expired';
 export type PermissionEntryFilter = 'all' | PermissionEntryState | 'changed';
 export type PermissionEntryChangeKind = 'unchanged' | 'added' | 'modified' | 'deleted';
+export type StartMode = 'immediate' | 'specified';
+export type EndMode = 'never' | 'specified';
 
 export interface PermissionEntryValidation {
   valid: boolean;

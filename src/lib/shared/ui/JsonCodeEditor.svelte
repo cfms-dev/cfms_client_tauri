@@ -7,6 +7,7 @@
   import {
     createFormatKeymapExtension,
     getEditorContextMenuAnchor,
+    usesDarkColorScheme,
   } from '$lib/shared/ui/code-editor-commands';
   import { shortcutMatches } from '$lib/shared/ui/keyboard';
 
@@ -47,10 +48,6 @@
   let contextMenuOpen = $state(false);
   let contextMenuX = $state(0);
   let contextMenuY = $state(0);
-
-  function usesDarkColorScheme(): boolean {
-    return document.documentElement.dataset.theme !== 'light';
-  }
 
   function decodePointerSegment(segment: string): string {
     return segment.replaceAll('~1', '/').replaceAll('~0', '~');

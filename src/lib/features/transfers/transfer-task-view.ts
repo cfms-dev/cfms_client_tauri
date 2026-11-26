@@ -107,12 +107,6 @@ export function uploadCapabilities(task: UploadTaskDto) {
   };
 }
 
-export function sortSectionTasks<T extends { created_at: number }>(tasks: T[], section: TransferSectionKey) {
-  return [...tasks].sort((a, b) => section === 'history'
-    ? b.created_at - a.created_at
-    : a.created_at - b.created_at);
-}
-
 export function isTransferInProgress(task: { status: DownloadTaskStatus | UploadTaskStatus }) {
   return ['uploading', 'downloading', 'decrypting', 'verifying', 'scheduled'].includes(task.status);
 }

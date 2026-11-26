@@ -5,6 +5,7 @@
   import { _ as t } from 'svelte-i18n';
   import { getSetting, setSetting } from '$lib/api';
   import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
+  import { formatUpdatePauseDate } from '$lib/features/updates/update-notifications';
   import type { UpdateChannel } from '$lib/api/updates';
   import {
     ACTIVE_UPDATE_CHECK_PAUSE,
@@ -37,7 +38,7 @@
     if (pause.mode === 'indefinite') return $t('settings.updates.pausedIndefinitely');
     if (pause.mode === 'until') {
       return $t('settings.updates.pausedUntil', {
-        values: { date: formatPauseDate(pause.until) },
+        values: { date: formatUpdatePauseDate(pause.until) },
       });
     }
     return $t('settings.updates.automaticChecksActive');
@@ -155,16 +156,6 @@
       orientation: 'both',
     });
     next?.click();
-  }
-
-  function formatPauseDate(value: number): string {
-    return new Date(value).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 </script>
 

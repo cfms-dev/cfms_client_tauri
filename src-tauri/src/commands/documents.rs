@@ -10,7 +10,6 @@ use super::shared_helpers::send_action_request;
 use super::transfer_helpers::UploadTransferSession;
 use super::transfer_helpers::clean_optional_upload_name;
 use super::transfer_helpers::create_server_directory;
-use super::transfer_helpers::create_transfer_connection;
 use super::transfer_helpers::download_root;
 use super::transfer_helpers::non_empty_optional;
 use super::transfer_helpers::prepare_upload_directory_source;
@@ -23,7 +22,6 @@ use super::transfer_types::DirectoryUploadConflict;
 use super::transfer_types::DirectoryUploadConflictEvent;
 use super::transfer_types::TransferControlAction;
 use super::transfer_types::UploadConflictStrategy;
-use super::transfer_types::UploadProgressEvent;
 use super::transfer_types::UploadRevisionProgressEvent;
 use super::upload_tasks::control_upload_task;
 use super::upload_tasks::emit_upload_snapshot;
@@ -31,7 +29,6 @@ use super::upload_tasks::emit_upload_snapshot;
 use crate::AndroidUploadFileImporter;
 use crate::AppHandleState;
 use cfms_core::CursorPage;
-use cfms_core::ServiceEvent;
 use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
 use cfms_service::files::normalize_search_page;
 use cfms_service::transfers::collect_directory_entries;
@@ -389,20 +386,7 @@ pub async fn get_revision(
         file_path,
     )?;
     let task_id = task.task_id.clone();
-    let guard = state.inner.auth_update.lock().await;
-    identity.ensure_current_locked(&state.inner, &guard).await?;
-
-    state
-        .tasks
-        .insert(&task)
-        .map_err(|e| format!("Failed to add download: {e}"))?;
-    let _ = state
-        .inner
-        .event_tx
-        .send(ServiceEvent::DownloadTaskUpdated { task: task.clone() });
-    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-        count: state.tasks.active_count(),
-    });
+    super::downloads::enqueue_download_task(&state, &identity, &task).await?;
 
     Ok(serde_json::json!({
         "task_id": task_id,
@@ -463,7 +447,7 @@ pub async fn upload_new_revision<R: Runtime>(
         .ok_or_else(|| "Server response missing task_id".to_string())?
         .to_string();
 
-    let mut transfer_conn = create_transfer_connection(&state.inner)
+    let mut transfer_conn = cfms_service::connection::open_connection(&state.inner)
         .await
         .map_err(|error| format_transport_error(&error))?;
     let emit_handle = app_handle.clone();
@@ -502,7 +486,7 @@ pub async fn upload_new_revision<R: Runtime>(
                 attempt += 1;
                 transfer_conn.close().await;
                 tokio::time::sleep(delay).await;
-                transfer_conn = create_transfer_connection(&state.inner)
+                transfer_conn = cfms_service::connection::open_connection(&state.inner)
                     .await
                     .map_err(|error| format_transport_error(&error))?;
                 // Keep the same server task ID: protocol 20 returns its
@@ -530,23 +514,22 @@ pub async fn upload_new_revision<R: Runtime>(
 }
 
 /// Upload a local file as a new document in a server-side directory.
-#[tauri::command]
-pub async fn upload_document_file<R: Runtime>(
-    app_handle: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppHandleState>,
+pub(super) async fn upload_document_file<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    state: &AppHandleState,
     parent_id: Option<String>,
     file_path: String,
     upload_id: String,
     conflict_strategy: Option<UploadConflictStrategy>,
     upload_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let source = prepare_upload_source(&app_handle, file_path)?;
+    let source = prepare_upload_source(app_handle, file_path)?;
     let upload_name =
         clean_optional_upload_name(upload_name).or_else(|| source.display_name.clone());
     let mut transfer_session = UploadTransferSession::new();
     let result = upload_local_file(
-        &app_handle,
-        &state,
+        app_handle,
+        state,
         parent_id,
         source.path.clone(),
         upload_name,
@@ -665,10 +648,9 @@ pub async fn inspect_upload_directory_conflicts<R: Runtime>(
 }
 
 /// Upload a local directory recursively, preserving its directory structure.
-#[tauri::command]
-pub async fn upload_directory<R: Runtime>(
-    app_handle: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppHandleState>,
+pub(super) async fn upload_directory<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    state: &AppHandleState,
     parent_id: Option<String>,
     directory_path: String,
     upload_id: String,
@@ -676,7 +658,7 @@ pub async fn upload_directory<R: Runtime>(
     conflict_resolutions: Option<Vec<DirectoryFileConflictResolution>>,
     upload_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let source = prepare_upload_directory_source(&app_handle, directory_path)?;
+    let source = prepare_upload_directory_source(app_handle, directory_path)?;
     let root = source.path.clone();
     if !root.is_dir() {
         return Err("Selected path is not a directory".to_string());
@@ -701,10 +683,10 @@ pub async fn upload_directory<R: Runtime>(
         .active_uploads
         .subscribe(&upload_id)
         .ok_or_else(|| "Upload must be submitted through the queue".to_string())?;
-    wait_for_upload_resume(&app_handle, &upload_id, &mut directory_control)
+    wait_for_upload_resume(app_handle, &upload_id, &mut directory_control)
         .await
         .map_err(|r| upload_interruption_message(r).to_string())?;
-    let root_result = create_server_directory(&state, parent_id, root_name.clone(), true).await?;
+    let root_result = create_server_directory(state, parent_id, root_name.clone(), true).await?;
     let root_id = root_result.id;
     let entries = collect_directory_entries(&root)?;
     let total_files = entries.iter().filter(|entry| entry.is_file()).count();
@@ -728,10 +710,10 @@ pub async fn upload_directory<R: Runtime>(
         cfms_core::UploadTaskStatus::Uploading,
         None,
     );
-    emit_upload_snapshot(&app_handle, &upload_id);
+    emit_upload_snapshot(app_handle, &upload_id);
 
     for entry in entries {
-        wait_for_upload_resume(&app_handle, &upload_id, &mut directory_control)
+        wait_for_upload_resume(app_handle, &upload_id, &mut directory_control)
             .await
             .map_err(|r| upload_interruption_message(r).to_string())?;
         let relative = match entry.strip_prefix(&root) {
@@ -761,7 +743,7 @@ pub async fn upload_directory<R: Runtime>(
                 transfer_session.close().await;
                 return Err("Directory has no valid name".to_string());
             };
-            let id = match create_server_directory(&state, Some(parent_server_id), name, true).await
+            let id = match create_server_directory(state, Some(parent_server_id), name, true).await
             {
                 Ok(result) => result.id,
                 Err(err) => {
@@ -790,8 +772,8 @@ pub async fn upload_directory<R: Runtime>(
                 .unwrap_or(conflict_strategy);
             let entry_bytes = std::fs::metadata(&entry).map(|m| m.len()).unwrap_or(0);
             if let Err(err) = upload_local_file(
-                &app_handle,
-                &state,
+                app_handle,
+                state,
                 Some(parent_server_id),
                 entry,
                 None,
@@ -818,20 +800,7 @@ pub async fn upload_directory<R: Runtime>(
         .finish_directory(&upload_id, "Upload completed")
         .map_err(|error| format!("Failed to finish directory upload task: {error}"))?;
     if directory_completed {
-        emit_upload_snapshot(&app_handle, &upload_id);
-        let _ = app_handle.emit(
-            "cfms:upload-progress",
-            UploadProgressEvent {
-                upload_id: upload_id.clone(),
-                task_id: None,
-                file_name: root_name,
-                current_bytes: 0,
-                total_bytes: 0,
-                progress: 1.0,
-                status: "completed".to_string(),
-                message: Some("Upload completed".to_string()),
-            },
-        );
+        emit_upload_snapshot(app_handle, &upload_id);
     }
 
     Ok(serde_json::json!({

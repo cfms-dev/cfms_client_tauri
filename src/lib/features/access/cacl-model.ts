@@ -108,7 +108,7 @@ export function unescapeCaclStringLiteral(tokenText: string): string {
   return out;
 }
 
-function childrenOf(node: SyntaxNode): SyntaxNode[] {
+export function childrenOf(node: SyntaxNode): SyntaxNode[] {
   const result: SyntaxNode[] = [];
   let child = node.firstChild;
   while (child) {

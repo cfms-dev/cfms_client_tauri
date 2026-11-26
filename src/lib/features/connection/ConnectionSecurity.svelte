@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+  import { formatDate } from '$lib/shared/format/values';
   import ConnectionSecurityNotice from './ConnectionSecurityNotice.svelte';
 
   let { details = false }: { details?: boolean } = $props();
@@ -21,10 +22,10 @@
         {/each}
       {/if}
       {#if details && status.checked_at}
-        <p>{$t('settings.connection.crlCheckedAt')}: {new Date(status.checked_at * 1000).toLocaleString()}</p>
+        <p>{$t('settings.connection.crlCheckedAt')}: {formatDate(status.checked_at)}</p>
       {/if}
       {#if details && status.valid_until}
-        <p>{$t('settings.connection.crlValidUntil')}: {new Date(status.valid_until * 1000).toLocaleString()}</p>
+        <p>{$t('settings.connection.crlValidUntil')}: {formatDate(status.valid_until)}</p>
       {/if}
     {/if}
   </ConnectionSecurityNotice>

@@ -9,6 +9,7 @@
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { generateRandomPassword } from '$lib/shared/password';
 
   let {
     onSave,
@@ -33,30 +34,6 @@
   $effect(() => {
     void tick().then(() => usernameInput?.focus());
   });
-
-  function randInt(max: number): number {
-    const buf = new Uint32Array(1);
-    crypto.getRandomValues(buf);
-    return buf[0] % max;
-  }
-
-  function generateRandomPassword(): string {
-    const lower = 'abcdefghijkmnpqrstuvwxyz';
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    const symbols = '!@#$%^&*()-_=+[]{}';
-    const all = lower + upper + digits + symbols;
-    const pick = (set: string) => set[randInt(set.length)];
-    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
-
-    for (let i = chars.length; i < 16; i++) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-
-    return chars.join('');
-  }
 
   function generate() {
     password = generateRandomPassword();

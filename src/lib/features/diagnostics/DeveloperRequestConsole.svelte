@@ -5,6 +5,7 @@
   import { sendDeveloperRequest, type JsonValue, type ServerResponse } from '$lib/api';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
+  import { copyText } from '$lib/shared/platform/clipboard';
 
   const HISTORY_LIMIT = 30;
 
@@ -184,28 +185,12 @@
     if (!selectedEntry || selectedEntry.status === 'pending') return;
     const text = resultText(selectedEntry);
     try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       copyState = 'copied';
       announcement = $t('developerConsole.resultCopied');
     } catch {
-      try {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.setAttribute('readonly', '');
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        const copied = document.execCommand('copy');
-        textarea.remove();
-        if (!copied) throw new Error('Copy command failed');
-        copyState = 'copied';
-        announcement = $t('developerConsole.resultCopied');
-      } catch {
-        copyState = 'failed';
-        announcement = $t('developerConsole.copyFailed');
-      }
+      copyState = 'failed';
+      announcement = $t('developerConsole.copyFailed');
     }
   }
 

@@ -2,16 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildScheduleTrigger,
   isoToZonedDateTimeInput,
-  parsePayloadObject,
 } from '$lib/features/schedules/schedule-form';
 
 describe('schedule form protocol mapping', () => {
-  it('requires payloads to be JSON objects', () => {
-    expect(parsePayloadObject('{"report":"weekly"}')).toEqual({ report: 'weekly' });
-    expect(() => parsePayloadObject('[]')).toThrow('payloadObject');
-    expect(() => parsePayloadObject('{')).toThrow();
-  });
-
   it('builds each protocol 27 trigger shape', () => {
     const base = {
       timezone: 'Asia/Shanghai',

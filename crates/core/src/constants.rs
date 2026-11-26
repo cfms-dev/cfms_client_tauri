@@ -73,9 +73,6 @@ pub const ENCRYPTED_MAGIC: [u8; 4] = [0xcf, 0xe5, 0xce, 0x01];
 /// Frame header size on the wire: 4 bytes `frame_id` (BE) + 1 byte `frame_type`.
 pub const FRAME_HEADER_LEN: usize = 5;
 
-/// Prefix length used when constructing chunk nonces (8 bytes + 4 bytes index = 12).
-pub const CHUNK_NONCE_PREFIX_LEN: usize = 8;
-
 // ---------------------------------------------------------------------------
 // Transfer limits
 // ---------------------------------------------------------------------------

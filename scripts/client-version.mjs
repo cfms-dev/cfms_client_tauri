@@ -4,9 +4,16 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import {
+  flag,
+  normalizeVersion,
+  parseArgs,
+  parseVersion,
+  readText,
+  resolveRepo,
+  root,
+  writeText,
+} from "./lib/release-utils.mjs";
 
 const files = {
   packageJson: "package.json",
@@ -16,9 +23,6 @@ const files = {
   iosInfoPlist: "src-tauri/gen/ios/CFMS Client/Info.plist",
   androidTauriProperties: "src-tauri/gen/android/app/tauri.properties",
 };
-
-const semverPattern =
-  /^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<pre>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+(?<build>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 function usage(exitCode = 0) {
   const stream = exitCode === 0 ? process.stdout : process.stderr;
@@ -39,27 +43,8 @@ Notes:
   process.exit(exitCode);
 }
 
-function resolveRepo(relativePath) {
-  return path.join(root, relativePath);
-}
-
 function exists(relativePath) {
   return fs.existsSync(resolveRepo(relativePath));
-}
-
-function readText(relativePath) {
-  return fs.readFileSync(resolveRepo(relativePath), "utf8");
-}
-
-function writeText(relativePath, text, dryRun) {
-  if (dryRun) {
-    return;
-  }
-  const absolutePath = resolveRepo(relativePath);
-  const newline = fs.existsSync(absolutePath)
-    ? detectNewline(fs.readFileSync(absolutePath, "utf8"))
-    : "\n";
-  fs.writeFileSync(absolutePath, normalizeNewlines(text, newline));
 }
 
 function readJson(relativePath) {
@@ -68,37 +53,6 @@ function readJson(relativePath) {
 
 function writeJson(relativePath, value, dryRun) {
   writeText(relativePath, `${JSON.stringify(value, null, 2)}\n`, dryRun);
-}
-
-function detectNewline(text) {
-  return text.includes("\r\n") ? "\r\n" : "\n";
-}
-
-function normalizeNewlines(text, newline) {
-  const normalized = text.replace(/\r\n/g, "\n");
-  return newline === "\r\n" ? normalized.replace(/\n/g, "\r\n") : normalized;
-}
-
-function normalizeVersion(raw) {
-  const version = String(raw ?? "").trim().replace(/^v/, "");
-  const match = version.match(semverPattern);
-  if (!match) {
-    throw new Error(`Invalid semantic version: ${raw}`);
-  }
-  return version;
-}
-
-function parseVersion(raw) {
-  const version = normalizeVersion(raw);
-  const { major, minor, patch, pre, build } = version.match(semverPattern).groups;
-  return {
-    version,
-    major: Number(major),
-    minor: Number(minor),
-    patch: Number(patch),
-    pre: pre ?? "",
-    build: build ?? "",
-  };
 }
 
 function baseVersion(version) {
@@ -114,39 +68,6 @@ function versionBuildNumber(version) {
     );
   }
   return parsed.major * 1_000_000 + parsed.minor * 1_000 + parsed.patch;
-}
-
-function parseArgs(argv) {
-  const positionals = [];
-  const flags = new Map();
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) {
-      positionals.push(arg);
-      continue;
-    }
-
-    const [name, inlineValue] = arg.slice(2).split("=", 2);
-    if (inlineValue !== undefined) {
-      flags.set(name, inlineValue);
-      continue;
-    }
-
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      flags.set(name, next);
-      i += 1;
-    } else {
-      flags.set(name, true);
-    }
-  }
-
-  return { positionals, flags };
-}
-
-function flag(flags, name, fallback = undefined) {
-  return flags.has(name) ? flags.get(name) : fallback;
 }
 
 function readPackageVersion() {

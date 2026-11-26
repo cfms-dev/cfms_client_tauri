@@ -10,6 +10,7 @@
   import { serverErrorStatus } from '$lib/api/server-errors';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { menuScale } from '$lib/shared/motion/transitions';
+  import { formatDate } from '$lib/shared/format/values';
   import AvatarPreview from '$lib/features/authentication/AvatarPreview.svelte';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -87,10 +88,6 @@
     clearTimeout(closeTimer);
     clearTimeout(openTimer);
     if (!open) openTimer = setTimeout(show, 300);
-  }
-
-  function date(value: number | null | undefined) {
-    return value && value > 0 ? new Date(value * 1000).toLocaleString() : '-';
   }
 
   async function copy() {
@@ -309,8 +306,8 @@
       {#if info}
         <dl>
           <div><dt>{$t('manage.accountStatus')}</dt><dd>{info.status === 'active' ? $t('manage.statusActive') : $t('manage.statusDisabled')}</dd></div>
-          <div><dt>{$t('manage.lastLogin')}</dt><dd>{date(info.last_login)}</dd></div>
-          <div><dt>{$t('manage.registered')}</dt><dd>{date(info.created_time)}</dd></div>
+          <div><dt>{$t('manage.lastLogin')}</dt><dd>{formatDate(info.last_login, '-')}</dd></div>
+          <div><dt>{$t('manage.registered')}</dt><dd>{formatDate(info.created_time, '-')}</dd></div>
         </dl>
       {:else if errorKey}
         <p class="user-preview__error" role="status"><span class="cfms-icon-text__icon"><Icon name="info" size="18px" /></span><span>{$t(errorKey)}</span></p>

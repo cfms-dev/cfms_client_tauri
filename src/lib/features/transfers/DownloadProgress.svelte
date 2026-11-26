@@ -10,6 +10,7 @@
   import type { DownloadTaskStatus } from "$lib/api";
   import { _ as t } from 'svelte-i18n';
   import { formatByteRate } from '$lib/features/transfers/transfer-speed';
+  import { formatBytes } from '$lib/shared/format/values';
 
   interface Props {
     progress: number;
@@ -57,14 +58,6 @@
 
   function isAnimating(): boolean {
     return ["downloading", "decrypting", "verifying"].includes(status);
-  }
-
-  function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KiB", "MiB", "GiB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
   }
 
   const pct = $derived(Math.round(progress * 100));

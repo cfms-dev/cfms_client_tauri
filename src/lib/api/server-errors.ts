@@ -12,9 +12,14 @@ export type ServerAvailability = {
   retryAfterSeconds: number | null;
 };
 
+/** Normalize an unknown thrown value into its string message. */
+export function extractErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Extract the server status code preserved in a Tauri command error string. */
 export function serverErrorStatus(error: unknown): number | null {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = extractErrorMessage(error);
   const match = message.match(SERVER_STATUS_PATTERN)
     ?? message.match(CORE_REJECTION_STATUS_PATTERN)
     ?? message.match(LOGIN_STATUS_PATTERN)
@@ -27,7 +32,7 @@ export function serverErrorStatus(error: unknown): number | null {
 
 /** Extract the structured data appended to a Tauri command error. */
 export function serverErrorData(error: unknown): Record<string, unknown> | null {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = extractErrorMessage(error);
   const markerIndex = message.lastIndexOf(ERROR_DATA_MARKER);
   if (markerIndex < 0) return null;
 
@@ -41,7 +46,7 @@ export function serverErrorData(error: unknown): Record<string, unknown> | null 
 
 /** Return the human-readable portion without the structured metadata suffix. */
 export function serverErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = extractErrorMessage(error);
   const markerIndex = message.lastIndexOf(ERROR_DATA_MARKER);
   return (markerIndex < 0 ? message : message.slice(0, markerIndex)).trimEnd();
 }
@@ -78,7 +83,7 @@ export function isLockdownError(error: unknown): boolean {
  */
 export function isAccessDeniedError(error: unknown): boolean {
   if (serverErrorStatus(error) === 403) return true;
-  const message = error instanceof Error ? error.message : String(error);
+  const message = extractErrorMessage(error);
   return /^\s*Access denied\s*:/i.test(message);
 }
 

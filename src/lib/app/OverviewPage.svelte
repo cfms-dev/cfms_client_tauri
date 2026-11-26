@@ -50,7 +50,6 @@
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { isReducedMotionEnabled } from '$lib/shared/appearance';
   import { shortIdentifier } from '$lib/shared/format/identifiers';
-  import { formatError } from '$lib/shared/format/values';
 
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
   const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
@@ -114,7 +113,7 @@
   const searchView = createServerSearchController({
     canSearch: () => canUseServerSearch,
     onEmptyQuery: () => notificationStore.error($t('files.searchQueryRequired')),
-    onError: (err) => notificationStore.error(formatError(err)),
+    onError: (err) => notificationStore.error(formatUserFacingError(err)),
     onPermissionDenied: () => {
       searchDeniedByServer = true;
       notificationStore.warning($t('files.searchPermissionRequired'), 5000);
@@ -478,7 +477,7 @@
       searchPreview.loading = false;
       searchPreview.loadingMore = false;
       if (handleSearchPermissionError(e)) return;
-      searchPreview.error = formatError(e);
+      searchPreview.error = formatUserFacingError(e);
     }
   }
 

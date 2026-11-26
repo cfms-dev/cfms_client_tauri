@@ -2,6 +2,7 @@
   import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
   import ConnectionSecurity from '$lib/features/connection/ConnectionSecurity.svelte';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { formatDate } from '$lib/shared/format/values';
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
@@ -123,7 +124,7 @@
     if (!timestamp) {
       return $t('settings.connection.caLastCheckedNever');
     }
-    return new Date(timestamp * 1000).toLocaleString();
+    return formatDate(timestamp);
   }
 
   function summarizeCaUpdate(result: CaCertificateUpdateResult) {

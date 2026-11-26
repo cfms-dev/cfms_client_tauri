@@ -71,7 +71,7 @@ pub async fn ensure_connected(
         return Ok(conn);
     }
 
-    let config = load_config(state).await?;
+    let config = load_config(state).await.map_err(|e| e.to_string())?;
     let attempts = max_attempts.max(1);
     let mut last_error = None;
 
@@ -145,19 +145,19 @@ async fn clear_closed_connection(state: &AppState) {
     }
 }
 
-async fn load_config(state: &AppState) -> Result<ConnectionConfig, String> {
+async fn load_config(state: &AppState) -> cfms_core::Result<ConnectionConfig> {
     let url = state
         .server_address
         .read()
         .await
         .clone()
-        .ok_or_else(|| "No server address configured".to_string())?;
+        .ok_or_else(|| cfms_core::Error::Other("No server address configured".to_string()))?;
     let ca_dir = state
         .ca_dir
         .read()
         .await
         .clone()
-        .ok_or_else(|| "No CA directory configured".to_string())?;
+        .ok_or_else(|| cfms_core::Error::Other("No CA directory configured".to_string()))?;
     let disable_ssl = *state.disable_ssl_enforcement.read().await;
     let proxy_addr = state.proxy_addr.read().await.clone();
     let force_ipv4 = *state.force_ipv4.read().await;
@@ -176,7 +176,15 @@ async fn load_config(state: &AppState) -> Result<ConnectionConfig, String> {
     })
 }
 
-async fn connect_once(config: &ConnectionConfig) -> cfms_core::Result<cfms_transport::Connection> {
+/// Open a standalone TLS/WebSocket connection using the current [`AppState`] settings.
+pub async fn open_connection(state: &AppState) -> cfms_core::Result<cfms_transport::Connection> {
+    let config = load_config(state).await?;
+    open_connection_with_config(&config).await
+}
+
+async fn open_connection_with_config(
+    config: &ConnectionConfig,
+) -> cfms_core::Result<cfms_transport::Connection> {
     let tls_config = cfms_transport::tls::build_config_with_identity(
         &config.ca_dir,
         config.disable_ssl,
@@ -185,13 +193,17 @@ async fn connect_once(config: &ConnectionConfig) -> cfms_core::Result<cfms_trans
         Arc::clone(&config.crl),
     )?;
 
-    let connection = cfms_transport::Connection::connect(
+    cfms_transport::Connection::connect(
         &config.url,
         tls_config,
         config.proxy_addr.as_deref(),
         config.force_ipv4,
     )
-    .await?;
+    .await
+}
+
+async fn connect_once(config: &ConnectionConfig) -> cfms_core::Result<cfms_transport::Connection> {
+    let connection = open_connection_with_config(config).await?;
 
     // Capacity rejections happen immediately after a successful WebSocket
     // upgrade. Give the receive loop a brief opportunity to record 1013 so a

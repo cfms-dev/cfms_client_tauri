@@ -1,24 +1,8 @@
 /// <reference lib="webworker" />
 
 import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
-import { sortFileEntries, type SortDirection, type SortField } from '$lib/features/files/sorting';
+import { type SortDirection, type SortField } from '$lib/features/files/sorting';
 import { ProgressiveListingAccumulator } from '$lib/features/files/progressive-listing';
-
-interface SortOnceRequest {
-  type?: 'sort-once';
-  id: number;
-  folders: ServerDirectoryEntry[];
-  documents: ServerDocumentEntry[];
-  field: SortField;
-  direction: SortDirection;
-}
-
-interface SortOnceResponse {
-  type: 'sort-once';
-  id: number;
-  folders: ServerDirectoryEntry[];
-  documents: ServerDocumentEntry[];
-}
 
 interface ProgressiveResetRequest {
   type: 'progressive-reset';
@@ -48,7 +32,7 @@ interface ProgressiveResortRequest {
   direction: SortDirection;
 }
 
-type WorkerRequest = SortOnceRequest | ProgressiveResetRequest | ProgressiveAppendRequest | ProgressiveResortRequest;
+type WorkerRequest = ProgressiveResetRequest | ProgressiveAppendRequest | ProgressiveResortRequest;
 
 interface ProgressiveSnapshotResponse {
   type: 'progressive-snapshot';
@@ -107,13 +91,4 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
     } satisfies ProgressiveSnapshotResponse);
     return;
   }
-
-  const { id, folders, documents, field, direction } = request;
-  const sorted = sortFileEntries(folders, documents, field, direction);
-  workerScope.postMessage({
-    type: 'sort-once',
-    id,
-    folders: sorted.folders,
-    documents: sorted.documents,
-  } satisfies SortOnceResponse);
 };

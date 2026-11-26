@@ -22,6 +22,7 @@
     quitApplication,
   } from '$lib/api';
   import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import IconButton from '$lib/shared/ui/IconButton.svelte';
@@ -82,7 +83,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     try {
       await handler();
     } catch (err) {
-      notificationStore.error(formatError(err), 6000);
+      notificationStore.error(formatUserFacingError(err), 6000);
     } finally {
       busyAction = null;
     }
@@ -115,10 +116,6 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
   function handleAppLock() {
     appLockStore.lock();
-  }
-
-  function formatError(err: unknown) {
-    return err instanceof Error ? err.message : String(err);
   }
 </script>
 

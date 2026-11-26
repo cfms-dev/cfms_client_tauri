@@ -9,5 +9,12 @@ describe('file size formatting', () => {
   it('keeps missing sizes distinct from empty documents', () => {
     expect(formatBytes(null)).toBe('—');
     expect(formatBytes(undefined)).toBe('—');
+    expect(formatBytes(-1)).toBe('—');
+    expect(formatBytes(Number.NaN)).toBe('—');
+  });
+
+  it('formats terabyte and larger sizes without overflowing unit labels', () => {
+    expect(formatBytes(1024 ** 4)).toBe('1.0 TiB');
+    expect(formatBytes(1024 ** 5)).toBe('1024.0 TiB');
   });
 });

@@ -20,7 +20,6 @@ import {
   crosshairCursor,
   drawSelection,
   dropCursor,
-  EditorView,
   highlightActiveLine,
   highlightActiveLineGutter,
   highlightSpecialChars,

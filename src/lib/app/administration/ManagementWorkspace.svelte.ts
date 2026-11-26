@@ -39,6 +39,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
 import { createAuditUserPreviewCache } from '$lib/features/authentication/audit-user-preview';
 import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { formatDate as formatSharedDate } from '$lib/shared/format/values';
 import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
 import type { IconName } from '$lib/shared/ui/icons';
 import type { PermissionEntriesEditorData } from '$lib/features/access/permission-entries';
@@ -590,7 +591,7 @@ export function createManagementWorkspace() {
     try {
       users = await listUsers();
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       users = [];
     } finally {
       loadingUsers = false;
@@ -604,7 +605,7 @@ export function createManagementWorkspace() {
     try {
       groups = await listGroups();
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       groups = [];
     } finally {
       loadingGroups = false;
@@ -660,7 +661,7 @@ export function createManagementWorkspace() {
         if (direction === 'previous') auditPageIndex = Math.max(0, auditPageIndex - 1);
       }
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       auditLoadFailed = true;
       auditEntries = [];
       auditNextCursor = null;
@@ -902,7 +903,7 @@ export function createManagementWorkspace() {
       } catch (err) {
         activeDialog = null;
         notificationStore.error(translator.current('manage.passwordChangedTwoFactorFailed', {
-          values: { username: user.username, error: formatError(err) },
+          values: { username: user.username, error: formatUserFacingError(err) },
         }));
         return;
       }
@@ -1026,7 +1027,7 @@ export function createManagementWorkspace() {
     try {
       await action();
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       busyKey = null;
     }
@@ -1037,18 +1038,7 @@ export function createManagementWorkspace() {
   }
 
   function formatDate(ts: number | null | undefined) {
-    if (!ts || ts < 0) return '-';
-    return new Date(ts * 1000).toLocaleString();
-  }
-
-  function formatValue(value: unknown) {
-    if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value);
-  }
-
-  function formatError(err: unknown) {
-    return formatUserFacingError(err);
+    return formatSharedDate(ts, '-');
   }
 
   return {

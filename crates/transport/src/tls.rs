@@ -88,16 +88,6 @@ impl TlsConfig {
     }
 }
 
-pub fn build_config(ca_dir: &Path, disable_enforcement: bool) -> Result<TlsConfig> {
-    build_config_with_identity(
-        ca_dir,
-        disable_enforcement,
-        None,
-        None,
-        Arc::new(crate::crl::CrlService::new()),
-    )
-}
-
 pub fn build_config_with_identity(
     ca_dir: &Path,
     disable_enforcement: bool,
@@ -158,7 +148,7 @@ pub fn build_config_with_identity(
 ///
 /// This is used to distinguish actual CA certificate files from other
 /// extensionless files (dotfiles, README, etc.) in the CA directory.
-fn is_openssl_hash_filename(path: &Path) -> bool {
+pub fn is_openssl_hash_filename(path: &Path) -> bool {
     let name = match path.file_name().and_then(|n| n.to_str()) {
         Some(n) => n,
         None => return false,
@@ -253,25 +243,6 @@ pub fn load_trust_store(ca_dir: &Path) -> Result<RootCertStore> {
     }
 
     Ok(store)
-}
-
-/// Load a client certificate and private key for mTLS.
-///
-/// `cert_path` should point to a PEM file containing the client
-/// certificate chain.  `key_path` should point to a PEM file containing
-/// the private key (PKCS#8 or PKCS#1).
-pub fn load_client_identity(
-    cert_path: &Path,
-    key_path: &Path,
-) -> Result<rustls::sign::CertifiedKey> {
-    let (certs, private_key) = load_client_identity_pair(cert_path, key_path)?;
-
-    let signing_key = rustls::crypto::aws_lc_rs::default_provider()
-        .key_provider
-        .load_private_key(private_key)
-        .map_err(|e| cfms_core::Error::Connection(format!("failed to load private key: {e}")))?;
-
-    Ok(rustls::sign::CertifiedKey::new(certs, signing_key))
 }
 
 fn load_client_identity_pair(

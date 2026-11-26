@@ -13,11 +13,6 @@ export function startDownloadBatch(selection: DownloadSelection[], name: string,
 }
 export function getDownloadBatches(): Promise<DownloadBatchSnapshot[]> { return invoke('get_download_batches'); }
 
-/** Add a download task to the queue. */
-export async function addDownload(task: DownloadTaskDto): Promise<void> {
-  return invoke("add_download", { task });
-}
-
 /** Get download tasks, optionally filtered by status. */
 export async function getDownloadTasks(
   statusFilter?: DownloadTaskStatus,
@@ -43,21 +38,6 @@ export async function retryDownload(taskId: string): Promise<boolean> {
 /** Cancel a download task. */
 export async function cancelDownload(taskId: string): Promise<boolean> {
   return invoke("cancel_download", { taskId });
-}
-
-/** Clear all completed and cancelled tasks. */
-export async function clearCompletedTasks(): Promise<number> {
-  return invoke("clear_completed_tasks");
-}
-
-/** Clear all failed tasks. */
-export async function clearFailedTasks(): Promise<number> {
-  return invoke("clear_failed_tasks");
-}
-
-/** Remove terminal history records without deleting downloaded files. */
-export async function removeDownloadRecords(ids: string[]): Promise<BatchActionResult> {
-  return invoke("remove_download_records", { ids });
 }
 
 /** Delete completed output files while keeping their history records. */

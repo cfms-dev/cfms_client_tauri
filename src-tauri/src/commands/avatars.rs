@@ -2,9 +2,7 @@ use super::server_actions::server_action_bool;
 use super::session::get_connection_auth;
 use super::shared_helpers::format_transport_error;
 use super::shared_helpers::send_action_request;
-use super::transfer_helpers::create_transfer_connection;
 use crate::AppHandleState;
-use tauri::Manager;
 
 pub(super) fn update_username_index(
     app_data: &std::path::Path,
@@ -78,7 +76,6 @@ pub async fn get_user_avatar(
 /// Mirrors [`download_avatar_file`] in the Python reference.
 #[tauri::command]
 pub async fn download_avatar(
-    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     task_data: serde_json::Value,
     user_id: String,
@@ -106,10 +103,7 @@ pub async fn download_avatar(
     let server_hash = cfms_core::get_server_hash(&server_addr);
     let username_hash = cfms_core::get_username_hash(&username);
 
-    let app_data = app_handle
-        .path()
-        .resolve("", tauri::path::BaseDirectory::AppData)
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
+    let app_data = &state.app_data_dir;
 
     let cache_dir = app_data.join("avatars").join("accounts").join(&server_hash);
     let cache_path = cache_dir.join(cfms_core::get_username_hash(&user_id));
@@ -128,7 +122,7 @@ pub async fn download_avatar(
         let _ = std::fs::remove_file(&cache_path);
     }
 
-    let conn = create_transfer_connection(&state.inner)
+    let conn = cfms_service::connection::open_connection(&state.inner)
         .await
         .map_err(|error| format_transport_error(&error))?;
 
@@ -265,7 +259,6 @@ mod avatar_preview_tests {
 /// ```
 #[tauri::command]
 pub async fn check_cached_avatar(
-    app_handle: tauri::AppHandle,
     state: tauri::State<'_, AppHandleState>,
     username: String,
 ) -> Result<Option<String>, String> {
@@ -282,12 +275,8 @@ pub async fn check_cached_avatar(
     let server_hash = cfms_core::get_server_hash(&server_addr);
     let username_hash = cfms_core::get_username_hash(&username);
 
-    let app_data = app_handle
-        .path()
-        .resolve("", tauri::path::BaseDirectory::AppData)
-        .map_err(|e| format!("Cannot resolve app data dir: {e}"))?;
-
-    let cache_path = app_data
+    let cache_path = state
+        .app_data_dir
         .join("avatars")
         .join(&server_hash)
         .join(&username_hash);

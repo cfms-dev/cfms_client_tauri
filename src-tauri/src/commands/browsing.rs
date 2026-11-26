@@ -3,15 +3,10 @@ use super::transfer_helpers::download_root;
 use super::transfer_helpers::non_empty_optional;
 use crate::AppHandleState;
 use cfms_core::CursorPage;
-use cfms_core::FileEntry;
 use cfms_core::ListDirectoryResponse;
-use cfms_core::NodeLookupResponse;
-use cfms_core::ServiceEvent;
 use cfms_service::files::ListDirectoryPageDto;
 use cfms_service::files::directory_page_size;
 use cfms_service::files::parse_listing_page_dto;
-use cfms_service::files::supports_node_lookup;
-use cfms_service::files::validate_node_lookup_response;
 use cfms_service::files::{ListingCursorPage, SERVER_CURSOR_PAGE_SIZE, merge_listing_response};
 
 #[tauri::command]
@@ -38,20 +33,6 @@ pub async fn get_download_batches(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<Vec<cfms_service::transfers::download_batches::DownloadBatchSnapshot>, String> {
     Ok(state.inner.download_batches.snapshots(&state.inner).await)
-}
-
-// File scanning
-// ---------------------------------------------------------------------------
-
-/// Scan a local directory recursively with parallel traversal.
-#[tauri::command]
-pub async fn scan_directory(
-    path: String,
-    pattern: Option<String>,
-) -> Result<Vec<FileEntry>, String> {
-    let p = std::path::Path::new(&path);
-    cfms_service::scan::scan_directory(p, pattern.as_deref())
-        .map_err(|e| format!("Scan failed: {e}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -113,30 +94,6 @@ pub async fn resolve_node_target(
     cfms_service::files::node_path::resolve(&state.inner, &path).await
 }
 
-#[tauri::command]
-pub async fn resolve_node_path(
-    state: tauri::State<'_, AppHandleState>,
-    path: String,
-) -> Result<NodeLookupResponse, String> {
-    let has_node_lookup = {
-        let extension_flags = state.inner.server_extension_flags.read().await;
-        supports_node_lookup(&extension_flags)
-    };
-    if !has_node_lookup {
-        return Err("The connected server does not advertise node_lookup support".to_string());
-    }
-
-    let raw = server_action_json(
-        &state,
-        "node_lookup.node.resolve",
-        serde_json::json!({ "path": path }),
-    )
-    .await?;
-    let response: NodeLookupResponse = serde_json::from_value(raw)
-        .map_err(|error| format!("Invalid node_lookup response: {error}"))?;
-    validate_node_lookup_response(response)
-}
-
 /// Request a document download from the CFMS server.
 ///
 /// Sends the `get_document` action, receives a download task from the server,
@@ -180,21 +137,7 @@ pub async fn get_document(
     task.batch_estimated_total = batch_estimated_total;
     let task_id = task.task_id.clone();
     let display_filename = task.filename.clone();
-    let guard = state.inner.auth_update.lock().await;
-    identity.ensure_current_locked(&state.inner, &guard).await?;
-
-    // Persist the download task so the download queue service picks it up.
-    state
-        .tasks
-        .insert(&task)
-        .map_err(|e| format!("Failed to add download: {e}"))?;
-    let _ = state
-        .inner
-        .event_tx
-        .send(ServiceEvent::DownloadTaskUpdated { task: task.clone() });
-    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-        count: state.tasks.active_count(),
-    });
+    super::downloads::enqueue_download_task(&state, &identity, &task).await?;
 
     Ok(serde_json::json!({
         "task_id": task_id,
@@ -202,19 +145,6 @@ pub async fn get_document(
         "filename": display_filename,
         "file_path": task.file_path,
     }))
-}
-
-/// Create a subdirectory under the local download root.
-#[tauri::command]
-pub async fn ensure_download_subdirectory(
-    app_handle: tauri::AppHandle,
-    relative_path: String,
-) -> Result<String, String> {
-    let download_root = download_root(&app_handle)?;
-    let directory_path =
-        cfms_service::files::download_paths::prepare_directory(&download_root, &relative_path)?;
-
-    Ok(directory_path.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------

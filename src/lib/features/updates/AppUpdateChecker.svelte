@@ -3,12 +3,13 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import {
-    formatBytes,
-    relaunchApp,
-  } from '$lib/api/updates';
+  import { relaunchApp } from '$lib/api/updates';
   import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
-  import type { UpdateNotificationCopy } from '$lib/features/updates/update-notifications';
+  import {
+    createUpdateNotificationCopy,
+    formatUpdatePauseDate,
+  } from '$lib/features/updates/update-notifications';
+  import { formatBytes } from '$lib/shared/format/values';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MarkdownView from '$lib/shared/ui/MarkdownView.svelte';
@@ -73,7 +74,7 @@
     if (pause.mode === 'indefinite') return $t('settings.updates.pausedIndefinitely');
     if (pause.mode === 'until') {
       return $t('settings.updates.pausedUntil', {
-        values: { date: formatPauseDate(pause.until) },
+        values: { date: formatUpdatePauseDate(pause.until) },
       });
     }
     return null;
@@ -126,7 +127,7 @@
     error = null;
 
     try {
-      await appUpdateState.install(createUpdateNotificationCopy());
+      await appUpdateState.install(createUpdateNotificationCopy($t, installCompleteMessage));
       status = installCompleteMessage;
     } catch {
       /* Shared install errors are surfaced through appUpdateState.installError. */
@@ -146,27 +147,6 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleString();
-  }
-
-  function formatPauseDate(value: number): string {
-    return new Date(value).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-
-  function createUpdateNotificationCopy(): UpdateNotificationCopy {
-    return {
-      title: $t('about.softwareUpdate'),
-      preparingDownload: $t('settings.updates.preparingDownload'),
-      installing: $t('settings.updates.installing'),
-      installed: installCompleteMessage,
-      downloadProgress: (values) => $t('settings.updates.downloadProgress', { values }),
-      downloadedBytes: (values) => $t('settings.updates.downloadedBytes', { values }),
-    };
   }
 </script>
 

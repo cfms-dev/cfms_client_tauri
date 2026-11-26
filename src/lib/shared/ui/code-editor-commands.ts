@@ -4,6 +4,10 @@ import { EditorView } from '@codemirror/view';
 import { copyText, readClipboardText } from '$lib/shared/platform/clipboard';
 import { isMacLikePlatform, shortcutMatches, type ShortcutSpec } from '$lib/shared/ui/keyboard';
 
+export function usesDarkColorScheme(): boolean {
+  return document.documentElement.dataset.theme !== 'light';
+}
+
 export interface CodeEditorShortcuts {
   undo: readonly ShortcutSpec[];
   redo: readonly ShortcutSpec[];

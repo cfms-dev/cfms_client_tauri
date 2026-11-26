@@ -7,7 +7,6 @@ use super::transfer_types::AndroidImportedUploadPath;
 use super::transfer_types::PreparedUploadSource;
 use super::transfer_types::UploadConflictStrategy;
 use super::transfer_types::UploadFileResult;
-use super::transfer_types::UploadProgressEvent;
 use super::upload_tasks::emit_upload_snapshot;
 #[cfg(target_os = "android")]
 use crate::AndroidUploadFileImporter;
@@ -16,7 +15,6 @@ use crate::UploadInterruption;
 use cfms_service::transfers::MAX_UPLOAD_RETRIES;
 use cfms_service::transfers::suffixed_upload_name;
 use cfms_service::transfers::upload_retry_delay;
-use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
 
@@ -30,43 +28,6 @@ pub(super) fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::
                 .resolve("downloads", tauri::path::BaseDirectory::AppData)
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
         }))
-}
-
-pub(super) async fn create_transfer_connection(
-    state: &cfms_service::state::AppState,
-) -> cfms_core::Result<cfms_transport::Connection> {
-    let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
-        let addr = state.server_address.read().await;
-        let ca = state.ca_dir.read().await;
-        let dse = state.disable_ssl_enforcement.read().await;
-        let proxy = state.proxy_addr.read().await;
-        let force_ipv4 = state.force_ipv4.read().await;
-        let cert = state.client_cert_path.read().await;
-        let key = state.client_key_path.read().await;
-        (
-            addr.clone(),
-            ca.clone(),
-            *dse,
-            proxy.clone(),
-            *force_ipv4,
-            cert.clone(),
-            key.clone(),
-        )
-    };
-
-    let url = url.ok_or_else(|| cfms_core::Error::Other("No server address configured".into()))?;
-    let ca_dir =
-        ca_dir.ok_or_else(|| cfms_core::Error::Other("No CA directory configured".into()))?;
-
-    let tls_config = cfms_transport::tls::build_config_with_identity(
-        &ca_dir,
-        disable_ssl,
-        client_cert_path.as_deref(),
-        client_key_path.as_deref(),
-        std::sync::Arc::clone(&state.crl_service),
-    )?;
-
-    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await
 }
 
 pub(super) struct UploadTransferSession {
@@ -96,7 +57,7 @@ impl UploadTransferSession {
         }
 
         if self.conn.is_none() {
-            self.conn = Some(create_transfer_connection(state).await?);
+            self.conn = Some(cfms_service::connection::open_connection(state).await?);
         }
 
         Ok(self
@@ -378,18 +339,13 @@ pub(super) async fn upload_local_file<R: Runtime>(
         None,
         &file_name,
         0,
-        std::fs::metadata(&source).map(|m| m.len()).unwrap_or(0),
+        source_size,
         "uploading",
         Some("Preparing upload".to_string()),
     );
 
-    let (conn, username, token) = match get_connection_auth(state).await {
-        Ok(auth) => auth,
-        Err(err) => {
-            return Err(err);
-        }
-    };
-    let mut create_resp = match send_action_request(
+    let (conn, username, token) = get_connection_auth(state).await?;
+    let mut create_resp = send_action_request(
         &conn,
         "core.document.create",
         serde_json::json!({
@@ -399,18 +355,12 @@ pub(super) async fn upload_local_file<R: Runtime>(
         &username,
         &token,
     )
-    .await
-    {
-        Ok(response) => response,
-        Err(err) => {
-            return Err(err);
-        }
-    };
+    .await?;
 
     if create_resp.code == 409 && matches!(conflict_strategy, UploadConflictStrategy::KeepBoth) {
         for suffix in 1..=10_000 {
             let candidate = suffixed_upload_name(&file_name, suffix);
-            create_resp = match send_action_request(
+            create_resp = send_action_request(
                 &conn,
                 "core.document.create",
                 serde_json::json!({
@@ -420,13 +370,7 @@ pub(super) async fn upload_local_file<R: Runtime>(
                 &username,
                 &token,
             )
-            .await
-            {
-                Ok(response) => response,
-                Err(err) => {
-                    return Err(err);
-                }
-            };
+            .await?;
             if create_resp.code != 409 {
                 file_name = candidate;
                 break;
@@ -468,32 +412,21 @@ pub(super) async fn upload_local_file<R: Runtime>(
                 });
             }
             (UploadConflictStrategy::Overwrite, Some("document"), Some(document_id)) => {
-                let upload_resp = match send_action_request(
+                let upload_resp = send_action_request(
                     &conn,
                     "core.document.upload",
                     serde_json::json!({ "document_id": document_id }),
                     &username,
                     &token,
                 )
-                .await
-                {
-                    Ok(response) => response,
-                    Err(err) => {
-                        return Err(err);
-                    }
-                };
+                .await?;
 
                 if upload_resp.code != 200 {
                     return Err(format_server_response_error(&upload_resp));
                 }
 
                 overwritten = true;
-                let task_id = match extract_task_id(&upload_resp.data) {
-                    Ok(id) => id,
-                    Err(err) => {
-                        return Err(err);
-                    }
-                };
+                let task_id = extract_task_id(&upload_resp.data)?;
                 (task_id, Some(document_id), false)
             }
             _ => {
@@ -503,12 +436,7 @@ pub(super) async fn upload_local_file<R: Runtime>(
     } else if create_resp.code != 200 {
         return Err(format_server_response_error(&create_resp));
     } else {
-        let task_id = match extract_task_id(&create_resp.data) {
-            Ok(id) => id,
-            Err(err) => {
-                return Err(err);
-            }
-        };
+        let task_id = extract_task_id(&create_resp.data)?;
         let document_id = create_resp
             .data
             .get("id")
@@ -687,8 +615,8 @@ pub(super) async fn upload_local_file<R: Runtime>(
         &upload_id,
         Some(&task_id),
         &file_name,
-        std::fs::metadata(&source).map(|m| m.len()).unwrap_or(0),
-        std::fs::metadata(&source).map(|m| m.len()).unwrap_or(0),
+        source_size,
+        source_size,
         "completed",
         Some("Upload completed".to_string()),
     );
@@ -771,25 +699,6 @@ fn emit_upload_progress<R: Runtime>(
         );
 
     emit_upload_snapshot(app_handle, upload_id);
-    // This event is a notification for mounted file views, not a scheduler callback.
-    if let Some(task) = state.upload_tasks.get(upload_id) {
-        let _ = app_handle.emit(
-            "cfms:upload-progress",
-            UploadProgressEvent {
-                upload_id: task.upload_id,
-                task_id: task.task_id,
-                file_name: task.file_name,
-                current_bytes: task.current_bytes,
-                total_bytes: task.total_bytes,
-                progress: task.progress,
-                status: serde_json::to_value(task.status)
-                    .ok()
-                    .and_then(|v| v.as_str().map(str::to_string))
-                    .unwrap_or_default(),
-                message: task.message,
-            },
-        );
-    }
 }
 
 fn extract_task_id(data: &serde_json::Value) -> Result<String, String> {

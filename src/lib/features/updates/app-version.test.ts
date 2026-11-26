@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareAppVersions, normalizeAppVersion, parseAppVersion } from '$lib/features/updates/app-version';
+import { compareAppVersions, parseAppVersion } from '$lib/features/updates/app-version';
 
 describe('app version helpers', () => {
   it('compares stable and prerelease versions using SemVer precedence', () => {
@@ -17,9 +17,5 @@ describe('app version helpers', () => {
       prerelease: ['alpha', 4],
     });
     expect(parseAppVersion('1.2')).toBeNull();
-  });
-
-  it('normalizes a leading release tag prefix', () => {
-    expect(normalizeAppVersion(' v0.43.0 ')).toBe('0.43.0');
   });
 });

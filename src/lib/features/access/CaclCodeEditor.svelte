@@ -8,6 +8,7 @@
   import {
     createFormatKeymapExtension,
     getEditorContextMenuAnchor,
+    usesDarkColorScheme,
   } from '$lib/shared/ui/code-editor-commands';
   import { shortcutMatches } from '$lib/shared/ui/keyboard';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
@@ -50,10 +51,6 @@
   let contextMenuOpen = $state(false);
   let contextMenuX = $state(0);
   let contextMenuY = $state(0);
-
-  function usesDarkColorScheme(): boolean {
-    return document.documentElement.dataset.theme !== 'light';
-  }
 
   export function insertAtCursor(snippet: string): void {
     if (!editorView || disabled) return;

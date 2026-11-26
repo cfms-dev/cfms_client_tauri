@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import {
+  flag,
+  normalizeVersion,
+  parseArgs,
+  parseVersion,
+  readText,
+  root,
+  semverPattern,
+  writeText,
+} from "./lib/release-utils.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = "src/lib/features/updates/changelog/CHANGELOG.md";
 const tauriConfigPath = "src-tauri/tauri.conf.json";
-
-const semverPattern =
-  /^v?(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?:-(?<pre>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+(?<build>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 const categoryMap = new Map([
   ["feat", "Added"],
@@ -43,93 +47,8 @@ Notes:
   process.exit(exitCode);
 }
 
-function resolveRepo(relativePath) {
-  return path.join(root, relativePath);
-}
-
-function readText(relativePath) {
-  return fs.readFileSync(resolveRepo(relativePath), "utf8");
-}
-
-function writeText(relativePath, text) {
-  const absolutePath = resolveRepo(relativePath);
-  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-  fs.writeFileSync(absolutePath, normalizeNewlines(text, detectNewlineFor(relativePath)));
-}
-
-function detectNewlineFor(relativePath) {
-  const absolutePath = resolveRepo(relativePath);
-  if (!fs.existsSync(absolutePath)) return "\n";
-  return fs.readFileSync(absolutePath, "utf8").includes("\r\n") ? "\r\n" : "\n";
-}
-
-function normalizeNewlines(text, newline) {
-  const normalized = text.replace(/\r\n/g, "\n");
-  return newline === "\r\n" ? normalized.replace(/\n/g, "\r\n") : normalized;
-}
-
-function parseArgs(argv) {
-  const positionals = [];
-  const flags = new Map();
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--") {
-      continue;
-    }
-
-    if (!arg.startsWith("--")) {
-      positionals.push(arg);
-      continue;
-    }
-
-    const [name, inlineValue] = arg.slice(2).split("=", 2);
-    if (inlineValue !== undefined) {
-      flags.set(name, inlineValue);
-      continue;
-    }
-
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      flags.set(name, next);
-      i += 1;
-    } else {
-      flags.set(name, true);
-    }
-  }
-
-  return { positionals, flags };
-}
-
-function flag(flags, name, fallback = undefined) {
-  return flags.has(name) ? flags.get(name) : fallback;
-}
-
-function normalizeVersion(raw) {
-  const value = String(raw ?? "").trim();
-  const match = value.match(semverPattern);
-  if (!match) {
-    throw new Error(`Invalid semantic version: ${raw}`);
-  }
-
-  const { major, minor, patch, pre, build } = match.groups;
-  return `${major}.${minor}.${patch}${pre ? `-${pre}` : ""}${build ? `+${build}` : ""}`;
-}
-
 function versionTag(version) {
   return `v${normalizeVersion(version)}`;
-}
-
-function parseVersion(raw) {
-  const normalized = normalizeVersion(raw);
-  const { major, minor, patch, pre } = normalized.match(semverPattern).groups;
-  return {
-    normalized,
-    major: Number(major),
-    minor: Number(minor),
-    patch: Number(patch),
-    pre: pre ?? "",
-  };
 }
 
 function compareVersions(left, right) {

@@ -14,7 +14,6 @@ vi.mock('$lib/api', async (original) => ({
 
 import {
   createServerSearchController,
-  searchFilterFromFlags,
   searchFlagsFromFilter,
 } from './server-search-controller.svelte.ts';
 
@@ -34,12 +33,7 @@ describe('server-search-controller', () => {
     mocks.getDirectoryInfo.mockReset();
   });
 
-  it('maps between type filter tabs and search API boolean flags', () => {
-    expect(searchFilterFromFlags(true, true)).toBe('all');
-    expect(searchFilterFromFlags(true, false)).toBe('documents');
-    expect(searchFilterFromFlags(false, true)).toBe('directories');
-    expect(searchFilterFromFlags(false, false)).toBe('all');
-
+  it('maps type filter tabs to search API boolean flags', () => {
     expect(searchFlagsFromFilter('all')).toEqual({ searchDocuments: true, searchDirectories: true });
     expect(searchFlagsFromFilter('documents')).toEqual({ searchDocuments: true, searchDirectories: false });
     expect(searchFlagsFromFilter('directories')).toEqual({ searchDocuments: false, searchDirectories: true });

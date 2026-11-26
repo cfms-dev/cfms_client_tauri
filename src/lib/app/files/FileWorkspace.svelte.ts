@@ -48,7 +48,6 @@ import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarge
 import { accessRulesTemplateKey } from '$lib/features/access/access-rules-edit';
 
 import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '$lib/features/files/FileTable.svelte';
-import type { CaclDraftState } from '$lib/features/access/AccessRulesManager.svelte';
 import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import { pickDirectory, type SelectedDirectory } from '$lib/shared/platform/directory-picker';
@@ -65,9 +64,9 @@ import {
 import {
   formatBytes,
   formatDate,
-  formatError,
   isPickerCancel,
 } from '$lib/shared/format/values';
+import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 import { graphWidth, buildRevisionRows } from '$lib/features/files/revision-graph';
 import {
   fileManagerNavigationStore,
@@ -91,14 +90,12 @@ import {
 import {
   createServerSearchController,
 } from '$lib/features/files/server-search-controller.svelte.ts';
-import { isAccessDeniedError, serverAvailability, serverErrorStatus } from '$lib/api/server-errors';
+import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
 import {
   FILE_SHORTCUTS,
-  fileManagerShortcutFor,
   isFindShortcut,
   registerKeyboardCommands,
   keyboardMenuAnchor,
-  type FileManagerShortcut,
 } from '$lib/shared/ui/keyboard';
 import { isAndroidTreeUri, uploadDisplayName } from '$lib/shared/platform/upload-names';
 import {
@@ -513,7 +510,7 @@ export function createFileWorkspace() {
       error = translator.current('files.searchQueryRequired');
     },
     onError: (err) => {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     },
     onPermissionDenied: () => {
       searchDeniedByServer = true;
@@ -528,8 +525,6 @@ export function createFileWorkspace() {
     && searchPreviewHasQuery
     && !searchPreviewDismissed,
   );
-
-  const uploadActiveCount = $derived(uploadStore.activeTasks.length);
 
   const parentTargetId = $derived.by<string | null | undefined>(() => {
     if (
@@ -835,7 +830,7 @@ export function createFileWorkspace() {
       return;
     }
     directoryNextCursor = result.cursor;
-    directoryLoadError = formatError(result.error);
+    directoryLoadError = formatUserFacingError(result.error);
     directoryLoadPhase = 'partial-error';
     directorySorter?.resort(generation, sortRevision, sortField, sortDirection);
   }
@@ -857,7 +852,7 @@ export function createFileWorkspace() {
   function formatDirectoryLoadError(loadError: unknown) {
     return loadError instanceof DirectoryRequestTimeoutError
       ? translator.current('workspace.directoryRequestTimedOut')
-      : formatError(loadError);
+      : formatUserFacingError(loadError);
   }
 
   function showDirectoryAccessDenied(
@@ -1589,15 +1584,14 @@ export function createFileWorkspace() {
     }
   }
 
-  function handleFilePageShortcut(event: KeyboardEvent) {
-    const target = event.target;
-    if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) return;
-    if (hasBlockingFilesDialog()) return;
-    const shortcut = fileManagerShortcutFor(event);
-    if (!shortcut) return;
-
-    executeFileManagerShortcut(shortcut, event);
-  }
+  type FileManagerShortcut =
+    | 'go-parent'
+    | 'refresh'
+    | 'create-folder'
+    | 'select-all'
+    | 'clear-selection'
+    | 'delete-selection'
+    | 'rename-selection';
 
   function executeFileManagerShortcut(shortcut: FileManagerShortcut, event: KeyboardEvent) {
     if (shortcut === 'go-parent') {
@@ -1688,7 +1682,7 @@ export function createFileWorkspace() {
       }
     } catch (detailError) {
       if (requestId !== detailRequestId) return;
-      detailModel = { title: selectedName, icon: selectedFolder ? 'folder' : 'filePresent', error: formatError(detailError), rows: [] };
+      detailModel = { title: selectedName, icon: selectedFolder ? 'folder' : 'filePresent', error: formatUserFacingError(detailError), rows: [] };
     }
   }
 
@@ -2074,7 +2068,7 @@ export function createFileWorkspace() {
       status = translator.current('files.moved');
       await refreshDirectory(refreshTarget);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       moveTargetDialog = { ...dialog, saving: false };
     }
   }
@@ -2101,7 +2095,7 @@ export function createFileWorkspace() {
       status = translator.current('files.batchMoved', { values: { count: selectedDocuments.length + selectedFolders.length } });
       await refreshDirectory(refreshTarget);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       batchMoveDialog = { excludedDirectoryIds: selectedFolders, saving: false };
     }
   }
@@ -2133,7 +2127,7 @@ export function createFileWorkspace() {
       const accessDenied = isAccessDeniedError(err);
       // Reload because an earlier item in a multi-item move may have succeeded.
       await refreshDirectory(refreshTarget);
-      if (!accessDenied) error = formatError(err);
+      if (!accessDenied) error = formatUserFacingError(err);
     } finally {
       dropMoveBusy = false;
     }
@@ -2336,7 +2330,7 @@ export function createFileWorkspace() {
           return;
         } catch (retryErr) {
           const retryParsed = parseCaclSaveError(retryErr);
-          error = formatError(retryErr);
+          error = formatUserFacingError(retryErr);
           accessRulesDialog = {
             ...dialog,
             dacl,
@@ -2347,7 +2341,7 @@ export function createFileWorkspace() {
         }
       }
       if (!parsed || parsed.diagnostics.length === 0) {
-        error = formatError(err);
+        error = formatUserFacingError(err);
       }
       accessRulesDialog = {
         ...dialog,
@@ -2447,7 +2441,7 @@ export function createFileWorkspace() {
     try {
       await action();
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     }
   }
 
@@ -2534,7 +2528,7 @@ export function createFileWorkspace() {
         ...folders.filter(folder => selectedFolderIds.has(folder.id)).map(folder => ({ id: folder.id, name: folder.name, kind: 'directory' as const })),
       ], selectedItemsLabel, currentFolderId);
       clearSelection();
-    } catch (e) { error = formatError(e); }
+    } catch (e) { error = formatUserFacingError(e); }
     finally { batchBusy = false; }
   }
 
@@ -2543,7 +2537,7 @@ export function createFileWorkspace() {
     batchBusy = true;
     error = null;
     try { await startDirectoryDownload([{ id: folder.id, name: folder.name, kind: 'directory' }], folder.name || translator.current('tasks.folderBatch'), folder.id); }
-    catch (e) { error = formatError(e); }
+    catch (e) { error = formatUserFacingError(e); }
     finally { batchBusy = false; }
   }
 
@@ -2675,7 +2669,7 @@ export function createFileWorkspace() {
     try {
       return await classifyUploadPath(path);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       return null;
     }
   }
@@ -2745,7 +2739,7 @@ export function createFileWorkspace() {
     try {
       listing = await listDirectory(targetFolderId);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
       return;
     }
 
@@ -2834,7 +2828,7 @@ export function createFileWorkspace() {
           },
         );
       } catch (err) {
-        error = formatError(err);
+        error = formatUserFacingError(err);
         return;
       }
       if (resolver.cancelled) return;
@@ -2871,7 +2865,7 @@ export function createFileWorkspace() {
       if (result.failed.length) {
         error = translator.current('tasks.batchEnqueueFailed', { values: { count: result.failed.length } }) + '\n' + result.failed.map(item => `${requests.find(r => r.uploadId === item.id)?.fileName ?? item.id}: ${item.error}`).join('\n');
       }
-    } catch (err) { error = formatError(err); }
+    } catch (err) { error = formatUserFacingError(err); }
   }
 
   function createUploadId() {
@@ -3154,7 +3148,7 @@ export function createFileWorkspace() {
       searchPreview.loading = false;
       searchPreview.loadingMore = false;
       if (handleSearchPermissionError(e)) return;
-      searchPreview.error = formatError(e);
+      searchPreview.error = formatUserFacingError(e);
     }
   }
 
@@ -3322,7 +3316,7 @@ export function createFileWorkspace() {
   }
 
   function handlePickerError(err: unknown) {
-    const message = formatError(err);
+    const message = formatUserFacingError(err);
     if (isPickerCancel(message)) return;
 
     error = message.includes('Folder picker is not implemented')

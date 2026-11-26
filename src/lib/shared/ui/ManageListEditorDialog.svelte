@@ -116,7 +116,7 @@
       localItems = data.items;
       selectedSet = new Set(data.selected);
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }
@@ -128,14 +128,10 @@
     try {
       await onSave([...selectedSet].sort());
     } catch (err) {
-      error = formatError(err);
+      error = formatUserFacingError(err);
     } finally {
       saving = false;
     }
-  }
-
-  function formatError(err: unknown) {
-    return formatUserFacingError(err);
   }
 </script>
 

@@ -9,6 +9,7 @@
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { estimatePasswordStrength, generateRandomPassword } from '$lib/shared/password';
 
   let {
     username,
@@ -39,53 +40,10 @@
     password = '';
   });
 
-  const strength = $derived(estimateStrength(password));
-
-  function estimateStrength(pw: string): { score: number; label: string } {
-    if (!pw) return { score: 0, label: '' };
-
-    let score = 0;
-    if (pw.length >= 8) score++;
-    if (pw.length >= 12) score++;
-    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-    const labels = [
-      $t('dialog.changePassword.veryWeak'),
-      $t('dialog.changePassword.weak'),
-      $t('dialog.changePassword.fair'),
-      $t('dialog.changePassword.good'),
-      $t('dialog.changePassword.strong'),
-      $t('dialog.changePassword.strong'),
-    ];
-
-    return { score, label: labels[score] };
-  }
-
-  function generateRandomPassword(): string {
-    const lower = 'abcdefghijkmnpqrstuvwxyz';
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const digits = '23456789';
-    const symbols = '!@#$%^&*()-_=+[]{}';
-    const all = lower + upper + digits + symbols;
-    const pick = (set: string) => set[randInt(set.length)];
-    const chars = [pick(lower), pick(upper), pick(digits), pick(symbols)];
-
-    for (let i = chars.length; i < 16; i++) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-
-    return chars.join('');
-  }
-
-  function randInt(max: number): number {
-    const buf = new Uint32Array(1);
-    crypto.getRandomValues(buf);
-    return buf[0] % max;
-  }
+  const strength = $derived.by(() => {
+    const result = estimatePasswordStrength(password);
+    return { score: result.score, label: result.labelKey ? $t(result.labelKey) : '' };
+  });
 
   function generate() {
     password = generateRandomPassword();

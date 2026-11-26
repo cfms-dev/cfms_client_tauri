@@ -5,6 +5,60 @@ use crate::UploadInterruption;
 use tauri::Manager;
 use tauri::Runtime;
 
+struct ActiveAccountScope {
+    server_hash: String,
+    user_id: String,
+    account: String,
+}
+
+async fn active_account_scope(state: &AppHandleState) -> Result<ActiveAccountScope, String> {
+    let user_id = state
+        .inner
+        .user_id
+        .read()
+        .await
+        .clone()
+        .ok_or("Not logged in")?;
+    let server = state
+        .inner
+        .server_address
+        .read()
+        .await
+        .clone()
+        .ok_or("Not connected")?;
+    let server_hash = cfms_core::get_server_hash(&server);
+    let account = crate::preference_keys::account(&server, &user_id);
+    Ok(ActiveAccountScope {
+        server_hash,
+        user_id,
+        account,
+    })
+}
+
+async fn run_with_preference_vault<R: Runtime, T: Send + 'static>(
+    app: &tauri::AppHandle<R>,
+    reject_during_reset: bool,
+    join_error: &'static str,
+    f: impl FnOnce(&tauri::AppHandle<R>) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
+        let _guard = vault.operation.lock().unwrap();
+        if reject_during_reset
+            && app
+                .state::<crate::local_data_reset::LocalDataResetRuntime>()
+                .in_progress
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err("publicKey.storageUnavailable".into());
+        }
+        f(&app)
+    })
+    .await
+    .map_err(|_| join_error)?
+}
+
 fn local_encrypted_paths(
     state: &AppHandleState,
     server_hash: &str,
@@ -43,50 +97,23 @@ pub async fn prepare_preference_unlock<R: Runtime>(
 ) -> Result<String, String> {
     let _update = state.inner.auth_update.lock().await;
     let (_, username, _) = get_connection_auth(&state).await?;
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected")?;
-    let account = crate::preference_keys::account(&server, &user_id);
-    let paths = local_encrypted_paths(
-        &state,
-        &cfms_core::get_server_hash(&server),
-        &user_id,
-        &username,
-    );
-    let stored = tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err("publicKey.storageUnavailable".into());
-        }
-        if let Some((key, local_only)) = crate::preference_keys::read(&app, &account)? {
-            verify_local_preference_key(&paths, &key)?;
-            return Ok(Some((key, local_only)));
-        }
-        if paths.iter().any(|path| path.exists()) {
-            return Ok(None);
-        }
-        let key = cfms_crypto::generate_dek();
-        crate::preference_keys::save(&app, &account, &key, true)?;
-        Ok::<_, String>(Some((key, true)))
-    })
-    .await
-    .map_err(|_| "publicKey.storageUnavailable")??;
+    let scope = active_account_scope(&state).await?;
+    let paths = local_encrypted_paths(&state, &scope.server_hash, &scope.user_id, &username);
+    let account = scope.account;
+    let stored =
+        run_with_preference_vault(&app, true, "publicKey.storageUnavailable", move |app| {
+            if let Some((key, local_only)) = crate::preference_keys::read(app, &account)? {
+                verify_local_preference_key(&paths, &key)?;
+                return Ok(Some((key, local_only)));
+            }
+            if paths.iter().any(|path| path.exists()) {
+                return Ok(None);
+            }
+            let key = cfms_crypto::generate_dek();
+            crate::preference_keys::save(app, &account, &key, true)?;
+            Ok::<_, String>(Some((key, true)))
+        })
+        .await?;
     if let Some((key, local_only)) = stored {
         *state.inner.dek.write().await = Some(key);
         state
@@ -109,20 +136,7 @@ pub async fn unlock_preference_dek<R: Runtime>(
     let password = zeroize::Zeroizing::new(password);
     let _update = state.inner.auth_update.lock().await;
     let (_, username, _) = get_connection_auth(&state).await?;
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected")?;
+    let scope = active_account_scope(&state).await?;
     let encrypted = state
         .inner
         .server_preference_dek
@@ -133,29 +147,14 @@ pub async fn unlock_preference_dek<R: Runtime>(
     let key = decrypt_preference_dek(&encrypted, &password)
         .await
         .map_err(|_| "publicKey.migrationFailed")?;
-    let paths = local_encrypted_paths(
-        &state,
-        &cfms_core::get_server_hash(&server),
-        &user_id,
-        &username,
-    );
-    let account = crate::preference_keys::account(&server, &user_id);
-    let key = tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err("publicKey.storageUnavailable".into());
-        }
+    let paths = local_encrypted_paths(&state, &scope.server_hash, &scope.user_id, &username);
+    let account = scope.account;
+    let key = run_with_preference_vault(&app, true, "publicKey.storageUnavailable", move |app| {
         verify_local_preference_key(&paths, &key)?;
-        crate::preference_keys::save(&app, &account, &key, false)?;
+        crate::preference_keys::save(app, &account, &key, false)?;
         Ok::<_, String>(key)
     })
-    .await
-    .map_err(|_| "publicKey.storageUnavailable")??;
+    .await?;
     *state.inner.dek.write().await = Some(key);
     state
         .inner
@@ -164,23 +163,14 @@ pub async fn unlock_preference_dek<R: Runtime>(
     Ok(())
 }
 
-fn discard_local_encrypted_data(
+pub(super) fn discard_encrypted_account_files(
     app_data: &std::path::Path,
     server_hash: &str,
-    username: &str,
-) -> Result<(), String> {
-    cfms_service::user_preferences::discard(app_data, server_hash, username)
-        .and_then(|_| {
-            cfms_service::transfers::task_persistence::discard(app_data, server_hash, username)
-        })
-        .and_then(|_| {
-            cfms_service::transfers::upload_task_persistence::discard(
-                app_data,
-                server_hash,
-                username,
-            )
-        })
-        .map_err(|_| "publicKey.discardFailed".into())
+    user_id: &str,
+) -> cfms_core::Result<()> {
+    cfms_service::user_preferences::discard(app_data, server_hash, user_id)?;
+    cfms_service::transfers::task_persistence::discard(app_data, server_hash, user_id)?;
+    cfms_service::transfers::upload_task_persistence::discard(app_data, server_hash, user_id)
 }
 
 /// Start fresh after authenticated users explicitly discard data they cannot unlock.
@@ -192,41 +182,21 @@ pub async fn discard_locked_preference_data<R: Runtime>(
 ) -> Result<(), String> {
     let _update = state.inner.auth_update.lock().await;
     let (_, _, _) = get_connection_auth(&state).await?;
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected")?;
-    let account = crate::preference_keys::account(&server, &user_id);
+    let scope = active_account_scope(&state).await?;
     let app_data = state.app_data_dir.clone();
-    let server_hash = cfms_core::get_server_hash(&server);
-    let key = tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err("publicKey.storageUnavailable".into());
-        }
-        cfms_service::account_storage::finish_legacy_import(&app_data, &server_hash, &user_id)?;
-        discard_local_encrypted_data(&app_data, &server_hash, &user_id)?;
+    let key = run_with_preference_vault(&app, true, "publicKey.discardFailed", move |app| {
+        cfms_service::account_storage::finish_legacy_import(
+            &app_data,
+            &scope.server_hash,
+            &scope.user_id,
+        )?;
+        discard_encrypted_account_files(&app_data, &scope.server_hash, &scope.user_id)
+            .map_err(|_| "publicKey.discardFailed")?;
         let key = cfms_crypto::generate_dek();
-        crate::preference_keys::save(&app, &account, &key, true)?;
+        crate::preference_keys::save(app, &scope.account, &key, true)?;
         Ok::<_, String>(key)
     })
-    .await
-    .map_err(|_| "publicKey.discardFailed")??;
+    .await?;
     state.tasks.clear();
     state
         .active_uploads
@@ -247,40 +217,15 @@ pub(super) async fn cache_current_preference_key<R: Runtime>(
     let Some(key) = state.inner.dek.read().await.clone() else {
         return Ok(());
     };
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected")?;
-    let account = crate::preference_keys::account(&server, &user_id);
+    let account = active_account_scope(state).await?.account;
     let local_only = state
         .inner
         .preference_dek_local_only
         .load(std::sync::atomic::Ordering::SeqCst);
-    let app = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        if app
-            .state::<crate::local_data_reset::LocalDataResetRuntime>()
-            .in_progress
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return Err("publicKey.storageUnavailable".into());
-        }
-        crate::preference_keys::save(&app, &account, &key, local_only)
+    run_with_preference_vault(app, true, "publicKey.storageUnavailable", move |app| {
+        crate::preference_keys::save(app, &account, &key, local_only)
     })
     .await
-    .map_err(|_| "publicKey.storageUnavailable")?
 }
 
 pub(super) async fn restore_cached_preference_key<R: Runtime>(
@@ -288,39 +233,18 @@ pub(super) async fn restore_cached_preference_key<R: Runtime>(
     state: &AppHandleState,
 ) -> Result<bool, String> {
     let (_, username, _) = get_connection_auth(state).await?;
-    let user_id = state
-        .inner
-        .user_id
-        .read()
-        .await
-        .clone()
-        .ok_or("Not logged in")?;
-    let server = state
-        .inner
-        .server_address
-        .read()
-        .await
-        .clone()
-        .ok_or("Not connected")?;
-    let account = crate::preference_keys::account(&server, &user_id);
-    let paths = local_encrypted_paths(
-        state,
-        &cfms_core::get_server_hash(&server),
-        &user_id,
-        &username,
-    );
-    let app = app.clone();
-    let stored = tokio::task::spawn_blocking(move || {
-        let vault = app.state::<crate::preference_keys::PreferenceKeys>();
-        let _guard = vault.operation.lock().unwrap();
-        let record = crate::preference_keys::read(&app, &account)?;
-        if let Some((key, _)) = &record {
-            verify_local_preference_key(&paths, key)?;
-        }
-        Ok::<_, String>(record)
-    })
-    .await
-    .map_err(|_| "publicKey.storageUnavailable")??;
+    let scope = active_account_scope(state).await?;
+    let paths = local_encrypted_paths(state, &scope.server_hash, &scope.user_id, &username);
+    let account = scope.account;
+    let stored =
+        run_with_preference_vault(app, false, "publicKey.storageUnavailable", move |app| {
+            let record = crate::preference_keys::read(app, &account)?;
+            if let Some((key, _)) = &record {
+                verify_local_preference_key(&paths, key)?;
+            }
+            Ok::<_, String>(record)
+        })
+        .await?;
     if let Some((key, local_only)) = stored {
         *state.inner.dek.write().await = Some(key);
         state
@@ -360,13 +284,13 @@ mod preference_migration_tests {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, b"unreadable data").unwrap();
         }
-        discard_local_encrypted_data(root.path(), "server-a", "alice").unwrap();
+        discard_encrypted_account_files(root.path(), "server-a", "alice").unwrap();
         assert!(target.iter().all(|path| !path.exists()));
         for path in &preserved {
             assert_eq!(std::fs::read(path).unwrap(), b"unreadable data");
         }
         // Retrying after a partial failure or a completed cleanup is safe.
-        discard_local_encrypted_data(root.path(), "server-a", "alice").unwrap();
+        discard_encrypted_account_files(root.path(), "server-a", "alice").unwrap();
     }
 
     #[test]

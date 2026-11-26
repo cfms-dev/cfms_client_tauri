@@ -114,7 +114,7 @@
       parentId = normalizeDirectoryId(response.parent_id);
       return true;
     } catch (err) {
-      loadError = formatError(err);
+      loadError = formatUserFacingError(err);
       folders = [];
       parentId = null;
       return false;
@@ -163,10 +163,6 @@
   function handleMoveHere() {
     if (!canMoveHere) return;
     onMove(currentFolderId);
-  }
-
-  function formatError(err: unknown): string {
-    return formatUserFacingError(err);
   }
 </script>
 

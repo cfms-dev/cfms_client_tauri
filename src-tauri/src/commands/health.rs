@@ -1,78 +1,10 @@
 use crate::AppHandleState;
 use cfms_core::ServiceEvent;
-use cfms_core::ServiceStatusInfo;
 use cfms_core::constants;
-
-// Health / info (existing commands, preserved for backward compat)
-// ---------------------------------------------------------------------------
-
-#[tauri::command]
-pub fn greet(name: &str) -> String {
-    format!("Hello, {name}! You've been greeted from Rust!")
-}
-
-#[tauri::command]
-pub fn ping() -> String {
-    "pong".into()
-}
 
 #[tauri::command]
 pub fn protocol_version() -> u32 {
     constants::PROTOCOL_VERSION
-}
-
-#[tauri::command]
-pub fn crypto_info() -> serde_json::Value {
-    serde_json::json!({
-        "kdf_iterations": constants::KDF_ITERATIONS,
-        "salt_len": constants::SALT_LEN,
-        "key_len": constants::KEY_LEN,
-        "nonce_len": constants::NONCE_LEN,
-        "tag_len": constants::TAG_LEN,
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Service status
-// ---------------------------------------------------------------------------
-
-/// Get the status of background services.
-#[tauri::command]
-pub async fn get_service_status(
-    state: tauri::State<'_, AppHandleState>,
-) -> Result<Vec<ServiceStatusInfo>, String> {
-    // We track services by whether their handles are active.
-    // For now, return a static list since all services start together.
-    let lockdown = state
-        .inner
-        .app_lockdown
-        .load(std::sync::atomic::Ordering::SeqCst);
-    Ok(vec![
-        ServiceStatusInfo {
-            name: "token_refresh".into(),
-            running: state.inner.token.read().await.is_some(),
-        },
-        ServiceStatusInfo {
-            name: "favorites_validation".into(),
-            running: true,
-        },
-        ServiceStatusInfo {
-            name: "server_push".into(),
-            running: true,
-        },
-        ServiceStatusInfo {
-            name: "connection_reconnect".into(),
-            running: true,
-        },
-        ServiceStatusInfo {
-            name: "download_queue".into(),
-            running: true,
-        },
-        ServiceStatusInfo {
-            name: "app_lockdown".into(),
-            running: lockdown,
-        },
-    ])
 }
 
 /// Run one immediate favorites/recent-visits validation cycle.

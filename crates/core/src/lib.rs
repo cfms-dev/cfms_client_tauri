@@ -19,16 +19,14 @@ pub mod types;
 pub use error::{Error, Result};
 pub use types::{
     AppearancePreference, ColorSchemePreference, CursorPage, DEFAULT_TASK_CONCURRENCY,
-    DownloadFailureKind, DownloadPhase, DownloadProgress, DownloadTaskDto, DownloadTaskStatus,
-    Favourites, FileEntry, FileMetadata, ListDirectoryResponse, MAX_TASK_CONCURRENCY,
-    MIN_TASK_CONCURRENCY, NodeLookupResponse, PRIVACY_PREFERENCE_VERSION, PermissionEntry,
-    PrivacyPreference, ReduceMotionPreference, Response, Schedule, ScheduleTrigger,
-    ScheduledTaskType, ServerDiagnosticDatabase, ServerDiagnosticExtension,
+    DownloadFailureKind, DownloadPhase, DownloadTaskDto, DownloadTaskStatus, Favourites,
+    ListDirectoryResponse, MAX_TASK_CONCURRENCY, MIN_TASK_CONCURRENCY, PRIVACY_PREFERENCE_VERSION,
+    PermissionEntry, PrivacyPreference, ReduceMotionPreference, Response, Schedule,
+    ScheduleTrigger, ScheduledTaskType, ServerDiagnosticDatabase, ServerDiagnosticExtension,
     ServerDiagnosticIdentity, ServerDiagnosticLockdown, ServerDiagnosticProviders,
     ServerDiagnosticRuntime, ServerDiagnosticScheduling, ServerDiagnostics, ServerDirectoryEntry,
-    ServerDocumentEntry, ServerInfo, ServerListingItem, ServiceEvent, ServiceStatusInfo,
-    TaskConcurrencyPreference, TransferPreference, UploadProgress, UploadTaskDto, UploadTaskKind,
-    UploadTaskStatus, UserPreference,
+    ServerDocumentEntry, ServerInfo, ServerListingItem, ServiceEvent, TaskConcurrencyPreference,
+    TransferPreference, UploadTaskDto, UploadTaskKind, UploadTaskStatus, UserPreference,
 };
 
 // ---------------------------------------------------------------------------

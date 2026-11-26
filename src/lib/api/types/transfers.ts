@@ -69,11 +69,6 @@ export interface DownloadProgress {
   message: string;
 }
 
-export interface UploadProgress {
-  current: number;
-  total: number;
-}
-
 export interface UploadRevisionProgressEvent {
   document_id: string;
   task_id: string;
@@ -92,17 +87,6 @@ export interface DirectoryUploadConflict {
 export interface DirectoryFileConflictResolution {
   relativePath: string;
   conflictStrategy: UploadConflictStrategy;
-}
-
-export interface UploadProgressEvent {
-  upload_id: string;
-  task_id: string | null;
-  file_name: string;
-  current_bytes: number;
-  total_bytes: number;
-  progress: number;
-  status: UploadTaskStatus;
-  message: string | null;
 }
 
 export interface UploadTaskDto {

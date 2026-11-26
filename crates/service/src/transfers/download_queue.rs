@@ -171,10 +171,6 @@ impl QueueState {
         tasks
     }
 
-    pub fn list_by_status(&self, status: DownloadTaskStatus) -> Vec<DownloadTaskDto> {
-        self.list(Some(status))
-    }
-
     pub fn count_by_status(&self, status: DownloadTaskStatus) -> u32 {
         let map = self.tasks.lock().unwrap();
         map.values().filter(|t| t.status == status).count() as u32
@@ -185,12 +181,6 @@ impl QueueState {
         map.values()
             .filter(|t| ACTIVE_BADGE_STATUSES.contains(&t.status))
             .count() as u32
-    }
-
-    pub fn pending_tasks(&self) -> Vec<DownloadTaskDto> {
-        let mut tasks = self.list_by_status(DownloadTaskStatus::Pending);
-        tasks.sort_by_key(|b| std::cmp::Reverse(b.priority));
-        tasks
     }
 
     fn claim_next_pending(
@@ -319,25 +309,6 @@ impl QueueState {
                 }
             }
         }
-        Ok(())
-    }
-
-    pub fn mark_started(&self, task_id: &str) -> Result<()> {
-        let now = unix_now();
-        {
-            let mut map = self.tasks.lock().unwrap();
-            if let Some(t) = map.get_mut(task_id) {
-                if matches!(
-                    t.status,
-                    DownloadTaskStatus::Cancelled | DownloadTaskStatus::Paused
-                ) {
-                    return Ok(());
-                }
-                t.started_at = Some(now);
-                t.status = DownloadTaskStatus::Downloading;
-            }
-        }
-        self.save();
         Ok(())
     }
 
@@ -502,61 +473,6 @@ impl QueueState {
             }
         }
         if count > 0 {
-            self.save();
-        }
-        count
-    }
-
-    pub fn clear_completed(&self) -> usize {
-        let removed_tasks = {
-            let mut map = self.tasks.lock().unwrap();
-            let removed_tasks = map
-                .values()
-                .filter(|t| {
-                    t.status == DownloadTaskStatus::Completed
-                        || t.status == DownloadTaskStatus::Deleted
-                        || t.status == DownloadTaskStatus::Cancelled
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            map.retain(|_, t| {
-                t.status != DownloadTaskStatus::Completed
-                    && t.status != DownloadTaskStatus::Deleted
-                    && t.status != DownloadTaskStatus::Cancelled
-            });
-            removed_tasks
-        };
-        let count = removed_tasks.len();
-        if count > 0 {
-            for task in removed_tasks {
-                cleanup_resume_state(&task.file_path, &task.task_id);
-            }
-            self.save();
-        }
-        count
-    }
-
-    pub fn clear_failed(&self) -> usize {
-        let removed_tasks = {
-            let mut map = self.tasks.lock().unwrap();
-            let removed_tasks = map
-                .values()
-                .filter(|t| {
-                    t.status == DownloadTaskStatus::Failed
-                        || t.status == DownloadTaskStatus::Cancelled
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            map.retain(|_, t| {
-                t.status != DownloadTaskStatus::Failed && t.status != DownloadTaskStatus::Cancelled
-            });
-            removed_tasks
-        };
-        let count = removed_tasks.len();
-        if count > 0 {
-            for task in removed_tasks {
-                cleanup_resume_state(&task.file_path, &task.task_id);
-            }
             self.save();
         }
         count
@@ -1084,7 +1000,7 @@ async fn download_worker(
                 conn.close().await;
             }
 
-            match create_transfer_connection(&state).await {
+            match crate::connection::open_connection(&state).await {
                 Ok(conn) => {
                     transfer_conn = Some(conn);
                 }
@@ -1621,50 +1537,9 @@ fn cleanup_resume_state(file_path: &str, task_id: &str) {
     }
 }
 
-async fn create_transfer_connection(
-    state: &AppState,
-) -> cfms_core::Result<cfms_transport::Connection> {
-    let (url, ca_dir, disable_ssl, proxy_addr, force_ipv4, client_cert_path, client_key_path) = {
-        let addr = state.server_address.read().await;
-        let ca = state.ca_dir.read().await;
-        let dse = state.disable_ssl_enforcement.read().await;
-        let proxy = state.proxy_addr.read().await;
-        let force_ipv4 = state.force_ipv4.read().await;
-        let cert = state.client_cert_path.read().await;
-        let key = state.client_key_path.read().await;
-        (
-            addr.clone(),
-            ca.clone(),
-            *dse,
-            proxy.clone(),
-            *force_ipv4,
-            cert.clone(),
-            key.clone(),
-        )
-    };
-
-    let url = url.ok_or_else(|| cfms_core::Error::Other("No server address configured".into()))?;
-    let ca_dir =
-        ca_dir.ok_or_else(|| cfms_core::Error::Other("No CA directory configured".into()))?;
-
-    let tls_config = cfms_transport::tls::build_config_with_identity(
-        &ca_dir,
-        disable_ssl,
-        client_cert_path.as_deref(),
-        client_key_path.as_deref(),
-        Arc::clone(&state.crl_service),
-    )?;
-
-    cfms_transport::Connection::connect(&url, tls_config, proxy_addr.as_deref(), force_ipv4).await
-}
-
 // ---------------------------------------------------------------------------
 // Queue management operations (called from Tauri commands)
 // ---------------------------------------------------------------------------
-
-pub fn add_task(queue: &QueueState, task: DownloadTaskDto) -> Result<()> {
-    queue.insert(&task)
-}
 
 pub fn pause_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -> Result<bool> {
     let task = match queue.get(task_id) {

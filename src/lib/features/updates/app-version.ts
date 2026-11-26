@@ -53,7 +53,3 @@ export function parseAppVersion(value: string): ParsedAppVersion | null {
       : [],
   };
 }
-
-export function normalizeAppVersion(value: string): string {
-  return value.trim().replace(/^v/u, '');
-}

@@ -293,22 +293,12 @@ pub async fn reset_preference_dek<R: Runtime>(
     .await?;
 
     tokio::task::spawn_blocking(move || {
-        cfms_service::user_preferences::discard(&app_data_dir, &server_hash, &user_id)
-            .and_then(|_| {
-                cfms_service::transfers::task_persistence::discard(
-                    &app_data_dir,
-                    &server_hash,
-                    &user_id,
-                )
-            })
-            .and_then(|_| {
-                cfms_service::transfers::upload_task_persistence::discard(
-                    &app_data_dir,
-                    &server_hash,
-                    &user_id,
-                )
-            })
-            .map_err(|e| e.to_string())
+        super::preference_keys::discard_encrypted_account_files(
+            &app_data_dir,
+            &server_hash,
+            &user_id,
+        )
+        .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("Preference DEK reset cleanup task failed: {e}"))??;

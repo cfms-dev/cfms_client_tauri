@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
-import { showAndroidUpdateNotification, cancelAndroidUpdateNotification } from '$lib/api/updates';
+import { showAndroidUpdateNotification, cancelAndroidUpdateNotification, type UpdateProgressSnapshot } from '$lib/api/updates';
 import { platform } from '$lib/shared/platform/native-os';
-import { formatBytes, type UpdateProgressSnapshot } from '$lib/api/updates';
+import { formatBytes } from '$lib/shared/format/values';
 import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
 
 const UPDATE_PROGRESS_ID = 'app-update:download';
@@ -15,6 +15,35 @@ export interface UpdateNotificationCopy {
   installed: string;
   downloadProgress: (values: { percent: string; current: string; total: string }) => string;
   downloadedBytes: (values: { current: string }) => string;
+}
+
+export type UpdateTranslateFn = (
+  key: string,
+  options?: { values?: Record<string, string | number> },
+) => string;
+
+export function formatUpdatePauseDate(value: number): string {
+  return new Date(value).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function createUpdateNotificationCopy(
+  translate: UpdateTranslateFn,
+  installedMessage: string,
+): UpdateNotificationCopy {
+  return {
+    title: translate('about.softwareUpdate'),
+    preparingDownload: translate('settings.updates.preparingDownload'),
+    installing: translate('settings.updates.installing'),
+    installed: installedMessage,
+    downloadProgress: (values) => translate('settings.updates.downloadProgress', { values }),
+    downloadedBytes: (values) => translate('settings.updates.downloadedBytes', { values }),
+  };
 }
 
 class UpdateNotificationReporter {

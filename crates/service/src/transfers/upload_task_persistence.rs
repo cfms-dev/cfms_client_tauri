@@ -22,15 +22,7 @@ pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
 
 pub fn discard(app_data: &Path, server_hash: &str, user_id: &str) -> Result<()> {
     let path = file_path(app_data, server_hash, user_id);
-    if !path.exists() {
-        return Ok(());
-    }
-    std::fs::remove_file(&path).map_err(|error| {
-        cfms_core::Error::Other(format!(
-            "Failed to delete upload task file {}: {error}",
-            path.display()
-        ))
-    })
+    crate::account_storage::discard_file(&path, "upload task file")
 }
 
 pub fn load(
@@ -50,25 +42,8 @@ pub fn load(
         );
         return Ok(Vec::new());
     };
-    let raw = std::fs::read(&path).map_err(|error| {
-        cfms_core::Error::Other(format!(
-            "Failed to read upload task file {}: {error}",
-            path.display()
-        ))
-    })?;
-    if !cfms_crypto::is_encrypted(&raw) {
-        return Err(cfms_core::Error::Other(format!(
-            "Upload task file is not encrypted: {}",
-            path.display()
-        )));
-    }
-    let plaintext = zeroize::Zeroizing::new(cfms_crypto::decrypt_config(&raw, dek)?);
-    let records: UploadTasksJson = serde_json::from_slice(&plaintext).map_err(|error| {
-        cfms_core::Error::Other(format!(
-            "Invalid upload task data in {}: {error}",
-            path.display()
-        ))
-    })?;
+    let records: UploadTasksJson =
+        crate::account_storage::read_encrypted_json(&path, dek, "upload task file")?;
     Ok(records
         .into_values()
         .map(|mut record| {
@@ -102,31 +77,17 @@ pub fn save(
         .cloned()
         .map(|record| (record.task.upload_id.clone(), record))
         .collect();
-    let plaintext = zeroize::Zeroizing::new(serde_json::to_vec(&records).map_err(|error| {
-        cfms_core::Error::Other(format!("Failed to serialize upload tasks: {error}"))
-    })?);
-    let encrypted = cfms_crypto::encrypt_config(&plaintext, dek)?;
     let path = file_path(app_data, server_hash, user_id);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| {
-            cfms_core::Error::Other(format!("Failed to create upload task directory: {error}"))
-        })?;
-    }
-    std::fs::write(&path, encrypted).map_err(|error| {
-        cfms_core::Error::Other(format!(
-            "Failed to write upload task file {}: {error}",
-            path.display()
-        ))
-    })
+    crate::account_storage::write_encrypted_json(&path, dek, &records, "upload task file")
 }
 
 #[cfg(target_os = "android")]
-fn source_available(_path: &str) -> bool {
+pub fn source_available(_path: &str) -> bool {
     false
 }
 
 #[cfg(not(target_os = "android"))]
-fn source_available(path: &str) -> bool {
+pub fn source_available(path: &str) -> bool {
     Path::new(path).exists()
 }
 

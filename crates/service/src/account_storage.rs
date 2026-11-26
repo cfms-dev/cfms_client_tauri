@@ -34,6 +34,86 @@ pub fn file_path(app_data: &Path, kind: &str, server_hash: &str, user_id: &str) 
         .join(format!("{}.json", cfms_core::get_username_hash(user_id)))
 }
 
+pub fn discard_file(path: &Path, label: &str) -> cfms_core::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    std::fs::remove_file(path).map_err(|error| {
+        cfms_core::Error::Other(format!(
+            "Failed to delete {label} {}: {error}",
+            path.display()
+        ))
+    })
+}
+
+pub fn read_encrypted_json<T: serde::de::DeserializeOwned>(
+    path: &Path,
+    dek: &[u8; KEY_LEN],
+    label: &str,
+) -> cfms_core::Result<T> {
+    let raw = std::fs::read(path).map_err(|error| {
+        cfms_core::Error::Other(format!(
+            "Failed to read {label} {}: {error}",
+            path.display()
+        ))
+    })?;
+    if !cfms_crypto::is_encrypted(&raw) {
+        return Err(cfms_core::Error::Other(format!(
+            "{label} {} is not encrypted",
+            path.display()
+        )));
+    }
+    let plaintext =
+        zeroize::Zeroizing::new(cfms_crypto::decrypt_config(&raw, dek).map_err(|error| {
+            cfms_core::Error::Other(format!(
+                "Failed to decrypt {label} {}: {error}",
+                path.display()
+            ))
+        })?);
+    serde_json::from_slice(&plaintext).map_err(|error| {
+        cfms_core::Error::Other(format!(
+            "Invalid data in {label} {}: {error}",
+            path.display()
+        ))
+    })
+}
+
+pub fn write_encrypted_json<T: serde::Serialize>(
+    path: &Path,
+    dek: &[u8; KEY_LEN],
+    value: &T,
+    label: &str,
+) -> cfms_core::Result<()> {
+    use std::io::Write;
+    let Some(parent) = path.parent() else {
+        return Err(cfms_core::Error::Other(format!(
+            "Invalid {label} path {}",
+            path.display()
+        )));
+    };
+    std::fs::create_dir_all(parent).map_err(|error| {
+        cfms_core::Error::Other(format!(
+            "Failed to create directory for {label} {}: {error}",
+            parent.display()
+        ))
+    })?;
+    let plaintext = zeroize::Zeroizing::new(serde_json::to_vec(value).map_err(|error| {
+        cfms_core::Error::Other(format!("Failed to serialize {label}: {error}"))
+    })?);
+    let encrypted = cfms_crypto::encrypt_config(&plaintext, dek)
+        .map_err(|error| cfms_core::Error::Other(format!("Failed to encrypt {label}: {error}")))?;
+    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    temp.write_all(&encrypted)?;
+    temp.as_file().sync_all()?;
+    temp.persist(path).map_err(|error| {
+        cfms_core::Error::Other(format!(
+            "Failed to write {label} {}: {error}",
+            path.display()
+        ))
+    })?;
+    Ok(())
+}
+
 pub fn legacy_path(
     app_data: &Path,
     kind: &str,

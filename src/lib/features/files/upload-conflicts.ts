@@ -59,26 +59,6 @@ export function partitionUploadConflicts(
 }
 
 /**
- * Resolves conflicts in Windows-style order: prompt for one item at a time,
- * unless the user explicitly applies the current choice to all remaining items.
- */
-export async function resolveUploadConflicts<T extends UploadCandidate>(
-  candidates: T[],
-  prompt: UploadConflictPrompt<T>,
-): Promise<UploadConflictDecision<T>[] | null> {
-  const decisions: UploadConflictDecision<T>[] = [];
-  const resolver = createUploadConflictResolver(prompt);
-
-  for (const candidate of candidates) {
-    const decision = await resolver.resolve(candidate);
-    if (!decision) return null;
-    decisions.push(decision);
-  }
-
-  return decisions;
-}
-
-/**
  * Creates a serial conflict resolver for candidates discovered incrementally.
  * Calls are queued so event-based conflict scans never open overlapping dialogs.
  */

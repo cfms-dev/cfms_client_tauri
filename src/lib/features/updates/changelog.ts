@@ -13,7 +13,6 @@ const releasedPattern = /^\*\*Released on:\*\*\s*(.+)$/u;
 const titlePattern = /^\*\*Title:\*\*\s*(.+)$/u;
 
 export const changelogEntries = parseChangelog(changelogMarkdown);
-export const latestChangelogEntry = changelogEntries[0] ?? null;
 
 export function parseChangelog(markdown: string): ChangelogEntry[] {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');

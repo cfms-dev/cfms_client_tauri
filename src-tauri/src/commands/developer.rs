@@ -1,8 +1,4 @@
-#[cfg(test)]
-use super::server_actions::ServerActionIdentity;
 use super::server_actions::server_action_response;
-#[cfg(test)]
-use super::server_actions::validate_server_action_identity;
 use crate::AppHandleState;
 
 // Hidden desktop developer request console.
@@ -29,9 +25,7 @@ pub async fn send_developer_request(
 
 #[cfg(test)]
 mod developer_request_tests {
-    use super::{
-        ServerActionIdentity, normalize_developer_action, validate_server_action_identity,
-    };
+    use super::normalize_developer_action;
 
     #[test]
     fn trims_and_accepts_arbitrary_business_names() {
@@ -64,34 +58,5 @@ mod developer_request_tests {
         assert_eq!(value["message"], "Forbidden");
         assert_eq!(value["data"]["reason"], "permission_denied");
         assert_eq!(value["timestamp"], 1_723_456_789.25);
-    }
-
-    #[test]
-    fn retry_identity_rejects_server_or_account_changes() {
-        let expected = ServerActionIdentity {
-            server_address: Some("server.example".to_string()),
-            user_id: "developer".to_string(),
-        };
-        assert!(validate_server_action_identity(&expected, &expected).is_ok());
-        assert!(
-            validate_server_action_identity(
-                &expected,
-                &ServerActionIdentity {
-                    server_address: Some("other.example".to_string()),
-                    user_id: "developer".to_string(),
-                },
-            )
-            .is_err()
-        );
-        assert!(
-            validate_server_action_identity(
-                &expected,
-                &ServerActionIdentity {
-                    server_address: Some("server.example".to_string()),
-                    user_id: "another-user".to_string(),
-                },
-            )
-            .is_err()
-        );
     }
 }

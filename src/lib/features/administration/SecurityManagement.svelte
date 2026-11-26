@@ -17,6 +17,7 @@
   import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { formatDate } from '$lib/shared/format/values';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
@@ -270,8 +271,7 @@
   }
 
   function formatTimestamp(value: number | null | undefined) {
-    if (value === null || value === undefined || !Number.isFinite(value)) return '-';
-    return new Date(value * 1000).toLocaleString();
+    return formatDate(value, '-');
   }
 
   function toLocalInput(value: number) {

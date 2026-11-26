@@ -125,19 +125,6 @@ export function isoToZonedDateTimeInput(value: unknown, timezone: string): strin
   return Number.isNaN(date.getTime()) ? '' : toZonedDateTimeInput(date, timezone);
 }
 
-export function parsePayloadObject(source: string): Record<string, JsonValue> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch {
-    throw new ScheduleValidationError('payloadJson');
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new ScheduleValidationError('payloadObject');
-  }
-  return parsed as Record<string, JsonValue>;
-}
-
 function zonedDateTimeToIso(
   localValue: string,
   timezone: string,

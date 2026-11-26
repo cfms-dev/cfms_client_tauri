@@ -6,14 +6,13 @@
   import {
     parseLocalDateTimeInput,
     toLocalDateTimeInput,
+    type EndMode,
     type PermissionEntryChangeKind,
     type PermissionEntryValidation,
+    type StartMode,
   } from '$lib/features/access/permission-entries';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-
-  type StartMode = 'immediate' | 'specified';
-  type EndMode = 'never' | 'specified';
 
   interface EditorRow {
     key: string;

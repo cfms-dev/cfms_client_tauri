@@ -1,7 +1,8 @@
 import { open } from '$lib/shared/platform/native-dialog';
 import { platform } from '$lib/shared/platform/native-os';
 import { selectUploadDirectory } from '$lib/api';
-import { formatError, isPickerCancel } from '$lib/shared/format/values';
+import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { isPickerCancel } from '$lib/shared/format/values';
 import { basename } from '$lib/shared/platform/upload-names';
 
 export interface DirectoryPickerOptions {
@@ -47,7 +48,7 @@ export async function pickDirectory(
     const path = selected.trim();
     return { path, name: basename(path) };
   } catch (error) {
-    if (isPickerCancel(formatError(error))) return null;
+    if (isPickerCancel(formatUserFacingError(error))) return null;
     throw error;
   }
 }

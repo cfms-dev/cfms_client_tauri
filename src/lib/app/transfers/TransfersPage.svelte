@@ -124,7 +124,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
       downloadStore.setAll(downloads);
       uploadStore.setAll(uploads);
     } catch (error) {
-      errorMessage = formatError(error);
+      errorMessage = formatUserFacingError(error);
     } finally {
       loading = false;
     }
@@ -258,7 +258,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
     pendingDownloadActions = new Set(pendingDownloadActions).add(id);
     errorMessage = '';
     try { await action(); if (refreshAfter) await refreshDownloads(); }
-    catch (error) { errorMessage = formatError(error); }
+    catch (error) { errorMessage = formatUserFacingError(error); }
     finally { const next = new Set(pendingDownloadActions); next.delete(id); pendingDownloadActions = next; }
   }
 
@@ -335,7 +335,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
     pendingUploadActions = new Set(pendingUploadActions).add(id);
     errorMessage = '';
     try { await action(); if (refreshAfter) await refreshUploads(); }
-    catch (error) { errorMessage = formatError(error); }
+    catch (error) { errorMessage = formatUserFacingError(error); }
     finally { const next = new Set(pendingUploadActions); next.delete(id); pendingUploadActions = next; }
   }
   async function handlePauseUpload(id: string) { await runUpload(id, () => uploadStore.pause(id)); }
@@ -382,7 +382,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
   async function runGroup(groupId: string, actionName: GroupAction, action: () => Promise<void>) {
     pendingGroupActions = new Map(pendingGroupActions).set(groupId, actionName);
     try { await action(); await refreshDownloads(); }
-    catch (error) { errorMessage = formatError(error); }
+    catch (error) { errorMessage = formatUserFacingError(error); }
     finally { const next = new Map(pendingGroupActions); next.delete(groupId); pendingGroupActions = next; }
   }
   async function handlePauseGroup(id: string) { await runBulkControl('pause', groupTasks(id), id); }
@@ -452,7 +452,6 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
     return `download:${item.task.task_id}`;
   }
   function estimateSize(index: number) { const row = currentRows[index]; return row?.kind === 'upload-group' || (row?.kind === 'download' && row.row.kind === 'group') ? 116 : 76; }
-  function formatError(error: unknown) { return formatUserFacingError(error); }
 </script>
 
 <div class="workspace-page task-page">

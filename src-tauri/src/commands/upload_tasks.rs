@@ -12,6 +12,7 @@ use crate::AppHandleState;
 use crate::UploadInterruption;
 use cfms_core::ServiceEvent;
 use cfms_service::transfers::download_queue;
+use cfms_service::transfers::upload_task_persistence::source_available as upload_source_available;
 use tauri::Emitter;
 use tauri::Manager;
 use tauri::Runtime;
@@ -97,23 +98,6 @@ pub async fn enqueue_upload_batch<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn enqueue_upload<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppHandleState>,
-    request: UploadEnqueueRequest,
-) -> Result<cfms_core::UploadTaskDto, String> {
-    let result = enqueue_upload_batch(app, state, vec![request]).await?;
-    result.tasks.into_iter().next().ok_or_else(|| {
-        result
-            .failed
-            .into_iter()
-            .next()
-            .map(|f| f.error)
-            .unwrap_or_else(|| "Upload was not accepted".into())
-    })
-}
-
-#[tauri::command]
 pub async fn get_upload_tasks(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<Vec<cfms_core::UploadTaskDto>, String> {
@@ -163,15 +147,6 @@ pub async fn retry_upload<R: Runtime>(
     emit_upload_snapshot(&app, &upload_id);
     state.active_uploads.changed.notify_one();
     Ok(request)
-}
-
-#[tauri::command]
-pub async fn remove_upload_records<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    state: tauri::State<'_, AppHandleState>,
-    ids: Vec<String>,
-) -> Result<BatchActionResult, String> {
-    remove_transfer_records(app, state, TransferDirection::Upload, ids, None).await
 }
 
 #[tauri::command]
@@ -344,19 +319,9 @@ pub async fn control_transfer_tasks<R: Runtime>(
                             TransferControlAction::Resume => {
                                 download_queue::resume_task(&state.tasks, &id)
                             }
-                            TransferControlAction::Retry => unreachable!(),
-                            TransferControlAction::Cancel
-                            | TransferControlAction::CancelAndRemove => {
-                                if state.tasks.get(&id).is_some_and(|t| t.status.is_terminal()) {
-                                    Ok(true)
-                                } else {
-                                    download_queue::cancel_task(
-                                        &state.tasks,
-                                        &state.active_downloads,
-                                        &id,
-                                    )
-                                }
-                            }
+                            TransferControlAction::Retry
+                            | TransferControlAction::Cancel
+                            | TransferControlAction::CancelAndRemove => unreachable!(),
                         }
                         .map_err(|error| error.to_string())
                     }
@@ -527,8 +492,8 @@ async fn execute_queued_upload<R: Runtime>(
         match request.kind {
             cfms_core::UploadTaskKind::File => {
                 upload_document_file(
-                    app.clone(),
-                    app.state(),
+                    &app,
+                    &state,
                     request.target_parent_id,
                     request.source_path,
                     id.clone(),
@@ -539,8 +504,8 @@ async fn execute_queued_upload<R: Runtime>(
             }
             cfms_core::UploadTaskKind::Directory => {
                 upload_directory(
-                    app.clone(),
-                    app.state(),
+                    &app,
+                    &state,
                     request.target_parent_id,
                     request.source_path,
                     id.clone(),
@@ -585,14 +550,4 @@ async fn execute_queued_upload<R: Runtime>(
         }
         emit_upload_snapshot(&app, &id);
     }
-}
-
-#[cfg(target_os = "android")]
-fn upload_source_available(_path: &str) -> bool {
-    false
-}
-
-#[cfg(not(target_os = "android"))]
-fn upload_source_available(path: &str) -> bool {
-    std::path::Path::new(path).exists()
 }

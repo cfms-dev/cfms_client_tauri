@@ -11,15 +11,6 @@ export type SearchTypeFilter = 'all' | 'documents' | 'directories';
 
 export const SERVER_SEARCH_PAGE_SIZE = 128;
 
-export function searchFilterFromFlags(
-  searchDocuments: boolean,
-  searchDirectories: boolean,
-): SearchTypeFilter {
-  if (searchDocuments && !searchDirectories) return 'documents';
-  if (!searchDocuments && searchDirectories) return 'directories';
-  return 'all';
-}
-
 export function searchFlagsFromFilter(filter: SearchTypeFilter): {
   searchDocuments: boolean;
   searchDirectories: boolean;

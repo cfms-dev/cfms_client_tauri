@@ -9,34 +9,45 @@ use cfms_service::transfers::download_queue;
 // Download queue commands
 // ---------------------------------------------------------------------------
 
-/// Add a download task to the persistent queue.
-#[tauri::command]
-pub async fn add_download(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppHandleState>,
-    mut task: DownloadTaskDto,
+pub(super) async fn enqueue_download_task(
+    state: &AppHandleState,
+    identity: &cfms_service::rpc::SessionIdentity,
+    task: &DownloadTaskDto,
 ) -> Result<(), String> {
-    let identity = cfms_service::rpc::SessionIdentity::capture(&state.inner).await?;
-    let path = cfms_service::files::download_paths::prepare_named_file(
-        &super::transfer_helpers::download_root(&app)?,
-        &task.filename,
-    )?;
-    task.filename = path.file_name().unwrap().to_string_lossy().into_owned();
-    task.file_path = path.to_string_lossy().into_owned();
     let guard = state.inner.auth_update.lock().await;
     identity.ensure_current_locked(&state.inner, &guard).await?;
+
     state
         .tasks
-        .insert(&task)
+        .insert(task)
         .map_err(|e| format!("Failed to add download: {e}"))?;
     let _ = state
         .inner
         .event_tx
-        .send(ServiceEvent::DownloadTaskUpdated { task });
+        .send(ServiceEvent::DownloadTaskUpdated { task: task.clone() });
     let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
         count: state.tasks.active_count(),
     });
     Ok(())
+}
+
+fn emit_download_task_updated(
+    state: &AppHandleState,
+    task_id: &str,
+    extra_event: Option<ServiceEvent>,
+) {
+    if let Some(task) = state.tasks.get(task_id) {
+        let _ = state
+            .inner
+            .event_tx
+            .send(ServiceEvent::DownloadTaskUpdated { task });
+    }
+    if let Some(event) = extra_event {
+        let _ = state.inner.event_tx.send(event);
+    }
+    let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
+        count: state.tasks.active_count(),
+    });
 }
 
 /// Get all download tasks, optionally filtered by status.
@@ -57,18 +68,13 @@ pub async fn pause_download(
     let paused = download_queue::pause_task(&state.tasks, &state.active_downloads, &task_id)
         .map_err(|e| format!("Failed to pause download: {e}"))?;
     if paused {
-        if let Some(task) = state.tasks.get(&task_id) {
-            let _ = state
-                .inner
-                .event_tx
-                .send(ServiceEvent::DownloadTaskUpdated { task });
-        }
-        let _ = state.inner.event_tx.send(ServiceEvent::DownloadPaused {
-            task_id: task_id.clone(),
-        });
-        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-            count: state.tasks.active_count(),
-        });
+        emit_download_task_updated(
+            &state,
+            &task_id,
+            Some(ServiceEvent::DownloadPaused {
+                task_id: task_id.clone(),
+            }),
+        );
     }
     Ok(paused)
 }
@@ -82,15 +88,7 @@ pub async fn resume_download(
     let resumed = download_queue::resume_task(&state.tasks, &task_id)
         .map_err(|e| format!("Failed to resume download: {e}"))?;
     if resumed {
-        if let Some(task) = state.tasks.get(&task_id) {
-            let _ = state
-                .inner
-                .event_tx
-                .send(ServiceEvent::DownloadTaskUpdated { task });
-        }
-        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-            count: state.tasks.active_count(),
-        });
+        emit_download_task_updated(&state, &task_id, None);
     }
     Ok(resumed)
 }
@@ -139,15 +137,7 @@ pub(super) async fn retry_download_task(
     let retried = download_queue::retry_failed_task(&state.tasks, &task_id)
         .map_err(|e| format!("Failed to retry download: {e}"))?;
     if retried {
-        if let Some(task) = state.tasks.get(&task_id) {
-            let _ = state
-                .inner
-                .event_tx
-                .send(ServiceEvent::DownloadTaskUpdated { task });
-        }
-        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-            count: state.tasks.active_count(),
-        });
+        emit_download_task_updated(state, &task_id, None);
     }
     Ok(retried)
 }
@@ -161,72 +151,9 @@ pub async fn cancel_download(
     let cancelled = download_queue::cancel_task(&state.tasks, &state.active_downloads, &task_id)
         .map_err(|e| format!("Failed to cancel download: {e}"))?;
     if cancelled {
-        if let Some(task) = state.tasks.get(&task_id) {
-            let _ = state
-                .inner
-                .event_tx
-                .send(ServiceEvent::DownloadTaskUpdated { task });
-        }
-        let _ = state.inner.event_tx.send(ServiceEvent::ActiveCountChanged {
-            count: state.tasks.active_count(),
-        });
+        emit_download_task_updated(&state, &task_id, None);
     }
     Ok(cancelled)
-}
-
-/// Clear completed and cancelled tasks.
-#[tauri::command]
-pub async fn clear_completed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
-    Ok(state.tasks.clear_completed() as u32)
-}
-
-/// Clear failed tasks. Returns count removed.
-#[tauri::command]
-pub async fn clear_failed_tasks(state: tauri::State<'_, AppHandleState>) -> Result<u32, String> {
-    Ok(state.tasks.clear_failed() as u32)
-}
-
-/// Delete a download task and remove its file from disk.
-///
-/// Removes the task from the in-memory queue and deletes the associated file
-/// if it exists on the filesystem.
-#[tauri::command]
-pub async fn delete_download(
-    state: tauri::State<'_, AppHandleState>,
-    task_id: String,
-) -> Result<bool, String> {
-    // Look up the task to get its file_path for filesystem cleanup.
-    if let Some(task) = state.tasks.get(&task_id) {
-        // Only completed tasks own a successfully downloaded output file.
-        // Failed/cancelled entries are still cleared without deleting a path
-        // that may contain unrelated or incomplete local data.
-        let path = std::path::Path::new(&task.file_path);
-        if task.status == DownloadTaskStatus::Completed && path.exists() {
-            let _ = std::fs::remove_file(path);
-        }
-        cleanup_resume_state(&task.file_path, &task_id);
-    }
-
-    // Remove from the in-memory queue.
-    state.tasks.delete(&task_id);
-
-    Ok(true)
-}
-
-/// Remove terminal task records while preserving downloaded files.
-#[tauri::command]
-pub async fn remove_download_records(
-    state: tauri::State<'_, AppHandleState>,
-    ids: Vec<String>,
-) -> Result<BatchActionResult, String> {
-    let (succeeded, failed) = state.tasks.remove_terminal(&ids);
-    Ok(BatchActionResult {
-        succeeded,
-        failed: failed
-            .into_iter()
-            .map(|(id, error)| BatchActionFailure { id, error })
-            .collect(),
-    })
 }
 
 /// Delete completed output files while retaining their task records.
@@ -290,27 +217,4 @@ pub async fn delete_downloaded_files(
         }
     }
     Ok(BatchActionResult { succeeded, failed })
-}
-
-// ---------------------------------------------------------------------------
-
-fn cleanup_resume_state(file_path: &str, task_id: &str) {
-    let dest = std::path::Path::new(file_path);
-    let filename = format!(".cfms-download-{task_id}.chunks.db");
-    let path = dest
-        .parent()
-        .map(|parent| parent.join(&filename))
-        .unwrap_or_else(|| std::path::PathBuf::from(filename));
-
-    for candidate in [
-        path.clone(),
-        std::path::PathBuf::from(format!("{}-wal", path.display())),
-        std::path::PathBuf::from(format!("{}-shm", path.display())),
-    ] {
-        if let Err(e) = std::fs::remove_file(candidate)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!("Failed to remove download resume state: {e}");
-        }
-    }
 }
