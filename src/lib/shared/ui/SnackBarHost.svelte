@@ -29,9 +29,11 @@ import { notificationStore, type NotificationEntry } from "$lib/shared/notificat
   let readyProgressIds = $state<Set<string>>(new Set());
 
   const stackEntries = $derived<StackEntry[]>([
-    ...floatingProgressStore.entries.slice().reverse()
-      .filter((entry) => readyProgressIds.has(entry.id))
-      .map((entry) => ({ kind: 'progress' as const, key: `progress:${entry.id}`, createdAt: entry.createdAt, entry })),
+    ...(chromeStore.hasOpenModal
+      ? []
+      : floatingProgressStore.entries.slice().reverse()
+          .filter((entry) => readyProgressIds.has(entry.id))
+          .map((entry) => ({ kind: 'progress' as const, key: `progress:${entry.id}`, createdAt: entry.createdAt, entry }))),
     ...notificationStore.entries.slice().reverse()
       .map((entry) => ({ kind: 'notification' as const, key: `notification:${entry.id}`, createdAt: entry.createdAt, entry })),
   ].sort((a, b) => a.createdAt - b.createdAt));

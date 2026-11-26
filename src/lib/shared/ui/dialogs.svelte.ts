@@ -5,6 +5,7 @@ export interface ConfirmDialogOptions {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  cancelIcon?: IconName;
   danger?: boolean;
 }
 
@@ -15,6 +16,7 @@ export interface PromptDialogOptions {
   placeholder?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  cancelIcon?: IconName;
   multiline?: boolean;
   maxLength?: number;
   inputType?: string;
@@ -44,6 +46,7 @@ export interface ChoiceDialogOptions<T extends string = string> {
   detailLabel?: string;
   applyToAllLabel?: string;
   cancelLabel?: string;
+  cancelIcon?: IconName;
   signal?: AbortSignal;
 }
 
@@ -63,6 +66,7 @@ export interface DialogRequest {
   placeholder: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  cancelIcon?: IconName;
   danger: boolean;
   multiline: boolean;
   maxLength?: number;
@@ -94,6 +98,7 @@ class DialogStoreImpl {
         placeholder: "",
         confirmLabel: normalized.confirmLabel,
         cancelLabel: normalized.cancelLabel,
+        cancelIcon: normalized.cancelIcon,
         danger: normalized.danger ?? false,
         multiline: false,
         maxLength: undefined,
@@ -122,6 +127,7 @@ class DialogStoreImpl {
         placeholder: normalized.placeholder ?? "",
         confirmLabel: normalized.confirmLabel,
         cancelLabel: normalized.cancelLabel,
+        cancelIcon: normalized.cancelIcon,
         danger: false,
         multiline: normalized.multiline ?? false,
         maxLength: normalized.maxLength,
@@ -153,6 +159,7 @@ class DialogStoreImpl {
         placeholder: "",
         confirmLabel: "",
         cancelLabel: options.cancelLabel,
+        cancelIcon: options.cancelIcon,
         danger: false,
         multiline: false,
         maxLength: undefined,

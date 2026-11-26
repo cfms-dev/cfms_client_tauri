@@ -698,6 +698,7 @@ export const ICON_VARIANTS = {
   pushPin: { regular: svg490, filled: svg491, small: svg492, smallFilled: svg493 },
   contactCard: { regular: svg494, filled: svg495, small: svg496, smallFilled: svg497 },
   personKey: { regular: svg498, filled: svg499, small: svg500, smallFilled: svg501 },
+  stop: { regular: svg502, filled: svg503, small: svg504, smallFilled: svg505 },
   stopTransfer: { regular: svg502, filled: svg503, small: svg504, smallFilled: svg505 },
   removeTransferRecord: { regular: svg506, filled: svg507, small: svg508, smallFilled: svg509 },
   clearTransferRecords: { regular: svg510, filled: svg511, small: svg512, smallFilled: svg513 },

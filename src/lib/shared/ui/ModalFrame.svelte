@@ -7,6 +7,7 @@
   import { flyScale } from '$lib/shared/motion/transitions';
   import { isMobilePlatform } from '$lib/shared/platform/platform';
   import Icon from '$lib/shared/ui/Icon.svelte';
+  import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
   import { FOCUSABLE_SELECTOR } from '$lib/shared/ui/keyboard';
   import { portal } from '$lib/shared/actions/portal';
 
@@ -116,6 +117,11 @@
     cancelFrame(resizeFrame);
     cancelFrame(clampFrame);
     windowStateAnimation?.cancel();
+  });
+
+  $effect(() => {
+    if (!open) return;
+    return chromeStore.registerModal();
   });
 
   $effect(() => {

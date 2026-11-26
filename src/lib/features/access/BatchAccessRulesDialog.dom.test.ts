@@ -8,6 +8,7 @@ import { tick } from 'svelte';
 import { EditorView } from '@codemirror/view';
 import BatchAccessRulesDialog from './BatchAccessRulesDialog.svelte';
 import { getNodeDacl } from '$lib/api';
+import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte.ts';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import type { BatchRulesTarget, BatchRulesProblem, BatchRulesSnapshot, BatchRulesFailureAction } from './batch-access-rules';
 import '$lib/shared/i18n';
@@ -15,8 +16,10 @@ import '$lib/shared/i18n';
 const controls = vi.hoisted(() => ({
   discover: vi.fn(),
   apply: vi.fn(),
+  retryFailed: vi.fn(),
   dispose: vi.fn(),
   failOnce: null as null | { target: BatchRulesTarget; problem: BatchRulesProblem; onAnswer: (ans: BatchRulesFailureAction) => void },
+  applySnapshot: null as null | ((roots: BatchRulesTarget[]) => Partial<BatchRulesSnapshot>),
 }));
 
 vi.mock('$lib/api', async (original) => ({
@@ -76,6 +79,20 @@ vi.mock('./batch-access-rules', async (original) => {
           const ans = await this.dependencies.resolveFailure(failure.target, failure.problem, ac.signal);
           failure.onAnswer(ans);
         }
+        const override = controls.applySnapshot ? controls.applySnapshot(this.roots) : null;
+        this.snapshot = {
+          ...this.snapshot,
+          phase: 'finished',
+          started: true,
+          results: this.roots.map((target) => ({ target, status: 'success' })),
+          runCompleted: this.roots.length,
+          runTotal: this.roots.length,
+          ...override,
+        };
+        this.dependencies.onChange(this.snapshot);
+      }
+      async retryFailed(...args: unknown[]) {
+        await controls.retryFailed(...args);
         this.snapshot = {
           ...this.snapshot,
           phase: 'finished',
@@ -152,7 +169,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   controls.discover.mockResolvedValue(undefined);
   controls.apply.mockResolvedValue(undefined);
+  controls.retryFailed.mockResolvedValue(undefined);
   controls.failOnce = null;
+  controls.applySnapshot = null;
+  floatingProgressStore.clear();
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'true';
   document.documentElement.dataset.theme = 'light';
@@ -230,8 +250,94 @@ describe('BatchAccessRulesDialog', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => expect(chooseSpy).toHaveBeenCalledOnce());
     const call = chooseSpy.mock.calls[0][0];
+    expect(call.title).toBe('Permission lockout warning');
+    expect(call.message).toContain('Applying this access control policy (DACL)');
+    expect(call.message).toContain('Caller loses WRITE_DACL');
+    expect(call.cancelLabel).toBe('Stop processing');
+    expect(call.cancelIcon).toBe('stop');
     expect(call.choices.map((c) => c.value)).toEqual(['allow_lockout', 'allow_lockout_all', 'skip', 'skip_all']);
+    expect(call.choices.every((c) => typeof c.description === 'string' && c.description.length > 0)).toBe(true);
     await waitFor(() => expect(answered).toHaveBeenCalledWith('allow_lockout_all'));
+  });
+
+  it('keeps single-target failures inline in the editor without showing the batch results screen', async () => {
+    controls.applySnapshot = (roots) => ({
+      phase: 'stopped',
+      started: true,
+      stopReason: { kind: 'stopped' },
+      results: [{
+        target: roots[0],
+        status: 'failed',
+        problem: {
+          kind: 'self_lockout',
+          diagnostics: [{ code: 'SELF_LOCKOUT', severity: 'warning', message: 'Caller loses WRITE_DACL' }],
+        },
+      }],
+      runCompleted: 1,
+      runTotal: 1,
+    });
+
+    setup({ targets: [targets[0]] });
+    await initialized();
+    await fireEvent.click(screen.getByRole('switch', { name: 'Inherit rules from parent object' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Caller loses WRITE_DACL'));
+    expect(screen.queryByRole('button', { name: 'Back to editing' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /All results/ })).toBeNull();
+    expect(floatingProgressStore.entries).toHaveLength(0);
+  });
+
+  it('renders interactive filter pills, status badges, and unified footer recovery for multi-target runs', async () => {
+    controls.applySnapshot = (roots) => ({
+      phase: 'paused',
+      started: true,
+      results: [
+        { target: roots[0], status: 'success' },
+        { target: roots[1], status: 'failed', problem: { kind: 'denied' } },
+      ],
+      runCompleted: 2,
+      runTotal: 2,
+    });
+
+    const view = setup();
+    await initialized('Documents');
+    await fireEvent.click(screen.getByRole('switch', { name: 'Inherit rules from parent object' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    const allPill = await screen.findByRole('button', { name: /All results/ });
+    const failedPill = screen.getByRole('button', { name: /Failed/ });
+    const succeededPill = screen.getByRole('button', { name: /Succeeded/ });
+    expect(allPill.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Documents')).toBeTruthy();
+    expect(screen.getByText('Report.txt')).toBeTruthy();
+    expect(floatingProgressStore.entries).toHaveLength(0);
+
+    await fireEvent.click(failedPill);
+    expect(failedPill.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByText('Documents')).toBeNull();
+    expect(screen.getByText('Report.txt')).toBeTruthy();
+
+    await fireEvent.click(succeededPill);
+    expect(screen.getByText('Documents')).toBeTruthy();
+    expect(screen.queryByText('Report.txt')).toBeNull();
+
+    const unconfirmedPill = screen.getByRole('button', { name: /Unconfirmed/ });
+    await fireEvent.click(unconfirmedPill);
+    expect(unconfirmedPill.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.batch-rules-results')).toBeNull();
+    const emptyState = document.querySelector('.batch-rules-empty');
+    expect(emptyState).not.toBeNull();
+    expect(within(emptyState as HTMLElement).getByText('No results match this filter.')).toBeTruthy();
+    await fireEvent.click(within(emptyState as HTMLElement).getByRole('button', { name: 'All results' }));
+    expect(allPill.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.batch-rules-results')).not.toBeNull();
+    expect(document.querySelector('.batch-rules-empty')).toBeNull();
+
+    const retryBtn = screen.getByRole('button', { name: 'Retry failed objects' });
+    await fireEvent.click(retryBtn);
+    await waitFor(() => expect(controls.retryFailed).toHaveBeenCalledOnce());
+    await waitFor(() => expect(view.onApplied).toHaveBeenCalledTimes(2));
   });
 
   it('disposes native execution when the dialog is unmounted', async () => {

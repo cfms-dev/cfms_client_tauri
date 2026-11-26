@@ -145,6 +145,7 @@ export const ICON_MAP = {
   "pushPin": "pin",
   "contactCard": "contact_card",
   "personKey": "person_key",
+  "stop": "stop",
   "stopTransfer": "stop",
   "removeTransferRecord": "document_dismiss",
   "clearTransferRecords": "broom",

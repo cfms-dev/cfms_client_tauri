@@ -8,6 +8,7 @@
   import type { UpdateNotificationCopy } from '$lib/features/updates/update-notifications';
   import { openUrl } from '$lib/shared/platform/native-opener';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
+  import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
   import { flyScale } from '$lib/shared/motion/transitions';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MarkdownView from '$lib/shared/ui/MarkdownView.svelte';
@@ -41,6 +42,11 @@
     promptedVersion = update.version;
     localStorage.setItem(promptedVersionKey, update.version);
     visible = true;
+  });
+
+  $effect(() => {
+    if (!visible || !update) return;
+    return chromeStore.registerModal();
   });
 
   function closePrompt() {

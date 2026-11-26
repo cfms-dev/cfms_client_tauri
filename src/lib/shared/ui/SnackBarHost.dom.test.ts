@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
-import { tick } from 'svelte';
+import { createRawSnippet, tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '$lib/shared/i18n';
+import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
 import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
 import { chromeStore } from "$lib/shared/ui/chrome-state.svelte.ts";
 import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
@@ -10,6 +11,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 import { stubInstantAnimations, stubMatchMedia } from '../../../test/dom-fixtures';
 
 vi.mock('$lib/shared/motion/transitions', () => ({
+  flyScale: () => ({ duration: 0 }),
   snackbarMotion: () => ({ duration: 0 }),
   snackbarReflow: () => ({ duration: 0 }),
 }));
@@ -247,5 +249,32 @@ describe('shared floating notifications', () => {
     expect(notificationStore.entries.map((entry) => entry.text)).toEqual(['Timed']);
     expect(document.querySelector('.snackbar-host')).toBeNull();
     expect(chromeStore.snackbarStackHeight).toBe(0);
+  });
+
+  it('suppresses floating progress cards while any ModalFrame is open while keeping notifications visible', async () => {
+    const body = createRawSnippet(() => ({ render: () => '<p>Modal body</p>' }));
+    render(SnackBarHost);
+    floatingProgressStore.upsert('bg-task', 'Setting permissions', 'Working…', 0, 0);
+    notificationStore.error('Modal alert');
+    await advance(1000);
+    expect(screen.getByText('Setting permissions')).toBeTruthy();
+    expect(screen.getByText('Modal alert')).toBeTruthy();
+
+    const firstModal = render(ModalFrame, { props: { title: 'Outer modal', onClose: vi.fn(), children: body } });
+    await tick();
+    expect(screen.queryByText('Setting permissions')).toBeNull();
+    expect(screen.getByText('Modal alert')).toBeTruthy();
+
+    const secondModal = render(ModalFrame, { props: { title: 'Inner modal', onClose: vi.fn(), children: body } });
+    await tick();
+    expect(screen.queryByText('Setting permissions')).toBeNull();
+
+    firstModal.unmount();
+    await tick();
+    expect(screen.queryByText('Setting permissions')).toBeNull();
+
+    secondModal.unmount();
+    await tick();
+    expect(screen.getByText('Setting permissions')).toBeTruthy();
   });
 });

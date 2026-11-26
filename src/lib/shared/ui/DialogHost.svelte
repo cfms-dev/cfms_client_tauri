@@ -129,7 +129,7 @@
               )}
               onclick={() => choose(choice.value)}
 
-              class={(`choice-action choice-action--${choice.intent ?? 'neutral'} ${index > 0 ? 'choice-action--divided' : ''}`)}
+              class={`choice-action choice-action--${choice.intent ?? 'neutral'}${choice.description ? '' : ' choice-action--compact'}${index > 0 ? ' choice-action--divided' : ''}`}
             >
               <span class="choice-action-icon">
                 <Icon name={choice.icon ?? (choice.intent === 'danger' ? 'refresh' : 'block')} size="22px" />
@@ -168,6 +168,9 @@
         {/if}
         <div class={dialogStore.current.kind === 'choice' ? 'choice-footer-actions' : 'flex justify-end gap-2'}>
           <DialogActionButton onclick={close}>
+            {#if dialogStore.current.cancelIcon}
+              <Icon name={dialogStore.current.cancelIcon} size={16} />
+            {/if}
             {dialogStore.current.cancelLabel ?? $t('common.cancel')}
           </DialogActionButton>
           {#if dialogStore.current.kind !== 'choice'}
@@ -298,12 +301,12 @@
   :global(.choice-action[data-fluent-owner="lib-components-dialog-host"]) {
     display: grid;
     width: 100%;
-    min-height: 4.125rem;
+    min-height: 3.75rem;
     grid-template-columns: 2.25rem minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     border: 0;
-    padding: 0.75rem;
+    padding: 0.625rem 0.75rem;
     color: var(--color-md3-on-surface);
     background: transparent;
     text-align: left;
@@ -312,6 +315,17 @@
       color 120ms ease,
       background-color 120ms ease,
       box-shadow 120ms ease;
+  }
+
+  :global(.choice-action--compact[data-fluent-owner="lib-components-dialog-host"]) {
+    min-height: 3rem;
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .choice-action--compact .choice-action-icon {
+    width: 2rem;
+    height: 2rem;
   }
 
   :global(.choice-action--divided[data-fluent-owner="lib-components-dialog-host"]) {
@@ -336,14 +350,14 @@
   .choice-action-label {
     font-size: 14px;
     font-weight: 600;
-    line-height: 1.35;
+    line-height: 20px;
   }
 
   .choice-action-description {
-    margin-top: 0.2rem;
+    margin-top: 2px;
     color: var(--color-md3-on-surface-variant);
     font-size: 12px;
-    line-height: 1.45;
+    line-height: 16px;
   }
 
   :global(.choice-action-arrow) {
@@ -484,8 +498,13 @@
 
   @media (pointer: coarse) {
     :global(.choice-action[data-fluent-owner="lib-components-dialog-host"]) {
-      min-height: 4.75rem;
-      padding-block: 0.875rem;
+      min-height: 4.25rem;
+      padding-block: 0.75rem;
+    }
+
+    :global(.choice-action--compact[data-fluent-owner="lib-components-dialog-host"]) {
+      min-height: 3.25rem;
+      padding-block: 0.625rem;
     }
 
     .choice-apply-all {

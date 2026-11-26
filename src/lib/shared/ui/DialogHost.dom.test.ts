@@ -136,4 +136,35 @@ describe('DialogHost choice dialog', () => {
     await expect(resolution).resolves.toBeNull();
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
+
+  it('uses compact choice styling only when a choice has no description', () => {
+    void dialogStore.choose({
+      title: 'Action choice',
+      message: 'Choose an action.',
+      choices: [
+        { value: 'described', label: 'Described action', description: 'Explains the outcome.' },
+        { value: 'plain', label: 'Plain action' },
+      ],
+      cancelLabel: 'Cancel',
+    });
+
+    render(DialogHost);
+
+    expect(screen.getByRole('button', { name: /Described action/ }).classList.contains('choice-action--compact')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Plain action' }).classList.contains('choice-action--compact')).toBe(true);
+  });
+
+  it('renders an optional cancelIcon inside the cancel button', () => {
+    void dialogStore.choose({
+      title: 'Action choice',
+      message: 'Choose an action.',
+      choices: [{ value: 'skip', label: 'Skip' }],
+      cancelLabel: 'Stop processing',
+      cancelIcon: 'stop',
+    });
+
+    render(DialogHost);
+    const cancelBtn = screen.getByRole('button', { name: 'Stop processing' });
+    expect(cancelBtn.querySelector('[data-icon="stop"]')).toBeTruthy();
+  });
 });
