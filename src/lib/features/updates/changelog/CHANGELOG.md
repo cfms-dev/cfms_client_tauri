@@ -4,6 +4,36 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.61.0
+**Released on:** 2026-11-26
+
+**Title:** Protocol Version 30; App Home Redesign
+
+### Added
+- Implement collapsible home panels during preview mode
+- Re-design main page
+- Enhance dialog and snackbar components with modal handling and icon support
+- Enhance Access Rules Manager with diagnostics and character limit warnings
+- Add CACL formatter and code editor context menu
+- Add CACL editor theme, model, and presets
+- Enhance key management UI with new icons and trust badges
+- Enhance UI with icon buttons and improve accessibility
+- Add impeccable launcher and configuration files
+- Implement managed authentication keys with Android Keystore and TPM support
+- Enhance managed key support and UI improvements
+- Implement protocol 31 client adaptation and audit filters
+
+### Fixed
+- Fix tooltip hierarchy and style for lint markers in CACL editor
+- Enhance dialog titles and labels with localization support
+- Move validation functions prior to test blocks; merge nested `if` statements
+- Remove description and unsaved changes messages from English and Chinese translations
+
+### Maintenance
+- Upgrade dependencies
+
+--- 
+
 ## v0.60.0
 **Released on:** 2026-11-13
 
