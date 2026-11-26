@@ -82,20 +82,21 @@ beforeEach(() => {
     favorites: [],
   });
   mocks.searchFiles.mockReset().mockResolvedValue({
-    documents: [
+    items: [
       {
+        type: 'directory',
+        id: 'dir-sys',
+        name: 'System Folder',
+        parent_id: 'parent-folder-1',
+        created_time: 1_791_389_663,
+      },
+      {
+        type: 'document',
         id: 'doc-hello',
         title: 'Hello World',
         parent_id: 'parent-folder-1',
         size: 365_803,
         last_modified: 1_795_586_521,
-      },
-    ],
-    directories: [
-      {
-        id: 'dir-sys',
-        name: 'System Folder',
-        created_time: 1_791_389_663,
       },
     ],
     total_count: 2,
@@ -190,10 +191,22 @@ describe('OverviewPage redesign', () => {
     await vi.waitFor(() => expect(root.classList.contains('home-overview--preview')).toBe(true));
     expect(container.querySelector('#home-search-preview-list')).not.toBeNull();
 
-    // Submit in search mode: opens the ServerSearchDialog directly on the Home page
+    // Submit in search mode: opens the in-pane ServerSearchView directly on the Home page
     const submitBtn = container.querySelector<HTMLButtonElement>('[data-home-submit]')!;
     await fireEvent.click(submitBtn);
-    await vi.waitFor(() => expect(screen.getByRole('dialog', { name: 'Search Files' })).toBeTruthy());
+    await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-search-count]')?.textContent).toContain('2 results'),
+    );
+
+    // Consecutive results sharing parent-folder-1 are merged under one clickable parent heading
+    const groupHeaders = container.querySelectorAll('[data-search-group-header]');
+    expect(groupHeaders).toHaveLength(1);
+    expect(groupHeaders[0].getAttribute('data-search-group-header')).toBe('parent-folder-1');
+
+    // Clicking back returns cleanly to the Overview view
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('[data-search-back]')!);
+    await vi.waitFor(() => expect(container.querySelector('.home-overview')).not.toBeNull());
   });
 
   it('navigates to folder or document parent when clicking a search preview item', async () => {

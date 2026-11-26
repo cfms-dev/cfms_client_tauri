@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -17,7 +17,15 @@
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import HomeRecordPanel from '$lib/features/files/HomeRecordPanel.svelte';
-  import ServerSearchDialog, { type SearchResultRow } from '$lib/features/files/ServerSearchDialog.svelte';
+  import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
+  import {
+    mergeSearchResponses,
+    toSearchResultRows,
+    type SearchResultRow,
+  } from '$lib/features/files/search-grouping';
+  import {
+    createServerSearchController,
+  } from '$lib/features/files/server-search-controller.svelte.ts';
   import { normalizeDirectoryId, ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
   import {
     clearFavoriteRecords,
@@ -34,7 +42,6 @@
     type RecentFileRecord,
   } from '$lib/features/files/file-preferences';
   import { canSearchFiles } from '$lib/features/files/search-permissions';
-  import type { SortDirection, SortField } from '$lib/features/files/sorting';
   import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
   import { eventLog } from '$lib/features/diagnostics/event-log.svelte.ts';
   import { fileShortcutValidationStore } from '$lib/features/files/shortcut-state.svelte.ts';
@@ -45,7 +52,6 @@
   import { shortIdentifier } from '$lib/shared/format/identifiers';
   import { formatBytes, formatDate, formatError } from '$lib/shared/format/values';
 
-  const SERVER_SEARCH_PAGE_SIZE = 128;
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
   const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
   const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
@@ -66,12 +72,11 @@
   let panelsExitTop = $state<number | null>(null);
   let panelsCollapsed = $state(false);
   let boxInput = $state<HTMLInputElement | null>(null);
-  let searchDialogInput = $state<HTMLInputElement | null>(null);
+  let searchViewInput = $state<HTMLInputElement | null>(null);
   let jumping = $state(false);
 
   let searchDeniedByServer = $state(false);
   let previousPermissionSnapshotRevision = -1;
-  let searchRunId = 0;
   let searchPreviewRunId = 0;
   let searchPreviewActiveIndex = $state(-1);
   let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -92,28 +97,6 @@
     error: null,
   });
 
-  let searchDialog = $state<{
-    open: boolean;
-    query: string;
-    resultQuery: string;
-    searchDocuments: boolean;
-    searchDirectories: boolean;
-    sortBy: SortField;
-    sortOrder: SortDirection;
-    loading: boolean;
-    results: SearchFilesResponse | null;
-  }>({
-    open: false,
-    query: '',
-    resultQuery: '',
-    searchDocuments: true,
-    searchDirectories: true,
-    sortBy: 'name',
-    sortOrder: 'asc',
-    loading: false,
-    results: null,
-  });
-
   const serverTitle = $derived(serverStateStore.serverName?.trim() || 'CFMS Server');
   const hasSearchPermission = $derived(canSearchFiles(authStore.permissions));
   const canUseServerSearch = $derived(hasSearchPermission && !searchDeniedByServer);
@@ -123,23 +106,19 @@
     activeMode === 'search' && canUseServerSearch && hasQuery && !previewDismissed,
   );
 
-  const searchPreviewRows = $derived.by<SearchResultRow[]>(() => {
-    if (!searchPreview.results) return [];
-    return buildSearchResultRows(searchPreview.results);
+  const searchView = createServerSearchController({
+    canSearch: () => canUseServerSearch,
+    onEmptyQuery: () => notificationStore.error($t('files.searchQueryRequired')),
+    onError: (err) => notificationStore.error(formatError(err)),
+    onPermissionDenied: () => {
+      searchDeniedByServer = true;
+      notificationStore.warning($t('files.searchPermissionRequired'), 5000);
+    },
   });
 
-  function buildSearchResultRows(results: SearchFilesResponse): SearchResultRow[] {
-    return [
-      ...results.directories.map((directory) => ({
-        kind: 'directory' as const,
-        directory,
-      })),
-      ...results.documents.map((document) => ({
-        kind: 'document' as const,
-        document,
-      })),
-    ];
-  }
+  const searchPreviewRows = $derived.by<SearchResultRow[]>(() =>
+    toSearchResultRows(searchPreview.results),
+  );
 
   $effect(() => {
     const allowedBySnapshot = hasSearchPermission;
@@ -155,7 +134,7 @@
       if (allowedBySnapshot && !deniedByServer) return;
       clearSearchPreviewDebounce();
       searchPreviewRunId += 1;
-      searchRunId += 1;
+      searchView.closeSearch();
       searchPreview = {
         ...searchPreview,
         loading: false,
@@ -163,7 +142,6 @@
         results: null,
         error: null,
       };
-      searchDialog = { ...searchDialog, open: false, loading: false };
       searchPreviewActiveIndex = -1;
     });
   });
@@ -197,48 +175,49 @@
     }
   });
 
-  onMount(() => {
-    if (!stageElement || !overviewElement || typeof ResizeObserver === 'undefined') return;
+  $effect(() => {
+    const stage = stageElement;
+    const overview = overviewElement;
+    if (!stage || !overview || typeof ResizeObserver === 'undefined') return;
 
-    const scrollContainer = overviewElement.parentElement;
-    let previousOverviewHeight = overviewElement.clientHeight;
-    let previousStageTop = stageElement.getBoundingClientRect().top;
+    const scrollContainer = overview.parentElement;
+    let previousOverviewHeight = overview.clientHeight;
+    let previousStageTop = stage.getBoundingClientRect().top;
     let activeAnimation: Animation | null = null;
 
     const handleScroll = () => {
-      if (!stageElement || activeAnimation?.playState === 'running') return;
-      previousStageTop = stageElement.getBoundingClientRect().top;
+      if (activeAnimation?.playState === 'running') return;
+      previousStageTop = stage.getBoundingClientRect().top;
     };
 
     const syncStagePosition = () => {
-      if (!stageElement || !overviewElement) return;
-      const currentOverviewHeight = overviewElement.clientHeight;
+      const currentOverviewHeight = overview.clientHeight;
 
       if (
         isReducedMotionEnabled()
-        || typeof stageElement.animate !== 'function'
+        || typeof stage.animate !== 'function'
         || currentOverviewHeight !== previousOverviewHeight
       ) {
         previousOverviewHeight = currentOverviewHeight;
         activeAnimation?.cancel();
         activeAnimation = null;
-        previousStageTop = stageElement.getBoundingClientRect().top;
+        previousStageTop = stage.getBoundingClientRect().top;
         return;
       }
 
       const animationRunning = activeAnimation?.playState === 'running';
-      const visualTop = stageElement.getBoundingClientRect().top;
+      const visualTop = stage.getBoundingClientRect().top;
 
       activeAnimation?.cancel();
       activeAnimation = null;
 
-      const layoutTop = stageElement.getBoundingClientRect().top;
+      const layoutTop = stage.getBoundingClientRect().top;
       const delta = (animationRunning ? visualTop : previousStageTop) - layoutTop;
       previousStageTop = layoutTop;
 
       if (Math.abs(delta) < 0.5) return;
 
-      activeAnimation = stageElement.animate(
+      activeAnimation = stage.animate(
         [
           { transform: `translate3d(0, ${delta}px, 0)` },
           { transform: 'translate3d(0, 0, 0)' },
@@ -258,8 +237,8 @@
     };
 
     const observer = new ResizeObserver(syncStagePosition);
-    observer.observe(stageElement);
-    observer.observe(overviewElement);
+    observer.observe(stage);
+    observer.observe(overview);
     scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
@@ -293,7 +272,7 @@
       panelsCollapseTimer = null;
     }
     searchPreviewRunId += 1;
-    searchRunId += 1;
+    searchView.cancel();
   });
 
   function clearSearchPreviewDebounce() {
@@ -470,7 +449,7 @@
       searchPreview.results =
         reset || !searchPreview.results
           ? page
-          : mergeSearchResults(searchPreview.results, page);
+          : mergeSearchResponses(searchPreview.results, page);
       searchPreview.loading = false;
       searchPreview.loadingMore = false;
       searchPreview.error = null;
@@ -517,132 +496,41 @@
   function handleSearchPermissionError(searchError: unknown): boolean {
     if (serverErrorStatus(searchError) !== 403) return false;
     searchDeniedByServer = true;
-    closeSearchDialog();
+    searchView.closeSearch();
     notificationStore.warning($t('files.searchPermissionRequired'), 5000);
     return true;
   }
 
-  function searchSortByParam(field: SortField) {
-    return field === 'modified' ? 'last_modified' : field;
-  }
-
-  function emptySearchResults(): SearchFilesResponse {
-    return {
-      documents: [],
-      directories: [],
-      total_count: 0,
-      page_size: SERVER_SEARCH_PAGE_SIZE,
-      next_cursor: null,
-      has_more: false,
-    };
-  }
-
-  function mergeSearchResults(
-    previous: SearchFilesResponse,
-    page: SearchFilesResponse,
-  ): SearchFilesResponse {
-    return {
-      ...page,
-      documents: [...previous.documents, ...page.documents],
-      directories: [...previous.directories, ...page.directories],
-      total_count: previous.total_count + page.total_count,
-    };
-  }
-
-  function openSearchDialog(runImmediately = false) {
+  function openSearchView(runImmediately = false) {
     if (!canUseServerSearch) return;
     const initialQuery = query.trim() ? query.trim() : searchPreview.query;
-    searchDialog.open = true;
-    searchDialog.query = initialQuery;
-    searchDialog.resultQuery = '';
-    searchDialog.searchDocuments = true;
-    searchDialog.searchDirectories = true;
-    searchDialog.sortBy = 'name';
-    searchDialog.sortOrder = 'asc';
-    searchDialog.loading = false;
-    searchDialog.results = null;
+    searchView.openSearch({
+      query: initialQuery,
+      filter: 'all',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      runImmediately,
+    });
+  }
 
-    if (runImmediately && initialQuery) {
-      void runServerSearch();
+  function closeSearchView(restoreFocus = true) {
+    searchView.closeSearch();
+    if (restoreFocus) {
+      void tick().then(() => boxInput?.focus({ preventScroll: true }));
     }
   }
 
-  function closeSearchDialog() {
-    searchRunId += 1;
-    searchDialog = { ...searchDialog, open: false, loading: false };
-  }
-
-  function setSearchDialogSort(field: SortField) {
-    if (searchDialog.sortBy === field) return;
-    searchDialog.sortBy = field;
-    rerunSearchDialogIfReady();
-  }
-
-  function toggleSearchDialogSortOrder() {
-    searchDialog.sortOrder = searchDialog.sortOrder === 'asc' ? 'desc' : 'asc';
-    rerunSearchDialogIfReady();
-  }
-
-  function rerunSearchDialogIfReady() {
-    if (!searchDialog.query.trim()) return;
-    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) return;
-    void runServerSearch();
-  }
-
-  async function runServerSearch() {
-    if (!canUseServerSearch) return;
-    const trimmed = searchDialog.query.trim();
-    if (!trimmed) {
-      notificationStore.error($t('files.searchQueryRequired'));
-      return;
-    }
-    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) {
-      notificationStore.error($t('files.searchTypeRequired'));
-      return;
-    }
-
-    const runId = ++searchRunId;
-    const searchDocuments = searchDialog.searchDocuments;
-    const searchDirectories = searchDialog.searchDirectories;
-    const sortBy = searchSortByParam(searchDialog.sortBy);
-    const sortOrder = searchDialog.sortOrder;
-    let cursor: string | null = null;
-    let combined = emptySearchResults();
-
-    searchDialog = { ...searchDialog, resultQuery: trimmed, loading: true, results: null };
-    try {
-      while (true) {
-        const results = await searchFiles(trimmed, {
-          pageSize: SERVER_SEARCH_PAGE_SIZE,
-          cursor,
-          sortBy,
-          sortOrder,
-          searchDocuments,
-          searchDirectories,
-        });
-        if (runId !== searchRunId) return;
-
-        combined = mergeSearchResults(combined, results);
-        searchDialog = { ...searchDialog, results: combined, loading: results.has_more };
-
-        if (!results.has_more) break;
-        cursor = results.next_cursor;
-        if (!cursor) {
-          throw new Error('Server reported more search results without a cursor.');
-        }
-      }
-
-      searchDialog = { ...searchDialog, loading: false, results: combined };
-    } catch (e) {
-      if (runId !== searchRunId) return;
-      searchDialog = { ...searchDialog, loading: false };
-      if (handleSearchPermissionError(e)) return;
-      notificationStore.error(formatError(e));
-    }
+  async function navigateToSearchParentDirectory(parentId: string) {
+    closeSearchView(false);
+    const parent = normalizeDirectoryId(parentId);
+    const params = new URLSearchParams({
+      folder: parent ?? ROOT_DIRECTORY_ID,
+    });
+    await goto(`/home/files?${params.toString()}`);
   }
 
   async function navigateToSearchDirectory(directory: SearchDirectoryEntry) {
-    closeSearchDialog();
+    closeSearchView(false);
     recent = await rememberVisit(currentFilePreferenceScope(), directoryToRecord(directory, null));
     const params = new URLSearchParams({
       folder: directory.id,
@@ -652,7 +540,7 @@
   }
 
   async function navigateToSearchDocument(document: SearchDocumentEntry) {
-    closeSearchDialog();
+    closeSearchView(false);
     const parent = normalizeDirectoryId(document.parent_id);
     const docName = document.name ?? document.title ?? '';
     const params = new URLSearchParams({
@@ -666,7 +554,7 @@
     event.preventDefault();
     if (!hasQuery) return;
     if (activeMode === 'search') {
-      openSearchDialog(true);
+      openSearchView(true);
       return;
     }
     await handleJumpSubmit();
@@ -789,6 +677,25 @@
   }
 </script>
 
+{#if searchView.open}
+  <ServerSearchView
+    bind:query={searchView.query}
+    bind:inputElement={searchViewInput}
+    resultQuery={searchView.resultQuery}
+    filter={searchView.filter}
+    sortBy={searchView.sortBy}
+    sortOrder={searchView.sortOrder}
+    loading={searchView.loading}
+    results={searchView.results}
+    onClose={() => closeSearchView(true)}
+    onSubmit={searchView.runSearch}
+    onFilterChange={searchView.setFilter}
+    onSelectSort={searchView.selectSort}
+    onSelectParentDirectory={navigateToSearchParentDirectory}
+    onSelectDirectory={navigateToSearchDirectory}
+    onSelectDocument={navigateToSearchDocument}
+  />
+{:else}
 <div
   class="workspace-page home-overview"
   class:home-overview--preview={previewActive}
@@ -974,25 +881,7 @@
     </div>
   </div>
 </div>
-
-<ServerSearchDialog
-  open={searchDialog.open}
-  bind:query={searchDialog.query}
-  bind:inputElement={searchDialogInput}
-  resultQuery={searchDialog.resultQuery}
-  bind:searchDocuments={searchDialog.searchDocuments}
-  bind:searchDirectories={searchDialog.searchDirectories}
-  sortBy={searchDialog.sortBy}
-  sortOrder={searchDialog.sortOrder}
-  loading={searchDialog.loading}
-  results={searchDialog.results}
-  onClose={closeSearchDialog}
-  onSubmit={runServerSearch}
-  onSortField={setSearchDialogSort}
-  onToggleSortOrder={toggleSearchDialogSortOrder}
-  onSelectDirectory={navigateToSearchDirectory}
-  onSelectDocument={navigateToSearchDocument}
-/>
+{/if}
 
 <style>
   .home-overview {

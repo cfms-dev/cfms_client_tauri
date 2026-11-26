@@ -384,12 +384,10 @@ export async function searchFiles(
     searchDocuments: options.searchDocuments ?? true,
     searchDirectories: options.searchDirectories ?? true,
   });
+  const items = data.items ?? [];
   return {
-    documents: data.documents ?? [],
-    directories: data.directories ?? [],
-    total_count:
-      data.total_count
-      ?? ((data.documents?.length ?? 0) + (data.directories?.length ?? 0)),
+    items,
+    total_count: data.total_count ?? items.length,
     page_size: data.page_size ?? options.pageSize ?? 128,
     next_cursor: data.next_cursor ?? null,
     has_more: data.has_more ?? false,

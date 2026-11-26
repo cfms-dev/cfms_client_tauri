@@ -33,7 +33,7 @@ use crate::AppHandleState;
 use cfms_core::CursorPage;
 use cfms_core::ServiceEvent;
 use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
-use cfms_service::files::split_search_page;
+use cfms_service::files::normalize_search_page;
 use cfms_service::transfers::collect_directory_entries;
 use cfms_service::transfers::relative_upload_path;
 use cfms_service::transfers::upload_retry_delay;
@@ -951,7 +951,7 @@ pub async fn search_files(
     let page: CursorPage<serde_json::Value> =
         serde_json::from_value(raw).map_err(|e| format!("Invalid search response: {e}"))?;
 
-    Ok(split_search_page(page))
+    Ok(normalize_search_page(page))
 }
 
 // ---------------------------------------------------------------------------

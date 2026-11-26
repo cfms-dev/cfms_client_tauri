@@ -77,21 +77,20 @@ pub fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingC
     target.documents.extend(split.documents);
 }
 
-pub fn split_search_page(mut page: CursorPage<serde_json::Value>) -> serde_json::Value {
-    let mut documents = Vec::new();
-    let mut directories = Vec::new();
-
-    for item in page.items.drain(..) {
-        match item.get("type").and_then(|value| value.as_str()) {
-            Some("directory") => directories.push(item),
-            Some("document") => documents.push(item),
-            _ => {}
-        }
-    }
+pub fn normalize_search_page(mut page: CursorPage<serde_json::Value>) -> serde_json::Value {
+    let items: Vec<serde_json::Value> = page
+        .items
+        .drain(..)
+        .filter(|item| {
+            matches!(
+                item.get("type").and_then(|value| value.as_str()),
+                Some("directory" | "document")
+            )
+        })
+        .collect();
 
     serde_json::json!({
-        "documents": documents,
-        "directories": directories,
+        "items": items,
         "page_size": page.page_size,
         "next_cursor": page.next_cursor,
         "has_more": page.has_more,
@@ -144,8 +143,8 @@ pub fn validate_node_lookup_response(
 mod protocol_v15_tests {
     use super::*;
     use crate::files::{
-        directory_page_size, parse_listing_page_dto, split_listing_page, split_listing_page_dto,
-        split_search_page,
+        directory_page_size, normalize_search_page, parse_listing_page_dto, split_listing_page,
+        split_listing_page_dto,
     };
     use crate::transfers::{relative_upload_path, suffixed_upload_name};
 
@@ -217,12 +216,14 @@ mod protocol_v15_tests {
     }
 
     #[test]
-    fn split_search_page_preserves_cursor_metadata() {
+    fn normalize_search_page_preserves_item_order_and_cursor_metadata() {
         let page: CursorPage<serde_json::Value> = serde_json::from_str(
             r#"{
                 "items": [
-                    { "type": "directory", "id": "dir", "name": "Folder" },
-                    { "type": "document", "id": "doc", "name": "File", "size": 5 }
+                    { "type": "document", "id": "doc-1", "name": "Alpha.txt", "size": 5 },
+                    { "type": "directory", "id": "dir-1", "name": "Beta" },
+                    { "type": "unknown", "id": "ignored" },
+                    { "type": "document", "id": "doc-2", "name": "Gamma.txt", "size": 9 }
                 ],
                 "page_size": 64,
                 "next_cursor": "cursor",
@@ -231,13 +232,16 @@ mod protocol_v15_tests {
         )
         .unwrap();
 
-        let split = split_search_page(page);
+        let normalized = normalize_search_page(page);
+        let items = normalized["items"].as_array().unwrap();
 
-        assert_eq!(split["directories"].as_array().unwrap().len(), 1);
-        assert_eq!(split["documents"].as_array().unwrap().len(), 1);
-        assert_eq!(split["page_size"], 64);
-        assert_eq!(split["next_cursor"], "cursor");
-        assert_eq!(split["has_more"], true);
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0]["id"], "doc-1");
+        assert_eq!(items[1]["id"], "dir-1");
+        assert_eq!(items[2]["id"], "doc-2");
+        assert_eq!(normalized["page_size"], 64);
+        assert_eq!(normalized["next_cursor"], "cursor");
+        assert_eq!(normalized["has_more"], true);
     }
 
     #[test]

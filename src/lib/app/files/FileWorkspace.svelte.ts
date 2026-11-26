@@ -1,6 +1,5 @@
 import { _ as t } from 'svelte-i18n';
 import { onMount, tick, untrack } from 'svelte';
-import { MediaQuery } from 'svelte/reactivity';
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
@@ -36,8 +35,6 @@ import {
   type ListDirectoryResponse,
   type DirectoryFileConflictResolution,
   type RevisionEntry,
-  type SearchDirectoryEntry,
-  type SearchDocumentEntry,
   type SearchFilesResponse,
   type ServerCaclDiagnostic,
   type UploadConflictStrategy,
@@ -86,6 +83,16 @@ import { DIRECTORY_PAGE_SIZE } from '$lib/features/files/progressive-listing';
 import { DirectoryLoadController, DirectoryRequestTimeoutError } from '$lib/features/files/directory-load-controller';
 import { DirectoryRefreshController } from '$lib/features/files/directory-refresh-controller';
 import { canSearchFiles } from '$lib/features/files/search-permissions';
+import {
+  mergeSearchResponses,
+  toSearchResultRows,
+  type SearchResultRow,
+} from '$lib/features/files/search-grouping';
+import {
+  createServerSearchController,
+  searchFilterFromFlags,
+  searchSortByParam,
+} from '$lib/features/files/server-search-controller.svelte.ts';
 import { isAccessDeniedError, serverAvailability, serverErrorStatus } from '$lib/api/server-errors';
 import {
   FILE_SHORTCUTS,
@@ -123,9 +130,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
 import { startDirectoryDownload } from '$lib/features/transfers/directory-download-controller';
 import { fromStore } from 'svelte/store';
 
-export type SearchResultRow =
-  | { kind: 'directory'; directory: SearchDirectoryEntry }
-  | { kind: 'document'; document: SearchDocumentEntry };
+export type { SearchResultRow };
 
 export type PendingUploadConflict = UploadCandidate & {
   directoryPath?: string;
@@ -154,8 +159,6 @@ export type FileListIndex = {
 /** Per-view workflow; reusable business rules live in features. */
 export function createFileWorkspace() {
   const translator = fromStore(t);
-
-  const SERVER_SEARCH_PAGE_SIZE = 128;
 
   const SEARCH_PREVIEW_PAGE_SIZE = 24;
 
@@ -197,11 +200,7 @@ export function createFileWorkspace() {
 
   let searchInput = $state<HTMLInputElement | null>(null);
 
-  let searchDialogInput = $state<HTMLInputElement | null>(null);
-
-  const searchCoarsePointer = new MediaQuery('(pointer: coarse)', false);
-
-  const searchRowHeight = $derived(searchCoarsePointer.current ? 48 : 40);
+  let searchViewInput = $state<HTMLInputElement | null>(null);
 
   let searchPreviewRoot = $state<HTMLDivElement | null>(null);
 
@@ -363,8 +362,6 @@ export function createFileWorkspace() {
     tags: string[];
   } | null>(null);
 
-  let searchRunId = 0;
-
   let searchPreviewRunId = 0;
 
   let searchPreviewActiveIndex = $state(-1);
@@ -394,28 +391,6 @@ export function createFileWorkspace() {
   let lastDropBatchSignature = '';
 
   let lastDropBatchAt = 0;
-
-  let searchDialog = $state<{
-    open: boolean;
-    query: string;
-    resultQuery: string;
-    searchDocuments: boolean;
-    searchDirectories: boolean;
-    sortBy: SortField;
-    sortOrder: SortDirection;
-    loading: boolean;
-    results: SearchFilesResponse | null;
-  }>({
-    open: false,
-    query: '',
-    resultQuery: '',
-    searchDocuments: true,
-    searchDirectories: true,
-    sortBy: 'name',
-    sortOrder: 'asc',
-    loading: false,
-    results: null,
-  });
 
   let searchPreview = $state<{
     open: boolean;
@@ -524,17 +499,9 @@ export function createFileWorkspace() {
     revisionRows.reduce((width, row) => Math.max(width, graphWidth(row)), 40),
   );
 
-  const searchResultRows = $derived.by<SearchResultRow[]>(() => {
-    if (!searchDialog.results) return [];
-
-    return buildSearchResultRows(searchDialog.results);
-  });
-
-  const searchPreviewRows = $derived.by<SearchResultRow[]>(() => {
-    if (!searchPreview.results) return [];
-
-    return buildSearchResultRows(searchPreview.results);
-  });
+  const searchPreviewRows = $derived.by<SearchResultRow[]>(() =>
+    toSearchResultRows(searchPreview.results),
+  );
 
   const searchPreviewHasQuery = $derived(searchQuery.trim().length > 0);
 
@@ -546,6 +513,21 @@ export function createFileWorkspace() {
 
   const canUseServerSearch = $derived(hasSearchPermission && !searchDeniedByServer);
 
+  const searchView = createServerSearchController({
+    canSearch: () => canUseServerSearch,
+    onEmptyQuery: () => {
+      error = translator.current('files.searchQueryRequired');
+    },
+    onError: (err) => {
+      error = formatError(err);
+    },
+    onPermissionDenied: () => {
+      searchDeniedByServer = true;
+      closeSearchPreview();
+      notificationStore.warning(translator.current('files.searchPermissionRequired'), 5000);
+    },
+  });
+
   const searchPreviewCanSearch = $derived(
     canUseServerSearch
     && searchPreviewHasQuery
@@ -555,23 +537,6 @@ export function createFileWorkspace() {
   const searchPreviewResetKey = $derived(
     `${searchPreview.query}:${searchPreview.sortBy}:${searchPreview.sortOrder}:${searchPreview.searchDocuments}:${searchPreview.searchDirectories}`,
   );
-
-  const searchDialogResetKey = $derived(
-    `${searchDialog.resultQuery}:${searchDialog.sortBy}:${searchDialog.sortOrder}:${searchDialog.searchDocuments}:${searchDialog.searchDirectories}`,
-  );
-
-  function buildSearchResultRows(results: SearchFilesResponse): SearchResultRow[] {
-    return [
-      ...results.directories.map((directory) => ({
-        kind: 'directory' as const,
-        directory,
-      })),
-      ...results.documents.map((document) => ({
-        kind: 'document' as const,
-        document,
-      })),
-    ];
-  }
 
   const uploadActiveCount = $derived(uploadStore.activeTasks.length);
 
@@ -622,8 +587,9 @@ export function createFileWorkspace() {
       if (allowedBySnapshot && !deniedByServer) return;
       clearSearchPreviewDebounce();
       clearSearchPreviewPanelPosition();
+      searchView.cancel();
       searchPreviewRunId += 1;
-      searchRunId += 1;
+      searchView.closeSearch();
       searchPreview = {
         ...searchPreview,
         open: false,
@@ -631,7 +597,6 @@ export function createFileWorkspace() {
         loadingMore: false,
         results: null,
       };
-      searchDialog = { ...searchDialog, open: false, loading: false };
       searchPreviewActiveIndex = -1;
     });
   });
@@ -2998,10 +2963,10 @@ export function createFileWorkspace() {
 
   function focusFilesSearchInput() {
     if (!canUseServerSearch) return;
-    const target = searchDialog.open ? searchDialogInput : searchInput;
+    const target = searchView.open ? searchViewInput : searchInput;
     target?.focus({ preventScroll: true });
     target?.select();
-    if (!searchDialog.open) {
+    if (!searchView.open) {
       openSearchPreview();
     }
   }
@@ -3074,7 +3039,7 @@ export function createFileWorkspace() {
         else void navigateToSearchDocument(row.document);
         return;
       }
-      openSearchDialog(true);
+      openSearchView(true);
     }
   }
 
@@ -3164,7 +3129,7 @@ export function createFileWorkspace() {
       searchPreview.query = query;
       searchPreview.results = reset || !searchPreview.results
         ? page
-        : mergeSearchResults(searchPreview.results, page);
+        : mergeSearchResponses(searchPreview.results, page);
       searchPreview.loading = false;
       searchPreview.loadingMore = false;
       searchPreview.error = null;
@@ -3220,23 +3185,6 @@ export function createFileWorkspace() {
     updateSearchPreviewOptions();
   }
 
-  function setSearchDialogSort(field: SortField) {
-    if (searchDialog.sortBy === field) return;
-    searchDialog.sortBy = field;
-    rerunSearchDialogIfReady();
-  }
-
-  function toggleSearchDialogSortOrder() {
-    searchDialog.sortOrder = searchDialog.sortOrder === 'asc' ? 'desc' : 'asc';
-    rerunSearchDialogIfReady();
-  }
-
-  function rerunSearchDialogIfReady() {
-    if (!searchDialog.query.trim()) return;
-    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) return;
-    void runServerSearch();
-  }
-
   function searchSortLabel(field: SortField) {
     return field === 'name'
       ? translator.current('files.searchSortName')
@@ -3245,128 +3193,58 @@ export function createFileWorkspace() {
         : translator.current('files.searchSortModified');
   }
 
-  function searchSortByParam(field: SortField) {
-    return field === 'modified' ? 'last_modified' : field;
-  }
-
   function searchResultDate(row: SearchResultRow) {
     return row.kind === 'directory'
       ? formatDate(row.directory.created_time)
       : formatDate(row.document.last_modified ?? null);
   }
 
-  function openSearchDialog(runImmediately = false) {
+  function openSearchView(runImmediately = false) {
     if (!canUseServerSearch) return;
     const query = searchQuery.trim() ? searchQuery : searchPreview.query;
     closeSearchPreview();
-    searchDialog.open = true;
-    searchDialog.query = query;
-    searchDialog.resultQuery = '';
-    searchDialog.searchDocuments = searchPreview.searchDocuments;
-    searchDialog.searchDirectories = searchPreview.searchDirectories;
-    searchDialog.sortBy = searchPreview.sortBy;
-    searchDialog.sortOrder = searchPreview.sortOrder;
-    searchDialog.loading = false;
-    searchDialog.results = null;
-
-    if (runImmediately) {
-      void runServerSearch();
-    }
-  }
-
-  function emptySearchResults(): SearchFilesResponse {
-    return {
-      documents: [],
-      directories: [],
-      total_count: 0,
-      page_size: SERVER_SEARCH_PAGE_SIZE,
-      next_cursor: null,
-      has_more: false,
-    };
-  }
-
-  function mergeSearchResults(
-    previous: SearchFilesResponse,
-    page: SearchFilesResponse,
-  ): SearchFilesResponse {
-    return {
-      ...page,
-      documents: [...previous.documents, ...page.documents],
-      directories: [...previous.directories, ...page.directories],
-      total_count: previous.total_count + page.total_count,
-    };
-  }
-
-  async function runServerSearch() {
-    if (!canUseServerSearch) return;
-    const query = searchDialog.query.trim();
-    if (!query) {
-      error = translator.current('files.searchQueryRequired');
-      return;
-    }
-    if (!searchDialog.searchDocuments && !searchDialog.searchDirectories) {
-      error = translator.current('files.searchTypeRequired');
-      return;
-    }
-
-    const runId = ++searchRunId;
-    const searchDocuments = searchDialog.searchDocuments;
-    const searchDirectories = searchDialog.searchDirectories;
-    const sortBy = searchSortByParam(searchDialog.sortBy);
-    const sortOrder = searchDialog.sortOrder;
-    let cursor: string | null = null;
-    let combined = emptySearchResults();
-
-    searchDialog = { ...searchDialog, resultQuery: query, loading: true, results: null };
-    try {
-      while (true) {
-        const results = await searchFiles(query, {
-          pageSize: SERVER_SEARCH_PAGE_SIZE,
-          cursor,
-          sortBy,
-          sortOrder,
-          searchDocuments,
-          searchDirectories,
-        });
-        if (runId !== searchRunId) return;
-
-        combined = mergeSearchResults(combined, results);
-        searchDialog = { ...searchDialog, results: combined, loading: results.has_more };
-
-        if (!results.has_more) break;
-        cursor = results.next_cursor;
-        if (!cursor) {
-          throw new Error('Server reported more search results without a cursor.');
-        }
-      }
-
-      searchDialog = { ...searchDialog, loading: false, results: combined };
-    } catch (e) {
-      if (runId !== searchRunId) return;
-      searchDialog = { ...searchDialog, loading: false };
-      if (handleSearchPermissionError(e)) return;
-      error = formatError(e);
-    }
+    searchView.openSearch({
+      query,
+      filter: searchFilterFromFlags(searchPreview.searchDocuments, searchPreview.searchDirectories),
+      sortBy: searchPreview.sortBy,
+      sortOrder: searchPreview.sortOrder,
+      runImmediately,
+    });
   }
 
   function handleSearchPermissionError(searchError: unknown): boolean {
     if (serverErrorStatus(searchError) !== 403) return false;
     searchDeniedByServer = true;
     closeSearchPreview();
-    closeSearchDialog();
+    closeSearchView(false);
     notificationStore.warning(translator.current('files.searchPermissionRequired'), 5000);
     return true;
   }
 
-  function closeSearchDialog() {
-    searchRunId += 1;
-    searchDialog = { ...searchDialog, open: false, loading: false };
+  function closeSearchView(restoreFocus = true) {
+    searchView.closeSearch();
+    if (restoreFocus) {
+      void tick().then(() => searchInput?.focus({ preventScroll: true }));
+    }
+  }
+
+  async function navigateToSearchParentDirectory(parentId: string) {
+    if (navigationUnavailable) return;
+    closeSearchPreview();
+    closeSearchView(false);
+    const target = normalizeDirectoryId(parentId);
+    await navigateDirectory({
+      folderId: target,
+      navigationRootId: target,
+      navigationRootLabel: target === null ? null : shortIdentifier(target),
+      navHistory: [],
+    });
   }
 
   async function navigateToSearchDirectory(directory: { id: string; name: string }) {
     if (navigationUnavailable) return;
     closeSearchPreview();
-    closeSearchDialog();
+    closeSearchView(false);
     const ok = await navigateDirectory({
       folderId: directory.id, navigationRootId: directory.id, navigationRootLabel: directory.name, navHistory: [],
     });
@@ -3385,7 +3263,7 @@ export function createFileWorkspace() {
   async function navigateToSearchDocument(document: { parent_id?: string | null; name?: string; title?: string }) {
     if (navigationUnavailable) return;
     closeSearchPreview();
-    closeSearchDialog();
+    closeSearchView(false);
     const parent = normalizeDirectoryId(document.parent_id);
     const ok = await navigateDirectory({
       folderId: parent, navigationRootId: parent,
@@ -3699,6 +3577,7 @@ export function createFileWorkspace() {
       unregisterKeyboardCommands();
       clearSearchPreviewDebounce();
       clearSearchPreviewPanelPosition();
+      searchView.cancel();
       if (unlisten) unlisten();
       if (unlistenDragDrop) unlistenDragDrop();
     };
@@ -3725,7 +3604,7 @@ export function createFileWorkspace() {
     get canGoToParent() { return canGoToParent; },
     get canUseServerSearch() { return canUseServerSearch; },
     closeBatchAccessRules,
-    closeSearchDialog,
+    closeSearchView,
     get contextMenu() { return contextMenu; },
     set contextMenu(value) { contextMenu = value; },
     get contextMenuItems() { return contextMenuItems; },
@@ -3800,12 +3679,13 @@ export function createFileWorkspace() {
     set moveTargetDialog(value) { moveTargetDialog = value; },
     navigateToSearchDirectory,
     navigateToSearchDocument,
+    navigateToSearchParentDirectory,
     get navigationRootId() { return navigationRootId; },
     set navigationRootId(value) { navigationRootId = value; },
     get navigationUnavailable() { return navigationUnavailable; },
     get nodeLookupEnabled() { return nodeLookupEnabled; },
-    openSearchDialog,
     openSearchPreview,
+    openSearchView,
     refreshAfterBatchAccessRules,
     refreshDocumentTagsEditorData,
     retryDirectoryLoad,
@@ -3813,13 +3693,7 @@ export function createFileWorkspace() {
     get revisionRows() { return revisionRows; },
     get revisionsDialog() { return revisionsDialog; },
     set revisionsDialog(value) { revisionsDialog = value; },
-    runServerSearch,
     saveDocumentTags,
-    get searchDialog() { return searchDialog; },
-    set searchDialog(value) { searchDialog = value; },
-    get searchDialogInput() { return searchDialogInput; },
-    set searchDialogInput(value) { searchDialogInput = value; },
-    get searchDialogResetKey() { return searchDialogResetKey; },
     get searchInput() { return searchInput; },
     set searchInput(value) { searchInput = value; },
     get searchPreview() { return searchPreview; },
@@ -3837,9 +3711,10 @@ export function createFileWorkspace() {
     get searchQuery() { return searchQuery; },
     set searchQuery(value) { searchQuery = value; },
     searchResultDate,
-    get searchResultRows() { return searchResultRows; },
-    get searchRowHeight() { return searchRowHeight; },
     searchSortLabel,
+    get searchView() { return searchView; },
+    get searchViewInput() { return searchViewInput; },
+    set searchViewInput(value) { searchViewInput = value; },
     get selectMode() { return selectMode; },
     set selectMode(value) { selectMode = value; },
     get selectedDocumentIds() { return selectedDocumentIds; },
@@ -3847,7 +3722,6 @@ export function createFileWorkspace() {
     get selectedFolderIds() { return selectedFolderIds; },
     set selectedFolderIds(value) { selectedFolderIds = value; },
     get selectedItemsLabel() { return selectedItemsLabel; },
-    setSearchDialogSort,
     setSearchPreviewSort,
     setSort,
     showCurrentDirectoryContextMenu,
@@ -3863,7 +3737,6 @@ export function createFileWorkspace() {
     sortTitle,
     get statusBarPrimary() { return statusBarPrimary; },
     get statusBarSecondary() { return statusBarSecondary; },
-    toggleSearchDialogSortOrder,
     toggleSearchPreviewSortOrder,
     updateSearchPreviewOptions,
     get uploadProgress() { return uploadProgress; },

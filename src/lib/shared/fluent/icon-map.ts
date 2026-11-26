@@ -86,6 +86,8 @@ export const ICON_MAP = {
   "arrowStepIn": "arrow_step_in",
   "arrowUpward": "arrow_up",
   "arrowDownward": "arrow_down",
+  "arrowSortUp": "arrow_sort_up",
+  "arrowSortDown": "arrow_sort_down",
   "sortByAlpha": "text_sort_ascending",
   "sort": "arrow_sort_down_lines",
   "swapVert": "arrow_sort",

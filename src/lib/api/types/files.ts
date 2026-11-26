@@ -86,8 +86,7 @@ export type SearchResultItem =
   | ({ type: "document" } & SearchDocumentEntry);
 
 export interface SearchFilesResponse extends CursorPageMeta {
-  documents: SearchDocumentEntry[];
-  directories: SearchDirectoryEntry[];
+  items: SearchResultItem[];
   total_count: number;
 }
 

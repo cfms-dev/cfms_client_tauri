@@ -18,7 +18,7 @@
   import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import MoveTargetDialog from '$lib/features/files/MoveTargetDialog.svelte';
-  import ServerSearchDialog from '$lib/features/files/ServerSearchDialog.svelte';
+  import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
   import { formatBytes, formatDate } from '$lib/shared/format/values';
@@ -31,6 +31,25 @@
   const workspace = createFileWorkspace();
 </script>
 
+{#if workspace.searchView.open}
+  <ServerSearchView
+    bind:query={workspace.searchView.query}
+    bind:inputElement={workspace.searchViewInput}
+    resultQuery={workspace.searchView.resultQuery}
+    filter={workspace.searchView.filter}
+    sortBy={workspace.searchView.sortBy}
+    sortOrder={workspace.searchView.sortOrder}
+    loading={workspace.searchView.loading}
+    results={workspace.searchView.results}
+    onClose={() => workspace.closeSearchView(true)}
+    onSubmit={workspace.searchView.runSearch}
+    onFilterChange={workspace.searchView.setFilter}
+    onSelectSort={workspace.searchView.selectSort}
+    onSelectParentDirectory={workspace.navigateToSearchParentDirectory}
+    onSelectDirectory={workspace.navigateToSearchDirectory}
+    onSelectDocument={workspace.navigateToSearchDocument}
+  />
+{:else}
 <div
   class="files-page relative"
   role="region"
@@ -89,7 +108,7 @@
       <form
         class="files-search-field cfms-field-surface"
         data-search-box
-        onsubmit={(e) => { e.preventDefault(); workspace.openSearchDialog(true); }}
+        onsubmit={(e) => { e.preventDefault(); workspace.openSearchView(true); }}
       >
           <input
             type="text"
@@ -270,7 +289,7 @@
             <FluentButton data-fluent-owner="routes-home-files-page"
               type="button"
               disabled={!workspace.searchPreviewCanSearch}
-              onclick={() => workspace.openSearchDialog(true)}
+              onclick={() => workspace.openSearchView(true)}
               appearance="subtle"
               class="search-preview-action"
             >
@@ -280,7 +299,7 @@
             <FluentButton data-fluent-owner="routes-home-files-page"
               type="button"
               disabled={!workspace.searchPreviewCanSearch}
-              onclick={() => workspace.openSearchDialog(true)}
+              onclick={() => workspace.openSearchView(true)}
               appearance="outline"
               class="search-preview-action"
             >
@@ -391,6 +410,7 @@
     onAction={workspace.retryDirectoryLoad}
   />
 </div>
+{/if}
 
 <style>
   .files-page {
@@ -654,25 +674,6 @@
     onClose={() => (workspace.documentAccessDenied = null)}
   />
 {/if}
-
-<ServerSearchDialog
-  open={workspace.searchDialog.open}
-  bind:query={workspace.searchDialog.query}
-  bind:inputElement={workspace.searchDialogInput}
-  resultQuery={workspace.searchDialog.resultQuery}
-  bind:searchDocuments={workspace.searchDialog.searchDocuments}
-  bind:searchDirectories={workspace.searchDialog.searchDirectories}
-  sortBy={workspace.searchDialog.sortBy}
-  sortOrder={workspace.searchDialog.sortOrder}
-  loading={workspace.searchDialog.loading}
-  results={workspace.searchDialog.results}
-  onClose={workspace.closeSearchDialog}
-  onSubmit={workspace.runServerSearch}
-  onSortField={workspace.setSearchDialogSort}
-  onToggleSortOrder={workspace.toggleSearchDialogSortOrder}
-  onSelectDirectory={workspace.navigateToSearchDirectory}
-  onSelectDocument={workspace.navigateToSearchDocument}
-/>
 
 {#if workspace.detailTitle}
   <ModalFrame title={workspace.detailTitle} maxWidth="max-w-lg" closeLabel={$t('common.close')} onClose={() => (workspace.detailTitle = null)}>
