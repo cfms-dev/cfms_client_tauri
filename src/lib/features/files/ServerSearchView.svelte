@@ -202,7 +202,8 @@
   aria-label={$t('files.searchTitle')}
   onkeydown={handleViewKeydown}
 >
-  <header class="search-view-header">
+  <div class="search-view-stage">
+    <header class="search-view-header">
     <button
       type="button"
       class="search-view-back"
@@ -478,6 +479,7 @@
         <span>{$t('common.loadingEllipsis')}</span>
       </div>
     {/if}
+    </div>
   </div>
 </section>
 
@@ -488,9 +490,18 @@
     min-height: 0;
     width: 100%;
     flex-direction: column;
+    overflow: hidden;
     padding: 16px 28px 0;
     color: var(--colorNeutralForeground1);
     background: transparent;
+  }
+
+  .search-view-stage {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    width: 100%;
+    flex-direction: column;
     animation: search-view-enter 220ms var(--motion-easing-emphasized-decelerate) both;
   }
 
@@ -813,6 +824,7 @@
     min-height: 0;
     flex: 1 1 auto;
     flex-direction: column;
+    overflow: hidden;
     padding-top: 14px;
   }
 
@@ -1047,7 +1059,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .search-view,
+    .search-view-stage,
     .search-view-results-shell,
     .search-sort-arrow {
       animation: none;
@@ -1060,7 +1072,7 @@
     }
   }
 
-  :global(html[data-reduce-motion='true']) .search-view,
+  :global(html[data-reduce-motion='true']) .search-view-stage,
   :global(html[data-reduce-motion='true']) .search-view-results-shell,
   :global(html[data-reduce-motion='true']) .search-sort-arrow {
     animation: none;
