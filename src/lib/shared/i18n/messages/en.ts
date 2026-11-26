@@ -361,7 +361,7 @@ export const en = {
     navigation: 'Workspace navigation',
     toggleNavigation: 'Toggle navigation pane',
     pinned: 'Favorites',
-    allFiles: 'All files',
+    fileManagement: 'File management',
     transfers: 'Transfers',
     recycleBin: 'Recycle bin',
     administration: 'Administration',

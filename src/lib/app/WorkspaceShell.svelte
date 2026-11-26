@@ -89,7 +89,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 
   const primaryNavigation = $derived<WorkspaceNavItem[]>([
     { id: 'home', label: $t('nav.home'), href: '/home/overview', icon: 'home', exact: true },
-    { id: 'files', label: $t('workspace.allFiles'), href: '/home/files', icon: 'folder', exact: true },
+    { id: 'files', label: $t('workspace.fileManagement'), href: '/home/files', icon: 'folder', exact: true },
     { id: 'tasks', label: $t('workspace.transfers'), href: '/home/tasks', icon: 'tasks', badge: activeTaskCount, exact: true },
   ]);
 
@@ -113,7 +113,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   const currentTitle = $derived.by(() => {
     const path = $page.url.pathname;
     if (path === '/home/overview') return $t('nav.home');
-    if (path === '/home/files') return $t('workspace.allFiles');
+    if (path === '/home/files') return $t('workspace.fileManagement');
     if (path === '/home/tasks') return $t('workspace.transfers');
     if (path === '/home/trash') return $t('workspace.recycleBin');
     if (path === '/home/manage') return $t('workspace.administration');

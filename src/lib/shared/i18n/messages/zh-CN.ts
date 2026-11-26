@@ -360,7 +360,7 @@ export const zh_CN = {
     navigation: '工作区导航',
     toggleNavigation: '切换导航窗格',
     pinned: '收藏夹',
-    allFiles: '全部文件',
+    fileManagement: '文件管理',
     transfers: '传输任务',
     recycleBin: '回收站',
     administration: '管理',
