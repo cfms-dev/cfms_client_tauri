@@ -272,4 +272,31 @@ describe('OverviewPage redesign', () => {
     );
     expect(mocks.goto).not.toHaveBeenCalled();
   });
+
+  it('collapses home panels out of flow during preview and restores them when preview closes', async () => {
+    vi.useFakeTimers();
+    try {
+      delete document.documentElement.dataset.reduceMotion;
+      const { container } = render(OverviewPage);
+      await tick();
+
+      const input = screen.getByRole('combobox') as HTMLInputElement;
+      const panels = container.querySelector<HTMLElement>('.home-panels')!;
+      expect(panels.classList.contains('home-panels--hidden')).toBe(false);
+      expect(panels.classList.contains('home-panels--collapsed')).toBe(false);
+
+      await fireEvent.input(input, { target: { value: '111' } });
+      expect(panels.classList.contains('home-panels--hidden')).toBe(true);
+      expect(panels.classList.contains('home-panels--collapsed')).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(200);
+      expect(panels.classList.contains('home-panels--collapsed')).toBe(true);
+
+      await fireEvent.input(input, { target: { value: '' } });
+      expect(panels.classList.contains('home-panels--hidden')).toBe(false);
+      expect(panels.classList.contains('home-panels--collapsed')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

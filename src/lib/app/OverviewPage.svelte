@@ -41,6 +41,7 @@
   import { notificationStore } from '$lib/shared/notifications/notifications.svelte.ts';
   import { serverStateStore } from '$lib/features/connection/connection-state.svelte.ts';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { isReducedMotionEnabled } from '$lib/shared/appearance';
   import { shortIdentifier } from '$lib/shared/format/identifiers';
   import { formatBytes, formatDate, formatError } from '$lib/shared/format/values';
 
@@ -59,6 +60,11 @@
   let preferredMode = $state<'search' | 'jump'>('search');
   let query = $state('');
   let previewDismissed = $state(false);
+  let overviewElement = $state<HTMLDivElement | null>(null);
+  let stageElement = $state<HTMLDivElement | null>(null);
+  let panelsElement = $state<HTMLDivElement | null>(null);
+  let panelsExitTop = $state<number | null>(null);
+  let panelsCollapsed = $state(false);
   let boxInput = $state<HTMLInputElement | null>(null);
   let searchDialogInput = $state<HTMLInputElement | null>(null);
   let jumping = $state(false);
@@ -69,6 +75,8 @@
   let searchPreviewRunId = 0;
   let searchPreviewActiveIndex = $state(-1);
   let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
+  let panelsCollapseTimer: ReturnType<typeof setTimeout> | null = null;
+  let wasPreviewActive = false;
 
   let searchPreview = $state<{
     query: string;
@@ -160,6 +168,107 @@
     });
   });
 
+  $effect.pre(() => {
+    const active = previewActive;
+    if (active === wasPreviewActive) return;
+    wasPreviewActive = active;
+
+    if (panelsCollapseTimer !== null) {
+      clearTimeout(panelsCollapseTimer);
+      panelsCollapseTimer = null;
+    }
+
+    if (active) {
+      if (panelsElement && stageElement) {
+        panelsExitTop = panelsElement.offsetTop;
+      }
+      if (isReducedMotionEnabled()) {
+        panelsCollapsed = true;
+      } else {
+        panelsCollapsed = false;
+        panelsCollapseTimer = setTimeout(() => {
+          panelsCollapseTimer = null;
+          if (previewActive) panelsCollapsed = true;
+        }, 200);
+      }
+    } else {
+      panelsCollapsed = false;
+      panelsExitTop = null;
+    }
+  });
+
+  onMount(() => {
+    if (!stageElement || !overviewElement || typeof ResizeObserver === 'undefined') return;
+
+    const scrollContainer = overviewElement.parentElement;
+    let previousOverviewHeight = overviewElement.clientHeight;
+    let previousStageTop = stageElement.getBoundingClientRect().top;
+    let activeAnimation: Animation | null = null;
+
+    const handleScroll = () => {
+      if (!stageElement || activeAnimation?.playState === 'running') return;
+      previousStageTop = stageElement.getBoundingClientRect().top;
+    };
+
+    const syncStagePosition = () => {
+      if (!stageElement || !overviewElement) return;
+      const currentOverviewHeight = overviewElement.clientHeight;
+
+      if (
+        isReducedMotionEnabled()
+        || typeof stageElement.animate !== 'function'
+        || currentOverviewHeight !== previousOverviewHeight
+      ) {
+        previousOverviewHeight = currentOverviewHeight;
+        activeAnimation?.cancel();
+        activeAnimation = null;
+        previousStageTop = stageElement.getBoundingClientRect().top;
+        return;
+      }
+
+      const animationRunning = activeAnimation?.playState === 'running';
+      const visualTop = stageElement.getBoundingClientRect().top;
+
+      activeAnimation?.cancel();
+      activeAnimation = null;
+
+      const layoutTop = stageElement.getBoundingClientRect().top;
+      const delta = (animationRunning ? visualTop : previousStageTop) - layoutTop;
+      previousStageTop = layoutTop;
+
+      if (Math.abs(delta) < 0.5) return;
+
+      activeAnimation = stageElement.animate(
+        [
+          { transform: `translate3d(0, ${delta}px, 0)` },
+          { transform: 'translate3d(0, 0, 0)' },
+        ],
+        {
+          duration: 280,
+          easing: 'cubic-bezier(0, 0, 0, 1)',
+        },
+      );
+      activeAnimation.addEventListener(
+        'finish',
+        () => {
+          activeAnimation = null;
+        },
+        { once: true },
+      );
+    };
+
+    const observer = new ResizeObserver(syncStagePosition);
+    observer.observe(stageElement);
+    observer.observe(overviewElement);
+    scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      scrollContainer?.removeEventListener('scroll', handleScroll);
+      activeAnimation?.cancel();
+    };
+  });
+
   onMount(async () => {
     const scope = currentFilePreferenceScope();
     try {
@@ -179,6 +288,10 @@
 
   onDestroy(() => {
     clearSearchPreviewDebounce();
+    if (panelsCollapseTimer !== null) {
+      clearTimeout(panelsCollapseTimer);
+      panelsCollapseTimer = null;
+    }
     searchPreviewRunId += 1;
     searchRunId += 1;
   });
@@ -676,8 +789,12 @@
   }
 </script>
 
-<div class="workspace-page home-overview" class:home-overview--preview={previewActive}>
-  <div class="home-stage">
+<div
+  class="workspace-page home-overview"
+  class:home-overview--preview={previewActive}
+  bind:this={overviewElement}
+>
+  <div class="home-stage" bind:this={stageElement}>
     <section class="home-hero">
       <h1 class="home-server-title">{serverTitle}</h1>
 
@@ -811,6 +928,9 @@
     <div
       class="home-panels"
       class:home-panels--hidden={previewActive}
+      class:home-panels--collapsed={panelsCollapsed}
+      style:--home-panels-exit-top={panelsExitTop !== null ? `${panelsExitTop}px` : undefined}
+      bind:this={panelsElement}
       aria-hidden={previewActive ? 'true' : undefined}
       inert={previewActive ? true : undefined}
     >
@@ -876,7 +996,6 @@
 
 <style>
   .home-overview {
-    --home-hero-rest-offset: clamp(2.75rem, 9vh, 5.25rem);
     isolation: isolate;
     position: relative;
     display: flex;
@@ -884,14 +1003,16 @@
     width: 100%;
     flex-direction: column;
     align-items: center;
-    padding: clamp(2.5rem, 8vh, 4.75rem) 1.5rem 2.5rem;
+    padding: clamp(1.5rem, 5vh, 3rem) 1.5rem;
   }
 
   .home-stage {
+    position: relative;
     display: flex;
     width: min(100%, 56rem);
     flex-direction: column;
     align-items: center;
+    margin-block: auto;
   }
 
   .home-hero {
@@ -902,13 +1023,6 @@
     flex-direction: column;
     align-items: center;
     gap: 1.35rem;
-    transform: translate3d(0, var(--home-hero-rest-offset), 0);
-    transition: transform var(--motion-duration-medium2) var(--motion-easing-emphasized-decelerate);
-    will-change: transform;
-  }
-
-  .home-overview--preview .home-hero {
-    transform: translate3d(0, 0, 0);
   }
 
   .home-server-title {
@@ -927,15 +1041,11 @@
   .home-search-anchor {
     position: relative;
     width: min(100%, 35rem);
-    height: 44px;
   }
 
   .home-search-card {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
     display: flex;
+    width: 100%;
     flex-direction: column;
     overflow: hidden;
     border: 1px solid var(--colorNeutralStroke1);
@@ -1017,7 +1127,7 @@
   }
 
   .home-search-preview-list {
-    max-height: 364px;
+    max-height: min(364px, 52vh);
     overflow-y: auto;
     overscroll-behavior: contain;
     border-top: 1px solid var(--colorNeutralStroke2);
@@ -1142,7 +1252,7 @@
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 2.5rem;
-    margin-top: calc(var(--home-hero-rest-offset) + 3.25rem);
+    margin-top: 3.25rem;
     opacity: 1;
     transform: translate3d(0, 0, 0);
     transition:
@@ -1152,14 +1262,23 @@
   }
 
   .home-panels--hidden {
+    position: absolute;
+    top: var(--home-panels-exit-top, 100%);
+    right: 0;
+    left: 0;
+    margin-top: 0;
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
     transform: translate3d(0, 12px, 0);
     transition:
-      opacity var(--motion-duration-short4) var(--motion-easing-emphasized-accelerate),
+      opacity var(--motion-duration-short3) var(--motion-easing-emphasized-accelerate),
       transform var(--motion-duration-short4) var(--motion-easing-emphasized-accelerate),
       visibility 0s linear var(--motion-duration-short4);
+  }
+
+  .home-panels--collapsed {
+    display: none;
   }
 
   @media (max-width: 820px) {
@@ -1170,9 +1289,6 @@
   }
 
   @media (pointer: coarse) {
-    .home-search-anchor {
-      height: 46px;
-    }
     .home-search-row {
       height: 44px;
     }
