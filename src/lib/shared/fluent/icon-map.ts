@@ -3,7 +3,7 @@ export const ICON_MAP = {
   "connect": "plug_connected",
   "home": "home",
   "files": "folder",
-  "tasks": "arrow_download",
+  "tasks": "cloud_sync",
   "more": "more_horizontal",
   "manage": "cloud",
   "schedules": "calendar_clock",

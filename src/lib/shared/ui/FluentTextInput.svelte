@@ -107,6 +107,7 @@
   .cfms-text-input { display: block; inline-size: 100%; max-inline-size: none; }
   .cfms-text-input::part(label) { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
   .cfms-text-input::part(control) { font-size: var(--fontSizeBase300); }
+  .cfms-text-input::part(control)::placeholder { user-select: none; -webkit-user-select: none; }
   .cfms-text-input::part(root) {
     height: calc(var(--cfms-control-height) - 2px);
     background: transparent;

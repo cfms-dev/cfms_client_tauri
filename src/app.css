@@ -335,6 +335,13 @@ html[data-reduce-motion="true"] .context-menu-surface {
   }
 }
 
+/* Prevent selection and caret browsing from landing inside placeholder text. */
+input::placeholder,
+textarea::placeholder {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 [data-programmatic-focus="true"]:focus,
 #app-main-content:focus {
   outline: none !important;

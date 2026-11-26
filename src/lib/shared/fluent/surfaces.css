@@ -52,6 +52,10 @@
   border-start-end-radius: var(--borderRadiusMedium);
   border-end-end-radius: var(--borderRadiusMedium);
 }
+.cfms-input-composite > :not(input) {
+  user-select: none;
+  -webkit-user-select: none;
+}
 .cfms-heading-copy { display: grid; min-width: 0; gap: 4px; }
 .cfms-heading-copy > :is(h1, h2, h3, p) { margin: 0; }
 .cfms-heading-row { display: flex; min-width: 0; align-items: center; gap: 12px; }
