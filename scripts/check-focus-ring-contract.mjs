@@ -96,8 +96,8 @@ export function findFocusStyleViolations(source, filename = 'Component.svelte') 
 }
 
 export function validateAuthoritativeFocusStyles(source) {
-  const ordinaryRule = /:root\s+:where\(input,\s*textarea,\s*select\):not\(\[data-focus-ring="delegated"\]\):focus\s*\{([\s\S]*?)\}/.exec(source);
-  const delegatedRule = /:root\s+:where\(\[data-focus-ring="delegated"\]\):focus\s*\{([\s\S]*?)\}/.exec(source);
+  const ordinaryRule = /:root\s+:where\(input,\s*textarea,\s*select\):not\(\[data-focus-ring=["']delegated["']\]\):focus\s*\{([\s\S]*?)\}/.exec(source);
+  const delegatedRule = /:root\s+:where\(\[data-focus-ring=["']delegated["']\]\):focus\s*\{([\s\S]*?)\}/.exec(source);
   const problems = [];
 
   if (!ordinaryRule) {

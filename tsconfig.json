@@ -6,6 +6,7 @@
   },
   "include": [
     "src",
-    "vite.config.js"
+    "vite.config.js",
+    "prettier.config.js"
   ]
 }

@@ -62,3 +62,18 @@ test('requires the global focus renderer to remain authoritative', () => {
 
   assert.deepEqual(problems, []);
 });
+
+test('accepts Prettier-formatted single quotes in the authoritative focus rules', () => {
+  const problems = validateAuthoritativeFocusStyles(`
+    :root :where(input, textarea, select):not([data-focus-ring='delegated']):focus {
+      border-color: blue !important;
+      outline: none !important;
+      box-shadow: inset 0 0 0 1px blue !important;
+    }
+    :root :where([data-focus-ring='delegated']):focus {
+      outline: none !important;
+    }
+  `);
+
+  assert.deepEqual(problems, []);
+});

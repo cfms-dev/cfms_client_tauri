@@ -1,0 +1,17 @@
+# Package Managers
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
+
+# Miscellaneous
+/static/
+
+# Generated assets checked byte-for-byte by pnpm check:fluent
+/src/lib/shared/fluent/theme.css
+/src/lib/shared/fluent/icons.generated.ts
+
+# Generated Tauri platform files and git submodule
+/src-tauri/gen/
+/src-tauri/ca/
