@@ -165,8 +165,8 @@
                 </FluentButton>
                 <div class="manage-list-actions">
                   {@render ActionButton('info', $t('manage.properties'), () => workspace.handleViewUser(user), workspace.busyKey !== null)}
-                  {@render ActionButton('edit', $t('protocol30.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
-                  {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
+                  {@render ActionButton('mention', $t('manage.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
+                  {@render ActionButton('scanPerson', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
                   {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => workspace.handleEditUserGroups(user), workspace.busyKey !== null)}
                   {@render ActionButton('accountCircle', workspace.canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => workspace.handleChangeUserAvatar(user), !workspace.canManageUserAvatars || workspace.busyKey !== null)}
                   {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => workspace.handleEditUserPermissions(user), !workspace.canSetUserPermissions || workspace.busyKey !== null)}
@@ -179,8 +179,8 @@
                   <div class="manage-list-expanded rounded-lg border border-md3-outline/50 bg-md3-surface-container-high px-2 py-2 animate-fade-scale-in">
                     <div class="flex flex-wrap justify-end gap-1">
                       {@render ActionButton('info', $t('manage.properties'), () => workspace.handleViewUser(user), workspace.busyKey !== null)}
-                      {@render ActionButton('edit', $t('protocol30.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
-                  {@render ActionButton('edit', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
+                      {@render ActionButton('mention', $t('manage.changeUsername'), () => workspace.handleSetUsername(user), workspace.busyKey !== null || !workspace.canChangeUsername(user))}
+                  {@render ActionButton('scanPerson', $t('manage.changeNickname'), () => workspace.handleRenameUser(user), workspace.busyKey !== null || !workspace.canChangeNickname(user))}
                       {@render ActionButton('formatListBulleted', $t('manage.editGroups'), () => workspace.handleEditUserGroups(user), workspace.busyKey !== null)}
                       {@render ActionButton('accountCircle', workspace.canManageUserAvatars ? $t('manage.changeUserAvatar') : $t('manage.avatarPermissionRequired'), () => workspace.handleChangeUserAvatar(user), !workspace.canManageUserAvatars || workspace.busyKey !== null)}
                       {@render ActionButton('adminPanelSettings', $t('manage.editPermissions'), () => workspace.handleEditUserPermissions(user), !workspace.canSetUserPermissions || workspace.busyKey !== null)}

@@ -178,7 +178,7 @@ export function createServerSettingsWorkspace() {
       const code = serverErrorStatus(err);
       const entry = entries[activeNamespace];
       entry.needsReload = code === 409 || code === 404 || String(err).includes('CFMS_REQUEST_UNCONFIRMED');
-      const reason = translate(code === 409 ? 'serverSettings.conflict' : code === 400 ? 'serverSettings.invalid' : code === 404 ? 'serverSettings.unavailable' : code === 403 ? 'serverSettings.denied' : entry.needsReload ? 'protocol30.unconfirmed' : 'serverSettings.failed');
+      const reason = translate(code === 409 ? 'serverSettings.conflict' : code === 400 ? 'serverSettings.invalid' : code === 404 ? 'serverSettings.unavailable' : code === 403 ? 'serverSettings.denied' : entry.needsReload ? 'common.requestUnconfirmed' : 'serverSettings.failed');
       error = `${activeNamespace}: ${reason}`;
       if (savedCount) notificationStore.warning(translate('serverSettings.partiallySaved', { count: savedCount }));
       if (code === 403) {

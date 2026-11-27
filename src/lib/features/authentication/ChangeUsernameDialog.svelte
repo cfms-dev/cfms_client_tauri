@@ -36,15 +36,15 @@
       await onSaved();
       if (current()) onClose();
     } catch (err) {
-      if (current()) error = String(err).includes('CFMS_REQUEST_UNCONFIRMED') ? $t('protocol30.unconfirmed')
-        : serverErrorStatus(err) === 400 ? $t('protocol30.usernameRejected') : formatUserFacingError(err);
+      if (current()) error = String(err).includes('CFMS_REQUEST_UNCONFIRMED') ? $t('common.requestUnconfirmed')
+        : serverErrorStatus(err) === 400 ? $t('dialog.changeUsername.rejected') : formatUserFacingError(err);
     } finally { busy = false; }
   }
 </script>
 
-<ModalFrame title={$t('protocol30.changeUsername')} closeLabel={$t('common.close')} dismissible={!busy} onClose={onClose}>
+<ModalFrame title={$t('dialog.changeUsername.title')} closeLabel={$t('common.close')} dismissible={!busy} onClose={onClose}>
   <form class="username-form" onsubmit={(event) => { event.preventDefault(); void save(); }}>
-    <p>{$t('protocol30.usernameHint')}</p>
+    <p>{$t('dialog.changeUsername.hint')}</p>
     <MdOutlinedField inputId="new-username" label={$t('settings.account.username')} error={count > 64} disabled={busy}>
       <input id="new-username" data-focus-ring="delegated" class="cfms-native-field" bind:value autocomplete="off" disabled={busy} aria-describedby="username-count" aria-invalid={count > 64} />
     </MdOutlinedField>

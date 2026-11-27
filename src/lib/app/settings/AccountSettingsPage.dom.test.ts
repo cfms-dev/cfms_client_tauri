@@ -324,4 +324,11 @@ describe('personal account information', () => {
     expect(screen.queryByRole('button', { name: 'avatar.change' })).toBeNull();
     expect(screen.getByText('settings.account.avatarReadOnly')).toBeTruthy();
   });
+
+  it('uses mention for changing username and scanPerson for editing nickname', () => {
+    authStore.apply({ ...authStatus, permissions: ['set_username', 'set_nickname'] });
+    render(AccountSettingsPage);
+    expect(screen.getByRole('button', { name: 'settings.account.changeUsername' }).querySelector('[data-icon="mention"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'settings.account.editNickname' }).querySelector('[data-icon="scanPerson"]')).toBeTruthy();
+  });
 });

@@ -211,6 +211,8 @@ describe('management account context menu', () => {
     render(ManagePage);
     await fireEvent.contextMenu((await screen.findAllByRole('listitem'))[0]);
     const reset = screen.getByRole('menuitem', { name: 'Reset password' });
+    expect(screen.getByRole('button', { name: 'Change username' }).querySelector('[data-icon="mention"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Change nickname' }).querySelector('[data-icon="scanPerson"]')).toBeTruthy();
     expect(reset.hasAttribute('disabled')).toBe(true);
     expect(reset.hasAttribute('aria-describedby')).toBe(false);
     expect(screen.queryByRole('tooltip', { hidden: true })).toBeNull();
@@ -224,6 +226,8 @@ describe('management account context menu', () => {
     render(ManagePage);
     await fireEvent.contextMenu((await screen.findAllByRole('listitem'))[0]);
     const reset = screen.getByRole('menuitem', { name: 'Reset password' });
+    expect(screen.getByRole('button', { name: 'Change username' }).querySelector('[data-icon="mention"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Change nickname' }).querySelector('[data-icon="scanPerson"]')).toBeTruthy();
     reset.focus();
     await waitFor(() => expect(screen.getByRole('tooltip')).toBeTruthy());
     authStore.escalationExp = Date.now() / 1000 + 300;
@@ -270,6 +274,8 @@ describe('management account context menu', () => {
     render(ManagePage);
     await fireEvent.contextMenu((await screen.findAllByRole('listitem'))[0]);
     expect(screen.queryByRole('menuitem', { name: 'Authentication' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Change username' }).querySelector('[data-icon="mention"]')).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Change nickname' }).querySelector('[data-icon="scanPerson"]')).toBeTruthy();
     await fireEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
     const dialog = await screen.findByRole('dialog');
     await fireEvent.input(within(dialog).getByLabelText('New Password'), { target: { value: 'new-password' } });

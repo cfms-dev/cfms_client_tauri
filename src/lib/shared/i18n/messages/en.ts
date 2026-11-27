@@ -1,10 +1,4 @@
 export const en = {
-  protocol30: {
-    "changeUsername": "Change username",
-    "usernameHint": "Use 1–64 characters. Spaces and letter case are preserved. Future sign-ins use the new username. Your account ID and current session stay the same.",
-    "usernameRejected": "The username was rejected. Check its length and whether another account already uses it.",
-    "unconfirmed": "The result could not be confirmed. Refresh to check the server before trying again."
-},
   serverSettings: {
     "filterButton": "Filter namespaces, {count} selected",
     "filterTitle": "Filter namespaces",
@@ -286,6 +280,7 @@ export const en = {
     tooManyRequestsRetry: 'Too many requests. Try again in {seconds} seconds.',
     serverBusy: 'The server is busy. Try again in a moment.',
     serverBusyRetry: 'The server is busy. Try again in {seconds} seconds.',
+    requestUnconfirmed: 'The result could not be confirmed. Refresh to check the server before trying again.',
   },
   dialogs: {
     confirmTitle: 'Confirm',
@@ -1390,6 +1385,7 @@ export const en = {
     addGroup: 'Add Group',
     auditLogs: 'Audit Logs',
     properties: 'Properties',
+    changeUsername: 'Change username',
     changeNickname: 'Change nickname',
     changeUserAvatar: 'Change user avatar',
     avatarPermissionRequired: 'Changing user avatars requires super_set_user_avatar permission',
@@ -1682,6 +1678,11 @@ export const en = {
       good: 'Good',
       strong: 'Strong',
     },
+    changeUsername: {
+      title: 'Change username',
+      hint: 'Use 1–64 characters. Spaces and letter case are preserved. Future sign-ins use the new username. Your account ID and current session stay the same.',
+      rejected: 'The username was rejected. Check its length and whether another account already uses it.',
+    },
     corruptedPreference: {
       title: 'Configuration Cannot Be Decrypted',
       bodyWithDek:
@@ -1771,6 +1772,7 @@ export const en = {
       profileDenied: 'The server denied access to your account information. Contact your server administrator.',
       invalidProfile: 'The server returned information for a different account.',
       retry: 'Retry',
+      changeUsername: 'Change username',
       editNickname: 'Edit nickname',
       nicknameLabel: 'Nickname',
       nicknameHint: 'Up to {max} characters. Clear and save to display your username instead.',

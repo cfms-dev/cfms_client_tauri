@@ -247,15 +247,15 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
         {#if canChangeUsername}
           <FluentButton data-fluent-owner="routes-home-settings-account-page"
             type="button"
-            title={$t('protocol30.changeUsername')}
-            aria-label={$t('protocol30.changeUsername')}
+            title={$t('settings.account.changeUsername')}
+            aria-label={$t('settings.account.changeUsername')}
             appearance="subtle"
             class="action-button action-button--secondary"
             disabled={!serverStateStore.connected || authStore.postLoginPending}
             onclick={() => { showUsernameEditor = true; }}
           >
-            <Icon name="personEdit" size="18px" />
-            <span>{$t('protocol30.changeUsername')}</span>
+            <Icon name="mention" size="18px" />
+            <span>{$t('settings.account.changeUsername')}</span>
           </FluentButton>
         {/if}
         {#if !editingNickname && canChangeNickname}
@@ -268,7 +268,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
             appearance="subtle"
             class="action-button action-button--secondary identity-edit-button"
           >
-            <Icon name="edit" size="18px" />
+            <Icon name="scanPerson" size="18px" />
             <span>{$t('settings.account.editNickname')}</span>
           </FluentButton>
         {/if}

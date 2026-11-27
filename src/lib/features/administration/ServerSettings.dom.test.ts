@@ -135,7 +135,7 @@ it('requires a fresh read after an unconfirmed write without replaying the mutat
   const input = await screen.findByRole('spinbutton', { name: 'Limit' });
   await fireEvent.input(input, { target: { value: '6' } });
   await fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('protocol30.unconfirmed');
+  expect((await screen.findByRole('alert')).textContent).toContain('common.requestUnconfirmed');
   expect((input as HTMLInputElement).value).toBe('6');
   expect((screen.getByRole('button', { name: 'common.save' }) as HTMLButtonElement).disabled).toBe(true);
   expect(mocks.update).toHaveBeenCalledOnce();

@@ -155,4 +155,6 @@ export const ICON_MAP = {
   "personEdit": "person_edit",
   "vault": "vault",
   "lockClosedKey": "lock_closed_key",
+  "mention": "mention",
+  "scanPerson": "scan_person",
 } as const;

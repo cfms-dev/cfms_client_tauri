@@ -464,8 +464,8 @@ export function createManagementWorkspace() {
       { type: 'divider' },
       {
         id: 'set-username',
-        label: translator.current('protocol30.changeUsername'),
-        icon: 'edit',
+        label: translator.current('manage.changeUsername'),
+        icon: 'mention',
         onSelect: () => handleSetUsername(user),
         disabled: disabled || !canChangeUsername(user),
         requiresElevation: !elevated,
@@ -473,7 +473,7 @@ export function createManagementWorkspace() {
       {
         id: 'set-nickname',
         label: translator.current('manage.changeNickname'),
-        icon: 'edit',
+        icon: 'scanPerson',
         onSelect: () => handleRenameUser(user),
         disabled: disabled || !canChangeNickname(user),
       },

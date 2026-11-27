@@ -1,10 +1,4 @@
 export const zh_CN = {
-  protocol30: {
-    "changeUsername": "修改用户名",
-    "usernameHint": "用户名为 1–64 个字符，保留空格和大小写。以后请使用新用户名登录；账户 ID 和当前会话保持不变。",
-    "usernameRejected": "服务器拒绝了此用户名。请检查长度，以及是否已被其他账户使用。",
-    "unconfirmed": "无法确认操作结果。请先刷新核实服务器状态，再决定是否重试。"
-},
   serverSettings: {
     "filterButton": "筛选命名空间，已选择 {count} 项",
     "filterTitle": "筛选命名空间",
@@ -286,6 +280,7 @@ export const zh_CN = {
     tooManyRequestsRetry: '请求过于频繁，请在 {seconds} 秒后重试。',
     serverBusy: '服务器当前繁忙，请稍后重试。',
     serverBusyRetry: '服务器当前繁忙，请在 {seconds} 秒后重试。',
+    requestUnconfirmed: '无法确认操作结果。请先刷新核实服务器状态，再决定是否重试。',
   },
   dialogs: {
     confirmTitle: '确认',
@@ -1383,6 +1378,7 @@ export const zh_CN = {
     addGroup: '添加用户组',
     auditLogs: '审计日志',
     properties: '属性',
+    changeUsername: '修改用户名',
     changeNickname: '修改昵称',
     changeUserAvatar: '更换用户头像',
     avatarPermissionRequired: '更换用户头像需要 super_set_user_avatar 权限',
@@ -1671,6 +1667,11 @@ export const zh_CN = {
       good: '良好',
       strong: '强',
     },
+    changeUsername: {
+      title: '修改用户名',
+      hint: '用户名为 1–64 个字符，保留空格和大小写。以后请使用新用户名登录；账户 ID 和当前会话保持不变。',
+      rejected: '服务器拒绝了此用户名。请检查长度，以及是否已被其他账户使用。',
+    },
     corruptedPreference: {
       title: '配置无法解密',
       bodyWithDek:
@@ -1760,6 +1761,7 @@ export const zh_CN = {
       profileDenied: '服务器拒绝读取你的账户信息。请联系服务器管理员。',
       invalidProfile: '服务器返回的账户信息与当前账户不一致。',
       retry: '重试',
+      changeUsername: '修改用户名',
       editNickname: '编辑昵称',
       nicknameLabel: '昵称',
       nicknameHint: '最多 {max} 个字符；留空并保存将恢复显示用户名。',
