@@ -101,8 +101,12 @@ pub async fn resolve(
     let target = match action_once(
         state,
         &identity,
-        "core.directory.info.get",
-        serde_json::json!({"directory_id": last.id}),
+        "core.directory.list",
+        serde_json::json!({
+            "folder_id": last.id,
+            "cursor": serde_json::Value::Null,
+            "page_size": 1,
+        }),
     )
     .await
     {

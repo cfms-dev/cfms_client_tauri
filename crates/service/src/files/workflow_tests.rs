@@ -230,7 +230,12 @@ async fn node_resolution_falls_back_only_on_404_and_checks_parent() {
     let peer = Peer::new(|request| {
         Some(match request["action"].as_str().unwrap() {
             "node_lookup.node.resolve" => (200, json!({"node_ids":["/","parent","doc"]})),
-            "core.directory.info.get" => (404, json!({})),
+            "core.directory.list" => {
+                assert_eq!(request["data"]["folder_id"], "doc");
+                assert!(request["data"]["cursor"].is_null());
+                assert_eq!(request["data"]["page_size"], 1);
+                (404, json!({}))
+            }
             "core.document.info.get" => (200, json!({"parent_id":"wrong","title":"Title"})),
             _ => panic!("unexpected request"),
         })
@@ -267,7 +272,97 @@ async fn node_resolution_falls_back_only_on_404_and_checks_parent() {
             .await
             .is_err()
     );
-    assert_eq!(denied.requests.lock().unwrap().len(), 2);
+    let denied_requests = denied.requests.lock().unwrap();
+    assert_eq!(denied_requests.len(), 2);
+    assert_eq!(denied_requests[1]["action"], "core.directory.list");
+}
+
+#[tokio::test]
+async fn node_resolution_resolves_listable_directory_without_metadata_permission() {
+    let peer = Peer::new(|request| {
+        Some(match request["action"].as_str().unwrap() {
+            "node_lookup.node.resolve" => {
+                assert_eq!(request["data"]["path"], "/回响/B0");
+                (200, json!({"node_ids": ["/", "echo", "b0"]}))
+            }
+            "core.directory.list" => {
+                assert_eq!(request["data"]["folder_id"], "b0");
+                assert!(request["data"]["cursor"].is_null());
+                assert_eq!(request["data"]["page_size"], 1);
+                (200, page(json!([]), None))
+            }
+            other => panic!("unexpected request: {other}"),
+        })
+    })
+    .await;
+    peer.state
+        .server_extension_flags
+        .write()
+        .await
+        .push("node_lookup".into());
+
+    let resolved = super::node_path::resolve(&peer.state, "/回响/B0")
+        .await
+        .unwrap();
+    assert_eq!(
+        resolved
+            .segments
+            .iter()
+            .map(|s| (s.id.as_str(), s.label.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("echo", "回响"), ("b0", "B0")]
+    );
+    match resolved.target {
+        super::node_path::NodeTarget::Directory { id, label } => {
+            assert_eq!(id, "b0");
+            assert_eq!(label, "B0");
+        }
+        other => panic!("expected directory target, got {other:?}"),
+    }
+    assert_eq!(peer.requests.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn node_resolution_resolves_document_after_directory_404() {
+    let peer = Peer::new(|request| {
+        Some(match request["action"].as_str().unwrap() {
+            "node_lookup.node.resolve" => (200, json!({"node_ids": ["/", "parent", "doc"]})),
+            "core.directory.list" => {
+                assert_eq!(request["data"]["folder_id"], "doc");
+                assert!(request["data"]["cursor"].is_null());
+                assert_eq!(request["data"]["page_size"], 1);
+                (404, json!({}))
+            }
+            "core.document.info.get" => {
+                assert_eq!(request["data"]["document_id"], "doc");
+                (200, json!({"parent_id": "parent", "title": "Server Title"}))
+            }
+            other => panic!("unexpected request: {other}"),
+        })
+    })
+    .await;
+    peer.state
+        .server_extension_flags
+        .write()
+        .await
+        .push("node_lookup".into());
+
+    let resolved = super::node_path::resolve(&peer.state, "/Parent/Doc")
+        .await
+        .unwrap();
+    match resolved.target {
+        super::node_path::NodeTarget::Document {
+            id,
+            label,
+            parent_id,
+        } => {
+            assert_eq!(id, "doc");
+            assert_eq!(label, "Server Title");
+            assert_eq!(parent_id.as_deref(), Some("parent"));
+        }
+        other => panic!("expected document target, got {other:?}"),
+    }
+    assert_eq!(peer.requests.lock().unwrap().len(), 3);
 }
 
 #[test]
