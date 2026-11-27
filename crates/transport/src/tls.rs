@@ -176,7 +176,7 @@ pub fn is_openssl_hash_filename(path: &Path) -> bool {
 /// Accepts files with `.pem`, `.crt`, and `.cer` extensions.  Also
 /// accepts extensionless files (like the reference CA store which uses
 /// bare hash filenames).
-pub fn load_trust_store(ca_dir: &Path) -> Result<RootCertStore> {
+fn load_trust_store(ca_dir: &Path) -> Result<RootCertStore> {
     let mut store = RootCertStore::empty();
 
     let entries = match fs::read_dir(ca_dir) {

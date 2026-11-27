@@ -14,7 +14,7 @@ use crate::sensitive::SecretString;
 use crate::state::AppState;
 
 /// Interval between token lifetime checks.
-pub const INTERVAL: Duration = Duration::from_secs(60);
+const INTERVAL: Duration = Duration::from_secs(60);
 
 /// Threshold: if the token expires within this many seconds, a refresh is
 /// attempted proactively.
@@ -60,7 +60,7 @@ async fn tick(state: &AppState) {
         )
     };
 
-    let now = unix_now();
+    let now = cfms_core::time::unix_now_secs();
     let remaining = token_exp - now;
 
     if remaining <= 0 {
@@ -87,7 +87,10 @@ async fn tick(state: &AppState) {
                 let mut e = state.token_exp.write().await;
                 *t = Some(new_token);
                 *e = Some(new_exp);
-                tracing::info!("Token refreshed (expires in {}s)", new_exp - unix_now());
+                tracing::info!(
+                    "Token refreshed (expires in {}s)",
+                    new_exp - cfms_core::time::unix_now_secs()
+                );
             }
             Err(e) => {
                 tracing::error!("Token refresh failed: {e}");
@@ -173,11 +176,4 @@ async fn try_refresh(
         crate::authentication::GENERAL,
     )?;
     Ok((issued.secret, issued.claims.exp.floor() as i64))
-}
-
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }

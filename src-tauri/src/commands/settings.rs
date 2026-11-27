@@ -8,7 +8,6 @@ use super::connection_types::CaManifest;
 use super::connection_types::GithubContentsEntry;
 use super::github_api::GithubApiEndpoint;
 use super::github_api::github_api_get;
-use super::transfer_helpers::unix_now;
 use super::updates::UPDATE_USER_AGENT;
 use super::updates::update_http_client;
 use super::updates::update_http_client_builder;
@@ -69,14 +68,6 @@ pub async fn set_locale(
         .set("language", &normalized)
         .map_err(|e| format!("Failed to write setting: {e}"))?;
     Ok(normalized)
-}
-
-#[tauri::command]
-pub async fn translate_backend(
-    state: tauri::State<'_, AppHandleState>,
-    key: String,
-) -> Result<String, String> {
-    Ok(state.localizer.translate(&key))
 }
 
 #[tauri::command]
@@ -179,7 +170,7 @@ pub async fn update_ca_certificates(
 ) -> Result<CaCertificateUpdateResultDto, String> {
     let ca_dir = ensure_writable_ca_dir(&app_handle)?;
     let mut result = check_and_update_ca_certificates(&ca_dir, &app_handle).await?;
-    let last_checked = unix_now() as f64;
+    let last_checked = cfms_core::time::unix_now_secs() as f64;
     let mut manifest = load_ca_manifest(&ca_dir);
     manifest.last_check = Some(last_checked);
     save_ca_manifest(&ca_dir, &manifest)?;
@@ -229,7 +220,7 @@ pub(super) fn ensure_writable_ca_dir(
 
     if !has_manifest {
         let manifest = CaManifest {
-            last_check: Some(unix_now() as f64),
+            last_check: Some(cfms_core::time::unix_now_secs() as f64),
             files: build_local_ca_manifest(&ca_dir)?,
         };
         save_ca_manifest(&ca_dir, &manifest)?;

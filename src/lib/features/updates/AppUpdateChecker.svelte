@@ -9,6 +9,8 @@
     createUpdateNotificationCopy,
     formatUpdatePauseDate,
   } from '$lib/features/updates/update-notifications';
+  import { formatReleaseDate as formatReleaseDateValue } from '$lib/features/updates/app-info';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { formatBytes } from '$lib/shared/format/values';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -105,7 +107,7 @@
         appUpdateState.ensureAutomaticCheckPause(),
       ]);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }
@@ -138,15 +140,12 @@
     try {
       await relaunchApp();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     }
   }
 
   function formatReleaseDate(value?: string | null): string {
-    if (!value) return $t('common.unknown');
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
+    return formatReleaseDateValue(value) || $t('common.unknown');
   }
 </script>
 

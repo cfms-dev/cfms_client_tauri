@@ -17,3 +17,7 @@ export function isPickerCancel(message: string): boolean {
   return normalized.includes('cancel')
     || normalized.includes('no folder was selected');
 }
+
+export function decodeJsonPointerSegment(segment: string): string {
+  return segment.replaceAll('~1', '/').replaceAll('~0', '~');
+}

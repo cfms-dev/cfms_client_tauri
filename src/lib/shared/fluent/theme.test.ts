@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { darkTheme, fluentTheme, createPaletteTheme } from './theme';
+import { fluentTheme, createPaletteTheme } from './theme';
 import { colorPalettes } from './palettes';
 
 function luminance(hex: string) {
@@ -89,6 +89,7 @@ describe('Fluent operational themes', () => {
     }
   }
   it('reduces shadow-root token motion without mutating the normal theme', () => {
+    const darkTheme = fluentTheme({ mode: 'dark' });
     const reduced = fluentTheme({ mode: 'dark', reduceMotion: true });
     expect(reduced.durationNormal).toBe('0.01ms');
     expect(reduced.durationSlow).toBe('0.01ms');

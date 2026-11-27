@@ -22,7 +22,7 @@ zeroize.workspace = true
 base64ct.workspace = true
 tracing.workspace = true
 tempfile.workspace = true
-hex = "0.4.3"
+hex.workspace = true
 ssh-key = { version = "=0.7.0-rc.11", features = ["encryption"] }
 signature = "2"
 rsa = { version = "0.9", features = ["sha2"] }

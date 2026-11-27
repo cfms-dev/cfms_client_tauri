@@ -32,7 +32,7 @@ pub fn prepare_named_file(root: &Path, name: &str) -> Result<PathBuf, String> {
     prepare_file(root, &sanitize_name(name))
 }
 
-pub fn relative_parts(relative: &str) -> Result<Vec<String>, String> {
+fn relative_parts(relative: &str) -> Result<Vec<String>, String> {
     if relative.starts_with(['/', '\\']) || relative.contains([':', '\0']) {
         return Err("Invalid download relative path".into());
     }

@@ -28,6 +28,7 @@ FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; s
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { formatUnixTimestamp } from '$lib/shared/format/date-time';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
@@ -323,10 +324,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
   function formatDate(value: number | null): string {
     if (value === null) return $t('schedules.notScheduled');
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(value * 1000));
+    return formatUnixTimestamp(value);
   }
 
   function formatIsoDate(value: unknown): string {

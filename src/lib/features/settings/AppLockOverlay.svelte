@@ -8,6 +8,7 @@
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import AppPinPad from '$lib/features/settings/AppPinPad.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
@@ -99,7 +100,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
 
       await handleFailedAttempt();
     } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
+      notificationStore.error(formatUserFacingError(err));
       pin = '';
     } finally {
       busy = false;
@@ -127,7 +128,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       if (isCredentialOperationCancelled(err)) {
         status = null;
       } else {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatUserFacingError(err);
         status = message || $t('appLock.unlock.biometricCancelled');
       }
     } finally {
@@ -151,7 +152,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       if (isCredentialOperationCancelled(err)) {
         status = null;
       } else {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatUserFacingError(err);
         status = message || $t('appLock.unlock.platformCancelled');
       }
     } finally {
@@ -183,13 +184,13 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     try {
       await logout();
     } catch (err) {
-      errorMessage = err instanceof Error ? err.message : String(err);
+      errorMessage = formatUserFacingError(err);
     }
 
     try {
       await disconnect();
     } catch (err) {
-      errorMessage ??= err instanceof Error ? err.message : String(err);
+      errorMessage ??= formatUserFacingError(err);
     }
 
     authStore.clear();

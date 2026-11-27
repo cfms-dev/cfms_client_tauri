@@ -9,6 +9,7 @@
   import { DEFAULT_APPEARANCE } from '$lib/shared/appearance';
   import { appearanceStore } from '$lib/features/settings/appearance.svelte.ts';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
@@ -79,7 +80,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     onError: (message) => {
       error = message;
       void appearanceStore.load(scopeKey, true).then(syncFromStore).catch((err) => {
-        error = err instanceof Error ? err.message : String(err);
+        error = formatUserFacingError(err);
       });
     },
   });
@@ -100,7 +101,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       await appearanceStore.load(scopeKey);
       syncFromStore();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

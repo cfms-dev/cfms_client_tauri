@@ -12,6 +12,7 @@
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import AppPinPad from '$lib/features/settings/AppPinPad.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
@@ -95,7 +96,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     try {
       await appLockStore.setEnabled(enabled);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -106,7 +107,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     try {
       await appLockStore.setTimedLock(enabled, timeoutMs);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -122,7 +123,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
     try {
       await appLockStore.resetToDefaults();
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -134,7 +135,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       await appLockStore.removePin();
       notificationStore.success($t('appLock.settings.pinRemoved'));
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -148,7 +149,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       }
       await appLockStore.setBiometricEnabled(enabled);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -172,7 +173,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       if (isCredentialOperationCancelled(err)) {
         notificationStore.info($t('appLock.settings.platformCancelled'));
       } else {
-        error = err instanceof Error ? err.message : String(err);
+        error = formatUserFacingError(err);
       }
     } finally {
       busy = null;
@@ -185,7 +186,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       await appLockStore.removePlatformCredential(id);
       notificationStore.success($t('appLock.settings.platformRemoved'));
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }
@@ -242,7 +243,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       notificationStore.success($t('appLock.settings.pinSaved'));
     } catch (err) {
       pinSetupEntry = '';
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       busy = null;
     }

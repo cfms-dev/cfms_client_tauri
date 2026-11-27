@@ -371,18 +371,16 @@ impl Drop for ChunkStore {
 mod tests {
     use super::*;
 
-    fn make_store() -> (ChunkStore, PathBuf) {
+    fn make_store() -> (ChunkStore, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test_chunks.db");
         let store = ChunkStore::open(&path).unwrap();
-        // Keep dir alive so the temp dir isn't deleted until the test ends.
-        std::mem::forget(dir);
-        (store, path)
+        (store, dir)
     }
 
     #[test]
     fn insert_and_retrieve() {
-        let (store, _path) = make_store();
+        let (store, _dir) = make_store();
 
         let prefix = [0x01u8; 8];
         let tag = [0xABu8; 16];
@@ -399,7 +397,7 @@ mod tests {
 
     #[test]
     fn ordered_chunks_sorted_by_idx() {
-        let (store, _path) = make_store();
+        let (store, _dir) = make_store();
         let prefix = [0x00u8; 8];
         let tag = [0xCCu8; 16];
 
@@ -417,7 +415,7 @@ mod tests {
 
     #[test]
     fn insert_replace_updates_existing() {
-        let (store, _path) = make_store();
+        let (store, _dir) = make_store();
         let prefix = [0x00u8; 8];
         let tag = [0xDDu8; 16];
 
@@ -431,7 +429,7 @@ mod tests {
 
     #[test]
     fn record_chunk_advances_checkpoint_atomically() {
-        let (mut store, _path) = make_store();
+        let (mut store, _dir) = make_store();
         let prefix = [0x11; 8];
         let tag = [0x22; 16];
         store
@@ -452,7 +450,7 @@ mod tests {
 
     #[test]
     fn record_chunk_rejects_gaps_and_duplicates() {
-        let (mut store, _path) = make_store();
+        let (mut store, _dir) = make_store();
         store
             .initialize_checkpoint(TransferCheckpoint {
                 file_size: 32,
@@ -471,7 +469,7 @@ mod tests {
 
     #[test]
     fn chunks_without_protocol_checkpoint_are_not_resumable() {
-        let (store, _path) = make_store();
+        let (store, _dir) = make_store();
         store.insert(0, &[0; 8], &[0; 16], &[0; 16]).unwrap();
 
         assert_eq!(store.resume_hint().unwrap(), None);

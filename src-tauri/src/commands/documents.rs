@@ -538,7 +538,7 @@ pub(super) async fn upload_document_file<R: Runtime>(
         &mut transfer_session,
     )
     .await;
-    transfer_session.close().await;
+    transfer_session.close();
     let result = result?;
 
     Ok(serde_json::json!({
@@ -719,7 +719,7 @@ pub(super) async fn upload_directory<R: Runtime>(
         let relative = match entry.strip_prefix(&root) {
             Ok(path) => path.to_path_buf(),
             Err(e) => {
-                transfer_session.close().await;
+                transfer_session.close();
                 return Err(format!("Failed to resolve upload path: {e}"));
             }
         };
@@ -731,7 +731,7 @@ pub(super) async fn upload_directory<R: Runtime>(
             let parent_server_id = match dir_ids.get(parent_rel).cloned() {
                 Some(id) => id,
                 None => {
-                    transfer_session.close().await;
+                    transfer_session.close();
                     return Err("Missing parent directory while uploading".to_string());
                 }
             };
@@ -740,14 +740,14 @@ pub(super) async fn upload_directory<R: Runtime>(
                 .and_then(|name| name.to_str())
                 .map(ToOwned::to_owned);
             let Some(name) = name else {
-                transfer_session.close().await;
+                transfer_session.close();
                 return Err("Directory has no valid name".to_string());
             };
             let id = match create_server_directory(state, Some(parent_server_id), name, true).await
             {
                 Ok(result) => result.id,
                 Err(err) => {
-                    transfer_session.close().await;
+                    transfer_session.close();
                     return Err(err);
                 }
             };
@@ -762,7 +762,7 @@ pub(super) async fn upload_directory<R: Runtime>(
             let parent_server_id = match dir_ids.get(parent_rel).cloned() {
                 Some(id) => id,
                 None => {
-                    transfer_session.close().await;
+                    transfer_session.close();
                     return Err("Missing parent directory while uploading".to_string());
                 }
             };
@@ -783,7 +783,7 @@ pub(super) async fn upload_directory<R: Runtime>(
             )
             .await
             {
-                transfer_session.close().await;
+                transfer_session.close();
                 return Err(err);
             }
             uploaded_files += 1;
@@ -793,7 +793,7 @@ pub(super) async fn upload_directory<R: Runtime>(
         }
     }
 
-    transfer_session.close().await;
+    transfer_session.close();
 
     let directory_completed = state
         .upload_tasks

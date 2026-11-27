@@ -28,6 +28,7 @@
   import { releaseHighlightsState } from "$lib/features/updates/release-highlights-state.svelte.ts";
   import { appearanceStore } from "$lib/features/settings/appearance.svelte.ts";
   import { screenProtectionStore } from "$lib/features/settings/screen-protection.svelte.ts";
+  import { formatUserFacingError } from "$lib/shared/errors/user-facing-errors";
   import {
     cycleKeyboardRegion,
     dispatchKeyboardCommand,
@@ -287,7 +288,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       ? `user:${serverStateStore.remoteAddress ?? 'local'}:${authStore.userId}`
       : 'global';
     void appearanceStore.load(scopeKey).catch((error) => {
-      notificationStore.error(error instanceof Error ? error.message : String(error));
+      notificationStore.error(formatUserFacingError(error));
     });
   });
 

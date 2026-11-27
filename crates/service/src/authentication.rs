@@ -65,12 +65,7 @@ pub fn decode_claims(token: &str) -> Result<TokenClaims, String> {
     Ok(claims)
 }
 
-pub fn unix_now() -> f64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs_f64()
-}
+pub use cfms_core::time::unix_now_f64 as unix_now;
 
 #[cfg(test)]
 mod tests {

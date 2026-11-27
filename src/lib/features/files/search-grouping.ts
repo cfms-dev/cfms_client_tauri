@@ -35,7 +35,7 @@ export function normalizeSearchParentId(parentId: string | null | undefined): st
   return normalizeDirectoryId(parentId) ?? ROOT_DIRECTORY_ID;
 }
 
-export function searchItemToRow(item: SearchResultItem): SearchResultRow {
+function searchItemToRow(item: SearchResultItem): SearchResultRow {
   if (item.type === 'directory') {
     const { type: _type, ...directory } = item;
     return { kind: 'directory', directory };

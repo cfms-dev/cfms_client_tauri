@@ -52,7 +52,7 @@ pub fn fingerprint(key: &PrivateKey) -> Result<String, String> {
     Ok(canonical_public_key_and_fingerprint(key.public_key())?.1)
 }
 
-pub fn canonical_public_key_and_fingerprint(
+fn canonical_public_key_and_fingerprint(
     public_key: &ssh_key::PublicKey,
 ) -> Result<(String, String), String> {
     let mut public = public_key.clone();

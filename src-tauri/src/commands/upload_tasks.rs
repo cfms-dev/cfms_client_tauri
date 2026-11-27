@@ -1,7 +1,6 @@
 use super::documents::upload_directory;
 use super::documents::upload_document_file;
 use super::downloads::retry_download_task;
-use super::transfer_helpers::unix_now;
 use super::transfer_types::BatchActionFailure;
 use super::transfer_types::BatchActionResult;
 use super::transfer_types::TransferControlAction;
@@ -38,7 +37,7 @@ pub async fn enqueue_upload_batch<R: Runtime>(
             });
             continue;
         }
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         let available = upload_source_available(&request.source_path);
         #[cfg(not(target_os = "android"))]
         if !available {

@@ -68,5 +68,72 @@ pub enum Error {
     Other(String),
 }
 
+impl Error {
+    /// Build [`Error::Server`] from a decoded protocol response envelope.
+    pub fn from_server_response(response: &crate::Response) -> Self {
+        Self::from_server_response_parts(
+            u32::from(response.code),
+            response.message.clone(),
+            &response.data,
+        )
+    }
+
+    /// Build [`Error::Server`] from status code, message, and JSON `data` object.
+    pub fn from_server_response_parts(
+        code: u32,
+        message: String,
+        data: &serde_json::Value,
+    ) -> Self {
+        Self::Server {
+            code,
+            message,
+            scope: data
+                .get("scope")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned),
+            limit: data.get("limit").and_then(serde_json::Value::as_u64),
+            retry_after_seconds: data
+                .get("retry_after_seconds")
+                .and_then(serde_json::Value::as_u64),
+            task_status: data
+                .get("task_status")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned),
+            retryable: data.get("retryable").and_then(serde_json::Value::as_bool),
+        }
+    }
+}
+
+/// Envelope used when decoding transfer/status frames that may omit `data` or `timestamp`.
+#[derive(Debug, serde::Deserialize)]
+pub struct ServerResponseEnvelope {
+    pub code: u32,
+    pub message: String,
+    #[serde(default)]
+    pub data: serde_json::Value,
+}
+
+impl ServerResponseEnvelope {
+    pub fn into_error(self) -> Error {
+        Error::from_server_response_parts(self.code, self.message, &self.data)
+    }
+}
+
+/// Format a server status, message, and structured `data` payload across the
+/// IPC string-error boundary while omitting empty `{}` / `null` payloads.
+pub fn format_server_error_parts(
+    code: impl std::fmt::Display,
+    message: &str,
+    data: &serde_json::Value,
+) -> String {
+    let mut error = format!("Server returned {code}: {message}");
+    let error_data = serde_json::to_string(data).unwrap_or_else(|_| "{}".to_string());
+    if error_data != "{}" && error_data != "null" {
+        error.push_str("\nCFMS_ERROR_DATA:");
+        error.push_str(&error_data);
+    }
+    error
+}
+
 /// Convenience alias so every crate can use `cfms_core::Result<T>`.
 pub type Result<T> = result::Result<T, Error>;

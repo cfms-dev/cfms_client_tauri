@@ -16,7 +16,7 @@ use cfms_core::ServiceEvent;
 use crate::state::AppState;
 
 /// Interval between validation runs.
-pub const INTERVAL: Duration = Duration::from_secs(300);
+const INTERVAL: Duration = Duration::from_secs(300);
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ShortcutValidationStatus {

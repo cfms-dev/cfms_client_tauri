@@ -23,13 +23,6 @@ export interface CommandAction {
   run: () => void | Promise<void>;
 }
 
-export interface FileSelectionState {
-  focusedKey: string | null;
-  anchorKey: string | null;
-  selectedFolderIds: Set<string>;
-  selectedDocumentIds: Set<string>;
-}
-
 export interface FileDetailRow {
   label: string;
   value: string;

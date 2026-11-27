@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 
+use cfms_core::time::unix_now_u64 as now;
 use cfms_core::{Error, Result, RevocationState, RevocationStatus};
 use dashmap::DashMap;
 use rustls::RootCertStore;
@@ -28,13 +29,6 @@ pub use crate::crl_fetch::normalize_allowed_hosts;
 const REFRESH_SECONDS: u64 = 15 * 60;
 const RETRY_SECONDS: u64 = 5 * 60;
 const CACHE_LIMIT: u64 = 128 * 1024 * 1024;
-
-pub(crate) fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
 
 fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))

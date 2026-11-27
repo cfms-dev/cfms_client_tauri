@@ -1,7 +1,6 @@
 import { readable } from 'svelte/store';
 
 export type KeyboardScope = 'global' | 'page' | 'modal' | 'menu';
-export type KeyboardRegion = 'navigation' | 'toolbar' | 'main' | 'details';
 
 export interface ShortcutSpec {
   key: string;
@@ -93,7 +92,7 @@ export function registerKeyboardCommands(
   };
 }
 
-export function getRegisteredKeyboardCommands(): KeyboardCommand[] {
+function getRegisteredKeyboardCommands(): KeyboardCommand[] {
   return [...registeredCommands.values()]
     .sort(compareRegisteredCommands)
     .map(({ registrationId: _registrationId, registrationOrder: _registrationOrder, ...command }) => command);
@@ -158,7 +157,7 @@ export function commandGroup(command: KeyboardCommand): string {
   return typeof command.group === 'function' ? command.group() : command.group;
 }
 
-export function isCommandEnabled(command: KeyboardCommand): boolean {
+function isCommandEnabled(command: KeyboardCommand): boolean {
   return typeof command.enabled === 'function' ? command.enabled() : command.enabled !== false;
 }
 

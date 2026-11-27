@@ -30,49 +30,97 @@ mod upload_runtime;
 pub use upload_runtime::{ActiveUploadRegistry, UploadInterruption};
 
 #[cfg(target_os = "android")]
-pub struct AndroidApkInstaller<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
+const ANDROID_PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
+
+macro_rules! android_plugin {
+    ($struct_name:ident, $fn_name:ident, $plugin_name:literal, $noop_name:literal, $class_name:literal) => {
+        #[cfg(target_os = "android")]
+        pub struct $struct_name<R: Runtime> {
+            pub handle: tauri::plugin::PluginHandle<R>,
+        }
+
+        #[cfg(target_os = "android")]
+        fn $fn_name<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+            tauri::plugin::Builder::new($plugin_name)
+                .setup(|app, api| {
+                    let handle =
+                        api.register_android_plugin(ANDROID_PLUGIN_IDENTIFIER, $class_name)?;
+                    app.manage($struct_name { handle });
+                    Ok(())
+                })
+                .build()
+        }
+
+        #[cfg(not(target_os = "android"))]
+        fn $fn_name<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+            tauri::plugin::Builder::new($noop_name).build()
+        }
+    };
 }
 
-#[cfg(target_os = "android")]
-pub struct AndroidFileOpener<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidUploadFileImporter<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidPasskey<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidAppLifecycle<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidSecureScreen<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidUpdateNotification<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidGithubCredentialPlugin<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
-
-#[cfg(target_os = "android")]
-pub struct AndroidAuthKeyPlugin<R: Runtime> {
-    pub handle: tauri::plugin::PluginHandle<R>,
-}
+android_plugin!(
+    AndroidApkInstaller,
+    apk_installer_plugin,
+    "apk-installer",
+    "apk-installer-noop",
+    "ApkInstallerPlugin"
+);
+android_plugin!(
+    AndroidFileOpener,
+    file_opener_plugin,
+    "file-opener",
+    "file-opener-noop",
+    "FileOpenerPlugin"
+);
+android_plugin!(
+    AndroidUploadFileImporter,
+    upload_file_importer_plugin,
+    "upload-file-importer",
+    "upload-file-importer-noop",
+    "UploadFileImporterPlugin"
+);
+android_plugin!(
+    AndroidPasskey,
+    android_passkey_plugin,
+    "android-passkey",
+    "android-passkey-noop",
+    "AndroidPasskeyPlugin"
+);
+android_plugin!(
+    AndroidAppLifecycle,
+    android_app_lifecycle_plugin,
+    "android-app-lifecycle",
+    "android-app-lifecycle-noop",
+    "AndroidAppLifecyclePlugin"
+);
+android_plugin!(
+    AndroidSecureScreen,
+    android_secure_screen_plugin,
+    "android-secure-screen",
+    "android-secure-screen-noop",
+    "AndroidSecureScreenPlugin"
+);
+android_plugin!(
+    AndroidUpdateNotification,
+    android_update_notification_plugin,
+    "android-update-notification",
+    "android-update-notification-noop",
+    "UpdateNotificationPlugin"
+);
+android_plugin!(
+    AndroidGithubCredentialPlugin,
+    android_github_credential_plugin,
+    "android-github-credential",
+    "android-github-credential-noop",
+    "AndroidGithubCredentialPlugin"
+);
+android_plugin!(
+    AndroidAuthKeyPlugin,
+    android_auth_key_plugin,
+    "android-auth-key",
+    "android-auth-key-noop",
+    "AndroidAuthKeyPlugin"
+);
 
 // ---------------------------------------------------------------------------
 // Bootstrap
@@ -156,171 +204,4 @@ fn biometric_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn biometric_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("biometric-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("apk-installer")
-        .setup(|app, api| {
-            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "ApkInstallerPlugin")?;
-            app.manage(AndroidApkInstaller { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn apk_installer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("apk-installer-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("file-opener")
-        .setup(|app, api| {
-            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "FileOpenerPlugin")?;
-            app.manage(AndroidFileOpener { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn file_opener_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("file-opener-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("upload-file-importer")
-        .setup(|app, api| {
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "UploadFileImporterPlugin")?;
-            app.manage(AndroidUploadFileImporter { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn upload_file_importer_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("upload-file-importer-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_passkey_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-passkey")
-        .setup(|app, api| {
-            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidPasskeyPlugin")?;
-            app.manage(AndroidPasskey { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_passkey_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-passkey-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_app_lifecycle_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-app-lifecycle")
-        .setup(|app, api| {
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidAppLifecyclePlugin")?;
-            app.manage(AndroidAppLifecycle { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_app_lifecycle_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-app-lifecycle-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_secure_screen_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-secure-screen")
-        .setup(|app, api| {
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidSecureScreenPlugin")?;
-            app.manage(AndroidSecureScreen { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_secure_screen_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-secure-screen-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_update_notification_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-update-notification")
-        .setup(|app, api| {
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "UpdateNotificationPlugin")?;
-            app.manage(AndroidUpdateNotification { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_update_notification_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-update-notification-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_github_credential_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-github-credential")
-        .setup(|app, api| {
-            let handle =
-                api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidGithubCredentialPlugin")?;
-            app.manage(AndroidGithubCredentialPlugin { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_github_credential_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-github-credential-noop").build()
-}
-
-#[cfg(target_os = "android")]
-fn android_auth_key_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    const PLUGIN_IDENTIFIER: &str = "org.crpteam.cfms_client_tauri";
-
-    tauri::plugin::Builder::new("android-auth-key")
-        .setup(|app, api| {
-            let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "AndroidAuthKeyPlugin")?;
-            app.manage(AndroidAuthKeyPlugin { handle });
-            Ok(())
-        })
-        .build()
-}
-
-#[cfg(not(target_os = "android"))]
-fn android_auth_key_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("android-auth-key-noop").build()
 }

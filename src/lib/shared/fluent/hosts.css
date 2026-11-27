@@ -50,25 +50,21 @@
   --colorBrandBackgroundPressed: var(--colorStatusDangerBackground3Pressed);
   --colorNeutralForegroundOnBrand: var(--colorNeutralForegroundStaticInverted);
 }
-.cfms-switch, .cfms-checkbox, .cfms-radio {
+.cfms-switch, .cfms-checkbox {
   border: 1px solid var(--colorNeutralStrokeAccessible);
 }
 .cfms-switch { padding: 0 2px; }
 .cfms-switch[aria-checked="true"],
-.cfms-checkbox[aria-checked="true"],
-.cfms-radio[aria-checked="true"] { border-color: var(--colorCompoundBrandStroke); }
+.cfms-checkbox[aria-checked="true"] { border-color: var(--colorCompoundBrandStroke); }
 .cfms-switch[aria-disabled="true"],
-.cfms-checkbox[aria-disabled="true"],
-.cfms-radio[aria-disabled="true"] { border-color: var(--colorNeutralStrokeDisabled); }
+.cfms-checkbox[aria-disabled="true"] { border-color: var(--colorNeutralStrokeDisabled); }
 @media (forced-colors: active) {
-  .cfms-button, .cfms-switch, .cfms-checkbox, .cfms-radio { border-color: ButtonText; }
+  .cfms-button, .cfms-switch, .cfms-checkbox { border-color: ButtonText; }
   .cfms-switch[aria-checked="true"],
-  .cfms-checkbox[aria-checked="true"],
-  .cfms-radio[aria-checked="true"] { border-color: Highlight; }
+  .cfms-checkbox[aria-checked="true"] { border-color: Highlight; }
   .cfms-button[aria-disabled="true"],
   .cfms-switch[aria-disabled="true"],
-  .cfms-checkbox[aria-disabled="true"],
-  .cfms-radio[aria-disabled="true"] { border-color: GrayText; }
+  .cfms-checkbox[aria-disabled="true"] { border-color: GrayText; }
 }
 
 /* EscalationControl.svelte */

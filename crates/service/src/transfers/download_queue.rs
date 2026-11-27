@@ -11,12 +11,12 @@ use cfms_core::{
     DownloadFailureKind, DownloadPhase, DownloadTaskDto, DownloadTaskStatus, Result, ServiceEvent,
 };
 
-use crate::sensitive::SecretKey;
+use super::PersistContext;
 use crate::state::AppState;
 use crate::transfers::task_persistence;
 
 /// Queue check interval.
-pub const INTERVAL: Duration = Duration::from_secs(1);
+const INTERVAL: Duration = Duration::from_secs(1);
 
 /// Statuses that count toward the navigation badge (non-terminal, actively
 /// queued/running).  Mirrors `_ACTIVE_BADGE_STATUSES` in the Python reference.
@@ -31,14 +31,6 @@ const ACTIVE_BADGE_STATUSES: &[DownloadTaskStatus] = &[
 // ---------------------------------------------------------------------------
 // QueueState — shared in-memory task store with JSON persistence
 // ---------------------------------------------------------------------------
-
-#[derive(Clone)]
-struct PersistContext {
-    dir: PathBuf,
-    server_hash: String,
-    user_id: String,
-    dek: Option<SecretKey>,
-}
 
 #[derive(Clone)]
 pub struct QueueState {
@@ -187,7 +179,7 @@ impl QueueState {
         &self,
         active: &ActiveRegistry,
     ) -> Option<(DownloadTaskDto, watch::Receiver<bool>)> {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         let claimed = {
             let mut map = self.tasks.lock().unwrap();
             let next_id = map
@@ -224,7 +216,7 @@ impl QueueState {
                     continue;
                 }
                 task.status = DownloadTaskStatus::Cancelled;
-                task.completed_at = Some(unix_now());
+                task.completed_at = Some(cfms_core::time::unix_now_secs());
                 accepted.push(id.clone());
             }
         }
@@ -313,7 +305,7 @@ impl QueueState {
     }
 
     pub fn mark_completed(&self, task_id: &str, bytes: u64) -> Result<()> {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
@@ -348,7 +340,7 @@ impl QueueState {
         error: &str,
         failure_kind: Option<DownloadFailureKind>,
     ) -> Result<()> {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         {
             let mut map = self.tasks.lock().unwrap();
             if let Some(t) = map.get_mut(task_id) {
@@ -409,7 +401,7 @@ impl QueueState {
             task_id,
             error,
             retry_after_seconds,
-            unix_now(),
+            cfms_core::time::unix_now_secs(),
             crate::transfers::retry::retry_delay,
         )
     }
@@ -457,7 +449,7 @@ impl QueueState {
     }
 
     pub fn promote_scheduled(&self) -> usize {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         let mut count = 0;
         {
             let mut map = self.tasks.lock().unwrap();
@@ -476,17 +468,6 @@ impl QueueState {
             self.save();
         }
         count
-    }
-
-    pub fn delete(&self, task_id: &str) -> bool {
-        let existed = {
-            let mut map = self.tasks.lock().unwrap();
-            map.remove(task_id).is_some()
-        };
-        if existed {
-            self.save();
-        }
-        existed
     }
 
     /// Remove terminal history entries without touching completed output files.
@@ -632,7 +613,7 @@ pub struct ServerDownloadTask {
 }
 
 /// Request a fresh one-shot download task from the authenticated server.
-pub async fn request_server_download_task(
+async fn request_server_download_task(
     state: &AppState,
     document_id: &str,
 ) -> Result<ServerDownloadTask> {
@@ -665,7 +646,7 @@ pub async fn request_server_download_task(
     .await?;
 
     if response.code != 200 {
-        return Err(server_response_error(&response));
+        return Err(cfms_core::Error::from_server_response(&response));
     }
 
     let task_data = response.data.get("task_data").ok_or_else(|| {
@@ -688,36 +669,7 @@ pub async fn request_server_download_task(
     })
 }
 
-fn server_response_error(response: &cfms_core::Response) -> cfms_core::Error {
-    cfms_core::Error::Server {
-        code: u32::from(response.code),
-        message: response.message.clone(),
-        scope: response
-            .data
-            .get("scope")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned),
-        limit: response
-            .data
-            .get("limit")
-            .and_then(serde_json::Value::as_u64),
-        retry_after_seconds: response
-            .data
-            .get("retry_after_seconds")
-            .and_then(serde_json::Value::as_u64),
-        task_status: response
-            .data
-            .get("task_status")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned),
-        retryable: response
-            .data
-            .get("retryable")
-            .and_then(serde_json::Value::as_bool),
-    }
-}
-
-pub fn is_unclaimable_server_task_error(error: &cfms_core::Error) -> bool {
+fn is_unclaimable_server_task_error(error: &cfms_core::Error) -> bool {
     matches!(
         error,
         cfms_core::Error::Server {
@@ -1286,29 +1238,7 @@ async fn execute_download(
         };
 
     if *cancel_rx.borrow() {
-        if queue
-            .get(&task_id)
-            .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
-        {
-            emit_active_count(&queue, &state);
-            tracing::info!("Download paused: {task_id}");
-            return DownloadOutcome::discard_and_stop();
-        }
-
-        if let Err(e) = std::fs::remove_file(&file_path)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!("Failed to clean up partial download for {task_id}: {e}");
-        }
-        cleanup_resume_state(&file_path, &task_id);
-
-        let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
-        emit_active_count(&queue, &state);
-        let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
-            task_id: task_id.clone(),
-        });
-        tracing::info!("Download cancelled: {task_id}");
-        return DownloadOutcome::discard_and_stop();
+        return handle_interrupted_download(&queue, &state, &task_id, &file_path, "Download");
     }
 
     if queue
@@ -1339,28 +1269,13 @@ async fn execute_download(
 
         Some(Err(e)) => {
             if *cancel_rx.borrow() {
-                if queue
-                    .get(&task_id)
-                    .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
-                {
-                    emit_active_count(&queue, &state);
-                    tracing::info!("Download paused after connection close: {task_id}");
-                    return DownloadOutcome::discard_and_stop();
-                }
-
-                if let Err(rm_err) = std::fs::remove_file(&file_path)
-                    && rm_err.kind() != std::io::ErrorKind::NotFound
-                {
-                    tracing::warn!("Failed to clean up partial download for {task_id}: {rm_err}");
-                }
-                cleanup_resume_state(&file_path, &task_id);
-                let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
-                emit_active_count(&queue, &state);
-                let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
-                    task_id: task_id.clone(),
-                });
-                tracing::info!("Download cancelled (via connection close): {task_id}");
-                return DownloadOutcome::discard_and_stop();
+                return handle_interrupted_download(
+                    &queue,
+                    &state,
+                    &task_id,
+                    &file_path,
+                    "Download (via connection close)",
+                );
             }
 
             let error_msg = e.to_string();
@@ -1458,29 +1373,55 @@ async fn execute_download(
             DownloadOutcome::discard_and_stop()
         }
 
-        None => {
-            if let Err(e) = std::fs::remove_file(&file_path)
-                && e.kind() != std::io::ErrorKind::NotFound
-            {
-                tracing::warn!("Failed to clean up partial download for {task_id}: {e}");
-            }
-            cleanup_resume_state(&file_path, &task_id);
-
-            let _ = queue.update_status(&task_id, DownloadTaskStatus::Cancelled);
-            emit_active_count(&queue, &state);
-            let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
-                task_id: task_id.clone(),
-            });
-
-            tracing::info!("Download cancelled: {task_id}");
-            DownloadOutcome::discard_and_stop()
-        }
+        None => handle_cancelled_download(&queue, &state, &task_id, &file_path, "Download"),
     }
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+fn handle_interrupted_download(
+    queue: &QueueState,
+    state: &AppState,
+    task_id: &str,
+    file_path: &str,
+    context: &str,
+) -> DownloadOutcome {
+    if queue
+        .get(task_id)
+        .is_some_and(|task| task.status == DownloadTaskStatus::Paused)
+    {
+        emit_active_count(queue, state);
+        tracing::info!("{context} paused: {task_id}");
+        return DownloadOutcome::discard_and_stop();
+    }
+    handle_cancelled_download(queue, state, task_id, file_path, context)
+}
+
+fn handle_cancelled_download(
+    queue: &QueueState,
+    state: &AppState,
+    task_id: &str,
+    file_path: &str,
+    context: &str,
+) -> DownloadOutcome {
+    if let Err(e) = std::fs::remove_file(file_path)
+        && e.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!("Failed to clean up partial download for {task_id}: {e}");
+    }
+    cleanup_resume_state(file_path, task_id);
+
+    let _ = queue.update_status(task_id, DownloadTaskStatus::Cancelled);
+    emit_active_count(queue, state);
+    let _ = state.event_tx.send(ServiceEvent::DownloadCancelled {
+        task_id: task_id.to_owned(),
+    });
+
+    tracing::info!("{context} cancelled: {task_id}");
+    DownloadOutcome::discard_and_stop()
+}
 
 fn download_phase_to_status(phase: DownloadPhase) -> DownloadTaskStatus {
     match phase {
@@ -1524,16 +1465,8 @@ fn resume_state_path(file_path: &str, task_id: &str) -> PathBuf {
 
 fn cleanup_resume_state(file_path: &str, task_id: &str) {
     let path = resume_state_path(file_path, task_id);
-    for candidate in [
-        path.clone(),
-        PathBuf::from(format!("{}-wal", path.display())),
-        PathBuf::from(format!("{}-shm", path.display())),
-    ] {
-        if let Err(e) = std::fs::remove_file(&candidate)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!("Failed to remove download resume state: {e}");
-        }
+    if let Err(e) = cfms_transfer::remove_sqlite_sidecars(&path) {
+        tracing::warn!("Failed to remove download resume state: {e}");
     }
 }
 
@@ -1573,10 +1506,6 @@ pub fn resume_task(queue: &QueueState, task_id: &str) -> Result<bool> {
     Ok(true)
 }
 
-pub fn retry_failed_task(queue: &QueueState, task_id: &str) -> Result<bool> {
-    queue.retry_failed(task_id)
-}
-
 pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -> Result<bool> {
     let task = match queue.get(task_id) {
         Some(t) => t,
@@ -1589,17 +1518,6 @@ pub fn cancel_task(queue: &QueueState, active: &ActiveRegistry, task_id: &str) -
     active.cancel(task_id);
     cleanup_resume_state(&task.file_path, task_id);
     Ok(true)
-}
-
-// ---------------------------------------------------------------------------
-// Unix timestamp helper
-// ---------------------------------------------------------------------------
-
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }
 
 #[cfg(test)]
@@ -1623,7 +1541,7 @@ mod tests {
 
         queue.insert(&task).expect("insert failed task");
 
-        let retried = retry_failed_task(&queue, "retry-me").expect("retry task");
+        let retried = queue.retry_failed("retry-me").expect("retry task");
         assert!(retried);
 
         let retried_task = queue.get("retry-me").expect("task should remain queued");
@@ -1646,7 +1564,7 @@ mod tests {
         let task = task("already-done", DownloadTaskStatus::Completed);
         queue.insert(&task).expect("insert completed task");
 
-        let retried = retry_failed_task(&queue, "already-done").expect("retry task");
+        let retried = queue.retry_failed("already-done").expect("retry task");
         assert!(!retried);
         assert_eq!(
             queue

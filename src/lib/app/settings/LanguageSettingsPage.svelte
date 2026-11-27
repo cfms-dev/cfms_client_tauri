@@ -4,6 +4,7 @@
   import { getLocale } from '$lib/api';
   import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/shared/i18n';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import Icon from '$lib/shared/ui/Icon.svelte';
   import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
@@ -37,7 +38,7 @@
     try {
       language = normalizeLocale(await getLocale());
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

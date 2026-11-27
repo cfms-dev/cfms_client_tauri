@@ -279,7 +279,9 @@ fn resolve_cleanup_roots<R: Runtime>(
     Ok(roots)
 }
 
-fn resolve_download_root<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub(crate) fn resolve_download_root<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     app.path()
         .resolve("downloads", tauri::path::BaseDirectory::Download)
         .or_else(|_| {

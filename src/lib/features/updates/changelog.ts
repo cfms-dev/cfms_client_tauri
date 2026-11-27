@@ -14,7 +14,7 @@ const titlePattern = /^\*\*Title:\*\*\s*(.+)$/u;
 
 export const changelogEntries = parseChangelog(changelogMarkdown);
 
-export function parseChangelog(markdown: string): ChangelogEntry[] {
+function parseChangelog(markdown: string): ChangelogEntry[] {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   const entries: ChangelogEntry[] = [];
   let current: {

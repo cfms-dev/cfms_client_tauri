@@ -51,9 +51,6 @@ export function fluentTheme({ paletteId = DEFAULT_PALETTE_ID, mode, reduceMotion
   return theme;
 }
 
-export const lightTheme = fluentTheme({ mode: 'light' });
-export const darkTheme = fluentTheme({ mode: 'dark' });
-
 /** The native window requires an opaque RGB canvas, matching the CSS fallback. */
 export function windowBackground(theme: AppTheme): [number, number, number] {
   const color = theme.colorNeutralBackground3;

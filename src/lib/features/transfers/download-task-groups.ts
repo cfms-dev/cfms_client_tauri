@@ -103,7 +103,7 @@ export function buildDownloadTaskRows(
   return rows;
 }
 
-export function isRunningDownloadTask(task: DownloadTaskDto) {
+function isRunningDownloadTask(task: DownloadTaskDto) {
   return RUNNING_STATUSES.has(task.status);
 }
 

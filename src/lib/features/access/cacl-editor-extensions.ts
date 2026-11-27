@@ -96,7 +96,7 @@ export function createDynamicCaclCompletionSource(
   };
 }
 
-export function serverSpanToOffsets(
+function serverSpanToOffsets(
   doc: Text,
   span?: ServerCaclDiagnostic['span'],
 ): { from: number; to: number } {
@@ -113,7 +113,7 @@ export function serverSpanToOffsets(
   return { from, to };
 }
 
-export function mapServerDiagnosticsToCm(
+function mapServerDiagnosticsToCm(
   doc: Text,
   serverDiagnostics: readonly ServerCaclDiagnostic[],
 ): Diagnostic[] {

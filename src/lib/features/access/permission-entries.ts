@@ -111,7 +111,7 @@ export function createImmediatePermissionEntry(
   };
 }
 
-export function permissionEntriesEqual(a: PermissionEntry, b: PermissionEntry): boolean {
+function permissionEntriesEqual(a: PermissionEntry, b: PermissionEntry): boolean {
   return a.permission === b.permission
     && a.granted === b.granted
     && a.start_time === b.start_time

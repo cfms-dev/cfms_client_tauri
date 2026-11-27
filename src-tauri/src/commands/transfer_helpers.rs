@@ -19,15 +19,7 @@ use tauri::Manager;
 use tauri::Runtime;
 
 pub(super) fn download_root(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    Ok(app_handle
-        .path()
-        .resolve("downloads", tauri::path::BaseDirectory::Download)
-        .unwrap_or_else(|_| {
-            app_handle
-                .path()
-                .resolve("downloads", tauri::path::BaseDirectory::AppData)
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        }))
+    crate::local_data_reset::resolve_download_root(app_handle)
 }
 
 pub(super) struct UploadTransferSession {
@@ -73,7 +65,7 @@ impl UploadTransferSession {
         }
     }
 
-    pub(super) async fn close(&mut self) {
+    pub(super) fn close(&mut self) {
         if let Some(conn) = self.conn.take() {
             tauri::async_runtime::spawn(async move {
                 let _ = tokio::time::timeout(std::time::Duration::from_secs(5), conn.close()).await;
@@ -84,11 +76,7 @@ impl UploadTransferSession {
 
 impl Drop for UploadTransferSession {
     fn drop(&mut self) {
-        if let Some(conn) = self.conn.take() {
-            tauri::async_runtime::spawn(async move {
-                let _ = tokio::time::timeout(std::time::Duration::from_secs(5), conn.close()).await;
-            });
-        }
+        self.close();
     }
 }
 
@@ -178,12 +166,20 @@ pub(super) fn clean_optional_upload_name(name: Option<String>) -> Option<String>
 }
 
 #[cfg(target_os = "android")]
-pub(super) fn prepare_upload_source<R: Runtime>(
+fn prepare_upload_path<R: Runtime>(
     app_handle: &tauri::AppHandle<R>,
-    file_path: String,
+    path: String,
+    is_directory: bool,
 ) -> Result<PreparedUploadSource, String> {
-    let source = std::path::PathBuf::from(&file_path);
-    if source.is_file() {
+    let matches_kind = |p: &std::path::Path| {
+        if is_directory {
+            p.is_dir()
+        } else {
+            p.is_file()
+        }
+    };
+    let source = std::path::PathBuf::from(&path);
+    if matches_kind(&source) {
         return Ok(PreparedUploadSource {
             path: source,
             display_name: None,
@@ -191,68 +187,27 @@ pub(super) fn prepare_upload_source<R: Runtime>(
         });
     }
 
-    let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
-    let imported = importer
-        .handle
-        .run_mobile_plugin::<AndroidImportedUploadPath>(
-            "importFile",
-            serde_json::json!({ "uri": file_path }),
-        )
-        .map_err(|e| format!("Failed to import selected file: {e}"))?;
-    let imported_path = std::path::PathBuf::from(imported.path);
-    if !imported_path.is_file() {
-        return Err("Selected path is not a file".to_string());
-    }
-
-    Ok(PreparedUploadSource {
-        path: imported_path,
-        display_name: Some(imported.display_name),
-        cleanup_on_drop: true,
-    })
-}
-
-#[cfg(not(target_os = "android"))]
-pub(super) fn prepare_upload_source<R: Runtime>(
-    _app_handle: &tauri::AppHandle<R>,
-    file_path: String,
-) -> Result<PreparedUploadSource, String> {
-    let source = std::path::PathBuf::from(file_path);
-    if !source.is_file() {
-        return Err("Selected path is not a file".to_string());
-    }
-
-    Ok(PreparedUploadSource {
-        path: source,
-        display_name: None,
-        cleanup_on_drop: false,
-    })
-}
-
-#[cfg(target_os = "android")]
-pub(super) fn prepare_upload_directory_source<R: Runtime>(
-    app_handle: &tauri::AppHandle<R>,
-    directory_path: String,
-) -> Result<PreparedUploadSource, String> {
-    let source = std::path::PathBuf::from(&directory_path);
-    if source.is_dir() {
-        return Ok(PreparedUploadSource {
-            path: source,
-            display_name: None,
-            cleanup_on_drop: false,
-        });
-    }
-
-    let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
-    let imported = importer
-        .handle
-        .run_mobile_plugin::<AndroidImportedUploadPath>(
+    let (method, import_err, kind_err) = if is_directory {
+        (
             "importDirectory",
-            serde_json::json!({ "uri": directory_path }),
+            "Failed to import selected folder",
+            "Selected path is not a directory",
         )
-        .map_err(|e| format!("Failed to import selected folder: {e}"))?;
+    } else {
+        (
+            "importFile",
+            "Failed to import selected file",
+            "Selected path is not a file",
+        )
+    };
+    let importer = app_handle.state::<AndroidUploadFileImporter<R>>();
+    let imported = importer
+        .handle
+        .run_mobile_plugin::<AndroidImportedUploadPath>(method, serde_json::json!({ "uri": path }))
+        .map_err(|e| format!("{import_err}: {e}"))?;
     let imported_path = std::path::PathBuf::from(imported.path);
-    if !imported_path.is_dir() {
-        return Err("Selected path is not a directory".to_string());
+    if !matches_kind(&imported_path) {
+        return Err(kind_err.to_string());
     }
 
     Ok(PreparedUploadSource {
@@ -263,13 +218,24 @@ pub(super) fn prepare_upload_directory_source<R: Runtime>(
 }
 
 #[cfg(not(target_os = "android"))]
-pub(super) fn prepare_upload_directory_source<R: Runtime>(
+fn prepare_upload_path<R: Runtime>(
     _app_handle: &tauri::AppHandle<R>,
-    directory_path: String,
+    path: String,
+    is_directory: bool,
 ) -> Result<PreparedUploadSource, String> {
-    let source = std::path::PathBuf::from(directory_path);
-    if !source.is_dir() {
-        return Err("Selected path is not a directory".to_string());
+    let source = std::path::PathBuf::from(path);
+    let valid = if is_directory {
+        source.is_dir()
+    } else {
+        source.is_file()
+    };
+    if !valid {
+        return Err(if is_directory {
+            "Selected path is not a directory"
+        } else {
+            "Selected path is not a file"
+        }
+        .to_string());
     }
 
     Ok(PreparedUploadSource {
@@ -277,6 +243,20 @@ pub(super) fn prepare_upload_directory_source<R: Runtime>(
         display_name: None,
         cleanup_on_drop: false,
     })
+}
+
+pub(super) fn prepare_upload_source<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    file_path: String,
+) -> Result<PreparedUploadSource, String> {
+    prepare_upload_path(app_handle, file_path, false)
+}
+
+pub(super) fn prepare_upload_directory_source<R: Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    directory_path: String,
+) -> Result<PreparedUploadSource, String> {
+    prepare_upload_path(app_handle, directory_path, true)
 }
 
 pub(super) async fn upload_local_file<R: Runtime>(
@@ -509,39 +489,19 @@ pub(super) async fn upload_local_file<R: Runtime>(
         let transfer_conn = match transfer_session.get(&state.inner).await {
             Ok(conn) => conn,
             Err(error) => {
-                let Some(delay) = upload_retry_delay(&error, retry_attempt) else {
-                    let message = format_transport_error(&error);
-                    emit_file_progress(
-                        app_handle,
-                        &upload_id,
-                        Some(&task_id),
-                        &file_name,
-                        0,
-                        0,
-                        "failed",
-                        Some(message.clone()),
-                    );
-                    return Err(message);
-                };
-
-                retry_attempt += 1;
-                state.upload_tasks.note_retry(&upload_id, retry_attempt);
-                emit_file_progress(
+                handle_upload_retry(
+                    &error,
+                    &mut retry_attempt,
+                    state,
+                    &mut upload_control,
+                    &emit_file_progress,
                     app_handle,
                     &upload_id,
-                    Some(&task_id),
+                    &task_id,
                     &file_name,
-                    0,
-                    0,
-                    "uploading",
-                    Some(format!(
-                        "Server temporarily unavailable; retrying upload (attempt {retry_attempt}/{MAX_UPLOAD_RETRIES})"
-                    )),
-                );
-                tokio::select! {
-                    _ = tokio::time::sleep(delay) => {}
-                    _ = upload_control.changed() => {}
-                }
+                    "Server temporarily unavailable; retrying upload",
+                )
+                .await?;
                 continue;
             }
         };
@@ -573,39 +533,19 @@ pub(super) async fn upload_local_file<R: Runtime>(
                 if upload_control.borrow().is_some() {
                     continue;
                 }
-                let Some(delay) = upload_retry_delay(&error, retry_attempt) else {
-                    let message = format_transport_error(&error);
-                    emit_file_progress(
-                        app_handle,
-                        &upload_id,
-                        Some(&task_id),
-                        &file_name,
-                        0,
-                        0,
-                        "failed",
-                        Some(message.clone()),
-                    );
-                    return Err(message);
-                };
-
-                retry_attempt += 1;
-                state.upload_tasks.note_retry(&upload_id, retry_attempt);
-                emit_file_progress(
+                handle_upload_retry(
+                    &error,
+                    &mut retry_attempt,
+                    state,
+                    &mut upload_control,
+                    &emit_file_progress,
                     app_handle,
                     &upload_id,
-                    Some(&task_id),
+                    &task_id,
                     &file_name,
-                    0,
-                    0,
-                    "uploading",
-                    Some(format!(
-                        "Connection interrupted; resuming upload (attempt {retry_attempt}/{MAX_UPLOAD_RETRIES})"
-                    )),
-                );
-                tokio::select! {
-                    _ = tokio::time::sleep(delay) => {}
-                    _ = upload_control.changed() => {}
-                }
+                    "Connection interrupted; resuming upload",
+                )
+                .await?;
             }
         }
     }
@@ -629,6 +569,65 @@ pub(super) async fn upload_local_file<R: Runtime>(
         skipped,
         overwritten,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_upload_retry<R: Runtime>(
+    error: &cfms_core::Error,
+    retry_attempt: &mut u32,
+    state: &AppHandleState,
+    upload_control: &mut tokio::sync::watch::Receiver<Option<UploadInterruption>>,
+    emit_file_progress: &impl Fn(
+        &tauri::AppHandle<R>,
+        &str,
+        Option<&str>,
+        &str,
+        u64,
+        u64,
+        &str,
+        Option<String>,
+    ),
+    app_handle: &tauri::AppHandle<R>,
+    upload_id: &str,
+    task_id: &str,
+    file_name: &str,
+    reason_prefix: &str,
+) -> Result<(), String> {
+    let Some(delay) = upload_retry_delay(error, *retry_attempt) else {
+        let message = format_transport_error(error);
+        emit_file_progress(
+            app_handle,
+            upload_id,
+            Some(task_id),
+            file_name,
+            0,
+            0,
+            "failed",
+            Some(message.clone()),
+        );
+        return Err(message);
+    };
+
+    *retry_attempt += 1;
+    state.upload_tasks.note_retry(upload_id, *retry_attempt);
+    emit_file_progress(
+        app_handle,
+        upload_id,
+        Some(task_id),
+        file_name,
+        0,
+        0,
+        "uploading",
+        Some(format!(
+            "{reason_prefix} (attempt {}/{MAX_UPLOAD_RETRIES})",
+            *retry_attempt
+        )),
+    );
+    tokio::select! {
+        _ = tokio::time::sleep(delay) => {}
+        _ = upload_control.changed() => {}
+    }
+    Ok(())
 }
 
 pub(super) fn upload_interruption_message(reason: UploadInterruption) -> &'static str {
@@ -685,18 +684,15 @@ fn emit_upload_progress<R: Runtime>(
         "skipped" => cfms_core::UploadTaskStatus::Skipped,
         _ => cfms_core::UploadTaskStatus::Uploading,
     };
-    app_handle
-        .state::<AppHandleState>()
-        .upload_tasks
-        .update_progress(
-            upload_id,
-            task_id,
-            file_name,
-            current_bytes,
-            total_bytes,
-            persistent_status,
-            message.clone(),
-        );
+    state.upload_tasks.update_progress(
+        upload_id,
+        task_id,
+        file_name,
+        current_bytes,
+        total_bytes,
+        persistent_status,
+        message.clone(),
+    );
 
     emit_upload_snapshot(app_handle, upload_id);
 }
@@ -719,14 +715,6 @@ pub(super) fn non_empty_optional(value: Option<String>) -> Option<String> {
             Some(trimmed)
         }
     })
-}
-
-/// Current Unix timestamp in seconds.
-pub(super) fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }
 
 // ---------------------------------------------------------------------------

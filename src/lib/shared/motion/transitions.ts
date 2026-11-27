@@ -15,16 +15,10 @@ export interface StaggeredListParams extends FlyScaleParams {
   step?: number;
 }
 
-export interface MenuScaleParams {
+export interface VerticalSlideScaleParams {
   duration?: number;
   delay?: number;
   y?: number;
-}
-
-export interface SnackbarMotionParams {
-  y?: number;
-  duration?: number;
-  delay?: number;
 }
 
 const emphasized = (t: number): number => 1 - Math.pow(1 - t, 3);
@@ -89,7 +83,7 @@ export function staggeredList(
 
 export function menuScale(
   _node: Element,
-  params: MenuScaleParams = {},
+  params: VerticalSlideScaleParams = {},
 ): TransitionConfig {
   if (isReducedMotionEnabled()) return instant();
 
@@ -113,7 +107,7 @@ export function menuScale(
 
 export function snackbarMotion(
   _node: Element,
-  params: SnackbarMotionParams = {},
+  params: VerticalSlideScaleParams = {},
   { direction = "in" }: { direction?: "in" | "out" | "both" } = {},
 ): TransitionConfig {
   if (isReducedMotionEnabled()) return instant();

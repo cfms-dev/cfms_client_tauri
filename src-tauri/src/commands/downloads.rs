@@ -134,7 +134,9 @@ pub(super) async fn retry_download_task(
         return Ok(true);
     }
 
-    let retried = download_queue::retry_failed_task(&state.tasks, &task_id)
+    let retried = state
+        .tasks
+        .retry_failed(&task_id)
         .map_err(|e| format!("Failed to retry download: {e}"))?;
     if retried {
         emit_download_task_updated(state, &task_id, None);

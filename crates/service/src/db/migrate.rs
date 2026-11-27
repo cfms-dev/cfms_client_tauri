@@ -48,7 +48,7 @@ pub(super) fn migrate(db: &Connection) -> Result<()> {
             .map_err(|e| cfms_core::Error::Other(format!("schema v1 migration failed: {e}")))?;
     }
 
-    if current < 3 {
+    if current < schema::CURRENT_VERSION {
         let transaction = db
             .unchecked_transaction()
             .map_err(|e| cfms_core::Error::Other(format!("begin schema v3 migration: {e}")))?;

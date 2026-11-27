@@ -49,6 +49,6 @@ pub mod verify;
 
 pub use chunks::ChunkStore;
 pub use decrypt::decrypt_chunk;
-pub use download::receive;
+pub use download::{receive, remove_sqlite_sidecars};
 pub use upload::send;
 pub use verify::{compute_sha256, sha256_matches, size_matches};

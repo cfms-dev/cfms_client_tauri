@@ -73,7 +73,7 @@
       crlHostsText = connectionConfig.crl_allowed_hosts.join(', ');
       caStatus = certificateStatus;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }
@@ -150,7 +150,7 @@
         status = $t('settings.connection.caUpdateComplete');
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       caUpdating = false;
       void notifyGithubAuthFallback();

@@ -80,6 +80,8 @@ impl Default for Settings {
         }
     }
 }
+const ALLOWED_TIMEOUTS: [u64; 5] = [60_000, 300_000, 1_800_000, 3_600_000, 7_200_000];
+
 impl Settings {
     pub fn parse(value: &serde_json::Value) -> Self {
         let mut settings = Self {
@@ -118,7 +120,7 @@ impl Settings {
                 .unwrap_or_else(now_ms),
             ..Default::default()
         };
-        if ![60_000, 300_000, 1_800_000, 3_600_000, 7_200_000].contains(&settings.timed_lock_ms) {
+        if !ALLOWED_TIMEOUTS.contains(&settings.timed_lock_ms) {
             settings.timed_lock_ms = 300_000;
         }
         settings.version = 1;
@@ -181,12 +183,11 @@ impl Change {
             Self::RemoveCredential { id } => settings.platform_credentials.retain(|c| c.id != id),
             Self::Timed { enabled, timeout } => {
                 settings.timed_lock_enabled = enabled;
-                settings.timed_lock_ms =
-                    if [60_000, 300_000, 1_800_000, 3_600_000, 7_200_000].contains(&timeout) {
-                        timeout
-                    } else {
-                        300_000
-                    };
+                settings.timed_lock_ms = if ALLOWED_TIMEOUTS.contains(&timeout) {
+                    timeout
+                } else {
+                    300_000
+                };
             }
             Self::Reset => *settings = Settings::default(),
         }
@@ -389,12 +390,7 @@ fn snapshot(state: &mut State) -> Snapshot {
         disconnect_required: state.failed >= 5,
     }
 }
-pub fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
+pub use cfms_core::time::unix_now_ms as now_ms;
 
 #[cfg(test)]
 mod tests {

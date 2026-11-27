@@ -149,72 +149,74 @@ pub async fn get_document(
 
 // ---------------------------------------------------------------------------
 
-pub(super) async fn fetch_all_listing_pages(
+async fn collect_cursor_pages<T, F>(
     state: &AppHandleState,
     action: &str,
     mut data: serde_json::Value,
+    mut on_page: F,
+) -> Result<(), String>
+where
+    T: serde::de::DeserializeOwned,
+    F: FnMut(T) -> (bool, Option<String>),
+{
+    let mut cursor: Option<String> = None;
+
+    loop {
+        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
+        data["cursor"] = cursor
+            .as_ref()
+            .map(|value| serde_json::Value::String(value.clone()))
+            .unwrap_or(serde_json::Value::Null);
+
+        let page: T =
+            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
+                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+        let (has_more, next_cursor) = on_page(page);
+        cursor = next_cursor;
+
+        if !has_more {
+            break;
+        }
+        if cursor.is_none() {
+            return Err(format!("{action} reported more pages without next_cursor"));
+        }
+    }
+
+    Ok(())
+}
+
+pub(super) async fn fetch_all_listing_pages(
+    state: &AppHandleState,
+    action: &str,
+    data: serde_json::Value,
 ) -> Result<ListDirectoryResponse, String> {
     let mut combined = ListDirectoryResponse {
         folders: Vec::new(),
         documents: Vec::new(),
         parent_id: None,
     };
-    let mut cursor: Option<String> = None;
-
-    loop {
-        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
-        data["cursor"] = cursor
-            .as_ref()
-            .map(|value| serde_json::Value::String(value.clone()))
-            .unwrap_or(serde_json::Value::Null);
-
-        let page: ListingCursorPage =
-            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
-                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+    collect_cursor_pages::<ListingCursorPage, _>(state, action, data, |page| {
         let has_more = page.has_more;
-        cursor = page.next_cursor.clone();
+        let next_cursor = page.next_cursor.clone();
         merge_listing_response(&mut combined, page);
-
-        if !has_more {
-            break;
-        }
-        if cursor.is_none() {
-            return Err(format!("{action} reported more pages without next_cursor"));
-        }
-    }
-
+        (has_more, next_cursor)
+    })
+    .await?;
     Ok(combined)
 }
 
 pub(super) async fn fetch_all_cursor_items(
     state: &AppHandleState,
     action: &str,
-    mut data: serde_json::Value,
+    data: serde_json::Value,
 ) -> Result<Vec<serde_json::Value>, String> {
     let mut items = Vec::new();
-    let mut cursor: Option<String> = None;
-
-    loop {
-        data["page_size"] = serde_json::json!(SERVER_CURSOR_PAGE_SIZE);
-        data["cursor"] = cursor
-            .as_ref()
-            .map(|value| serde_json::Value::String(value.clone()))
-            .unwrap_or(serde_json::Value::Null);
-
-        let page: CursorPage<serde_json::Value> =
-            serde_json::from_value(server_action_json(state, action, data.clone()).await?)
-                .map_err(|e| format!("Invalid {action} page response: {e}"))?;
+    collect_cursor_pages::<CursorPage<serde_json::Value>, _>(state, action, data, |page| {
         let has_more = page.has_more;
-        cursor = page.next_cursor.clone();
+        let next_cursor = page.next_cursor.clone();
         items.extend(page.items);
-
-        if !has_more {
-            break;
-        }
-        if cursor.is_none() {
-            return Err(format!("{action} reported more pages without next_cursor"));
-        }
-    }
-
+        (has_more, next_cursor)
+    })
+    .await?;
     Ok(items)
 }

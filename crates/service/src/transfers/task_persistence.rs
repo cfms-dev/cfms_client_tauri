@@ -80,6 +80,7 @@ pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
 }
 
 /// Return whether a persisted task file exists for a user.
+#[cfg(test)]
 pub fn exists(app_data: &Path, server_hash: &str, user_id: &str) -> bool {
     file_path(app_data, server_hash, user_id).exists()
 }

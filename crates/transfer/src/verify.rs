@@ -28,17 +28,7 @@ pub fn size_matches(path: &Path, expected: u64) -> Result<()> {
 /// # Errors
 /// Returns [`Error::Protocol`] if the hashes do not match.
 pub fn sha256_matches(path: &Path, expected: &[u8; 32]) -> Result<()> {
-    let file = std::fs::File::open(path)?;
-
-    // Safety: memory-mapping a file is safe when the file is not modified
-    // concurrently.  We only read from the mapping.
-    let mmap = unsafe {
-        memmap2::Mmap::map(&file).map_err(|e| cfms_core::Error::Io(std::io::Error::other(e)))?
-    };
-
-    let mut hasher = Sha256::new();
-    hasher.update(&mmap);
-    let actual: [u8; 32] = hasher.finalize().into();
+    let actual = compute_sha256(path)?;
 
     if &actual != expected {
         let actual_hex: String = actual.iter().map(|b| format!("{b:02x}")).collect();

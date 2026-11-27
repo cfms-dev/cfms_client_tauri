@@ -38,7 +38,7 @@ export async function setRootBackButtonBehavior(behavior: RootBackButtonBehavior
   });
 }
 
-export function normalizeRootBackButtonBehavior(
+function normalizeRootBackButtonBehavior(
   value: string | null | undefined,
 ): RootBackButtonBehavior {
   return value === 'background' ? 'background' : DEFAULT_ROOT_BACK_BUTTON_BEHAVIOR;
@@ -52,11 +52,6 @@ export async function getLocale(): Promise<string> {
 /** Set the active frontend/backend locale. */
 export async function setLocale(language: string): Promise<string> {
   return invoke("set_locale", { language });
-}
-
-/** Translate a backend Fluent message key using the active locale. */
-export async function translateBackend(key: string): Promise<string> {
-  return invoke("translate_backend", { key });
 }
 
 /** Load connection settings that are consumed by backend connections. */
@@ -104,5 +99,3 @@ export async function saveGithubToken(token: string): Promise<void> {
 export async function deleteGithubToken(): Promise<void> {
   return invoke('delete_github_token');
 }
-
-// ---------------------------------------------------------------------------

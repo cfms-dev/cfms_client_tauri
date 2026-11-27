@@ -7,17 +7,13 @@ use std::path::{Path, PathBuf};
 
 use cfms_core::{Result, UserPreference};
 
-/// Return `{app_data}/user_preferences`.
-pub fn dir(app_data: &Path) -> PathBuf {
-    app_data.join("user_preferences")
-}
-
 /// Return `{app_data}/user_preferences/accounts/{server_hash}/{user_id_hash}.json`.
 pub fn file_path(app_data: &Path, server_hash: &str, user_id: &str) -> PathBuf {
     crate::account_storage::file_path(app_data, "user_preferences", server_hash, user_id)
 }
 
 /// Return whether a persisted preference file exists for a user.
+#[cfg(test)]
 pub fn exists(app_data: &Path, server_hash: &str, user_id: &str) -> bool {
     file_path(app_data, server_hash, user_id).exists()
 }
@@ -48,6 +44,7 @@ pub fn load(
 }
 
 /// Save preferences encrypted with the user's DEK.
+#[cfg(test)]
 pub fn save(
     app_data: &Path,
     server_hash: &str,
@@ -149,11 +146,11 @@ impl PreferencePatch {
             pref.root_back_button_behavior = Some(value);
         }
         if let Some(value) = self.privacy {
-            if value.version != 1 {
+            if value.version != cfms_core::PRIVACY_PREFERENCE_VERSION {
                 return Err("Invalid privacy preference version".into());
             }
             pref.privacy = cfms_core::PrivacyPreference {
-                version: 1,
+                version: cfms_core::PRIVACY_PREFERENCE_VERSION,
                 screenshot_protection_enabled: value.screenshot_protection_enabled,
             };
         }

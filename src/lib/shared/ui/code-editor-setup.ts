@@ -33,7 +33,7 @@ import { ICONS } from '$lib/shared/ui/icons';
  * CodeMirror's basic setup with a Fluent SVG fold marker in place of its
  * font-dependent `⌄` / `›` text characters.
  */
-export const jsonCodeEditorSetup: Extension = [
+export const codeEditorSetup: Extension = [
   lineNumbers(),
   highlightActiveLineGutter(),
   highlightSpecialChars(),

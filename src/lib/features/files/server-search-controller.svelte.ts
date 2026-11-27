@@ -21,7 +21,7 @@ export function searchFlagsFromFilter(filter: SearchTypeFilter): {
   };
 }
 
-export function searchSortByParam(field: SortField): string {
+function searchSortByParam(field: SortField): string {
   return field === 'modified' ? 'last_modified' : field;
 }
 
@@ -199,5 +199,3 @@ export function createServerSearchController(options: ServerSearchControllerOpti
     runSearch,
   };
 }
-
-export type ServerSearchController = ReturnType<typeof createServerSearchController>;

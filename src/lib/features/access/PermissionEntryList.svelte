@@ -10,6 +10,7 @@
     type PermissionEntryState,
   } from '$lib/features/access/permission-entries';
   import Icon from '$lib/shared/ui/Icon.svelte';
+  import { formatUnixTimestamp } from '$lib/shared/format/date-time';
 
   interface EntryListRow {
     key: string;
@@ -83,10 +84,7 @@
 
   function formatTimestamp(timestamp: number): string {
     if (!Number.isFinite(timestamp)) return $t('manage.permissionInvalidTimeShort');
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(timestamp * 1000));
+    return formatUnixTimestamp(timestamp);
   }
 
   function timeSummary(entry: PermissionEntry): string {

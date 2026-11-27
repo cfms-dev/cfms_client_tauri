@@ -140,11 +140,7 @@ pub async fn mutate_file_preferences(
     mutation: cfms_service::user_preferences::FilePreferenceMutation,
 ) -> Result<serde_json::Value, String> {
     let pref = update_preferences(&state, move |pref| {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        mutation.apply(pref, now)
+        mutation.apply(pref, cfms_core::time::unix_now_ms())
     })
     .await?;
     public_preferences(pref)
@@ -367,17 +363,12 @@ pub async fn save_appearance_preference(
     state: tauri::State<'_, AppHandleState>,
     appearance: AppearancePreference,
 ) -> Result<(), String> {
-    if state.inner.user_id.read().await.is_some() {
-        ensure_account_storage(&state).await?;
-    }
-    let user_scope = appearance_user_scope(&state).await?;
-    let Some((server_hash, user_id, dek)) = user_scope else {
+    if state.inner.user_id.read().await.is_none() {
         return state
             .settings
             .set_appearance(&appearance)
             .map_err(|e| format!("Failed to write global appearance setting: {e}"));
-    };
-    let _ = (server_hash, user_id, dek);
+    }
     update_preferences(&state, move |pref| {
         pref.appearance = appearance;
         Ok(())

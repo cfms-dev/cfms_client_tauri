@@ -5,6 +5,16 @@ use super::shared_helpers::{
 };
 use crate::AppHandleState;
 
+pub(super) fn map_action_failure(error: cfms_service::rpc::ActionFailure) -> String {
+    if let Some(code) = error.status {
+        super::shared_helpers::format_server_error_parts(code, &error.message, &error.data)
+    } else if error.sent {
+        format!("CFMS_REQUEST_UNCONFIRMED: {}", error.message)
+    } else {
+        error.message
+    }
+}
+
 /// Mutations are sent once, retaining an explicit unknown-outcome marker.
 pub(super) async fn server_action_once(
     state: &AppHandleState,
@@ -14,15 +24,7 @@ pub(super) async fn server_action_once(
 ) -> Result<serde_json::Value, String> {
     cfms_service::rpc::action_once(&state.inner, identity, action, data)
         .await
-        .map_err(|error| {
-            if let Some(code) = error.status {
-                super::shared_helpers::format_server_error_parts(code, &error.message, &error.data)
-            } else if error.sent {
-                format!("CFMS_REQUEST_UNCONFIRMED: {}", error.message)
-            } else {
-                error.message
-            }
-        })
+        .map_err(map_action_failure)
 }
 
 pub(super) async fn server_action_json(

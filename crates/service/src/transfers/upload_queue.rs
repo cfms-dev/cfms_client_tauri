@@ -1,7 +1,6 @@
 //! Persistent upload task metadata. Transfer execution remains session-bound.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicU64, Ordering},
@@ -10,16 +9,8 @@ use std::sync::{
 use cfms_core::constants::KEY_LEN;
 use cfms_core::{Result, UploadTaskDto, UploadTaskStatus};
 
-use crate::sensitive::SecretKey;
+use super::PersistContext;
 use crate::transfers::upload_task_persistence::{self, UploadTaskRecord};
-
-#[derive(Clone)]
-struct PersistContext {
-    dir: PathBuf,
-    server_hash: String,
-    user_id: String,
-    dek: Option<SecretKey>,
-}
 
 #[derive(Clone, Default)]
 pub struct UploadQueueState {
@@ -142,7 +133,7 @@ impl UploadQueueState {
                 }
                 record.task.status = UploadTaskStatus::Cancelled;
                 record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
-                record.task.updated_at = unix_now();
+                record.task.updated_at = cfms_core::time::unix_now_secs();
                 record.task.completed_at = Some(record.task.updated_at);
                 record.task.message = Some("Upload cancelled".into());
                 accepted.push(id.clone());
@@ -186,7 +177,7 @@ impl UploadQueueState {
             };
             record.task.source_path = source_path.to_string();
             record.task.source_available = true;
-            record.task.updated_at = unix_now();
+            record.task.updated_at = cfms_core::time::unix_now_secs();
             record.request = request;
             true
         };
@@ -227,7 +218,7 @@ impl UploadQueueState {
             record.task.revision = self.sequence.fetch_add(1, Ordering::SeqCst) + 1;
             record.task.message = Some(message.to_string());
             record.task.error = (status == UploadTaskStatus::Failed).then(|| message.to_string());
-            record.task.updated_at = unix_now();
+            record.task.updated_at = cfms_core::time::unix_now_secs();
             record.task.completed_at = status.is_terminal().then_some(record.task.updated_at);
             true
         };
@@ -245,7 +236,7 @@ impl UploadQueueState {
     /// Returning `true` also for an already-completed directory lets the
     /// caller publish one final directory-level event after a multi-file run.
     pub fn finish_directory(&self, upload_id: &str, message: &str) -> Result<bool> {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         let (succeeded, changed) = {
             let mut records = self.records.lock().unwrap();
             let Some(record) = records.get_mut(upload_id) else {
@@ -296,7 +287,7 @@ impl UploadQueueState {
             record.task.message = None;
             record.task.error = None;
             record.task.completed_at = None;
-            record.task.updated_at = unix_now();
+            record.task.updated_at = cfms_core::time::unix_now_secs();
             record.task.retry_count = 0;
             record.task.queue_order = record.task.revision;
             true
@@ -327,7 +318,7 @@ impl UploadQueueState {
         status: UploadTaskStatus,
         message: Option<String>,
     ) {
-        let now = unix_now();
+        let now = cfms_core::time::unix_now_secs();
         let mut should_save = status != UploadTaskStatus::Uploading;
         {
             let mut records = self.records.lock().unwrap();
@@ -444,13 +435,6 @@ impl UploadQueueState {
             tracing::error!("Failed to persist upload tasks: {error}");
         }
     }
-}
-
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }
 
 #[cfg(test)]

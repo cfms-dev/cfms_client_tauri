@@ -17,7 +17,6 @@ use super::shared_helpers::remember_server_preference_dek;
 use super::shared_helpers::rewrap_and_upload_preference_dek;
 use super::shared_helpers::send_action_request;
 use super::shared_helpers::upload_and_select_preference_dek;
-use super::transfer_helpers::unix_now;
 use crate::AppHandleState;
 use crate::UploadInterruption;
 use cfms_core::ServerInfo;
@@ -408,7 +407,7 @@ async fn request_server_info(conn: &cfms_transport::Connection) -> Result<Server
         "data": {},
         "username": null,
         "token": null,
-        "timestamp": unix_now(),
+        "timestamp": cfms_core::time::unix_now_secs(),
         "nonce": nonce,
     });
 
@@ -510,16 +509,7 @@ pub async fn recover_preference_dek<R: Runtime>(
 #[tauri::command]
 pub async fn logout(state: tauri::State<'_, AppHandleState>) -> Result<(), String> {
     clear_auth_state(&state).await;
-
-    // Close the connection if one is open.
-    {
-        let mut conn = state.inner.conn.write().await;
-        if let Some(c) = conn.take() {
-            // Spawn so we don't block the command on close handshake.
-            tokio::spawn(async move { c.close().await });
-        }
-    }
-
+    close_primary_connection(&state).await;
     Ok(())
 }
 
@@ -891,22 +881,12 @@ pub async fn get_server_state(
 pub async fn get_2fa_status(
     state: tauri::State<'_, AppHandleState>,
 ) -> Result<serde_json::Value, String> {
-    let (conn, username, token) = get_connection_auth(&state).await?;
-
-    let resp = send_action_request(
-        &conn,
+    super::server_actions::server_action_json(
+        &state,
         "core.user.authentication.totp.status.get",
         serde_json::json!({}),
-        &username,
-        &token,
     )
-    .await?;
-
-    if resp.code != 200 {
-        return Err(format_server_response_error(&resp));
-    }
-
-    Ok(resp.data)
+    .await
 }
 
 /// Start TOTP setup for the authenticated user.

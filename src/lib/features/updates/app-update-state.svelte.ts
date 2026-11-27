@@ -1,4 +1,5 @@
 import { getSetting, setSetting } from '$lib/api';
+import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 import { notifyGithubAuthFallback } from '$lib/features/updates/github-auth-notices';
 import {
   checkAppUpdate,
@@ -100,7 +101,7 @@ export class AppUpdateState {
       }
       return await this.check();
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = formatUserFacingError(err);
       return null;
     } finally {
       this.automaticCheckSettled = true;
@@ -173,7 +174,7 @@ export class AppUpdateState {
       }
       return found;
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = formatUserFacingError(err);
       this.checked = false;
       this.update = null;
       this.checkedAt = Date.now();
@@ -208,7 +209,7 @@ export class AppUpdateState {
       });
       this.installed = true;
     } catch (err) {
-      this.installError = err instanceof Error ? err.message : String(err);
+      this.installError = formatUserFacingError(err);
       this.progress = { phase: 'idle', downloadedBytes: 0, totalBytes: null, progress: null };
       updateNotificationReporter.dismiss();
       throw err;
@@ -281,7 +282,7 @@ export class AppUpdateState {
     try {
       await this.persistAutomaticCheckPause(ACTIVE_UPDATE_CHECK_PAUSE);
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = formatUserFacingError(err);
     }
 
     if (!updateCheckPausesEqual(this.automaticCheckPause, expected)) return;

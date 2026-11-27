@@ -11,6 +11,7 @@
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 
   let failures = $state<LocalDataResetFailure[]>([]);
   let loading = $state(true);
@@ -26,7 +27,7 @@
       }
       failures = status.failures;
     } catch (reason) {
-      error = reason instanceof Error ? reason.message : String(reason);
+      error = formatUserFacingError(reason);
     } finally {
       loading = false;
     }
@@ -41,7 +42,7 @@
       failures = status.failures;
       if (status.pending) retrying = false;
     } catch (reason) {
-      error = reason instanceof Error ? reason.message : String(reason);
+      error = formatUserFacingError(reason);
       retrying = false;
     }
   }

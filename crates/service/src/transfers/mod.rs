@@ -6,7 +6,19 @@ pub mod task_persistence;
 pub mod upload_queue;
 pub mod upload_task_persistence;
 
+use std::path::PathBuf;
+
+use crate::sensitive::SecretKey;
+
 pub const MAX_UPLOAD_RETRIES: u32 = crate::transfers::retry::MAX_BACKGROUND_RETRIES as u32;
+
+#[derive(Clone)]
+pub(super) struct PersistContext {
+    pub(super) dir: PathBuf,
+    pub(super) server_hash: String,
+    pub(super) user_id: String,
+    pub(super) dek: Option<SecretKey>,
+}
 
 pub fn relative_upload_path(path: &std::path::Path) -> String {
     path.components()

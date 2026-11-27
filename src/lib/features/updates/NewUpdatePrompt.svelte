@@ -6,6 +6,8 @@
   import { _ as t } from 'svelte-i18n';
   import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
   import { createUpdateNotificationCopy } from '$lib/features/updates/update-notifications';
+  import { formatReleaseDate as formatReleaseDateValue } from '$lib/features/updates/app-info';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { openUrl } from '$lib/shared/platform/native-opener';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
@@ -62,7 +64,7 @@
       await appUpdateState.install(createUpdateNotificationCopy($t, installCompleteMessage));
     } catch (err) {
       if (!appUpdateState.installError) {
-        notificationStore.error(err instanceof Error ? err.message : String(err));
+        notificationStore.error(formatUserFacingError(err));
       }
     }
   }
@@ -72,15 +74,12 @@
     try {
       await openUrl(update.releaseUrl);
     } catch (err) {
-      notificationStore.error(err instanceof Error ? err.message : String(err));
+      notificationStore.error(formatUserFacingError(err));
     }
   }
 
   function formatReleaseDate(value?: string | null): string {
-    if (!value) return $t('common.unknown');
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleDateString();
+    return formatReleaseDateValue(value) || $t('common.unknown');
   }
 
   function isVersionNewerThanPrompted(candidate: string, prompted: string | null): boolean {

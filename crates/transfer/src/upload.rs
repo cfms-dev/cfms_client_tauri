@@ -36,23 +36,6 @@ struct UploadNegotiationData {
     supports_resume: bool,
 }
 
-#[derive(Debug, Deserialize)]
-struct ServerResponse {
-    code: u32,
-    message: String,
-    #[serde(default)]
-    data: ServerResponseData,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct ServerResponseData {
-    scope: Option<String>,
-    limit: Option<u64>,
-    retry_after_seconds: Option<u64>,
-    task_status: Option<String>,
-    retryable: Option<bool>,
-}
-
 /// Upload a file, resuming from the server's durable checkpoint when present.
 ///
 /// `restart` explicitly tells the server to discard an existing checkpoint.
@@ -146,10 +129,10 @@ fn upload_request(
 }
 
 fn parse_negotiation(raw: &[u8]) -> Result<UploadNegotiation> {
-    if let Ok(response) = serde_json::from_slice::<ServerResponse>(raw)
+    if let Ok(response) = serde_json::from_slice::<cfms_core::error::ServerResponseEnvelope>(raw)
         && response.code != 200
     {
-        return Err(server_error(response));
+        return Err(response.into_error());
     }
 
     serde_json::from_slice(raw)
@@ -205,24 +188,12 @@ fn validate_negotiation(
 }
 
 fn parse_success_response(raw: &[u8]) -> Result<()> {
-    let response: ServerResponse = serde_json::from_slice(raw)
+    let response: cfms_core::error::ServerResponseEnvelope = serde_json::from_slice(raw)
         .map_err(|error| cfms_core::Error::Protocol(format!("invalid upload response: {error}")))?;
     if response.code != 200 {
-        return Err(server_error(response));
+        return Err(response.into_error());
     }
     Ok(())
-}
-
-fn server_error(response: ServerResponse) -> cfms_core::Error {
-    cfms_core::Error::Server {
-        code: response.code,
-        message: response.message,
-        scope: response.data.scope,
-        limit: response.data.limit,
-        retry_after_seconds: response.data.retry_after_seconds,
-        task_status: response.data.task_status,
-        retryable: response.data.retryable,
-    }
 }
 
 #[cfg(test)]

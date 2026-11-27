@@ -286,7 +286,11 @@ impl Connection {
                     let delay = security_tx
                         .borrow()
                         .valid_until
-                        .map(|expiry| expiry.saturating_sub(crate::crl::now()).clamp(1, 60))
+                        .map(|expiry| {
+                            expiry
+                                .saturating_sub(cfms_core::time::unix_now_u64())
+                                .clamp(1, 60)
+                        })
                         .unwrap_or(60);
                     tokio::select! {
                         _ = stop_rx.changed() => break,

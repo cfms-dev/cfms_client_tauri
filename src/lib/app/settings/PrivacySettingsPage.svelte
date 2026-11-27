@@ -4,6 +4,7 @@
   import { _ as t } from 'svelte-i18n';
   import { screenProtectionStore } from '$lib/features/settings/screen-protection.svelte.ts';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
@@ -38,7 +39,7 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
       }
       screenshotProtectionEnabled = screenProtectionStore.userEnabled;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

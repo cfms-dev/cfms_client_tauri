@@ -177,19 +177,12 @@ pub async fn get_user_authentication(
     state: tauri::State<'_, AppHandleState>,
     user_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let (conn, username, token) = get_connection_auth(&state).await?;
-    let response = send_action_request(
-        &conn,
+    server_action_json(
+        &state,
         "core.user.authentication.get",
         authentication_target(serde_json::json!({}), user_id),
-        &username,
-        &token,
     )
-    .await?;
-    if response.code != 200 {
-        return Err(format_server_response_error(&response));
-    }
-    Ok(response.data)
+    .await
 }
 
 fn authentication_target(

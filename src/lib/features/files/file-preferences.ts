@@ -148,7 +148,7 @@ export function favoriteRecordsFromPreference(preferences: UserPreference): File
   ];
 }
 
-export function recentRecordsFromPreference(preferences: UserPreference): RecentFileRecord[] {
+function recentRecordsFromPreference(preferences: UserPreference): RecentFileRecord[] {
   return (preferences.recent_visits ?? [])
     .filter(isRecentFileRecord)
     .map((record) => ({
@@ -183,7 +183,7 @@ export function isFavoriteRecord(preferences: UserPreference | null, record: Fil
     : Object.hasOwn(favourites.files, record.id);
 }
 
-export function hasFilePreferenceScope(
+function hasFilePreferenceScope(
   scope: FilePreferenceScope | null | undefined,
 ): scope is { serverAddress: string; userId: string } {
   return Boolean(scopeParts(scope));

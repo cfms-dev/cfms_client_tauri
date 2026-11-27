@@ -31,7 +31,7 @@ export function isContextMenuDivider(
   return 'type' in item && item.type === 'divider';
 }
 
-export function userHasContextMenuPermissions(
+function userHasContextMenuPermissions(
   item: ContextMenuItem,
   userPermissions: readonly string[],
 ): boolean {

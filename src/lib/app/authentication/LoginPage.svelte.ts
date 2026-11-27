@@ -860,5 +860,3 @@ export function createLoginFlow() {
   };
 
 }
-
-export type LoginFlowController = ReturnType<typeof createLoginFlow>;

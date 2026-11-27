@@ -78,13 +78,13 @@ pub struct ActionFailure {
 impl std::fmt::Display for ActionFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(code) = self.status {
-            write!(
-                f,
-                "Server returned {code}: {}\nCFMS_ERROR_DATA:{}",
-                self.message, self.data
-            )
+            f.write_str(&cfms_core::error::format_server_error_parts(
+                code,
+                &self.message,
+                &self.data,
+            ))
         } else {
-            write!(f, "{}", self.message)
+            f.write_str(&self.message)
         }
     }
 }
@@ -309,9 +309,15 @@ where
         .map_err(|message| RpcError::Open(cfms_core::Error::Other(message)))?;
     let random_bytes: [u8; 16] = rand::rng().random();
     let nonce = hex::encode(random_bytes);
-    let request_bytes =
-        crate::sensitive::encode_action_request(action, data, username, token, unix_now(), &nonce)
-            .map_err(RpcError::Encode)?;
+    let request_bytes = crate::sensitive::encode_action_request(
+        action,
+        data,
+        username,
+        token,
+        cfms_core::time::unix_now_secs(),
+        &nonce,
+    )
+    .map_err(RpcError::Encode)?;
     let io = async {
         stream
             .send_sensitive(conn, request_bytes.into_zeroizing())
@@ -338,13 +344,6 @@ async fn rpc_deadline<T>(
             .map_err(|_| stage(cfms_core::Error::Connection("RPC timed out".into())))?,
         None => future.await,
     }
-}
-
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }
 
 #[cfg(test)]
@@ -464,6 +463,36 @@ mod tests {
         assert_eq!(
             crate::files::access_batches::classify_failure(&error, true).kind,
             "unconfirmed"
+        );
+    }
+
+    #[test]
+    fn action_failure_display_omits_empty_error_data() {
+        let failure = ActionFailure {
+            status: Some(500),
+            message: "failure".into(),
+            data: json!({}),
+            sent: true,
+        };
+        assert_eq!(failure.to_string(), "Server returned 500: failure");
+
+        let null_failure = ActionFailure {
+            status: Some(403),
+            message: "denied".into(),
+            data: serde_json::Value::Null,
+            sent: true,
+        };
+        assert_eq!(null_failure.to_string(), "Server returned 403: denied");
+
+        let with_data = ActionFailure {
+            status: Some(429),
+            message: "slow down".into(),
+            data: json!({"retry_after_seconds": 5}),
+            sent: true,
+        };
+        assert_eq!(
+            with_data.to_string(),
+            "Server returned 429: slow down\nCFMS_ERROR_DATA:{\"retry_after_seconds\":5}"
         );
     }
 }

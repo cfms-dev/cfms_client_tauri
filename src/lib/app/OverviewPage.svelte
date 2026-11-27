@@ -8,10 +8,8 @@
     getDocumentInfo,
     listDirectoryPage,
     loadUserPreference,
-    searchFiles,
     type SearchDirectoryEntry,
     type SearchDocumentEntry,
-    type SearchFilesResponse,
   } from '$lib/api';
   import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -19,10 +17,12 @@
   import SearchPreviewList from '$lib/features/files/SearchPreviewList.svelte';
   import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
   import {
-    mergeSearchResponses,
     toSearchResultRows,
     type SearchResultRow,
   } from '$lib/features/files/search-grouping';
+  import {
+    createSearchPreviewController,
+  } from '$lib/features/files/search-preview-controller.svelte.ts';
   import {
     createServerSearchController,
   } from '$lib/features/files/server-search-controller.svelte.ts';
@@ -51,10 +51,6 @@
   import { isReducedMotionEnabled } from '$lib/shared/appearance';
   import { shortIdentifier } from '$lib/shared/format/identifiers';
 
-  const SEARCH_PREVIEW_PAGE_SIZE = 24;
-  const SEARCH_PREVIEW_DEBOUNCE_MS = 120;
-  const SEARCH_PREVIEW_SCROLL_THRESHOLD = 72;
-
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);
   let loadingRecent = $state(true);
@@ -77,25 +73,9 @@
 
   let searchDeniedByServer = $state(false);
   let previousPermissionSnapshotRevision = -1;
-  let searchPreviewRunId = 0;
   let searchPreviewActiveIndex = $state(-1);
-  let searchPreviewDebounce: ReturnType<typeof setTimeout> | null = null;
   let panelsCollapseTimer: ReturnType<typeof setTimeout> | null = null;
   let wasPreviewActive = false;
-
-  let searchPreview = $state<{
-    query: string;
-    loading: boolean;
-    loadingMore: boolean;
-    results: SearchFilesResponse | null;
-    error: string | null;
-  }>({
-    query: '',
-    loading: false,
-    loadingMore: false,
-    results: null,
-    error: null,
-  });
 
   const serverTitle = $derived(serverStateStore.serverName?.trim() || 'CFMS Server');
   const hasSearchPermission = $derived(canSearchFiles(authStore.permissions));
@@ -109,6 +89,17 @@
       && hasQuery
       && !previewDismissed,
   );
+
+  const searchPreviewController = createSearchPreviewController({
+    isEnabled: () => canUseServerSearch && activeMode === 'search',
+    getQuery: () => query,
+    onPermissionDenied: () => {
+      searchDeniedByServer = true;
+      searchView.closeSearch();
+      notificationStore.warning($t('files.searchPermissionRequired'), 5000);
+    },
+  });
+  const searchPreview = $derived(searchPreviewController.state);
 
   const searchView = createServerSearchController({
     canSearch: () => canUseServerSearch,
@@ -136,16 +127,8 @@
       previousPermissionSnapshotRevision = snapshotRevision;
 
       if (allowedBySnapshot && !deniedByServer) return;
-      clearSearchPreviewDebounce();
-      searchPreviewRunId += 1;
+      searchPreviewController.resetAll();
       searchView.closeSearch();
-      searchPreview = {
-        ...searchPreview,
-        loading: false,
-        loadingMore: false,
-        results: null,
-        error: null,
-      };
       searchPreviewActiveIndex = -1;
     });
   });
@@ -270,30 +253,13 @@
   });
 
   onDestroy(() => {
-    clearSearchPreviewDebounce();
     if (panelsCollapseTimer !== null) {
       clearTimeout(panelsCollapseTimer);
       panelsCollapseTimer = null;
     }
-    searchPreviewRunId += 1;
+    searchPreviewController.dispose();
     searchView.cancel();
   });
-
-  function clearSearchPreviewDebounce() {
-    if (searchPreviewDebounce !== null) {
-      clearTimeout(searchPreviewDebounce);
-      searchPreviewDebounce = null;
-    }
-  }
-
-  function resetSearchPreviewResults() {
-    searchPreviewRunId += 1;
-    searchPreview.query = '';
-    searchPreview.results = null;
-    searchPreview.error = null;
-    searchPreview.loadingMore = false;
-    searchPreviewActiveIndex = -1;
-  }
 
   function toggleMode() {
     if (!canUseServerSearch) {
@@ -310,9 +276,7 @@
         scheduleSearchPreview(true);
       }
     } else {
-      clearSearchPreviewDebounce();
-      searchPreview.loading = false;
-      searchPreview.loadingMore = false;
+      searchPreviewController.stopLoading();
     }
     boxInput?.focus({ preventScroll: true });
   }
@@ -346,9 +310,8 @@
     searchPreviewActiveIndex = -1;
     if (activeMode !== 'search' || !canUseServerSearch) return;
     if (!query.trim()) {
-      clearSearchPreviewDebounce();
-      resetSearchPreviewResults();
-      searchPreview.loading = false;
+      searchPreviewController.clearDebounce();
+      searchPreviewController.resetResults(true);
       return;
     }
     scheduleSearchPreview();
@@ -398,120 +361,15 @@
   }
 
   function scheduleSearchPreview(immediate = false) {
-    if (!canUseServerSearch || activeMode !== 'search') return;
-    const hadSettledResults = searchPreview.results !== null;
-    const hadPendingPreview =
-      searchPreview.loading || searchPreview.loadingMore || searchPreviewDebounce !== null;
-    clearSearchPreviewDebounce();
-
-    const trimmed = query.trim();
-    if (!trimmed) {
-      resetSearchPreviewResults();
-      searchPreview.loading = false;
-      return;
-    }
-
-    const runId = ++searchPreviewRunId;
-    const shouldLoadImmediately = immediate || (!hadSettledResults && !hadPendingPreview);
-    searchPreview.error = null;
-    searchPreview.loading = shouldLoadImmediately ? true : !hadSettledResults;
-    searchPreview.loadingMore = false;
-
-    const load = () => {
-      searchPreviewDebounce = null;
-      void loadSearchPreviewPage({ cursor: null, reset: true, runId });
-    };
-
-    if (shouldLoadImmediately) {
-      load();
-    } else {
-      searchPreviewDebounce = setTimeout(load, SEARCH_PREVIEW_DEBOUNCE_MS);
-    }
-  }
-
-  async function loadSearchPreviewPage({
-    cursor,
-    reset,
-    runId,
-  }: {
-    cursor: string | null;
-    reset: boolean;
-    runId: number;
-  }) {
-    if (!canUseServerSearch) return;
-    const trimmed = query.trim();
-    if (!trimmed) {
-      searchPreview.loading = false;
-      searchPreview.loadingMore = false;
-      return;
-    }
-
-    if (reset) {
-      searchPreview.loading = true;
-      searchPreview.loadingMore = false;
-    } else {
-      searchPreview.loadingMore = true;
-    }
-
-    try {
-      const page = await searchFiles(trimmed, {
-        pageSize: SEARCH_PREVIEW_PAGE_SIZE,
-        cursor,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        searchDocuments: true,
-        searchDirectories: true,
-      });
-      if (runId !== searchPreviewRunId) return;
-
-      searchPreview.query = trimmed;
-      searchPreview.results =
-        reset || !searchPreview.results
-          ? page
-          : mergeSearchResponses(searchPreview.results, page);
-      searchPreview.loading = false;
-      searchPreview.loadingMore = false;
-      searchPreview.error = null;
-    } catch (e) {
-      if (runId !== searchPreviewRunId) return;
-      searchPreview.loading = false;
-      searchPreview.loadingMore = false;
-      if (handleSearchPermissionError(e)) return;
-      searchPreview.error = formatUserFacingError(e);
-    }
+    searchPreviewController.schedule(immediate);
   }
 
   function loadMoreSearchPreview() {
-    if (!canUseServerSearch) return;
-    const results = searchPreview.results;
-    if (
-      !results?.has_more
-      || !results.next_cursor
-      || query.trim() !== searchPreview.query
-      || searchPreview.loading
-      || searchPreview.loadingMore
-    ) {
-      return;
-    }
-
-    const runId = ++searchPreviewRunId;
-    void loadSearchPreviewPage({ cursor: results.next_cursor, reset: false, runId });
+    searchPreviewController.loadMore();
   }
 
   function handleSearchPreviewScroll(event: Event) {
-    const target = event.currentTarget as HTMLElement;
-    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-    if (distanceToBottom <= SEARCH_PREVIEW_SCROLL_THRESHOLD) {
-      loadMoreSearchPreview();
-    }
-  }
-
-  function handleSearchPermissionError(searchError: unknown): boolean {
-    if (serverErrorStatus(searchError) !== 403) return false;
-    searchDeniedByServer = true;
-    searchView.closeSearch();
-    notificationStore.warning($t('files.searchPermissionRequired'), 5000);
-    return true;
+    searchPreviewController.handleScroll(event);
   }
 
   function openSearchView(runImmediately = false) {
@@ -677,9 +535,12 @@
   }
 
   function isUnavailableError(err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const status = serverErrorStatus(err);
+    const message = formatUserFacingError(err);
     return (
-      /Server returned\s+(403|404|410)\b/i.test(message)
+      status === 403
+      || status === 404
+      || status === 410
       || /not found|no longer exists|does not exist|access denied/i.test(message)
     );
   }

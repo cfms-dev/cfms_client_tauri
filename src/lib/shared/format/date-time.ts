@@ -33,3 +33,11 @@ export function formatLocalDateTimeWithUtcOffset(value: number | Date): string {
 
   return `${dateParts.join('-')} ${timeParts.join(':')} UTC${utcOffset}`;
 }
+
+/** Format a Unix timestamp in seconds using the active locale's medium date & short time. */
+export function formatUnixTimestamp(timestampSeconds: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestampSeconds * 1000));
+}

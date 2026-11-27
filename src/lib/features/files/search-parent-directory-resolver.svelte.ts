@@ -203,7 +203,3 @@ export function createSearchParentDirectoryResolver(
     reset,
   };
 }
-
-export type SearchParentDirectoryResolver = ReturnType<
-  typeof createSearchParentDirectoryResolver
->;

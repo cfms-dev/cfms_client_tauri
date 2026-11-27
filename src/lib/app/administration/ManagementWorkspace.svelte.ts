@@ -31,6 +31,7 @@ import {
   type TwoFactorStatus,
 } from '$lib/api';
 import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+import type { ManageListEditorData } from '$lib/shared/ui/ManageListEditorDialog.svelte';
 import { copyText } from '$lib/shared/platform/clipboard';
 import { canSetAccountName, canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
 import { canSetOtherUserAvatar } from '$lib/features/authentication/avatar-permissions';
@@ -75,17 +76,6 @@ export type ManageDialogState =
   }
   | { kind: 'group-permissions'; group: ManagedGroup }
   | null;
-
-export interface ListEditorItem {
-  id: string;
-  label?: string;
-  meta?: string;
-}
-
-export interface ListEditorData {
-  items: ListEditorItem[];
-  selected: string[];
-}
 
 /** Per-view workflow; reusable business rules live in features. */
 export function createManagementWorkspace() {
@@ -843,7 +833,7 @@ export function createManagementWorkspace() {
     activeDialog = { kind: 'group-permissions', group };
   }
 
-  async function loadUserGroupEditorData(user: ManagedUser): Promise<ListEditorData> {
+  async function loadUserGroupEditorData(user: ManagedUser): Promise<ManageListEditorData> {
     const [allGroups, userInfo] = await Promise.all([
       listGroups(),
       getUserInfo({ userId: user.user_id }),
@@ -1173,5 +1163,3 @@ export function createManagementWorkspace() {
   };
 
 }
-
-export type ManagementWorkspaceController = ReturnType<typeof createManagementWorkspace>;

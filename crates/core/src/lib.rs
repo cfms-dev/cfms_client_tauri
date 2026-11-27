@@ -12,6 +12,7 @@ pub mod constants;
 pub mod error;
 pub mod revocation;
 pub use revocation::{RevocationState, RevocationStatus};
+pub mod time;
 pub mod types;
 
 // Re-export the most commonly used items so downstream crates can write

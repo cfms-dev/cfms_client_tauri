@@ -58,8 +58,6 @@
 }
 .cfms-heading-copy { display: grid; min-width: 0; gap: 4px; }
 .cfms-heading-copy > :is(h1, h2, h3, p) { margin: 0; }
-.cfms-heading-row { display: flex; min-width: 0; align-items: center; gap: 12px; }
-.cfms-heading-row > :is(h1, h2, h3) { flex: 1; min-width: 0; margin: 0; }
 
 /* The icon follows the first text line, including when the copy wraps. Set
  * --cfms-icon-line-height when the first line has its own typography. */
@@ -101,7 +99,6 @@
 }
 .settings-row { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 16px; }
 .settings-row__copy { min-width: 0; }
-.settings-row__icon { display: grid; width: 24px; flex: none; place-items: center; color: var(--colorBrandForeground1); }
 .settings-row > :is(.cfms-choice-target, .cfms-button) { flex-shrink: 0; }
 .workspace-page [role="tablist"] { min-inline-size: 0; overflow-x: auto; overscroll-behavior-inline: contain; }
 .workspace-page [role="tablist"] > [role="tab"] { flex-shrink: 0; }

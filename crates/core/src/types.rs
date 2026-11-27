@@ -100,11 +100,6 @@ impl DownloadTaskStatus {
             Self::Completed | Self::Deleted | Self::Failed | Self::Cancelled
         )
     }
-
-    /// Returns `true` if the task is currently in flight.
-    pub fn is_active(self) -> bool {
-        matches!(self, Self::Downloading | Self::Decrypting | Self::Verifying)
-    }
 }
 
 /// Machine-readable recovery required after a terminal download failure.
@@ -780,7 +775,7 @@ impl TaskConcurrencyPreference {
     }
 }
 
-pub fn normalize_task_concurrency(value: u8) -> u8 {
+fn normalize_task_concurrency(value: u8) -> u8 {
     value.clamp(MIN_TASK_CONCURRENCY, MAX_TASK_CONCURRENCY)
 }
 

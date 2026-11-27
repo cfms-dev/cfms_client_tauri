@@ -7,6 +7,7 @@
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
 import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
   import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
@@ -52,7 +53,7 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
       );
       uploadStore.configureConcurrency(maxUploads);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

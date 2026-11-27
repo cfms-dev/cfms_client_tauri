@@ -9,8 +9,6 @@ use std::time::Duration;
 
 use tokio::sync::watch;
 
-use cfms_core::ServiceEvent;
-
 use crate::state::AppState;
 
 const IDLE_POLL: Duration = Duration::from_millis(500);
@@ -110,16 +108,10 @@ async fn handle_lockdown(state: &AppState, data: &serde_json::Value) {
         .get("status")
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
-    state
-        .app_lockdown
-        .store(status, std::sync::atomic::Ordering::SeqCst);
-    let reason = status
-        .then(|| data.get("reason").and_then(|value| value.as_str()))
-        .flatten()
+    let reason = data
+        .get("reason")
+        .and_then(|value| value.as_str())
         .map(ToOwned::to_owned);
-    *state.lockdown_reason.write().await = reason.clone();
-    let _ = state
-        .event_tx
-        .send(ServiceEvent::Lockdown { status, reason });
+    state.apply_lockdown(status, reason).await;
     tracing::info!("Lockdown status changed: {status}");
 }

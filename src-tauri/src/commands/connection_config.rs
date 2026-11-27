@@ -313,12 +313,10 @@ pub(super) fn normalize_recent_connection_addresses(addresses: Vec<String>) -> V
 }
 
 pub(super) fn normalize_connection_history_address(address: &str) -> String {
-    let trimmed = address.trim();
-    let without_scheme = trimmed
-        .strip_prefix("wss://")
-        .or_else(|| trimmed.strip_prefix("ws://"))
-        .unwrap_or(trimmed);
-    without_scheme.trim_matches('/').trim().to_string()
+    crate::managed_auth_keys::display_server_address(address)
+        .trim_start_matches('/')
+        .trim()
+        .to_string()
 }
 
 pub(super) fn remember_successful_connection(

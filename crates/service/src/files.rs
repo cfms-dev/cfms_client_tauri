@@ -54,7 +54,7 @@ pub fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
     }
 }
 
-pub fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
+fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
     let page_size = page.page_size;
     let next_cursor = page.next_cursor.clone();
     let has_more = page.has_more;

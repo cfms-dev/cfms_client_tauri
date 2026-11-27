@@ -3,7 +3,6 @@
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import {
-    listDirectory,
     type ServerDirectoryEntry,
     type ServerObjectType,
   } from '$lib/api';
@@ -11,17 +10,16 @@
     excludedDirectorySet,
     formatDirectoryPath,
     normalizeDirectoryId,
-    ROOT_DIRECTORY_ID,
     sameDirectoryId,
     type DirectoryBreadcrumbSegment,
   } from '$lib/features/files/file-browser';
+  import { createDirectoryPickerState } from '$lib/features/files/directory-picker-state.svelte.ts';
   import Breadcrumb from '$lib/features/files/Breadcrumb.svelte';
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 
   type MoveTargetRow =
     | { kind: 'parent' }
@@ -51,12 +49,13 @@
     onCancel: () => void;
   } = $props();
 
-  let currentFolderId = $state<string | null>(null);
-  let parentId = $state<string | null>(null);
-  let folders = $state<ServerDirectoryEntry[]>([]);
-  let breadcrumb = $state<DirectoryBreadcrumbSegment[]>([]);
-  let loading = $state(false);
-  let loadError = $state<string | null>(null);
+  const picker = createDirectoryPickerState();
+  const currentFolderId = $derived(picker.currentFolderId);
+  const parentId = $derived(picker.parentId);
+  const folders = $derived(picker.folders);
+  const breadcrumb = $derived(picker.breadcrumb);
+  const loading = $derived(picker.loading);
+  const loadError = $derived(picker.loadError);
 
   const title = $derived(
     objectType === 'directory'
@@ -97,67 +96,29 @@
   );
 
   onMount(() => {
-    currentFolderId = normalizeDirectoryId(initialFolderId);
-    breadcrumb = [...initialBreadcrumb];
-    void loadDirectory(currentFolderId);
+    picker.initialize(initialFolderId, initialBreadcrumb);
+    void picker.loadDirectory(picker.currentFolderId);
   });
 
-  async function loadDirectory(folderId: string | null): Promise<boolean> {
-    loading = true;
-    loadError = null;
-
-    try {
-      const normalizedFolderId = normalizeDirectoryId(folderId);
-      const response = await listDirectory(normalizedFolderId);
-      currentFolderId = normalizedFolderId;
-      folders = response.folders;
-      parentId = normalizeDirectoryId(response.parent_id);
-      return true;
-    } catch (err) {
-      loadError = formatUserFacingError(err);
-      folders = [];
-      parentId = null;
-      return false;
-    } finally {
-      loading = false;
-    }
+  function loadDirectory(folderId: string | null) {
+    return picker.loadDirectory(folderId);
   }
 
-  async function navigateToFolder(folder: ServerDirectoryEntry) {
-    const ok = await loadDirectory(folder.id);
-    if (ok) {
-      breadcrumb = [...breadcrumb, { label: folder.name, id: folder.id }];
-    }
+  function navigateToFolder(folder: ServerDirectoryEntry) {
+    return picker.navigateToFolder(folder);
   }
 
-  async function navigateToParent() {
+  function navigateToParent() {
     if (parentTargetId === undefined) return;
-    const ok = await loadDirectory(parentTargetId);
-    if (ok && breadcrumb.length > 0) {
-      breadcrumb = breadcrumb.slice(0, -1);
-    }
+    return picker.navigateToParent(parentTargetId);
   }
 
-  async function navigateToRoot() {
-    const ok = await loadDirectory(null);
-    if (ok) {
-      breadcrumb = [];
-    }
+  function navigateToRoot() {
+    return picker.navigateToRoot();
   }
 
-  async function navigateByBreadcrumb(targetId: string) {
-    if (targetId === ROOT_DIRECTORY_ID) {
-      await navigateToRoot();
-      return;
-    }
-
-    const index = breadcrumb.findIndex((segment) => segment.id === targetId);
-    if (index < 0) return;
-
-    const ok = await loadDirectory(targetId);
-    if (ok) {
-      breadcrumb = breadcrumb.slice(0, index + 1);
-    }
+  function navigateByBreadcrumb(targetId: string) {
+    return picker.navigateByBreadcrumb(targetId);
   }
 
   function handleMoveHere() {

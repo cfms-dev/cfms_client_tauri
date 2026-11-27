@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { lightTheme, darkTheme, SERIF_FONT } from './theme';
+import { fluentTheme, SERIF_FONT } from './theme';
 
 const directory = resolve('static/fonts');
 const css = readFileSync(resolve(directory, 'fonts.css'), 'utf8');
@@ -42,7 +42,7 @@ describe('bundled offline typography', () => {
   });
 
   it('uses the same Noto base and numeric stacks in both Fluent themes and preserves a separate serif stack', () => {
-    for (const theme of [lightTheme, darkTheme]) {
+    for (const theme of [fluentTheme({ mode: 'light' }), fluentTheme({ mode: 'dark' })]) {
       expect(theme.fontFamilyBase).toBe('"Noto Sans", "Noto Sans SC", sans-serif');
       expect(theme.fontFamilyNumeric).toBe(theme.fontFamilyBase);
       expect(theme.fontFamilyMonospace).toContain('JetBrains Mono');

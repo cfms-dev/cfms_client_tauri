@@ -2,7 +2,6 @@ use super::authentication::finish_authentication;
 use super::server_actions::server_action_once;
 use super::session::{clear_auth_state, get_connection_auth};
 use super::shared_helpers::format_server_error_parts;
-use super::transfer_helpers::unix_now;
 use crate::AppHandleState;
 use cfms_service::authentication::{AUTH, GENERAL};
 #[cfg(target_os = "android")]
@@ -237,7 +236,7 @@ pub async fn generate_user_auth_public_key<R: Runtime>(
         user_id: identity.user_id.clone(),
         username_hash,
         credential_id: credential_id.clone(),
-        created_at: unix_now().max(0) as u64,
+        created_at: cfms_core::time::unix_now_secs().max(0) as u64,
     };
 
     if let Err(err) =
@@ -421,7 +420,7 @@ async fn build_public_key_login_request(
                 "data":{"method":"publickey", "data":{"fingerprint":fingerprint}, "target_purpose":GENERAL},
                 "username":pending.username,
                 "token":pending.issued.secret.as_str(),
-                "timestamp":unix_now(),
+                "timestamp": cfms_core::time::unix_now_secs(),
                 "nonce":crate::public_key_auth::random_id(),
             })),
         ))

@@ -6,6 +6,7 @@
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
   import { copyText } from '$lib/shared/platform/clipboard';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 
   const HISTORY_LIMIT = 30;
 
@@ -77,7 +78,7 @@
       payloadError = null;
       return parsed;
     } catch (error) {
-      payloadError = error instanceof Error ? error.message : String(error);
+      payloadError = formatUserFacingError(error);
       return null;
     }
   }
@@ -138,7 +139,7 @@
       });
     } catch (error) {
       if (scopeKey !== requestScopeKey) return;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatUserFacingError(error);
       updateHistoryEntry(entry.id, {
         status: 'error',
         error: message,

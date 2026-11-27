@@ -1,5 +1,7 @@
 import { Validator, type Schema, type ValidationResult } from '@cfworker/json-schema';
 import type { JsonValue } from '$lib/api';
+import { extractErrorMessage } from '$lib/api/server-errors';
+import { decodeJsonPointerSegment } from '$lib/shared/format/values';
 
 export type VisualSchemaKind = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean';
 
@@ -95,10 +97,6 @@ function fail(state: PreparationState, path: string, keyword: string): null {
   return null;
 }
 
-function decodePointerSegment(segment: string): string {
-  return segment.replaceAll('~1', '/').replaceAll('~0', '~');
-}
-
 function resolveLocalRef(
   state: PreparationState,
   reference: string,
@@ -110,7 +108,7 @@ function resolveLocalRef(
   let current: JsonValue = state.root;
   for (const rawSegment of reference.slice(2).split('/')) {
     if (!isRecord(current)) return fail(state, path, '$ref');
-    const segment = decodePointerSegment(rawSegment);
+    const segment = decodeJsonPointerSegment(rawSegment);
     if (!Object.hasOwn(current, segment)) return fail(state, path, '$ref');
     current = current[segment];
   }
@@ -359,7 +357,7 @@ export function validatePayloadAgainstSchema(
       valid: true,
       available: false,
       issues: [],
-      unavailableReason: error instanceof Error ? error.message : String(error),
+      unavailableReason: extractErrorMessage(error),
     };
   }
 }

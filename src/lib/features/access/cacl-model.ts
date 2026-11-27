@@ -89,7 +89,7 @@ export function escapeCaclString(value: string): string {
   return `"${escaped}"`;
 }
 
-export function unescapeCaclStringLiteral(tokenText: string): string {
+function unescapeCaclStringLiteral(tokenText: string): string {
   if (tokenText.length < 2 || !tokenText.startsWith('"') || !tokenText.endsWith('"')) {
     return tokenText;
   }

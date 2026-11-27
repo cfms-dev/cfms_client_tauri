@@ -13,6 +13,7 @@
     type UpdateCheckPausePreset,
   } from '$lib/features/updates/update-check-pause';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -63,7 +64,7 @@
         channel = appUpdateState.channel;
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

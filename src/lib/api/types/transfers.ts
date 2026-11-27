@@ -22,12 +22,6 @@ export type UploadTaskStatus =
   | "cancelled"
   | "skipped";
 
-export type DownloadPhase =
-  | "downloading"
-  | "decrypting"
-  | "cleaning"
-  | "verifying";
-
 // ---------------------------------------------------------------------------
 // DTOs (matching cfms_core::types)
 // ---------------------------------------------------------------------------
@@ -61,12 +55,6 @@ export interface DownloadTaskDto {
   batch_root_id?: string | null;
   batch_created_at?: number | null;
   batch_estimated_total?: number | null;
-}
-
-export interface DownloadProgress {
-  phase: DownloadPhase;
-  progress: number;
-  message: string;
 }
 
 export interface UploadRevisionProgressEvent {

@@ -25,7 +25,7 @@ export function sortFileEntries(
   };
 }
 
-export function sortFolders(
+function sortFolders(
   input: ServerDirectoryEntry[],
   field: SortField,
   direction: SortDirection,
@@ -34,7 +34,7 @@ export function sortFolders(
   return [...input].sort((a, b) => sign * compareFolderEntries(a, b, field));
 }
 
-export function sortDocuments(
+function sortDocuments(
   input: ServerDocumentEntry[],
   field: SortField,
   direction: SortDirection,

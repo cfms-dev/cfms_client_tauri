@@ -116,25 +116,6 @@ pub async fn receive(
     receive_with_resume(conn, task_id, dest, 0, None, max_chunk_size, on_progress).await
 }
 
-/// Normal response envelope used by request handlers when a transfer cannot
-/// be started (for example, because a one-shot task was already consumed).
-#[derive(Debug, Deserialize)]
-struct ServerErrorResponse {
-    code: u32,
-    message: String,
-    #[serde(default)]
-    data: ServerErrorData,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct ServerErrorData {
-    scope: Option<String>,
-    limit: Option<u64>,
-    retry_after_seconds: Option<u64>,
-    task_status: Option<String>,
-    retryable: Option<bool>,
-}
-
 /// Receive an encrypted file, optionally resuming from a byte offset.
 ///
 /// When `chunk_store_path` is provided, encrypted chunks are stored in that
@@ -494,29 +475,22 @@ pub async fn receive_with_resume(
         file_size,
         file_size,
     );
-    let cleanup_store = ChunkStore::open(&db_path)?;
-    cleanup_store.purge()?;
     store_owner.cleanup()?;
 
     Ok(file_size)
+}
+
+fn parse_server_error_envelope(raw: &[u8]) -> Option<cfms_core::Error> {
+    let response = serde_json::from_slice::<cfms_core::error::ServerResponseEnvelope>(raw).ok()?;
+    (response.code != 200).then(|| response.into_error())
 }
 
 fn parse_metadata_response(raw: &[u8]) -> Result<FileMetadataResponse> {
     // Error envelopes do not contain `action`, so detect them before parsing
     // the transfer metadata. Previously these surfaced as the misleading
     // "missing field `action`" protocol error and were retried repeatedly.
-    if let Ok(response) = serde_json::from_slice::<ServerErrorResponse>(raw)
-        && response.code != 200
-    {
-        return Err(cfms_core::Error::Server {
-            code: response.code,
-            message: response.message,
-            scope: response.data.scope,
-            limit: response.data.limit,
-            retry_after_seconds: response.data.retry_after_seconds,
-            task_status: response.data.task_status,
-            retryable: response.data.retryable,
-        });
+    if let Some(err) = parse_server_error_envelope(raw) {
+        return Err(err);
     }
 
     serde_json::from_slice(raw)
@@ -581,7 +555,7 @@ fn prepare_chunk_store(
     Ok(ChunkStoreOwner::Temporary(create_download_temp_dir(dest)?))
 }
 
-fn remove_sqlite_sidecars(path: &Path) -> Result<()> {
+pub fn remove_sqlite_sidecars(path: &Path) -> Result<()> {
     remove_file_if_exists(path)?;
     remove_file_if_exists(&PathBuf::from(format!("{}-wal", path.display())))?;
     remove_file_if_exists(&PathBuf::from(format!("{}-shm", path.display())))?;
@@ -630,18 +604,8 @@ fn parse_empty_file_marker(raw: &[u8]) -> Result<()> {
 }
 
 fn parse_transfer_completion(raw: &[u8]) -> Result<()> {
-    if let Ok(response) = serde_json::from_slice::<ServerErrorResponse>(raw)
-        && response.code != 200
-    {
-        return Err(cfms_core::Error::Server {
-            code: response.code,
-            message: response.message,
-            scope: response.data.scope,
-            limit: response.data.limit,
-            retry_after_seconds: response.data.retry_after_seconds,
-            task_status: response.data.task_status,
-            retryable: response.data.retryable,
-        });
+    if let Some(err) = parse_server_error_envelope(raw) {
+        return Err(err);
     }
 
     let completion: TransferCompleteMessage = serde_json::from_slice(raw).map_err(|error| {

@@ -7,6 +7,7 @@
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { pickDirectory } from '$lib/shared/platform/directory-picker';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import Icon from '$lib/shared/ui/Icon.svelte';
@@ -45,7 +46,7 @@
       useExternalStorage = preferences.use_external_storage;
       externalStoragePath = preferences.external_storage_path;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }
@@ -77,7 +78,7 @@
         applyStoragePreference(true, selected.path);
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       selectingPath = false;
     }

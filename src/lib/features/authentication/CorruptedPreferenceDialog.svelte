@@ -6,6 +6,7 @@
   import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
   import Icon from '$lib/shared/ui/Icon.svelte';
   import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
 
   let {
     onDelete,
@@ -45,7 +46,7 @@
       recoveryPassword = '';
       onRecovered();
     } catch (error) {
-      recoveryError = error instanceof Error ? error.message : String(error);
+      recoveryError = formatUserFacingError(error);
     } finally {
       recoveryBusy = false;
     }

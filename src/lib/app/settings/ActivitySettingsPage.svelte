@@ -7,6 +7,7 @@
     type UserPreference,
   } from '$lib/api';
   import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
   import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
   import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
   import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
@@ -32,7 +33,7 @@
       preferences = await loadUserPreference();
       recordRecentVisits = preferences.record_recent_visits === true;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = formatUserFacingError(err);
     } finally {
       loading = false;
     }

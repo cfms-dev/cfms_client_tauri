@@ -10,7 +10,7 @@ use crate::pin::equal;
 const VERSION: &str = "v1";
 const ALGORITHM: &str = "pbkdf2-sha256";
 const DOMAIN_SEPARATOR: &[u8] = b"cfms.managed_auth_key.username.v1\0";
-pub const USERNAME_HASH_ITERATIONS: u32 = 30_000;
+const USERNAME_HASH_ITERATIONS: u32 = 30_000;
 const MIN_ITERATIONS: u32 = 1;
 const MAX_ITERATIONS: u32 = 2_000_000;
 const SALT_LEN: usize = 16;

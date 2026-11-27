@@ -740,12 +740,8 @@ impl Batch {
     }
 }
 
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
+use cfms_core::time::unix_now_ms as now_ms;
+
 fn emit(app: &AppState, id: &str) {
     let _ = app
         .event_tx

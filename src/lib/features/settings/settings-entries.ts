@@ -176,7 +176,7 @@ export function getVisibleSettingsGroups(
   })).filter((group) => group.entries.length > 0);
 }
 
-export function isSettingsEntryVisible(
+function isSettingsEntryVisible(
   entry: SettingsEntry,
   context: SettingsEntryVisibilityContext,
 ): boolean {

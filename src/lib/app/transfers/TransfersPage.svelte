@@ -324,7 +324,14 @@ import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
     }, false);
   }
   async function handleDeleteFile(id: string) {
-    if (!window.confirm($t('tasks.deleteLocalFileConfirm'))) return;
+    const confirmed = await dialogStore.confirm({
+      title: $t('tasks.deleteLocalFile'),
+      message: $t('tasks.deleteLocalFileConfirm'),
+      confirmLabel: $t('tasks.deleteLocalFile'),
+      cancelLabel: $t('common.cancel'),
+      danger: true,
+    });
+    if (!confirmed) return;
     await runDownload(id, async () => {
       const result = await deleteDownloadedFiles([id]);
       if (result.failed.length) throw new Error(result.failed[0].error);

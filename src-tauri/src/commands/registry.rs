@@ -55,7 +55,6 @@ pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         super::developer::send_developer_request,
         super::settings::get_locale,
         super::settings::set_locale,
-        super::settings::translate_backend,
         super::settings::get_connection_settings,
         super::settings::set_connection_settings,
         super::settings::get_ca_certificate_status,

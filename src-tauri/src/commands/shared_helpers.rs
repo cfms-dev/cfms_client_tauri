@@ -62,13 +62,7 @@ pub(super) fn format_server_error_parts(
     message: &str,
     data: &serde_json::Value,
 ) -> String {
-    let mut error = format!("Server returned {code}: {message}");
-    let error_data = serde_json::to_string(data).unwrap_or_else(|_| "{}".to_string());
-    if error_data != "{}" && error_data != "null" {
-        error.push_str("\nCFMS_ERROR_DATA:");
-        error.push_str(&error_data);
-    }
-    error
+    cfms_core::error::format_server_error_parts(code, message, data)
 }
 
 pub(super) fn format_transport_error(error: &cfms_core::Error) -> String {

@@ -108,6 +108,17 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Update the lockdown status and reason, and broadcast `ServiceEvent::Lockdown`.
+    pub async fn apply_lockdown(&self, status: bool, reason: Option<String>) {
+        self.app_lockdown
+            .store(status, std::sync::atomic::Ordering::SeqCst);
+        let reason = status.then_some(reason).flatten();
+        *self.lockdown_reason.write().await = reason.clone();
+        let _ = self
+            .event_tx
+            .send(ServiceEvent::Lockdown { status, reason });
+    }
+
     /// Leave elevation locally, preserving the ordinary login session.
     pub async fn drop_escalation(&self) {
         let _update = self.auth_update.lock().await;

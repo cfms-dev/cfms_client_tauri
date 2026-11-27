@@ -237,15 +237,7 @@ pub async fn set_user_username(
         },
     )
     .await
-    .map_err(|error| {
-        if let Some(code) = error.status {
-            super::shared_helpers::format_server_error_parts(code, &error.message, &error.data)
-        } else if error.sent {
-            format!("CFMS_REQUEST_UNCONFIRMED: {}", error.message)
-        } else {
-            error.message
-        }
-    })?;
+    .map_err(super::server_actions::map_action_failure)?;
     let guard = state.inner.auth_update.lock().await;
     identity.ensure_current_locked(&state.inner, &guard).await?;
     if own {
@@ -505,23 +497,15 @@ pub async fn set_lockdown(
         .get("status")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(status);
-    let applied_reason = applied_status
-        .then(|| response.get("reason").and_then(serde_json::Value::as_str))
-        .flatten()
+    let applied_reason = response
+        .get("reason")
+        .and_then(serde_json::Value::as_str)
         .map(ToOwned::to_owned);
 
     state
         .inner
-        .app_lockdown
-        .store(applied_status, std::sync::atomic::Ordering::SeqCst);
-    *state.inner.lockdown_reason.write().await = applied_reason.clone();
-    let _ = state
-        .inner
-        .event_tx
-        .send(cfms_core::ServiceEvent::Lockdown {
-            status: applied_status,
-            reason: applied_reason,
-        });
+        .apply_lockdown(applied_status, applied_reason)
+        .await;
 
     Ok(response)
 }

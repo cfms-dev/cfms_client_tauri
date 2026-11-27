@@ -2,7 +2,6 @@
 import { writable } from 'svelte/store';
 import { getDownloadBatches, type DownloadBatchSnapshot } from '$lib/api';
 export type { DownloadBatchSnapshot } from '$lib/api';
-export type DownloadBatchPhase = DownloadBatchSnapshot['phase'];
 export const downloadBatchSnapshots = writable<DownloadBatchSnapshot[]>([]);
 let generation = 0;
 export async function refreshDownloadBatches() {

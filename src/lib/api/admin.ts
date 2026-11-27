@@ -332,5 +332,3 @@ export async function getUserKey(id: string): Promise<UserKeyDetails> {
 export async function deleteUserKey(id: string): Promise<boolean> {
   return invoke("delete_user_key", { id });
 }
-
-// ---------------------------------------------------------------------------

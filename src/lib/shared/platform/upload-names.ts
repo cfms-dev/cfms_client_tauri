@@ -1,3 +1,5 @@
+import { formatPathFilename } from '$lib/shared/format/path-format';
+
 export function isAndroidTreeUri(path: string): boolean {
   return path.startsWith('content://') && path.includes('/tree/');
 }
@@ -16,10 +18,10 @@ export function basename(path: string): string {
       // Fall through to plain path parsing.
     }
   }
-  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+  return formatPathFilename(path);
 }
 
-export function stripUploadCachePrefix(name: string): string {
+function stripUploadCachePrefix(name: string): string {
   return name
     .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_/i, '')
     .replace(/^[0-9a-f]{32}_/i, '')

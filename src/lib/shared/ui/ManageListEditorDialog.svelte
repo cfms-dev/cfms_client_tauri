@@ -1,3 +1,16 @@
+<script module lang="ts">
+  export interface ManageListEditorItem {
+    id: string;
+    label?: string;
+    meta?: string;
+  }
+
+  export interface ManageListEditorData {
+    items: ManageListEditorItem[];
+    selected: string[];
+  }
+</script>
+
 <script lang="ts">
   import FluentButton from '$lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
@@ -9,17 +22,6 @@
   import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
   import type { IconName } from '$lib/shared/ui/icons';
   import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-
-  interface EditorItem {
-    id: string;
-    label?: string;
-    meta?: string;
-  }
-
-  interface EditorData {
-    items: EditorItem[];
-    selected: string[];
-  }
 
   let {
     title,
@@ -38,18 +40,18 @@
     title: string;
     description: string;
     icon?: IconName;
-    items?: EditorItem[];
+    items?: ManageListEditorItem[];
     selected?: string[];
     allowAdd?: boolean;
     addPlaceholder?: string;
     emptyMessage?: string;
     saveLabel?: string;
-    onRefresh?: () => Promise<EditorData>;
+    onRefresh?: () => Promise<ManageListEditorData>;
     onSave: (selected: string[]) => Promise<void>;
     onClose: () => void;
   } = $props();
 
-  let localItems = $state<EditorItem[]>(untrack(() => items));
+  let localItems = $state<ManageListEditorItem[]>(untrack(() => items));
   let selectedSet = $state<Set<string>>(new Set(untrack(() => selected)));
   let customValue = $state('');
   let query = $state('');
@@ -59,7 +61,7 @@
 
   const allItems = $derived.by(() => {
     const known = new Map(localItems.map((item) => [item.id, item]));
-    const extras: EditorItem[] = [...selectedSet]
+    const extras: ManageListEditorItem[] = [...selectedSet]
       .filter((id) => !known.has(id))
       .map((id) => ({ id, label: id }));
 
@@ -83,7 +85,7 @@
     if (onRefresh) void refresh();
   });
 
-  function displayLabel(item: EditorItem) {
+  function displayLabel(item: ManageListEditorItem) {
     return item.label || item.id;
   }
 

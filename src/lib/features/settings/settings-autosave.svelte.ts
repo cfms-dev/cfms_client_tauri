@@ -1,3 +1,5 @@
+import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+
 export interface AutoSaveOptions {
   onError?: (message: string) => void;
 }
@@ -21,7 +23,7 @@ export function createAutoSave(options: AutoSaveOptions = {}) {
       try {
         await nextAction();
       } catch (err) {
-        options.onError?.(err instanceof Error ? err.message : String(err));
+        options.onError?.(formatUserFacingError(err));
       }
     }
 

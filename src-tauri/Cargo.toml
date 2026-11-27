@@ -28,15 +28,13 @@ tauri-plugin-dialog.workspace = true
 tauri-plugin-notification.workspace = true
 tauri-plugin-process.workspace = true
 tauri-plugin-updater.workspace = true
-async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 rand.workspace = true
 zeroize.workspace = true
-hex = "0.4.3"
-base64ct.workspace = true
+hex.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 semver.workspace = true
@@ -44,7 +42,6 @@ url.workspace = true
 fluent-bundle.workspace = true
 unic-langid.workspace = true
 tauri-plugin-log = "2"
-tauri-plugin-background-service.workspace = true
 tauri-plugin-os = "2"
 
 [target.'cfg(windows)'.dependencies]
@@ -63,9 +60,12 @@ apple-native-keyring-store = { version = "1", features = ["protected"] }
 nix = { version = "0.31", default-features = false, features = ["process"] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+async-trait.workspace = true
+tauri-plugin-background-service.workspace = true
 tauri-plugin-biometric = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
+base64ct.workspace = true
 webpki-roots.workspace = true
 
 [features]
@@ -73,6 +73,7 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
+base64ct.workspace = true
 tempfile.workspace = true
 futures-util.workspace = true
 tokio-tungstenite.workspace = true

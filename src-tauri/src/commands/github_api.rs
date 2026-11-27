@@ -129,10 +129,7 @@ fn github_api_response_error(
                     .ok()?
                     .parse::<u64>()
                     .ok()?;
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .ok()?
-                    .as_secs();
+                let now = cfms_core::time::unix_now_u64();
                 (reset > now).then(|| std::time::Duration::from_secs(reset - now))
             })
             .unwrap_or_else(|| std::time::Duration::from_secs(60));
