@@ -321,6 +321,9 @@ export async function searchFiles(
   return {
     items,
     total_count: data.total_count ?? items.length,
+    ...(data.parent_effective_masks !== undefined
+      ? { parent_effective_masks: data.parent_effective_masks }
+      : {}),
     page_size: data.page_size ?? options.pageSize ?? 128,
     next_cursor: data.next_cursor ?? null,
     has_more: data.has_more ?? false,

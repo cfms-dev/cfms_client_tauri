@@ -279,4 +279,35 @@ describe('ServerSearchView', () => {
     await fireEvent.click(header);
     expect(onSelectParentDirectory).not.toHaveBeenCalled();
   });
+
+  it('strikes through metadata-only inaccessible parent directory names and blocks navigation clicks', async () => {
+    const onSelectParentDirectory = vi.fn();
+    const results: SearchFilesResponse = {
+      items: [
+        { type: 'document', id: 'doc-1', title: 'MetaOnly', parent_id: 'meta-only-dir-id', size: 10 },
+      ],
+      total_count: 1,
+      page_size: 128,
+      next_cursor: null,
+      has_more: false,
+    };
+
+    const { container } = render(ServerSearchView, {
+      props: baseProps({
+        results,
+        parentDirectoryResolutions: {
+          'meta-only-dir-id': { status: 'inaccessible', name: 'Metadata Only' },
+        },
+        onSelectParentDirectory,
+      }),
+    });
+
+    const header = container.querySelector<HTMLButtonElement>('[data-search-group-header="meta-only-dir-id"]')!;
+    expect(header.dataset.searchGroupState).toBe('inaccessible');
+    expect(header.getAttribute('aria-disabled')).toBe('true');
+    expect(header.querySelector('.search-group-text--inaccessible')?.textContent).toBe('Metadata Only');
+
+    await fireEvent.click(header);
+    expect(onSelectParentDirectory).not.toHaveBeenCalled();
+  });
 });

@@ -149,6 +149,7 @@ export function createServerSearchController(options: ServerSearchControllerOpti
         });
         if (activeRunId !== runId) return;
 
+        parentDirectoryResolver.applyParentEffectiveMasks(page.parent_effective_masks);
         combined = mergeSearchResponses(combined, page);
         results = combined;
         loading = page.has_more;

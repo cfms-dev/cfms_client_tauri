@@ -7,10 +7,25 @@ pub mod shortcuts;
 #[cfg(test)]
 mod workflow_tests;
 
-use cfms_core::{CursorPage, ListDirectoryResponse};
+use cfms_core::ListDirectoryResponse;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const SERVER_CURSOR_PAGE_SIZE: u32 = 128;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SearchCursorPage {
+    #[serde(default)]
+    pub items: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub page_size: u32,
+    #[serde(default)]
+    pub next_cursor: Option<String>,
+    #[serde(default)]
+    pub has_more: bool,
+    #[serde(default)]
+    pub parent_effective_masks: Option<BTreeMap<String, u32>>,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ListingCursorPage {
@@ -84,7 +99,7 @@ pub fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingC
     target.documents.extend(split.documents);
 }
 
-pub fn normalize_search_page(mut page: CursorPage<serde_json::Value>) -> serde_json::Value {
+pub fn normalize_search_page(mut page: SearchCursorPage) -> serde_json::Value {
     let items: Vec<serde_json::Value> = page
         .items
         .drain(..)
@@ -96,12 +111,16 @@ pub fn normalize_search_page(mut page: CursorPage<serde_json::Value>) -> serde_j
         })
         .collect();
 
-    serde_json::json!({
+    let mut normalized = serde_json::json!({
         "items": items,
         "page_size": page.page_size,
         "next_cursor": page.next_cursor,
         "has_more": page.has_more,
-    })
+    });
+    if let Some(parent_effective_masks) = page.parent_effective_masks {
+        normalized["parent_effective_masks"] = serde_json::json!(parent_effective_masks);
+    }
+    normalized
 }
 
 pub fn directory_page_size(page_size: Option<u32>) -> u32 {
@@ -208,7 +227,7 @@ mod protocol_v15_tests {
 
     #[test]
     fn normalize_search_page_preserves_item_order_and_cursor_metadata() {
-        let page: CursorPage<serde_json::Value> = serde_json::from_str(
+        let page: SearchCursorPage = serde_json::from_str(
             r#"{
                 "items": [
                     { "type": "document", "id": "doc-1", "name": "Alpha.txt", "size": 5 },
@@ -233,6 +252,7 @@ mod protocol_v15_tests {
         assert_eq!(normalized["page_size"], 64);
         assert_eq!(normalized["next_cursor"], "cursor");
         assert_eq!(normalized["has_more"], true);
+        assert!(normalized.get("parent_effective_masks").is_none());
     }
 
     #[test]
@@ -309,12 +329,16 @@ mod protocol_v32_tests {
         assert_eq!(combined.effective_mask, Some(7));
         assert_eq!(combined.documents[1].effective_mask, Some(0));
 
-        let search_page: CursorPage<serde_json::Value> = serde_json::from_str(
+        let search_page: SearchCursorPage = serde_json::from_str(
             r#"{
                 "items": [
-                    { "type": "document", "id": "doc-1", "name": "Alpha.txt", "effective_mask": 1040 },
-                    { "type": "directory", "id": "dir-1", "name": "Beta", "effective_mask": 3 }
+                    { "type": "document", "id": "doc-1", "name": "Alpha.txt", "parent_id": "dir-parent", "effective_mask": 1040 },
+                    { "type": "directory", "id": "dir-1", "name": "Beta", "parent_id": "/", "effective_mask": 3 }
                 ],
+                "parent_effective_masks": {
+                    "dir-parent": 1,
+                    "/": 1049603
+                },
                 "page_size": 64,
                 "next_cursor": null,
                 "has_more": false
@@ -324,5 +348,7 @@ mod protocol_v32_tests {
         let normalized = normalize_search_page(search_page);
         assert_eq!(normalized["items"][0]["effective_mask"], 1040);
         assert_eq!(normalized["items"][1]["effective_mask"], 3);
+        assert_eq!(normalized["parent_effective_masks"]["dir-parent"], 1);
+        assert_eq!(normalized["parent_effective_masks"]["/"], 1049603);
     }
 }

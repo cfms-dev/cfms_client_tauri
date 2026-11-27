@@ -53,10 +53,21 @@ export function mergeSearchResponses(
   previous: SearchFilesResponse,
   page: SearchFilesResponse,
 ): SearchFilesResponse {
+  const hasParentMasks =
+    previous.parent_effective_masks !== undefined
+    || page.parent_effective_masks !== undefined;
   return {
     ...page,
     items: [...previous.items, ...page.items],
     total_count: previous.total_count + page.total_count,
+    ...(hasParentMasks
+      ? {
+          parent_effective_masks: {
+            ...previous.parent_effective_masks,
+            ...page.parent_effective_masks,
+          },
+        }
+      : {}),
   };
 }
 

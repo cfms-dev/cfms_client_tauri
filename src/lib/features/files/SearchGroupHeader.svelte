@@ -34,6 +34,9 @@
   const resolvedName = $derived(
     resolution?.status === 'resolved' ? resolution.name : null,
   );
+  const inaccessibleName = $derived(
+    resolution?.status === 'inaccessible' ? (resolution.name ?? null) : null,
+  );
   const stateAttr = $derived(
     isResolved ? 'resolved' : isInaccessible ? 'inaccessible' : 'pending',
   );
@@ -41,7 +44,7 @@
     if (resolvedName) return `${resolvedName} (${parentId})`;
     if (isInaccessible) {
       return $t('files.searchInaccessibleParentDirectory', {
-        values: { id: parentId },
+        values: { id: inaccessibleName ? `${inaccessibleName} (${parentId})` : parentId },
       });
     }
     return parentId;
@@ -49,7 +52,7 @@
   const ariaLabel = $derived.by(() => {
     if (isInaccessible) {
       return $t('files.searchInaccessibleParentDirectory', {
-        values: { id: parentId },
+        values: { id: inaccessibleName ?? parentId },
       });
     }
     return $t('files.searchOpenParentDirectory', {
@@ -172,7 +175,7 @@
         class:search-group-text--inaccessible={isInaccessible}
         data-search-group-label
       >
-        {parentId}
+        {inaccessibleName ?? parentId}
       </span>
     {/if}
   </button>

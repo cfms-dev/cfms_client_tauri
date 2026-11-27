@@ -88,6 +88,7 @@ export type SearchResultItem =
 export interface SearchFilesResponse extends CursorPageMeta {
   items: SearchResultItem[];
   total_count: number;
+  parent_effective_masks?: Record<string, number>;
 }
 
 export interface DeletedDirectoryEntry {

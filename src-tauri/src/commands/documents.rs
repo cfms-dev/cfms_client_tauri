@@ -28,8 +28,8 @@ use super::upload_tasks::emit_upload_snapshot;
 #[cfg(target_os = "android")]
 use crate::AndroidUploadFileImporter;
 use crate::AppHandleState;
-use cfms_core::CursorPage;
 use cfms_service::files::SERVER_CURSOR_PAGE_SIZE;
+use cfms_service::files::SearchCursorPage;
 use cfms_service::files::normalize_search_page;
 use cfms_service::transfers::collect_directory_entries;
 use cfms_service::transfers::relative_upload_path;
@@ -941,7 +941,7 @@ pub async fn search_files(
         }),
     )
     .await?;
-    let page: CursorPage<serde_json::Value> =
+    let page: SearchCursorPage =
         serde_json::from_value(raw).map_err(|e| format!("Invalid search response: {e}"))?;
 
     Ok(normalize_search_page(page))

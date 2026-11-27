@@ -202,4 +202,77 @@ describe('server-search-controller', () => {
       vi.useRealTimers();
     }
   });
+
+  it('applies Protocol 32 parent_effective_masks from search results without redundant metadata fetches', async () => {
+    vi.useFakeTimers();
+    try {
+      const { EFFECTIVE_OP } = await import('#lib/features/access/effective-permissions.ts');
+      mocks.searchFiles.mockResolvedValue({
+        items: [
+          { type: 'document', id: 'doc-1', title: 'HiddenMeta', parent_id: 'dir-no-meta' },
+          { type: 'document', id: 'doc-2', title: 'Locked', parent_id: 'dir-locked' },
+          { type: 'document', id: 'doc-3', title: 'MetaOnly', parent_id: 'dir-meta-only' },
+          { type: 'document', id: 'doc-4', title: 'RootFile', parent_id: '/' },
+        ],
+        parent_effective_masks: {
+          'dir-no-meta': EFFECTIVE_OP.TRAVERSE | EFFECTIVE_OP.LIST_DIRECTORY,
+          'dir-locked': EFFECTIVE_OP.TRAVERSE,
+          'dir-meta-only': EFFECTIVE_OP.TRAVERSE | EFFECTIVE_OP.READ_METADATA,
+          '/': EFFECTIVE_OP.TRAVERSE,
+        },
+        total_count: 4,
+        page_size: 128,
+        next_cursor: null,
+        has_more: false,
+      });
+      mocks.getDirectoryInfo.mockResolvedValue({
+        directory_id: 'dir-meta-only',
+        name: 'Metadata Only',
+        effective_mask: EFFECTIVE_OP.TRAVERSE | EFFECTIVE_OP.READ_METADATA,
+      });
+
+      const controller = createServerSearchController({ canSearch: () => true });
+      controller.openSearch({ query: 'test', runImmediately: true });
+      await vi.waitFor(() => expect(controller.results?.total_count).toBe(4));
+
+      // Inaccessible parents are marked immediately from parent_effective_masks
+      expect(controller.parentDirectoryResolutions['dir-no-meta']).toBeUndefined();
+      expect(controller.parentDirectoryResolutions['dir-locked']).toEqual({ status: 'inaccessible' });
+      expect(controller.parentDirectoryResolutions['dir-meta-only']).toEqual({ status: 'inaccessible' });
+      expect(controller.parentDirectoryResolutions['/']).toEqual({ status: 'inaccessible' });
+
+      const r1 = controller.observeParentDirectory('dir-no-meta');
+      const r2 = controller.observeParentDirectory('dir-locked');
+      const r3 = controller.observeParentDirectory('dir-meta-only');
+      await vi.advanceTimersByTimeAsync(250);
+      await vi.waitFor(() =>
+        expect(controller.parentDirectoryResolutions['dir-meta-only']).toEqual({
+          status: 'inaccessible',
+          name: 'Metadata Only',
+        }),
+      );
+
+      // Neither list-only nor completely inaccessible parent triggered getDirectoryInfo
+      expect(mocks.getDirectoryInfo).toHaveBeenCalledTimes(1);
+      expect(mocks.getDirectoryInfo).toHaveBeenCalledWith('dir-meta-only');
+      expect(controller.parentDirectoryResolutions['dir-no-meta']).toBeUndefined();
+
+      // Preserved across filter changes (no re-fetch)
+      r1();
+      r2();
+      r3();
+      controller.setFilter('documents');
+      await vi.waitFor(() => expect(mocks.searchFiles).toHaveBeenCalledTimes(2));
+      const releaseAfterFilter = controller.observeParentDirectory('dir-no-meta');
+      await vi.advanceTimersByTimeAsync(250);
+      expect(mocks.getDirectoryInfo).toHaveBeenCalledTimes(1);
+
+      // Reset when search closes
+      releaseAfterFilter();
+      controller.closeSearch();
+      expect(controller.parentDirectoryResolutions).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

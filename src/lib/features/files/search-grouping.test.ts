@@ -100,6 +100,9 @@ describe('search-grouping', () => {
       items: [
         { type: 'document', id: 'doc-1', title: 'A', parent_id: 'dir-a' },
       ],
+      parent_effective_masks: {
+        'dir-a': 3,
+      },
       total_count: 1,
       page_size: 1,
       next_cursor: 'cursor-2',
@@ -110,6 +113,10 @@ describe('search-grouping', () => {
         { type: 'document', id: 'doc-2', title: 'B', parent_id: 'dir-a' },
         { type: 'document', id: 'doc-3', title: 'C', parent_id: 'dir-b' },
       ],
+      parent_effective_masks: {
+        'dir-a': 1027,
+        'dir-b': 1,
+      },
       total_count: 2,
       page_size: 2,
       next_cursor: null,
@@ -118,6 +125,10 @@ describe('search-grouping', () => {
 
     const merged = mergeSearchResponses(page1, page2);
     expect(merged.total_count).toBe(3);
+    expect(merged.parent_effective_masks).toEqual({
+      'dir-a': 1027,
+      'dir-b': 1,
+    });
 
     const grouped = buildGroupedSearchDisplayRows(toSearchResultRows(merged));
     expect(grouped.map((row) => (row.kind === 'group-header' ? `H:${row.parentId}` : row.kind === 'document' ? row.document.id : row.directory.id))).toEqual([
