@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initializeAppLock, configureAppLock, getAppLock, beginAppLockPrompt, finishAppLockPrompt, type AppLockSnapshot } from '$lib/api';
-import { authenticate } from '$lib/shared/platform/native-biometric';
+import { initializeAppLock, configureAppLock, getAppLock, beginAppLockPrompt, finishAppLockPrompt, type AppLockSnapshot } from '#lib/api.ts';
+import { authenticate } from '#lib/shared/platform/native-biometric.ts';
 import { appLockStore } from './app-lock.svelte';
 import { deferred } from '../../../test/deferred';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   initializeAppLock: vi.fn(), configureAppLock: vi.fn(), getAppLock: vi.fn(),
   appLockActivity: vi.fn(), lockApp: vi.fn(), verifyAppLockPin: vi.fn(),
   beginAppLockPrompt: vi.fn(), finishAppLockPrompt: vi.fn(),
   createAndroidPasskey: vi.fn(), getAndroidPasskey: vi.fn(), getAndroidPasskeyAvailability: vi.fn(),
 }));
-vi.mock('$lib/shared/platform/native-biometric', () => ({ authenticate: vi.fn(), checkStatus: vi.fn() }));
-vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false }));
+vi.mock('#lib/shared/platform/native-biometric.ts', () => ({ authenticate: vi.fn(), checkStatus: vi.fn() }));
+vi.mock('#lib/shared/platform/platform.ts', () => ({ isMobilePlatform: () => false }));
 
 function snapshot(): AppLockSnapshot {
   return { revision: 1, settings: { version: 1, enabled: true, pin: null, biometricEnabled: true, platformCredentials: [], timedLockEnabled: false, timedLockMs: 300_000, updatedAt: 1 }, locked: true, failedAttempts: 0, lockoutUntil: 0, disconnectRequired: false };

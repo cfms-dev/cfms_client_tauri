@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import '@fluentui/web-components/switch.js';
   import type { Switch } from '@fluentui/web-components';
-  import { disabledAttribute } from '$lib/shared/fluent/control';
+  import { disabledAttribute } from '#lib/shared/fluent/control.ts';
   interface Props {
     checked?: boolean; disabled?: boolean; ariaLabel?: string; class?: string;
     onChange?: (checked: boolean) => void;

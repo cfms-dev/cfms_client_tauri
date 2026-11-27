@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import AccountDisabledNotice from '$lib/features/authentication/AccountDisabledNotice.svelte';
+import AccountDisabledNotice from '#lib/features/authentication/AccountDisabledNotice.svelte';
 
 afterEach(cleanup);
 

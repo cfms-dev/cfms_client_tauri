@@ -7,10 +7,10 @@
   //   totalBytes: total bytes (0 when unknown)
   //   status: task status (controls colour and animation)
 
-  import type { DownloadTaskStatus } from "$lib/api";
+  import type { DownloadTaskStatus } from "#lib/api.ts";
   import { _ as t } from 'svelte-i18n';
-  import { formatByteRate } from '$lib/features/transfers/transfer-speed';
-  import { formatBytes } from '$lib/shared/format/values';
+  import { formatByteRate } from '#lib/features/transfers/transfer-speed.ts';
+  import { formatBytes } from '#lib/shared/format/values.ts';
 
   interface Props {
     progress: number;

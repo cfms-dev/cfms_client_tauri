@@ -1,8 +1,8 @@
 /// <reference lib="webworker" />
 
-import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
-import { type SortDirection, type SortField } from '$lib/features/files/sorting';
-import { ProgressiveListingAccumulator } from '$lib/features/files/progressive-listing';
+import type { ServerDirectoryEntry, ServerDocumentEntry } from '#lib/api.ts';
+import { type SortDirection, type SortField } from '#lib/features/files/sorting.ts';
+import { ProgressiveListingAccumulator } from '#lib/features/files/progressive-listing.ts';
 
 interface ProgressiveResetRequest {
   type: 'progressive-reset';

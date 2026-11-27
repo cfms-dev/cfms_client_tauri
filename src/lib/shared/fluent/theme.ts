@@ -1,5 +1,5 @@
 import { createLightTheme, createDarkTheme, type Theme } from '@fluentui/tokens';
-import type { ResolvedColorScheme } from '$lib/shared/appearance';
+import type { ResolvedColorScheme } from '#lib/shared/appearance.ts';
 import { colorPalettes, DEFAULT_PALETTE_ID, type ColorPalette } from './palettes.ts';
 import type { SurfaceColors } from './surface-colors';
 

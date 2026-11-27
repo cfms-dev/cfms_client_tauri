@@ -2,8 +2,8 @@
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import Breadcrumb from '$lib/features/files/Breadcrumb.svelte';
-import FileAddressBar from '$lib/features/files/FileAddressBar.svelte';
+import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
+import FileAddressBar from '#lib/features/files/FileAddressBar.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -14,7 +14,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ menuScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 class TestResizeObserver {

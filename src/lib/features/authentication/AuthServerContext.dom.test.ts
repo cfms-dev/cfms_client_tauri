@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it } from 'vitest';
-import AuthServerContext from '$lib/features/authentication/AuthServerContext.svelte';
+import AuthServerContext from '#lib/features/authentication/AuthServerContext.svelte';
 
 afterEach(cleanup);
 

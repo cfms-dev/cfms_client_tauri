@@ -1,4 +1,4 @@
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 const keys = new Set(['invalidFile', 'unsupportedAlgorithm', 'wrongPassphrase', 'signingFailed', 'selectAgain', 'cancelled', 'busy', 'expired', 'invalidChallenge', 'storageUnavailable', 'storageInvalidated', 'migrationFailed', 'missingRecoveryKey', 'discardFailed', 'invalidLabel']);
 export function publicKeyError(error: unknown, translate: (key: string) => string): string {

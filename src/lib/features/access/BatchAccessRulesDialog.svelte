@@ -2,8 +2,8 @@
   import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import type { ObjectType } from 'codemirror-lang-cacl';
-  import { getNodeDacl } from '$lib/api';
-  import type { ServerCaclDiagnostic } from '$lib/api/types';
+  import { getNodeDacl } from '#lib/api.ts';
+  import type { ServerCaclDiagnostic } from '#lib/api/types.ts';
   import {
     BatchAccessRulesController,
     batchRulesTargetKey,
@@ -12,18 +12,18 @@
     type BatchRulesProblem,
     type BatchRulesSnapshot,
     type BatchRulesTarget,
-  } from '$lib/features/access/batch-access-rules';
-  import { accessRulesDraftFingerprint } from '$lib/features/access/access-rules-edit';
-  import { parseCaclToModel } from '$lib/features/access/cacl-model';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { dialogStore, type ChoiceDialogOption } from '$lib/shared/ui/dialogs.svelte.ts';
-  import AccessRulesManager, { type CaclDraftState } from '$lib/features/access/AccessRulesManager.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdCheckbox from '$lib/shared/ui/MdCheckbox.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
+  } from '#lib/features/access/batch-access-rules.ts';
+  import { accessRulesDraftFingerprint } from '#lib/features/access/access-rules-edit.ts';
+  import { parseCaclToModel } from '#lib/features/access/cacl-model.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { dialogStore, type ChoiceDialogOption } from '#lib/shared/ui/dialogs.svelte.ts';
+  import AccessRulesManager, { type CaclDraftState } from '#lib/features/access/AccessRulesManager.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdCheckbox from '#lib/shared/ui/MdCheckbox.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
 
   let {
     targets,

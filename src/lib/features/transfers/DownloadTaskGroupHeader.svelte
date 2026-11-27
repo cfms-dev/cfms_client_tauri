@@ -1,19 +1,19 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
   import {
     canDeleteDownloadTaskGroupFiles, canRemoveDownloadTaskGroupRecords,
     type DownloadTaskGroup,
-  } from '$lib/features/transfers/download-task-groups';
-  import { formatByteRate } from '$lib/features/transfers/transfer-speed';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
-  import TransferGroupHeader from '$lib/features/transfers/TransferGroupHeader.svelte';
-  import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
-  import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
-  import { canControlTransfer } from '$lib/features/transfers/transfer-batches';
-  import { TRANSFER_ACTIONS, transferControlMenu } from '$lib/features/transfers/transfer-actions';
-  import type { TransferControlAction } from '$lib/api';
+  } from '#lib/features/transfers/download-task-groups.ts';
+  import { formatByteRate } from '#lib/features/transfers/transfer-speed.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
+  import TransferGroupHeader from '#lib/features/transfers/TransferGroupHeader.svelte';
+  import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
+  import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
+  import { canControlTransfer } from '#lib/features/transfers/transfer-batches.ts';
+  import { TRANSFER_ACTIONS, transferControlMenu } from '#lib/features/transfers/transfer-actions.ts';
+  import type { TransferControlAction } from '#lib/api.ts';
 
   type PendingAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete' | 'remove' | null;
 

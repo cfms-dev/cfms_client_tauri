@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let { name, count, expanded, disabled = false, deleting = false, progress,
     onToggle, actions, status, metadata }: {

@@ -1,5 +1,5 @@
 import { Validator, type Schema } from '@cfworker/json-schema';
-import type { JsonValue, ServerSettingDefinition, ServerSettingsValues, ServerSettingChange } from '$lib/api/types';
+import type { JsonValue, ServerSettingDefinition, ServerSettingsValues, ServerSettingChange } from '#lib/api/types.ts';
 
 const validators = new WeakMap<Record<string, JsonValue>, Validator>();
 

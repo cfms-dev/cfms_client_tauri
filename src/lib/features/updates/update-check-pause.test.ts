@@ -6,7 +6,7 @@ import {
   isAutomaticCheckPaused,
   parseUpdateCheckPause,
   serializeUpdateCheckPause,
-} from '$lib/features/updates/update-check-pause';
+} from '#lib/features/updates/update-check-pause.ts';
 
 describe('update check pause policy', () => {
   const now = Date.UTC(2026, 8, 11, 8, 0, 0);

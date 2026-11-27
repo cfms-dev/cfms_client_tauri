@@ -1,9 +1,9 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { InvalidAdminResponseError, type PermissionEntry } from '$lib/api';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+  import { InvalidAdminResponseError, type PermissionEntry } from '#lib/api.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
   import {
     KNOWN_GLOBAL_PERMISSIONS,
     countPermissionEntryChanges,
@@ -16,14 +16,14 @@
     type PermissionEntriesEditorData,
     type PermissionEntryFilter,
     type StartMode,
-  } from '$lib/features/access/permission-entries';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import PermissionEntryEditor from '$lib/features/access/PermissionEntryEditor.svelte';
-  import PermissionEntryList from '$lib/features/access/PermissionEntryList.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  } from '#lib/features/access/permission-entries.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import PermissionEntryEditor from '#lib/features/access/PermissionEntryEditor.svelte';
+  import PermissionEntryList from '#lib/features/access/PermissionEntryList.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   interface EditableEntry {
     key: string;

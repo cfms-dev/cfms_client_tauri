@@ -1,8 +1,8 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import AccessDeniedNotice from '$lib/features/access/AccessDeniedNotice.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import { formatLocalDateTimeWithUtcOffset } from '$lib/shared/format/date-time';
+  import AccessDeniedNotice from '#lib/features/access/AccessDeniedNotice.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import { formatLocalDateTimeWithUtcOffset } from '#lib/shared/format/date-time.ts';
 
   let {
     documentName,

@@ -3,9 +3,9 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import type { UpdateCheckPause } from '$lib/features/updates/update-check-pause';
-import AboutPage from '$lib/app/updates/AboutPage.svelte';
+import '#lib/shared/i18n.ts';
+import type { UpdateCheckPause } from '#lib/features/updates/update-check-pause.ts';
+import AboutPage from '#lib/app/updates/AboutPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   loadAppVersion: vi.fn(),
@@ -37,13 +37,13 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('$lib/features/updates/app-info', () => ({ loadAppVersion: mocks.loadAppVersion }));
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/features/updates/app-info.ts', () => ({ loadAppVersion: mocks.loadAppVersion }));
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   protocolVersion: mocks.protocolVersion,
 }));
-vi.mock('$lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
-vi.mock('$lib/features/updates/release-highlights-state.svelte.ts', () => ({
+vi.mock('#lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
+vi.mock('#lib/features/updates/release-highlights-state.svelte.ts', () => ({
   releaseHighlightsState: {
     initialize: mocks.initializeHighlights,
     hasAvailableHighlights: mocks.hasAvailableHighlights,

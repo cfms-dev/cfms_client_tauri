@@ -1,8 +1,14 @@
-import { browser } from '$app/environment';
-import { showAndroidUpdateNotification, cancelAndroidUpdateNotification, type UpdateProgressSnapshot } from '$lib/api/updates';
-import { platform } from '$lib/shared/platform/native-os';
-import { formatBytes } from '$lib/shared/format/values';
-import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
+import { browser } from '$app/env';
+
+import {
+  showAndroidUpdateNotification,
+  cancelAndroidUpdateNotification,
+  type UpdateProgressSnapshot
+} from '#lib/api/updates.ts';
+
+import { platform } from '#lib/shared/platform/native-os.ts';
+import { formatBytes } from '#lib/shared/format/values.ts';
+import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
 
 const UPDATE_PROGRESS_ID = 'app-update:download';
 const SYSTEM_NOTIFICATION_MIN_INTERVAL_MS = 500;
@@ -146,7 +152,7 @@ class UpdateNotificationReporter {
   }
 
   private async cancelAndroidNotification() {
-    if (!browser || !(await this.isAndroidRuntime())) return;
+    if (!browser || !await this.isAndroidRuntime()) return;
 
     try {
       await cancelAndroidUpdateNotification();

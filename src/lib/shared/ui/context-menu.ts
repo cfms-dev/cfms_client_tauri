@@ -1,5 +1,5 @@
-import type { IconName } from '$lib/shared/ui/icons';
-import type { ShortcutSpec } from '$lib/shared/ui/keyboard';
+import type { IconName } from '#lib/shared/ui/icons.ts';
+import type { ShortcutSpec } from '#lib/shared/ui/keyboard.ts';
 
 export interface ContextMenuActionItem {
   id: string;

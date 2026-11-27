@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildScheduleTrigger,
   isoToZonedDateTimeInput,
-} from '$lib/features/schedules/schedule-form';
+} from '#lib/features/schedules/schedule-form.ts';
 
 describe('schedule form protocol mapping', () => {
   it('builds each protocol 27 trigger shape', () => {

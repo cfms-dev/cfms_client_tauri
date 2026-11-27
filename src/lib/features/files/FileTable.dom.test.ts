@@ -3,7 +3,7 @@ import { replaceProperty } from '../../../test/dom-fixtures';
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import FileTable from '$lib/features/files/FileTable.svelte';
+import FileTable from '#lib/features/files/FileTable.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {

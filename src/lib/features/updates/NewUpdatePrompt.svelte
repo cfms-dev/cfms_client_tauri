@@ -1,21 +1,21 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import { browser } from '$app/environment';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import { browser } from '$app/env';
   import { goto } from '$app/navigation';
   import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
-  import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
-  import { createUpdateNotificationCopy } from '$lib/features/updates/update-notifications';
-  import { formatReleaseDate as formatReleaseDateValue } from '$lib/features/updates/app-info';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { openUrl } from '$lib/shared/platform/native-opener';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
-  import { flyScale } from '$lib/shared/motion/transitions';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MarkdownView from '$lib/shared/ui/MarkdownView.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { compareAppVersions } from '$lib/features/updates/app-version';
+  import { appUpdateState } from '#lib/features/updates/app-update-state.svelte.ts';
+  import { createUpdateNotificationCopy } from '#lib/features/updates/update-notifications.ts';
+  import { formatReleaseDate as formatReleaseDateValue } from '#lib/features/updates/app-info.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { openUrl } from '#lib/shared/platform/native-opener.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { chromeStore } from '#lib/shared/ui/chrome-state.svelte.ts';
+  import { flyScale } from '#lib/shared/motion/transitions.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MarkdownView from '#lib/shared/ui/MarkdownView.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { compareAppVersions } from '#lib/features/updates/app-version.ts';
 
   const promptedVersionKey = 'cfms_update_prompted_version';
 
@@ -26,12 +26,12 @@
   const update = $derived(appUpdateState.update);
   const installButtonLabel = $derived(
     update?.installMode === 'android-apk'
-      ? $t('settings.updates.downloadAndOpenInstaller')
+    ? $t('settings.updates.downloadAndOpenInstaller')
       : $t('settings.updates.downloadAndInstall'),
   );
   const installCompleteMessage = $derived(
     update?.installMode === 'android-apk'
-      ? $t('settings.updates.installCompleteAndroid')
+    ? $t('settings.updates.installCompleteAndroid')
       : $t('settings.updates.installComplete'),
   );
 

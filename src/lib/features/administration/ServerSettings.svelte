@@ -2,15 +2,15 @@
   import { untrack } from 'svelte';
   import { beforeNavigate, goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import type { ServerSettingDefinition } from '$lib/api';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MultiSelectFilter from '$lib/shared/ui/MultiSelectFilter.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import JsonCodeEditor from '$lib/shared/ui/JsonCodeEditor.svelte';
-  import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte';
-  import { chromeStore } from '$lib/shared/ui/chrome-state.svelte';
+  import type { ServerSettingDefinition } from '#lib/api.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MultiSelectFilter from '#lib/shared/ui/MultiSelectFilter.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import JsonCodeEditor from '#lib/shared/ui/JsonCodeEditor.svelte';
+  import { floatingProgressStore } from '#lib/shared/notifications/progress.svelte.ts';
+  import { chromeStore } from '#lib/shared/ui/chrome-state.svelte.ts';
   import { parseSetting, settingControl } from './server-settings';
   import { createServerSettingsWorkspace } from './server-settings-workspace.svelte';
 
@@ -54,7 +54,9 @@
   }
 
   beforeNavigate((navigation) => {
-    if (allowNavigation || (!workspace.dirtyCount && !workspace.saving)) return;
+    if (navigation.shallow && navigation.type === 'goto') return;
+    if (allowNavigation || !workspace.dirtyCount && !workspace.saving) return;
+
     navigation.cancel();
     if (navigation.willUnload) return;
     void canLeave().then((leave) => {
@@ -151,24 +153,88 @@
                   </div>
                 {:else}
                   {#if control === 'boolean'}
-                    <MdSwitch checked={scalarValue(item) === true} ariaLabel={item.title} {disabled} onChange={(checked) => { entry.draft[key] = JSON.stringify(checked); }} />
+                    <MdSwitch
+                      checked={scalarValue(item) === true}
+                      ariaLabel={item.title}
+                      disabled={disabled}
+                      onChange={(checked) => {
+                        entry.draft[key] = JSON.stringify(checked);
+                      }}
+                    />
                   {:else if control === 'enum'}
-                    <MdOutlinedField {inputId} label={item.title} {disabled}>
-                      <select id={inputId} data-focus-ring="delegated" class="cfms-native-field" value={JSON.stringify(scalarValue(item))} {disabled} onchange={(event) => { entry.draft[key] = event.currentTarget.value; }}>
-                        {#each (Array.isArray(item.value_schema.enum) ? item.value_schema.enum : []) as option}<option value={JSON.stringify(option)}>{typeof option === 'string' ? option : JSON.stringify(option)}</option>{/each}
+                    <MdOutlinedField
+                      inputId={inputId}
+                      label={item.title}
+                      disabled={disabled}
+                    >
+                      <select
+                        id={inputId}
+                        data-focus-ring="delegated"
+                        class="cfms-native-field"
+                        value={JSON.stringify(scalarValue(item))}
+                        disabled={disabled}
+                        onchange={(event) => {
+                          entry.draft[key] = event.currentTarget.value;
+                        }}
+                      >
+                        {#each Array.isArray(item.value_schema.enum) ? item.value_schema.enum : [] as option}
+                          <option value={JSON.stringify(option)}>
+                            {typeof option === 'string' ? option : JSON.stringify(option)}
+                          </option>
+                        {/each}
                       </select>
                     </MdOutlinedField>
                   {:else if control === 'json'}
-                    <JsonCodeEditor value={entry.draft[key] ?? ''} ariaLabel={item.title} loadingLabel={$t('common.loading')} {disabled} onChange={(value) => { entry.draft[key] = value; }} />
+                    <JsonCodeEditor
+                      value={entry.draft[key] ?? ''}
+                      ariaLabel={item.title}
+                      loadingLabel={$t('common.loading')}
+                      disabled={disabled}
+                      onChange={(value) => {
+                        entry.draft[key] = value;
+                      }}
+                    />
                   {:else}
-                    <MdOutlinedField {inputId} label={item.title} error={!parsed?.valid} {disabled}>
-                      <input id={inputId} data-focus-ring="delegated" class="cfms-native-field" type={control === 'string' ? 'text' : 'number'} step={control === 'integer' ? '1' : 'any'} value={control === 'string' ? String(scalarValue(item) ?? '') : entry.draft[key] ?? ''} {disabled} aria-invalid={!parsed?.valid} oninput={(event) => { entry.draft[key] = control === 'string' ? JSON.stringify(event.currentTarget.value) : event.currentTarget.value; }} />
+                    <MdOutlinedField
+                      inputId={inputId}
+                      label={item.title}
+                      error={!parsed?.valid}
+                      disabled={disabled}
+                    >
+                      <input
+                        id={inputId}
+                        data-focus-ring="delegated"
+                        class="cfms-native-field"
+                        type={control === 'string' ? 'text' : 'number'}
+                        step={control === 'integer' ? '1' : 'any'}
+                        value={control === 'string'
+                          ? String(scalarValue(item) ?? '')
+                          : entry.draft[key] ?? ''}
+                        disabled={disabled}
+                        aria-invalid={!parsed?.valid}
+                        oninput={(event) => {
+                          entry.draft[key] = control === 'string'
+                            ? JSON.stringify(event.currentTarget.value)
+                            : event.currentTarget.value;
+                        }}
+                      />
                     </MdOutlinedField>
                   {/if}
-                  {#if !parsed?.valid}<p class="error">{$t('serverSettings.valueInvalid')}</p>{/if}
-                  <FluentButton appearance="subtle" iconOnly {disabled} aria-label={$t('serverSettings.restoreDefault')} title={$t('serverSettings.restoreDefault')} onclick={() => { entry.draft[key] = JSON.stringify(item.default, null, 2); }}>
-                    <Icon name="tagReset" size={20} />
-                  </FluentButton>
+
+                  {#if !parsed?.valid}
+                    <p class="error">{$t('serverSettings.valueInvalid')}</p>
+                  {/if}
+
+                  <FluentButton
+                    appearance="subtle"
+                    iconOnly
+                    disabled={disabled}
+                    aria-label={$t('serverSettings.restoreDefault')}
+                    title={$t('serverSettings.restoreDefault')}
+                    onclick={() => {
+                      entry.draft[key] = JSON.stringify(item.default, null, 2);
+                    }}
+                  ><Icon name="tagReset" size={20} /></FluentButton>
                 {/if}
               </div>
             </div>

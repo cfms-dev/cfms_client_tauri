@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { _ as t } from 'svelte-i18n';
-import { getGithubAuthStatus, type GithubAuthStatus } from '$lib/api';
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
+import { getGithubAuthStatus, type GithubAuthStatus } from '#lib/api.ts';
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
 
 type WarningMode = Extract<GithubAuthStatus['mode'], 'needs_attention' | 'unavailable'>;
 

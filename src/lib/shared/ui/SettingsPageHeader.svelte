@@ -1,13 +1,13 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
   import { getContext } from 'svelte';
   import { NAVIGATION_CONTEXT, type NavigationContext } from './navigation-context';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import PageHeading from '$lib/shared/ui/PageHeading.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import PageHeading from '#lib/shared/ui/PageHeading.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
 
   interface Props {
     title: string;

@@ -2,12 +2,12 @@
   // Directory hierarchy, independent of the file manager's visit timeline.
 
   import { onMount, tick } from 'svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
-  import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
+  import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
   import { _ as t } from 'svelte-i18n';
-  import { ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  import { ROOT_DIRECTORY_ID } from '#lib/features/files/file-browser.ts';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   interface Props {
     segments: Array<{ label: string; path: string }>;

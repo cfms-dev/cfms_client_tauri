@@ -1,8 +1,8 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { AuthPolicyStep, AuthPurpose, UserAuthentication } from '$lib/api';
-  import { authMethodName, canCompleteChain, credentialName } from '$lib/features/authentication/auth-policy-editor';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import type { AuthPolicyStep, AuthPurpose, UserAuthentication } from '#lib/api.ts';
+  import { authMethodName, canCompleteChain, credentialName } from '#lib/features/authentication/auth-policy-editor.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
   let { chains, purpose, credentials, selectedChain, selectedStep, onSelect }: {
     chains: AuthPolicyStep[][]; purpose: AuthPurpose; credentials: UserAuthentication['credentials'];
     selectedChain: number; selectedStep: number; onSelect: (chain: number, step: number) => void;

@@ -1,4 +1,4 @@
-import { platform, type Platform } from '$lib/shared/platform/native-os';
+import { platform, type Platform } from '#lib/shared/platform/native-os.ts';
 
 export function isMobilePlatform(value: Platform = platform()): boolean {
   return value === 'android' || value === 'ios';

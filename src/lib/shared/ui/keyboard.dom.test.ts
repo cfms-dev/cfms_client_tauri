@@ -6,7 +6,7 @@ import {
   isCommandShownInHelp,
   registerKeyboardCommands,
   shortcutMatches,
-} from '$lib/shared/ui/keyboard';
+} from '#lib/shared/ui/keyboard.ts';
 
 function key(key: string, modifiers: KeyboardEventInit = {}) {
   return new KeyboardEvent('keydown', { key, cancelable: true, ...modifiers });

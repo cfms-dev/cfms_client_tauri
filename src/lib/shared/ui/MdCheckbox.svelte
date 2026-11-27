@@ -1,7 +1,7 @@
 <script lang="ts">
   import '@fluentui/web-components/checkbox.js';
   import type { Checkbox } from '@fluentui/web-components';
-  import { disabledAttribute } from '$lib/shared/fluent/control';
+  import { disabledAttribute } from '#lib/shared/fluent/control.ts';
   interface Props {
     checked?: boolean; indeterminate?: boolean; disabled?: boolean; ariaLabel?: string; class?: string;
     onChange?: (checked: boolean) => void;

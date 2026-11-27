@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getVisibleSettingsEntries, getVisibleSettingsGroups } from '$lib/features/settings/settings-entries';
+import { getVisibleSettingsEntries, getVisibleSettingsGroups } from '#lib/features/settings/settings-entries.ts';
 
 describe('settings entry visibility', () => {
   it('shows one unified account entry to signed-in users', () => {

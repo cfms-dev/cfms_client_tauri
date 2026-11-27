@@ -1,8 +1,8 @@
-import { browser } from '$app/environment';
-import { authenticate, checkStatus, type AuthOptions } from '$lib/shared/platform/native-biometric';
-import { createAndroidPasskey, getAndroidPasskey, getAndroidPasskeyAvailability, initializeAppLock, getAppLock, configureAppLock, appLockActivity, lockApp, verifyAppLockPin, beginAppLockPrompt, finishAppLockPrompt, type AppLockSettings, type AppLockSnapshot, type AppLockChange } from '$lib/api';
-import { isMobilePlatform } from '$lib/shared/platform/platform';
-export type { AppLockSettings, PlatformCredentialRecord } from '$lib/api';
+import { browser } from '$app/env';
+import { authenticate, checkStatus, type AuthOptions } from '#lib/shared/platform/native-biometric.ts';
+import { createAndroidPasskey, getAndroidPasskey, getAndroidPasskeyAvailability, initializeAppLock, getAppLock, configureAppLock, appLockActivity, lockApp, verifyAppLockPin, beginAppLockPrompt, finishAppLockPrompt, type AppLockSettings, type AppLockSnapshot, type AppLockChange } from '#lib/api.ts';
+import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
+export type { AppLockSettings, PlatformCredentialRecord } from '#lib/api.ts';
 export type AppLockMethod = 'pin' | 'biometric' | 'platform';
 export interface BiometricPromptLabels { reason: string; title: string; subtitle: string; cancelTitle: string; fallbackTitle: string }
 const ANDROID_PASSKEY_RP_ID = 'cfms-dev.github.io';
@@ -24,14 +24,43 @@ class AppLockStoreImpl {
   private revision = 0;
   private lockRequested = false;
   private timer: ReturnType<typeof setInterval> | null = null;
-  get pinLength() { return this.settings.pin?.length ?? 4; }
-  get hasPin() { return this.settings.pin !== null; }
-  get hasPlatformCredential() { return this.settings.platformCredentials.length > 0; }
-  get hasBiometric() { return this.settings.biometricEnabled; }
-  get hasAnyMethod() { return this.hasPin || this.hasBiometric || this.hasPlatformCredential; }
-  get canLock() { return this.settings.enabled && this.hasAnyMethod; }
-  get canUseRootBackBackground() { return this.canLock && this.settings.timedLockEnabled; }
-  get methods(): AppLockMethod[] { return [...(this.hasPin ? ['pin' as const] : []), ...(this.hasBiometric ? ['biometric' as const] : []), ...(this.hasPlatformCredential ? ['platform' as const] : [])]; }
+
+  get pinLength() {
+    return this.settings.pin?.length ?? 4;
+  }
+
+  get hasPin() {
+    return this.settings.pin !== null;
+  }
+
+  get hasPlatformCredential() {
+    return this.settings.platformCredentials.length > 0;
+  }
+
+  get hasBiometric() {
+    return this.settings.biometricEnabled;
+  }
+
+  get hasAnyMethod() {
+    return this.hasPin || this.hasBiometric || this.hasPlatformCredential;
+  }
+
+  get canLock() {
+    return this.settings.enabled && this.hasAnyMethod;
+  }
+
+  get canUseRootBackBackground() {
+    return this.canLock && this.settings.timedLockEnabled;
+  }
+
+  get methods(): AppLockMethod[] {
+    return [
+      ...this.hasPin ? ['pin' as const] : [],
+      ...this.hasBiometric ? ['biometric' as const] : [],
+      ...this.hasPlatformCredential ? ['platform' as const] : []
+    ];
+  }
+
   private apply(snapshot: AppLockSnapshot) {
     if (snapshot.revision < this.revision) return;
     if (this.lockRequested && !snapshot.locked) return;
@@ -104,23 +133,43 @@ class AppLockStoreImpl {
     this.lockRequested = true;
     this.locked = true;
     const generation = this.generation;
-    void lockApp().then(snapshot => {
-      if (generation === this.generation) { this.lockRequested = false; this.apply(snapshot); }
-    }).catch(() => { if (generation === this.generation) this.lockRequested = false; });
+
+    void lockApp().then((snapshot) => {
+      if (generation === this.generation) {
+        this.lockRequested = false;
+        this.apply(snapshot);
+      }
+    }).catch(() => {
+      if (generation === this.generation) this.lockRequested = false;
+    });
+
     return true;
   }
   recordActivity() {
     if (!this.initialized) return;
     const generation = this.generation;
-    void appLockActivity().then(snapshot => { if (generation === this.generation) this.apply(snapshot); }).catch(() => {});
+
+    void appLockActivity().then((snapshot) => {
+      if (generation === this.generation) this.apply(snapshot);
+    }).catch(() => {});
   }
   lockForBackground() {
     if (!this.canUseRootBackBackground) return false;
     this.lockRequested = true;
-    const generation = this.generation; this.locked = true;
-    void appLockActivity(true).then(snapshot => {
-      if (generation === this.generation) { this.lockRequested = false; this.apply(snapshot); }
-    }).catch(() => { if (generation === this.generation) this.lockRequested = false; });
+
+    const generation = this.generation;
+
+    this.locked = true;
+
+    void appLockActivity(true).then((snapshot) => {
+      if (generation === this.generation) {
+        this.lockRequested = false;
+        this.apply(snapshot);
+      }
+    }).catch(() => {
+      if (generation === this.generation) this.lockRequested = false;
+    });
+
     return true;
   }
   setPinSetupActive(active: boolean) { this.pinSetupActive = active; }
@@ -227,10 +276,7 @@ export function isCredentialOperationCancelled(err: unknown) {
   const name = typeof candidate.name === 'string' ? candidate.name : '';
   const message = typeof candidate.message === 'string' ? candidate.message : '';
 
-  return /cancel|userFallback/i.test(errorCode)
-    || name === 'NotAllowedError'
-    || name === 'AbortError'
-    || /timed out|not allowed|cancel|userFallback/i.test(message);
+  return (/cancel|userFallback/i).test(errorCode) || name === 'NotAllowedError' || name === 'AbortError' || (/timed out|not allowed|cancel|userFallback/i).test(message);
 }
 
 async function isPlatformAuthenticatorAvailable() {
@@ -296,10 +342,7 @@ async function shouldUseAndroidPasskeys() {
 }
 
 function isAndroidRuntime() {
-  return browser
-    && typeof window !== 'undefined'
-    && '__TAURI_INTERNALS__' in window
-    && /Android/i.test(navigator.userAgent);
+  return browser && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window && (/Android/i).test(navigator.userAgent);
 }
 
 function createAndroidPasskeyRegistrationRequest(displayName: string, existingCredentialIds: string[]) {

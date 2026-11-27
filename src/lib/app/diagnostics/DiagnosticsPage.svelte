@@ -1,9 +1,9 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ServerDiagnosticsPanel from '$lib/features/diagnostics/ServerDiagnosticsPanel.svelte';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ServerDiagnosticsPanel from '#lib/features/diagnostics/ServerDiagnosticsPanel.svelte';
 
   const canViewDiagnostics = $derived(
     serverStateStore.connected

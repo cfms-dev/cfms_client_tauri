@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { respondPublicKeyInteraction, cancelPublicKeyAuthentication, type AuthPrivateKeyInfo, type PublicKeyInteraction } from '$lib/api';
-  import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
-  import { publicKeyError } from '$lib/features/authentication/public-key-errors';
-  import PrivateKeyField from '$lib/features/authentication/PrivateKeyField.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { respondPublicKeyInteraction, cancelPublicKeyAuthentication, type AuthPrivateKeyInfo, type PublicKeyInteraction } from '#lib/api.ts';
+  import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+  import { publicKeyError } from '#lib/features/authentication/public-key-errors.ts';
+  import PrivateKeyField from '#lib/features/authentication/PrivateKeyField.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let { onVerify, onCancel, onBack, onComplete, interactionId = null, username } : {
     onVerify?: (keyRef: string, passphrase: string, onInteraction: (event: PublicKeyInteraction) => void) => Promise<boolean>;

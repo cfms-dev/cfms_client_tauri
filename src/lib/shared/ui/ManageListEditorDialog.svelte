@@ -12,16 +12,16 @@
 </script>
 
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let {
     title,

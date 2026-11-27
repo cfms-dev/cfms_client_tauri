@@ -1,9 +1,9 @@
 import { get } from 'svelte/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDownloadBatches } from '$lib/api';
+import { getDownloadBatches } from '#lib/api.ts';
 import { downloadBatchSnapshots, refreshDownloadBatches, resetDownloadBatches } from './download-batch-control';
 import { deferred } from '../../../test/deferred';
-vi.mock('$lib/api', () => ({ getDownloadBatches: vi.fn() }));
+vi.mock('#lib/api.ts', () => ({ getDownloadBatches: vi.fn() }));
 beforeEach(() => resetDownloadBatches());
 describe('native producer snapshots', () => {
   it('does not publish a late snapshot after the session is cleared', async () => {

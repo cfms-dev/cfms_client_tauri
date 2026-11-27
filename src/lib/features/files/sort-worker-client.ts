@@ -1,10 +1,10 @@
-import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
+import type { ServerDirectoryEntry, ServerDocumentEntry } from '#lib/api.ts';
 import {
   type SortDirection,
   type SortField,
   type SortedFileEntries,
-} from '$lib/features/files/sorting';
-import { DIRECTORY_PAGE_SIZE, ProgressiveListingAccumulator } from '$lib/features/files/progressive-listing';
+} from '#lib/features/files/sorting.ts';
+import { DIRECTORY_PAGE_SIZE, ProgressiveListingAccumulator } from '#lib/features/files/progressive-listing.ts';
 
 const PROGRESSIVE_WORKER_RESPONSE_TIMEOUT_MS = 1_000;
 

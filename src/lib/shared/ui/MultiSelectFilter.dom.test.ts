@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import MultiSelectFilter from '$lib/shared/ui/MultiSelectFilter.svelte';
+import MultiSelectFilter from '#lib/shared/ui/MultiSelectFilter.svelte';
 
 const labels = { label: 'manage.auditFilter', button: 'manage.auditFilterButton', title: 'manage.auditFilterTitle', help: 'manage.auditFilterHelp', search: 'manage.auditFilterSearch', searchPlaceholder: 'manage.auditFilterSearchPlaceholder', clearSearch: 'manage.auditFilterClearSearch', options: 'manage.auditFilterOptions', noMatches: 'manage.auditFilterNoMatches', noSuggestions: 'manage.auditFilterNoSuggestions', selected: () => 'manage.auditFilterSelected', apply: 'manage.auditFilterApply', addCustom: 'manage.auditFilterAddCustom' };
 
@@ -15,7 +15,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   menuScale: () => ({ duration: 0 }),
 }));
 

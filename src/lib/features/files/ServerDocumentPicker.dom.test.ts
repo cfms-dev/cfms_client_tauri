@@ -1,15 +1,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ListDirectoryResponse, ServerDocumentEntry } from '$lib/api';
-import { isImageDocumentName } from '$lib/features/files/image-documents';
-import ServerDocumentPicker from '$lib/features/files/ServerDocumentPicker.svelte';
-import '$lib/shared/i18n';
+import type { ListDirectoryResponse, ServerDocumentEntry } from '#lib/api.ts';
+import { isImageDocumentName } from '#lib/features/files/image-documents.ts';
+import ServerDocumentPicker from '#lib/features/files/ServerDocumentPicker.svelte';
+import '#lib/shared/i18n.ts';
 
 const { listDirectory } = vi.hoisted(() => ({ listDirectory: vi.fn() }));
-vi.mock('$lib/api', () => ({ listDirectory }));
-vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/api.ts', () => ({ listDirectory }));
+vi.mock('#lib/shared/platform/platform.ts', () => ({ isMobilePlatform: () => false }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 
 const folder = { id: 'pictures', name: 'Pictures', created_time: null };
 const image: ServerDocumentEntry = { id: 'image', title: 'avatar.png', size: 100, last_modified: null };

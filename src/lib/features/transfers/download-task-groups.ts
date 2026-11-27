@@ -1,9 +1,9 @@
-import type { DownloadTaskDto } from '$lib/api';
-import { serverAvailability } from '$lib/api/server-errors';
-import type { DownloadBatchSnapshot } from '$lib/features/transfers/download-batch-control';
+import type { DownloadTaskDto } from '#lib/api.ts';
+import { serverAvailability } from '#lib/api/server-errors.ts';
+import type { DownloadBatchSnapshot } from '#lib/features/transfers/download-batch-control.ts';
 import {
   compareTransferEntries, compareTransferIds, isTransferInProgress,
-} from '$lib/features/transfers/transfer-task-view';
+} from '#lib/features/transfers/transfer-task-view.ts';
 
 export type DownloadTaskRow =
   | { kind: 'task'; task: DownloadTaskDto }

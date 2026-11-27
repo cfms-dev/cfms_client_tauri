@@ -3,14 +3,14 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { parseLocalDateTimeInput } from '$lib/features/access/permission-entries';
-import PermissionEntriesDialog from '$lib/features/access/PermissionEntriesDialog.svelte';
+import { parseLocalDateTimeInput } from '#lib/features/access/permission-entries.ts';
+import PermissionEntriesDialog from '#lib/features/access/PermissionEntriesDialog.svelte';
 
 const { confirmMock } = vi.hoisted(() => ({
   confirmMock: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('$lib/shared/ui/dialogs.svelte.ts', () => ({
+vi.mock('#lib/shared/ui/dialogs.svelte.ts', () => ({
   dialogStore: { confirm: confirmMock },
 }));
 
@@ -23,7 +23,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 

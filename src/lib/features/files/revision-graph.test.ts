@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { RevisionEntry } from '$lib/api';
-import { buildRevisionRows } from '$lib/features/files/revision-graph';
+import type { RevisionEntry } from '#lib/api.ts';
+import { buildRevisionRows } from '#lib/features/files/revision-graph.ts';
 
 function revision(
   id: string,

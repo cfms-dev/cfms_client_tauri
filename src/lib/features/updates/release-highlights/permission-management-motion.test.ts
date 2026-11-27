@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import permissionManagementDark from '$lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json';
-import permissionManagementLight from '$lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json';
+import permissionManagementDark from '#lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json';
+import permissionManagementLight from '#lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json';
 
 type Animation = typeof permissionManagementLight;
 type Keyframe = { t: number; s: number[]; e?: number[] };

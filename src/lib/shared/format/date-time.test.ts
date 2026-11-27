@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLocalDateTimeWithUtcOffset, formatUtcOffset } from '$lib/shared/format/date-time';
+import { formatLocalDateTimeWithUtcOffset, formatUtcOffset } from '#lib/shared/format/date-time.ts';
 
 describe('local date-time formatting with UTC offset', () => {
   it('uses local wall time and an explicit offset for the represented instant', () => {

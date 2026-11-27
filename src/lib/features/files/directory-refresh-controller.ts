@@ -1,6 +1,6 @@
-import type { ListDirectoryResponse } from '$lib/api';
-import { DirectoryLoadController, type DirectoryPageFetcher } from '$lib/features/files/directory-load-controller';
-import { DIRECTORY_PAGE_SIZE } from '$lib/features/files/progressive-listing';
+import type { ListDirectoryResponse } from '#lib/api.ts';
+import { DirectoryLoadController, type DirectoryPageFetcher } from '#lib/features/files/directory-load-controller.ts';
+import { DIRECTORY_PAGE_SIZE } from '#lib/features/files/progressive-listing.ts';
 
 interface RefreshRequest {
   folderId: string | null;

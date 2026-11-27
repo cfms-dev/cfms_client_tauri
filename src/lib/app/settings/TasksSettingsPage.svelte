@@ -5,12 +5,12 @@
     loadUserPreference,
     updateUserPreferences,
     type UserPreference,
-  } from '$lib/api';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
+  } from '#lib/api.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
 
   const concurrencyOptions = [1, 2, 3, 4, 5, 6, 8];
   const defaultDownloadChunkSize = 64 * 1024;

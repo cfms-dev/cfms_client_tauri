@@ -3,9 +3,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import type { UpdateCheckPause } from '$lib/features/updates/update-check-pause';
-import UpdatesSettingsPage from '$lib/app/settings/UpdatesSettingsPage.svelte';
+import '#lib/shared/i18n.ts';
+import type { UpdateCheckPause } from '#lib/features/updates/update-check-pause.ts';
+import UpdatesSettingsPage from '#lib/app/settings/UpdatesSettingsPage.svelte';
 
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   configurable: true,
@@ -31,22 +31,22 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getSetting: mocks.getSetting,
   setSetting: mocks.setSetting,
 }));
-vi.mock('$lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
-vi.mock('$lib/shared/ui/dialogs.svelte.ts', () => ({
+vi.mock('#lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
+vi.mock('#lib/shared/ui/dialogs.svelte.ts', () => ({
   dialogStore: { choose: mocks.choose, confirm: mocks.confirm },
 }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: { error: mocks.notificationError }
 }));
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
 vi.mock('$app/state', () => ({
   page: { url: new URL('https://example.test/home/settings/updates') },
 }));
-vi.mock('$lib/app/navigation', () => ({ navigateUp: mocks.navigateUp }));
+vi.mock('#lib/app/navigation.ts', () => ({ navigateUp: mocks.navigateUp }));
 
 const now = Date.UTC(2026, 8, 11, 8, 0, 0);
 

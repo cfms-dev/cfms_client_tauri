@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { portal } from '$lib/shared/actions/portal';
-  import { snackbarMotion, snackbarReflow } from '$lib/shared/motion/transitions';
-  import { chromeStore } from "$lib/shared/ui/chrome-state.svelte.ts";
-import { floatingProgressStore, type FloatingProgressEntry } from "$lib/shared/notifications/progress.svelte.ts";
-import { notificationStore, type NotificationEntry } from "$lib/shared/notifications/notifications.svelte.ts";
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { portal } from '#lib/shared/actions/portal.ts';
+  import { snackbarMotion, snackbarReflow } from '#lib/shared/motion/transitions.ts';
+  import { chromeStore } from "#lib/shared/ui/chrome-state.svelte.ts";
+import { floatingProgressStore, type FloatingProgressEntry } from "#lib/shared/notifications/progress.svelte.ts";
+import { notificationStore, type NotificationEntry } from "#lib/shared/notifications/notifications.svelte.ts";
 
   interface TimerState {
     entry: NotificationEntry;

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { updateNotificationReporter } from '$lib/features/updates/update-notifications';
-import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
-import type { UpdateProgressSnapshot } from '$lib/api/updates';
+import { updateNotificationReporter } from '#lib/features/updates/update-notifications.ts';
+import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
+import type { UpdateProgressSnapshot } from '#lib/api/updates.ts';
 
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
-vi.mock('$app/environment', () => ({ browser: true }));
+vi.mock('$app/env', () => ({ browser: true }));
 
 const copy = {
   title: 'Updating', preparingDownload: 'Preparing', installing: 'Installing', installed: 'Installed',

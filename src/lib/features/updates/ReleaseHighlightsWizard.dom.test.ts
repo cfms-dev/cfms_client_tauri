@@ -4,15 +4,15 @@ import { replaceProperty } from '../../../test/dom-fixtures';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import { findReleaseTour, filterReleaseHighlights } from '$lib/features/updates/release-highlights/catalog';
+import '#lib/shared/i18n.ts';
+import { findReleaseTour, filterReleaseHighlights } from '#lib/features/updates/release-highlights/catalog.ts';
 import type {
   LottieAnimationData,
   ReleaseHighlightAnimationLoader,
   ReleaseTourPresentation,
-} from '$lib/features/updates/release-highlights/types';
-import LottieScene from '$lib/features/updates/LottieScene.svelte';
-import ReleaseHighlightsWizard from '$lib/features/updates/ReleaseHighlightsWizard.svelte';
+} from '#lib/features/updates/release-highlights/types.ts';
+import LottieScene from '#lib/features/updates/LottieScene.svelte';
+import ReleaseHighlightsWizard from '#lib/features/updates/ReleaseHighlightsWizard.svelte';
 
 const lottieMocks = vi.hoisted(() => {
   const listeners = new Map<string, () => void>();

@@ -4,8 +4,8 @@
   import { _ as t } from 'svelte-i18n';
   import FluentButton from './FluentButton.svelte';
   import Icon from './Icon.svelte';
-  import { portal } from '$lib/shared/actions/portal';
-  import { menuScale } from '$lib/shared/motion/transitions';
+  import { portal } from '#lib/shared/actions/portal.ts';
+  import { menuScale } from '#lib/shared/motion/transitions.ts';
   import './multi-select-filter.css';
 
   interface Props {

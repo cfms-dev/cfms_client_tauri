@@ -1,12 +1,12 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
   import { tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let {
     onSave,

@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { releaseTours } from '$lib/features/updates/release-highlights/catalog';
+import { releaseTours } from '#lib/features/updates/release-highlights/catalog.ts';
 
 const assetNames = [
   ['document-id-download', 'document-download', 'v0.43'],

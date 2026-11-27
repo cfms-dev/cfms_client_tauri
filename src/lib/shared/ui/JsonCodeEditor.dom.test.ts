@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import JsonCodeEditor from '$lib/shared/ui/JsonCodeEditor.svelte';
+import JsonCodeEditor from '#lib/shared/ui/JsonCodeEditor.svelte';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 beforeEach(() => {

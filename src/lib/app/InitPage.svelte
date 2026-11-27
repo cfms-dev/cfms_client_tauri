@@ -9,8 +9,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let stepText = $state('');
   let complete = $state(false);

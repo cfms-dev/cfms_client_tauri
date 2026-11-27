@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getManagedAuthKeys, pickAuthPrivateKey, releaseAuthPrivateKey, selectManagedAuthKey, type AuthPrivateKeyInfo, type ManagedAuthKeySummary } from '$lib/api';
-  import { shortKeyIdentity } from '$lib/features/authentication/auth-policy-editor';
-  import { publicKeyError } from '$lib/features/authentication/public-key-errors';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { getManagedAuthKeys, pickAuthPrivateKey, releaseAuthPrivateKey, selectManagedAuthKey, type AuthPrivateKeyInfo, type ManagedAuthKeySummary } from '#lib/api.ts';
+  import { shortKeyIdentity } from '#lib/features/authentication/auth-policy-editor.ts';
+  import { publicKeyError } from '#lib/features/authentication/public-key-errors.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let { selection = $bindable<AuthPrivateKeyInfo | null>(null), passphrase = $bindable(''), username = '', disabled = false, invalid = false, describedBy, id = 'auth-private-key' }:
     { selection?: AuthPrivateKeyInfo | null; passphrase?: string; username?: string | null; disabled?: boolean; invalid?: boolean; describedBy?: string; id?: string } = $props();

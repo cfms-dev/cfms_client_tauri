@@ -271,7 +271,7 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: url('$lib/shared/fluent/assets/acrylic-noise.png') repeat;
+  background: url('./assets/acrylic-noise.png') repeat;
   opacity: var(--cfms-menu-noise-opacity);
 }
 

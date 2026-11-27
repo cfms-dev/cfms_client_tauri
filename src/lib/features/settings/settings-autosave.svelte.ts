@@ -1,4 +1,4 @@
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 export interface AutoSaveOptions {
   onError?: (message: string) => void;

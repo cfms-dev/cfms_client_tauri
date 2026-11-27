@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import ExplorerNavigationBar from '$lib/features/files/ExplorerNavigationBar.svelte';
+import '#lib/shared/i18n.ts';
+import ExplorerNavigationBar from '#lib/features/files/ExplorerNavigationBar.svelte';
 
 beforeEach(() => locale.set('en'));
 afterEach(cleanup);

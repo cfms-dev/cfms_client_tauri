@@ -1,8 +1,8 @@
-import { browser } from '$app/environment';
-import { getCurrentWindow } from '$lib/shared/platform/native-window';
-import { platform, type Platform } from '$lib/shared/platform/native-os';
-import { loadUserPreference, updateUserPreferences, setAndroidContentProtected } from '$lib/api';
-import type { UserPreference } from '$lib/api';
+import { browser } from '$app/env';
+import { getCurrentWindow } from '#lib/shared/platform/native-window.ts';
+import { platform, type Platform } from '#lib/shared/platform/native-os.ts';
+import { loadUserPreference, updateUserPreferences, setAndroidContentProtected } from '#lib/api.ts';
+import type { UserPreference } from '#lib/api.ts';
 
 const DEFAULT_SCREENSHOT_PROTECTION = true;
 const PRIVACY_PREFERENCE_VERSION = 1;

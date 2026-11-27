@@ -2,14 +2,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { locale } from 'svelte-i18n';
-import '$lib/shared/i18n';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import LoginPage from '$lib/app/authentication/LoginPage.svelte';
+import '#lib/shared/i18n.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import LoginPage from '#lib/app/authentication/LoginPage.svelte';
 
 const mocks = vi.hoisted(() => ({ login: vi.fn(), keyLogin: vi.fn(), pick: vi.fn(), release: vi.fn(), clear: vi.fn(), cancel: vi.fn(), prepare: vi.fn(), unlock: vi.fn(), discard: vi.fn(), setup: vi.fn(), goto: vi.fn(), server: vi.fn(), preferences: vi.fn(), tasks: vi.fn(), loadAppearance: vi.fn() }));
-vi.mock('$lib/api', async (original) => ({
-  ...await original<typeof import('$lib/api')>(), login: mocks.login, loginWithPublicKey: mocks.keyLogin,
+vi.mock('#lib/api.ts', async (original) => ({
+  ...await original<typeof import('#lib/api.ts')>(), login: mocks.login, loginWithPublicKey: mocks.keyLogin,
   pickAuthPrivateKey: mocks.pick, releaseAuthPrivateKey: mocks.release, clearAuthSession: mocks.clear,
   cancelPublicKeyAuthentication: mocks.cancel, preparePreferenceUnlock: mocks.prepare, unlockPreferenceDek: mocks.unlock,
   discardLockedPreferenceData: mocks.discard,
@@ -17,10 +17,10 @@ vi.mock('$lib/api', async (original) => ({
   getAuthStatus: vi.fn().mockImplementation(async () => status), checkCachedAvatar: vi.fn().mockResolvedValue(null), getUserAvatar: vi.fn().mockResolvedValue(null),
   reloadTasksForUser: mocks.tasks, getDownloadTasks: vi.fn().mockResolvedValue([]), validateFileShortcuts: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('$lib/features/settings/appearance.svelte.ts', () => ({ appearanceStore: { load: mocks.loadAppearance } }));
+vi.mock('#lib/features/settings/appearance.svelte.ts', () => ({ appearanceStore: { load: mocks.loadAppearance } }));
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$app/environment', () => ({ browser: true }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('$app/env', () => ({ browser: true }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
 vi.mock('@tauri-apps/plugin-log', () => ({ info: vi.fn() }));

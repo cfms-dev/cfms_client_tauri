@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/svelte';
-import { appearanceStore } from '$lib/features/settings/appearance.svelte.ts';
-import { fluentTheme } from '$lib/shared/fluent/theme';
+import { appearanceStore } from '#lib/features/settings/appearance.svelte.ts';
+import { fluentTheme } from '#lib/shared/fluent/theme.ts';
 import { createMatchMedia } from '../../../test/dom-fixtures';
 
 const mocks = vi.hoisted(() => ({
@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => ({
   backdrop: vi.fn().mockResolvedValue('solid'),
   fluent: vi.fn(),
 }));
-vi.mock('$lib/api', () => ({ loadAppearancePreference: vi.fn(), saveAppearancePreference: vi.fn() }));
-vi.mock('$lib/api/core', () => ({ setWindowBackdrop: mocks.backdrop }));
+vi.mock('#lib/api.ts', () => ({ loadAppearancePreference: vi.fn(), saveAppearancePreference: vi.fn() }));
+vi.mock('#lib/api/core.ts', () => ({ setWindowBackdrop: mocks.backdrop }));
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }));
 vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ setTheme: mocks.nativeTheme }) }));
 vi.mock('@fluentui/web-components/theme/set-theme.js', () => ({ setTheme: mocks.fluent }));

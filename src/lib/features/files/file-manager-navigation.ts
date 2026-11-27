@@ -1,4 +1,4 @@
-import { sameDirectoryId } from '$lib/features/files/file-browser';
+import { sameDirectoryId } from '#lib/features/files/file-browser.ts';
 
 export type DirectoryNavigationSnapshot = {
   folderId: string | null;

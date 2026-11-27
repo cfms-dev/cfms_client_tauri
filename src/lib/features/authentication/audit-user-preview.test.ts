@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAuditUserPreviewCache } from '$lib/features/authentication/audit-user-preview';
-import { downloadAvatar, getUserAvatar, getUserInfo, type ManagedUserInfo } from '$lib/api';
+import { createAuditUserPreviewCache } from '#lib/features/authentication/audit-user-preview.ts';
+import { downloadAvatar, getUserAvatar, getUserInfo, type ManagedUserInfo } from '#lib/api.ts';
 
-vi.mock('$lib/api', () => ({ getUserInfo: vi.fn(), getUserAvatar: vi.fn(), downloadAvatar: vi.fn() }));
+vi.mock('#lib/api.ts', () => ({ getUserInfo: vi.fn(), getUserAvatar: vi.fn(), downloadAvatar: vi.fn() }));
 const user: ManagedUserInfo = {
   user_id: 'alice-id', username: 'alice', status: 'active', permissions: [],
   effective_permissions: [], effective_own_permissions: [], effective_inherited_permissions: [],

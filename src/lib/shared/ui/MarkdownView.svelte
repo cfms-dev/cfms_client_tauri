@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { renderMarkdown } from '$lib/shared/format/markdown';
+  import { renderMarkdown } from '#lib/shared/format/markdown.ts';
 
   let {
     content,

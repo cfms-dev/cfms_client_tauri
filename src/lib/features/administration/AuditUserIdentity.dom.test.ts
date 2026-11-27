@@ -1,13 +1,13 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ManagedUserInfo } from '$lib/api';
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import AuditUserIdentity from '$lib/features/administration/AuditUserIdentity.svelte';
+import type { ManagedUserInfo } from '#lib/api.ts';
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import AuditUserIdentity from '#lib/features/administration/AuditUserIdentity.svelte';
 
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ menuScale: () => ({ duration: 0 }) }));
 const user: ManagedUserInfo = {
   user_id: 'aabbccdd-0000-4000-8000-000000000002', username: 'alice', nickname: 'Alice',
   status: 'active', permissions: [], effective_permissions: [], effective_own_permissions: [],

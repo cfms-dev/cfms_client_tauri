@@ -1,4 +1,4 @@
-import type { PermissionEntry } from '$lib/api';
+import type { PermissionEntry } from '#lib/api.ts';
 
 /** Protocol 31 global permissions (matching `include/domains/access/permissions.py`). */
 export const KNOWN_GLOBAL_PERMISSIONS: readonly string[] = [

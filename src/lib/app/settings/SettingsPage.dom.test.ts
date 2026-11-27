@@ -2,11 +2,11 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-import { screenProtectionStore } from '$lib/features/settings/screen-protection.svelte.ts';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import SettingsOverviewPage from '$lib/app/settings/SettingsPage.svelte';
+import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+import { screenProtectionStore } from '#lib/features/settings/screen-protection.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import SettingsOverviewPage from '#lib/app/settings/SettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
@@ -14,9 +14,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false }));
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/shared/platform/platform.ts', () => ({ isMobilePlatform: () => false }));
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   getUserAuthentication: mocks.getUserAuthentication,
 }));
 vi.mock('svelte-i18n', () => ({

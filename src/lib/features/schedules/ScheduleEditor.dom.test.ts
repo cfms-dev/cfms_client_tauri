@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JsonValue, ScheduledTaskType } from '$lib/api';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import ScheduleEditor from '$lib/features/schedules/ScheduleEditor.svelte';
+import type { JsonValue, ScheduledTaskType } from '#lib/api.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import ScheduleEditor from '#lib/features/schedules/ScheduleEditor.svelte';
 
 const lockdownSchema: Record<string, JsonValue> = {
   additionalProperties: false,

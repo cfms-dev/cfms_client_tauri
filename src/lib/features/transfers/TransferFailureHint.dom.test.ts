@@ -1,9 +1,9 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { locale, waitLocale } from 'svelte-i18n';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import TransferFailureHint from '$lib/features/transfers/TransferFailureHint.svelte';
+import TransferFailureHint from '#lib/features/transfers/TransferFailureHint.svelte';
 
 beforeEach(async () => { locale.set('en'); await waitLocale(); vi.useFakeTimers(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });

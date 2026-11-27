@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import AccessDeniedNotice from '$lib/features/access/AccessDeniedNotice.svelte';
+import AccessDeniedNotice from '#lib/features/access/AccessDeniedNotice.svelte';
 
 afterEach(cleanup);
 

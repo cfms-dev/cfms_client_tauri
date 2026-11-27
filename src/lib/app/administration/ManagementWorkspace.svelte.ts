@@ -1,8 +1,8 @@
-import { defaultAuditFilters, normalizeAuditActions, normalizeAuditFilters, type AuditActionFilters } from '$lib/features/administration/audit-filters';
-import { canAccessAdministration } from '$lib/features/administration/permissions';
+import { defaultAuditFilters, normalizeAuditActions, normalizeAuditFilters, type AuditActionFilters } from '#lib/features/administration/audit-filters.ts';
+import { canAccessAdministration } from '#lib/features/administration/permissions.ts';
 import { _ as t } from 'svelte-i18n';
 import { onDestroy, onMount, tick, untrack } from 'svelte';
-import { ensureEscalation } from '$lib/features/authentication/escalation.svelte.ts';
+import { ensureEscalation } from '#lib/features/authentication/escalation.svelte.ts';
 import {
   changeGroupPermissions,
   changeUserGroups,
@@ -29,22 +29,22 @@ import {
   type ManagedUserStatus,
   type PermissionEntry,
   type TwoFactorStatus,
-} from '$lib/api';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import type { ManageListEditorData } from '$lib/shared/ui/ManageListEditorDialog.svelte';
-import { copyText } from '$lib/shared/platform/clipboard';
-import { canSetAccountName, canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
-import { canSetOtherUserAvatar } from '$lib/features/authentication/avatar-permissions';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { createAuditUserPreviewCache } from '$lib/features/authentication/audit-user-preview';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-import { formatDate as formatSharedDate } from '$lib/shared/format/values';
-import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
-import type { IconName } from '$lib/shared/ui/icons';
-import type { PermissionEntriesEditorData } from '$lib/features/access/permission-entries';
-import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '$lib/shared/ui/keyboard';
+} from '#lib/api.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import type { ManageListEditorData } from '#lib/shared/ui/ManageListEditorDialog.svelte';
+import { copyText } from '#lib/shared/platform/clipboard.ts';
+import { canSetAccountName, canReadAuthentication, canConfigureAuthentication } from '#lib/features/authentication/auth-permissions.ts';
+import { canSetOtherUserAvatar } from '#lib/features/authentication/avatar-permissions.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { createAuditUserPreviewCache } from '#lib/features/authentication/audit-user-preview.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+import { formatDate as formatSharedDate } from '#lib/shared/format/values.ts';
+import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
+import type { IconName } from '#lib/shared/ui/icons.ts';
+import type { PermissionEntriesEditorData } from '#lib/features/access/permission-entries.ts';
+import { focusRovingItem, keyboardMenuAnchor, registerKeyboardCommands } from '#lib/shared/ui/keyboard.ts';
 import { fromStore } from 'svelte/store';
 
 export type ManageTabKey = 'accounts' | 'groups' | 'security' | 'logs' | 'settings';

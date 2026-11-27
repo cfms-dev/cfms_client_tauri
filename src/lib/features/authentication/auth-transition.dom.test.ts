@@ -4,7 +4,7 @@ import {
   consumeLoginToConnectTransition,
   markConnectToLoginTransition,
   markLoginToConnectTransition,
-} from '$lib/features/authentication/auth-transition';
+} from '#lib/features/authentication/auth-transition.ts';
 
 describe('authentication navigation markers', () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { normalizeFilterOptions } from '$lib/shared/ui/multi-select-filter';
+import { normalizeFilterOptions } from '#lib/shared/ui/multi-select-filter.ts';
 
 export interface AuditActionFilters {
   include: string[];

@@ -1,14 +1,14 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onDestroy, onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { escalationRemaining } from '$lib/features/authentication/authentication';
-  import { ensureEscalation, escalationFlow } from '$lib/features/authentication/escalation.svelte.ts';
-  import AuthenticationDialog from '$lib/features/authentication/AuthenticationDialog.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { escalationRemaining } from '#lib/features/authentication/authentication.ts';
+  import { ensureEscalation, escalationFlow } from '#lib/features/authentication/escalation.svelte.ts';
+  import AuthenticationDialog from '#lib/features/authentication/AuthenticationDialog.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let now = $state(Date.now());
   const remaining = $derived(escalationRemaining(authStore.escalationExp, now));

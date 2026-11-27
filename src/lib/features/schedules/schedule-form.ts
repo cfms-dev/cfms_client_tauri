@@ -1,4 +1,4 @@
-import type { JsonValue, ScheduleTrigger, ScheduleTriggerType } from '$lib/api';
+import type { JsonValue, ScheduleTrigger, ScheduleTriggerType } from '#lib/api.ts';
 
 export type ScheduleValidationCode =
   | 'payloadJson'

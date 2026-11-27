@@ -1,9 +1,9 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { get } from 'svelte/store';
 import { _, locale, waitLocale } from 'svelte-i18n';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { UploadTaskDto, DownloadTaskDto } from '$lib/api';
-import { transferFailureReason } from '$lib/features/transfers/transfer-failure-reason';
+import type { UploadTaskDto, DownloadTaskDto } from '#lib/api.ts';
+import { transferFailureReason } from '#lib/features/transfers/transfer-failure-reason.ts';
 
 const upload: UploadTaskDto = {
   upload_id: 'u1', task_id: null, file_name: 'Report.pdf', source_path: 'C:/Report.pdf',

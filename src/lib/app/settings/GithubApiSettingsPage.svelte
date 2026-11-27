@@ -1,19 +1,19 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
-  import { openUrl } from '$lib/shared/platform/native-opener';
+  import { openUrl } from '#lib/shared/platform/native-opener.ts';
   import { _ as t } from 'svelte-i18n';
   import {
     deleteGithubToken,
     getGithubAuthStatus,
     saveGithubToken,
     type GithubAuthMode,
-  } from '$lib/api';
-  import { resetGithubAuthNotice } from '$lib/features/updates/github-auth-notices';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
+  } from '#lib/api.ts';
+  import { resetGithubAuthNotice } from '#lib/features/updates/github-auth-notices.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
 
   const tokenGuideUrl = 'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token';
   const rateLimitsUrl = 'https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api';

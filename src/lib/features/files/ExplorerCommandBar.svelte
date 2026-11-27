@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import type { CommandAction } from '$lib/features/files/explorer-types';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import type { CommandAction } from '#lib/features/files/explorer-types.ts';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   let {
     actions,

@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import DisclaimerPage from '$lib/app/connection/DisclaimerPage.svelte';
+import DisclaimerPage from '#lib/app/connection/DisclaimerPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   quit: vi.fn(),
@@ -10,10 +10,10 @@ const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({ quitApplication: mocks.quit }));
+vi.mock('#lib/api.ts', () => ({ quitApplication: mocks.quit }));
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false }));
-vi.mock('$lib/features/connection/disclaimer-state.svelte', () => ({
+vi.mock('#lib/shared/platform/platform.ts', () => ({ isMobilePlatform: () => false }));
+vi.mock('#lib/features/connection/disclaimer-state.svelte.ts', () => ({
   disclaimerStore: { accept: mocks.accept }
 }));
 

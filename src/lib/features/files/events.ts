@@ -1,5 +1,5 @@
-import type { ServiceEvent } from '$lib/api/types';
-import { eventLog } from '$lib/features/diagnostics/event-log.svelte';
+import type { ServiceEvent } from '#lib/api/types.ts';
+import { eventLog } from '#lib/features/diagnostics/event-log.svelte.ts';
 import { fileShortcutValidationStore } from './shortcut-state.svelte';
 
 export function handleFileEvent(event: ServiceEvent): void {

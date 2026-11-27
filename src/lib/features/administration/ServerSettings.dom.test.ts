@@ -1,20 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ServerSettings from './ServerSettings.svelte';
-import { authStore } from '$lib/features/authentication/auth-state.svelte';
-import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
-import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
-import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
-import { chromeStore } from '$lib/shared/ui/chrome-state.svelte';
+import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
+import SnackBarHost from '#lib/shared/ui/SnackBarHost.svelte';
+import { floatingProgressStore } from '#lib/shared/notifications/progress.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+import { chromeStore } from '#lib/shared/ui/chrome-state.svelte.ts';
 import { tick } from 'svelte';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), update: vi.fn(), confirm: vi.fn() }));
-vi.mock('$lib/api', async (original) => ({ ...await original<typeof import('$lib/api')>(), listServerSettings: mocks.list, getServerSettings: mocks.get, updateServerSettings: mocks.update }));
+vi.mock('#lib/api.ts', async (original) => ({ ...await original<typeof import('#lib/api.ts')>(), listServerSettings: mocks.list, getServerSettings: mocks.get, updateServerSettings: mocks.update }));
 vi.mock('$app/navigation', () => ({ beforeNavigate: vi.fn(), goto: vi.fn() }));
-vi.mock('$lib/shared/ui/dialogs.svelte', () => ({ dialogStore: { confirm: mocks.confirm } }));
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }), snackbarMotion: () => ({ duration: 0 }), snackbarReflow: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/ui/dialogs.svelte.ts', () => ({ dialogStore: { confirm: mocks.confirm } }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ menuScale: () => ({ duration: 0 }), snackbarMotion: () => ({ duration: 0 }), snackbarReflow: () => ({ duration: 0 }) }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (translate: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 
 beforeEach(() => {

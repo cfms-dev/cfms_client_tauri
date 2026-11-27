@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ServerDocumentEntry } from '$lib/api';
-import { DIRECTORY_PAGE_SIZE, ProgressiveListingAccumulator } from '$lib/features/files/progressive-listing';
+import type { ServerDocumentEntry } from '#lib/api.ts';
+import { DIRECTORY_PAGE_SIZE, ProgressiveListingAccumulator } from '#lib/features/files/progressive-listing.ts';
 
 function documents(start: number, count: number): ServerDocumentEntry[] {
   return Array.from({ length: count }, (_, offset) => {

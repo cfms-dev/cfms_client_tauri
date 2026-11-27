@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import ResetRecoveryPage from '$lib/app/authentication/ResetPage.svelte';
+import ResetRecoveryPage from '#lib/app/authentication/ResetPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getLocalDataResetStatus: mocks.getStatus,
   retryLocalDataReset: mocks.retry,
   quitApplication: mocks.quit,

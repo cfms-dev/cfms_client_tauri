@@ -2,10 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ChangeUsernameDialog from './ChangeUsernameDialog.svelte';
 import { authStore } from './auth-state.svelte';
-import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
+import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 const mocks = vi.hoisted(() => ({ save: vi.fn(), elevate: vi.fn(), close: vi.fn(), saved: vi.fn() }));
-vi.mock('$lib/api', async (original) => ({ ...await original<typeof import('$lib/api')>(), setUserUsername: mocks.save }));
+vi.mock('#lib/api.ts', async (original) => ({ ...await original<typeof import('#lib/api.ts')>(), setUserUsername: mocks.save }));
 vi.mock('./escalation.svelte', () => ({ ensureEscalation: mocks.elevate }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (translate: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 const status = { user_id: 'uuid', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 2e9, permissions: ['set_username'], groups: [] };

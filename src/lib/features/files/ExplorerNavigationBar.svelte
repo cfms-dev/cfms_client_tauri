@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
 
   interface Props {
     address: Snippet;

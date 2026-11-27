@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSearchFiles } from '$lib/features/files/search-permissions';
+import { canSearchFiles } from '#lib/features/files/search-permissions.ts';
 
 describe('file search permissions', () => {
   it('accepts search granted directly in the effective permission snapshot', () => {

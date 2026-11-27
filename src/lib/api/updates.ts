@@ -1,5 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { relaunch } from '$lib/shared/platform/native-process';
+import { relaunch } from '#lib/shared/platform/native-process.ts';
 
 export type UpdateChannel = 'stable' | 'beta' | 'alpha';
 

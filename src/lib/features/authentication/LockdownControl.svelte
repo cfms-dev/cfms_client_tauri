@@ -1,8 +1,8 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { tick } from 'svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   interface Props {
     active: boolean;

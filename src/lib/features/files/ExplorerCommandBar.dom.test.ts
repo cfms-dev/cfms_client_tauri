@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import ExplorerCommandBar from '$lib/features/files/ExplorerCommandBar.svelte';
+import ExplorerCommandBar from '#lib/features/files/ExplorerCommandBar.svelte';
 
 afterEach(cleanup);
 

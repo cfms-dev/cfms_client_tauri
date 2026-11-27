@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import fullscreenTourDark from '$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json';
-import fullscreenTourLight from '$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json';
+import fullscreenTourDark from '#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json';
+import fullscreenTourLight from '#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json';
 
 type Animation = typeof fullscreenTourLight;
 type Keyframe = { t: number; s: number[]; e?: number[] };

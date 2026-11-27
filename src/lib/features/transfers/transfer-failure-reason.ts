@@ -1,6 +1,6 @@
-import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
-import { serverAvailability, serverErrorMessage } from '$lib/api/server-errors';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import type { DownloadTaskDto, UploadTaskDto } from '#lib/api.ts';
+import { serverAvailability, serverErrorMessage } from '#lib/api/server-errors.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 /** Shared text for the compact hint and the selectable, expanded task details. */
 export function transferFailureReason(

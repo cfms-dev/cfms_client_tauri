@@ -1,7 +1,7 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
   let {
     primary,
     secondary = '',

@@ -3,17 +3,17 @@
   // The existing user details modal remains the destination for deeper inspection.
   import { onDestroy, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { ManagedUserInfo } from '$lib/api';
-  import type { AuditUserPreviewCache } from '$lib/features/authentication/audit-user-preview';
-  import { portal } from '$lib/shared/actions/portal';
-  import { copyText } from '$lib/shared/platform/clipboard';
-  import { serverErrorStatus } from '$lib/api/server-errors';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { menuScale } from '$lib/shared/motion/transitions';
-  import { formatDate } from '$lib/shared/format/values';
-  import AvatarPreview from '$lib/features/authentication/AvatarPreview.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import type { ManagedUserInfo } from '#lib/api.ts';
+  import type { AuditUserPreviewCache } from '#lib/features/authentication/audit-user-preview.ts';
+  import { portal } from '#lib/shared/actions/portal.ts';
+  import { copyText } from '#lib/shared/platform/clipboard.ts';
+  import { serverErrorStatus } from '#lib/api/server-errors.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { menuScale } from '#lib/shared/motion/transitions.ts';
+  import { formatDate } from '#lib/shared/format/values.ts';
+  import AvatarPreview from '#lib/features/authentication/AvatarPreview.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   let { value, previewKey, activeKey = $bindable(null), cache, onViewDetails, disabled = false }: {
     value: string | null | undefined;

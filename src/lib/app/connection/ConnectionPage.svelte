@@ -13,7 +13,7 @@
   import { onMount, tick } from "svelte";
   import { cubicInOut } from "svelte/easing";
   import { fade } from "svelte/transition";
-  import { browser } from "$app/environment";
+  import { browser } from '$app/env';
   import { goto } from "$app/navigation";
   import { _ as t } from 'svelte-i18n';
   import {
@@ -23,27 +23,27 @@
     getAuthStatus,
     getConnectionSettings,
     getServerState,
-  } from "$lib/api";
-  import { loadAppVersion } from "$lib/features/updates/app-info";
-  import { appUpdateState } from "$lib/features/updates/app-update-state.svelte.ts";
+  } from "#lib/api.ts";
+  import { loadAppVersion } from "#lib/features/updates/app-info.ts";
+  import { appUpdateState } from "#lib/features/updates/app-update-state.svelte.ts";
   import {
     consumeLoginToConnectTransition,
     markConnectToLoginTransition,
-  } from "$lib/features/authentication/auth-transition";
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import Icon from "$lib/shared/ui/Icon.svelte";
-  import AuthScene from "$lib/shared/ui/AuthScene.svelte";
-  import FluentButton from "$lib/shared/ui/FluentButton.svelte";
-  import MdOutlinedField from "$lib/shared/ui/MdOutlinedField.svelte";
-  import MdSwitch from "$lib/shared/ui/MdSwitch.svelte";
-  import ProgressRing from "$lib/shared/ui/ProgressRing.svelte";
-  import { openKeyboardShortcutHelp } from "$lib/shared/ui/keyboard";
-  import { inlineNotice, menuScale } from "$lib/shared/motion/transitions";
-  import ConnectionSecurityNotice from '$lib/features/connection/ConnectionSecurityNotice.svelte';
-  import { isServerAddressValid, parseServerAddress } from "$lib/features/connection/server-address";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  } from "#lib/features/authentication/auth-transition.ts";
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import AuthScene from "#lib/shared/ui/AuthScene.svelte";
+  import FluentButton from "#lib/shared/ui/FluentButton.svelte";
+  import MdOutlinedField from "#lib/shared/ui/MdOutlinedField.svelte";
+  import MdSwitch from "#lib/shared/ui/MdSwitch.svelte";
+  import ProgressRing from "#lib/shared/ui/ProgressRing.svelte";
+  import { openKeyboardShortcutHelp } from "#lib/shared/ui/keyboard.ts";
+  import { inlineNotice, menuScale } from "#lib/shared/motion/transitions.ts";
+  import ConnectionSecurityNotice from '#lib/features/connection/ConnectionSecurityNotice.svelte';
+  import { isServerAddressValid, parseServerAddress } from "#lib/features/connection/server-address.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let hostPort = $state("localhost:5104");
   let disableSsl = $state(false);
@@ -59,8 +59,8 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
   let serverAddressInput: HTMLInputElement | null = null;
   let playLoginReturnTransition = $state(browser ? consumeLoginToConnectTransition() : false);
   let protocolError = $state<{
-    serverVersion: number;
-    supportedBoundary: number;
+      serverVersion: number;
+      supportedBoundary: number;
     needsUpdate: boolean;
   } | null>(null);
 
@@ -308,199 +308,206 @@ import { serverStateStore } from "$lib/features/connection/connection-state.svel
           handleConnect();
         }}
       >
-      <!-- Native server-address combobox with shared Fluent field. -->
-      <div>
-        <div class="relative" bind:this={serverAddressField}>
-          <MdOutlinedField
-            inputId="serverUrl"
-            controlSize="large"
-            label={$t('connect.serverAddress')}
-            error={Boolean(serverAddressError)}
-          >
+        <!-- Native server-address combobox with shared Fluent field. -->
+        <div>
+          <div class="relative" bind:this={serverAddressField}>
+            <MdOutlinedField
+              inputId="serverUrl"
+              controlSize="large"
+              label={$t('connect.serverAddress')}
+              error={Boolean(serverAddressError)}
+            >
             <span
               class="server-address-prefix select-none shrink-0"
             >
               wss://
             </span>
-            <input
-              id="serverUrl"
-              aria-invalid={Boolean(serverAddressError)}
-              aria-describedby={serverAddressError ? "server-address-error" : undefined}
-              type="text"
-              data-focus-ring="delegated"
-              class="server-address-input min-w-0 flex-1
+              <input
+                id="serverUrl"
+                aria-invalid={Boolean(serverAddressError)}
+                aria-describedby={serverAddressError ? "server-address-error" : undefined}
+                type="text"
+                data-focus-ring="delegated"
+                class="server-address-input min-w-0 flex-1
                      text-md3-on-surface text-sm
                      placeholder:text-md3-on-surface-variant
                      transition-colors"
-              class:pr-3.5={!canShowRecentAddresses}
-              class:pr-2={canShowRecentAddresses}
-              placeholder="localhost:5104"
-              bind:value={hostPort}
-              bind:this={serverAddressInput}
-              disabled={busy}
-              onkeydown={handleServerAddressKeydown}
-              role="combobox"
-              aria-autocomplete="list"
-              aria-haspopup="listbox"
-              aria-expanded={recentAddressesOpen}
-              aria-controls="recentServerAddressList"
-              aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
-                ? `recent-server-address-${recentAddressActiveIndex}`
-                : undefined}
-            />
-            {#if canShowRecentAddresses}
-              <button
-                type="button"
-                class="recent-address-trigger"
-                class:recent-address-trigger--open={recentAddressesOpen}
-                aria-label={$t('connect.recentAddresses')}
+                class:pr-3.5={!canShowRecentAddresses}
+                class:pr-2={canShowRecentAddresses}
+                placeholder="localhost:5104"
+                bind:value={hostPort}
+                bind:this={serverAddressInput}
+                disabled={busy}
+                onkeydown={handleServerAddressKeydown}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-haspopup="listbox"
                 aria-expanded={recentAddressesOpen}
                 aria-controls="recentServerAddressList"
-                disabled={busy}
-                onclick={toggleRecentAddresses}
-              >
-                <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
-              </button>
-            {/if}
-          </MdOutlinedField>
-
-          {#if canShowRecentAddresses && recentAddressesOpen}
-            <div
-              id="recentServerAddressList"
-              class="recent-address-menu"
-              role="listbox"
-              aria-label={$t('connect.recentAddresses')}
-              transition:menuScale={{ duration: 160, y: -4 }}
-            >
-              {#each recentConnectionAddresses as address, index}
+                aria-activedescendant={recentAddressesOpen && recentAddressActiveIndex >= 0
+                  ? `recent-server-address-${recentAddressActiveIndex}`
+                  : undefined}
+              />
+              {#if canShowRecentAddresses}
                 <button
-                  id={`recent-server-address-${index}`}
                   type="button"
-                  class="recent-address-option"
-                  class:recent-address-option--active={recentAddressActiveIndex === index}
-                  class:recent-address-option--selected={hostPort === address}
-                  role="option"
-                  aria-selected={hostPort === address}
-                  tabindex="-1"
-                  onmouseenter={() => (recentAddressActiveIndex = index)}
-                  onclick={() => chooseRecentAddress(address)}
+                  class="recent-address-trigger"
+                  class:recent-address-trigger--open={recentAddressesOpen}
+                  aria-label={$t('connect.recentAddresses')}
+                  aria-expanded={recentAddressesOpen}
+                  aria-controls="recentServerAddressList"
+                  disabled={busy}
+                  onclick={toggleRecentAddresses}
                 >
+                <Icon name={recentAddressesOpen ? 'expandLess' : 'expandMore'} size="20px" />
+                </button>
+              {/if}
+            </MdOutlinedField>
+
+            {#if canShowRecentAddresses && recentAddressesOpen}
+              <div
+                id="recentServerAddressList"
+                class="recent-address-menu"
+                role="listbox"
+                aria-label={$t('connect.recentAddresses')}
+                transition:menuScale={{ duration: 160, y: -4 }}
+              >
+                {#each recentConnectionAddresses as address, index}
+                  <button
+                    id={`recent-server-address-${index}`}
+                    type="button"
+                    class="recent-address-option"
+                    class:recent-address-option--active={recentAddressActiveIndex === index}
+                    class:recent-address-option--selected={hostPort === address}
+                    role="option"
+                    aria-selected={hostPort === address}
+                    tabindex="-1"
+                    onmouseenter={() => recentAddressActiveIndex = index}
+                    onclick={() => chooseRecentAddress(address)}
+                  >
                   <span class="recent-address-option__leading" aria-hidden="true">
                     <Icon name="history" size="16px" />
                   </span>
-                  <span class="recent-address-option__label">{address}</span>
-                  {#if hostPort === address}
+                    <span class="recent-address-option__label">{address}</span>
+                    {#if hostPort === address}
                     <span class="recent-address-option__check" aria-hidden="true">
                       <Icon name="done" size="17px" />
                     </span>
-                  {/if}
-                </button>
-              {/each}
-            </div>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+          {#if serverAddressError}
+          <p id="server-address-error" role="alert" class="mt-1 ml-1 text-xs text-md3-error">{serverAddressError}</p>
           {/if}
         </div>
-        {#if serverAddressError}
-          <p id="server-address-error" role="alert" class="mt-1 ml-1 text-xs text-md3-error">{serverAddressError}</p>
-        {/if}
-      </div>
 
-      <!-- TLS toggle -->
-      <div class="connection-security-option">
-        <div class="flex items-center gap-2.5 text-sm">
-          <MdSwitch
-            bind:checked={disableSsl}
-            disabled={busy}
-            ariaLabel={$t('connect.disableSsl')}
-          />
+        <!-- TLS toggle -->
+        <div class="connection-security-option">
+          <div class="flex items-center gap-2.5 text-sm">
+            <MdSwitch
+              bind:checked={disableSsl}
+              disabled={busy}
+              ariaLabel={$t('connect.disableSsl')}
+            />
           <span class="text-md3-on-surface-variant"
             >{$t('connect.disableSsl')}</span
           >
-        </div>
-        {#if disableSsl}
+          </div>
+          {#if disableSsl}
           <div class="connection-security-reveal" transition:inlineNotice>
             <ConnectionSecurityNotice title={$t('connect.disableSslTitle')}>
               <p>{$t('connect.disableSslHint')}</p>
             </ConnectionSecurityNotice>
-          </div>
-        {/if}
-      </div>
+            </div>
+          {/if}
+        </div>
 
-      <!-- Protocol version mismatch -->
-      {#if protocolError}
-        <div
-          class="bg-md3-tertiary-container/60 border border-md3-tertiary/30
+        <!-- Protocol version mismatch -->
+        {#if protocolError}
+          <div
+            class="bg-md3-tertiary-container/60 border border-md3-tertiary/30
                     text-md3-on-tertiary-container text-sm rounded-xl p-4 space-y-3"
-        >
-          <div class="flex items-start gap-2">
+          >
+            <div class="flex items-start gap-2">
             <span class="cfms-icon-text__icon shrink-0"
               ><Icon name="warning" size="16px" /></span
             >
-            <div>
-              <p class="font-medium">
-                {protocolError.needsUpdate
-                  ? $t('connect.clientUpdateRequired')
-                  : $t('connect.serverVersionUnsupported')}
-              </p>
-              <p class="mt-1 text-md3-on-surface-variant">
-                {protocolError.needsUpdate
+              <div>
+                <p class="font-medium">
+                  {protocolError.needsUpdate
+                    ? $t('connect.clientUpdateRequired')
+                    : $t('connect.serverVersionUnsupported')}
+                </p>
+                <p class="mt-1 text-md3-on-surface-variant">
+                  {protocolError.needsUpdate
                   ? $t('connect.clientUpdateMessage', { values: { serverVersion: protocolError.serverVersion, supportedBoundary: protocolError.supportedBoundary } })
                   : $t('connect.serverUnsupportedMessage', { values: { serverVersion: protocolError.serverVersion, supportedBoundary: protocolError.supportedBoundary } })}
-              </p>
+                </p>
+              </div>
             </div>
-          </div>
-          {#if protocolError.needsUpdate}
-            <button
-              type="button"
-              class="w-full py-2 rounded-full font-medium
+            {#if protocolError.needsUpdate}
+              <button
+                type="button"
+                class="w-full py-2 rounded-full font-medium
                      bg-md3-tertiary text-md3-on-tertiary
                      hover:brightness-110 transition-all text-sm"
-              style="font-family: var(--font-md3-sans);"
-              onclick={goToAbout}
+                style="font-family: var(--font-md3-sans);"
+                onclick={goToAbout}
             >
               {$t('connect.checkUpdates')}
             </button>
-          {/if}
-        </div>
-      {/if}
+            {/if}
+          </div>
+        {/if}
 
-      <!-- Circular primary action inspired by the classic mobile QQ login control. -->
-      <div class="connect-submit-row">
-        <button
-          type={busy ? 'button' : 'submit'}
-          class="connect-submit-button"
-          class:connect-submit-button--active={hasValidServerAddress}
-          class:connect-submit-button--busy={busy}
-          class:connect-submit-button--cancelling={cancelRequested}
-          disabled={cancelRequested || (!busy && !hasValidServerAddress)}
-          aria-label={busy ? $t('common.cancel') : $t('connect.connect')}
-          aria-busy={busy}
-          title={busy ? $t('common.cancel') : $t('connect.connect')}
-          onclick={busy ? handleCancelConnect : undefined}
-        >
-          <span class="connect-submit-effects" aria-hidden="true"></span>
-          {#if busy}
-            <span
-              class="connect-submit-busy-layer"
-              aria-hidden="true"
-              out:fade={{ duration: 360, easing: cubicInOut }}
+        <!-- Circular primary action inspired by the classic mobile QQ login control. -->
+        <div class="connect-submit-row">
+          <button
+            type={busy ? 'button' : 'submit'}
+            class="connect-submit-button"
+            class:connect-submit-button--active={hasValidServerAddress}
+            class:connect-submit-button--busy={busy}
+            class:connect-submit-button--cancelling={cancelRequested}
+            disabled={cancelRequested || !busy && !hasValidServerAddress}
+            aria-label={busy ? $t('common.cancel') : $t('connect.connect')}
+            aria-busy={busy}
+            title={busy ? $t('common.cancel') : $t('connect.connect')}
+            onclick={busy ? handleCancelConnect : undefined}
+          >
+            <span class="connect-submit-effects" aria-hidden="true"></span>
+            {#if busy}
+              <span
+                class="connect-submit-busy-layer"
+                aria-hidden="true"
+                out:fade={{ duration: 360, easing: cubicInOut }}
             >
               <span class="connect-submit-busy-fill"></span>
             </span>
-          {/if}
-          {#if busy}
-            <span class="connect-submit-progress">
-              <ProgressRing tone="inherit" size={44} strokeWidth={2.5} label={$t('common.connecting')} />
-              <span class="connect-submit-cancel-icon" aria-hidden="true">
-                <Icon name="close" size="22px" />
+            {/if}
+            {#if busy}
+              <span class="connect-submit-progress">
+                <ProgressRing
+                  tone="inherit"
+                  size={44}
+                  strokeWidth={2.5}
+                  label={$t('common.connecting')}
+                />
+
+                <span
+                  class="connect-submit-cancel-icon"
+                  aria-hidden="true"
+                ><Icon name="close" size="22px" /></span>
               </span>
-            </span>
-          {:else}
+            {:else}
             <span class="connect-submit-content connect-submit-arrow">
               <Icon name="arrowBack" size="24px" />
             </span>
-          {/if}
-        </button>
-      </div>
+            {/if}
+          </button>
+        </div>
       </form>
 
       <p class="mt-4 text-center text-xs text-md3-on-surface-variant">

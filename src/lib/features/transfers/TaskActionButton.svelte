@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { IconName } from '$lib/shared/ui/icons';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
 
   interface Props {
     icon: IconName;

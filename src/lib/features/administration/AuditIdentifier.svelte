@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { copyText } from '$lib/shared/platform/clipboard';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { copyText } from '#lib/shared/platform/clipboard.ts';
 
   let { value }: { value: string | null | undefined } = $props();
   let expanded = $state(false);

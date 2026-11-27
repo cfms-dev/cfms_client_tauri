@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import FileAddressBar from '$lib/features/files/FileAddressBar.svelte';
+import FileAddressBar from '#lib/features/files/FileAddressBar.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -13,7 +13,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ menuScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 afterEach(() => {

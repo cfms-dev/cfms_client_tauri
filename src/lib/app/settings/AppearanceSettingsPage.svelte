@@ -5,18 +5,18 @@
     AppearancePreference,
     ColorSchemePreference,
     ReduceMotionPreference,
-  } from '$lib/api';
-  import { DEFAULT_APPEARANCE } from '$lib/shared/appearance';
-  import { appearanceStore } from '$lib/features/settings/appearance.svelte.ts';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
-  import type { IconName } from '$lib/shared/ui/icons';
+  } from '#lib/api.ts';
+  import { DEFAULT_APPEARANCE } from '#lib/shared/appearance.ts';
+  import { appearanceStore } from '#lib/features/settings/appearance.svelte.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
 
   interface PreferenceOption<T> {
     value: T;

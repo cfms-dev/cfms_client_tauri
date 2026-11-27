@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatByteRate, TransferSpeedTracker } from '$lib/features/transfers/transfer-speed';
+import { formatByteRate, TransferSpeedTracker } from '#lib/features/transfers/transfer-speed.ts';
 
 describe('TransferSpeedTracker', () => {
   it('measures byte deltas after a stable sampling interval', () => {

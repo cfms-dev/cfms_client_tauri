@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BatchAccessRulesController, batchRulesSessionProblem } from './batch-access-rules';
-import { prepareAccessBatch, runAccessBatch, getAccessBatch, getAccessBatchChanges, disposeAccessBatch } from '$lib/api';
+import { prepareAccessBatch, runAccessBatch, getAccessBatch, getAccessBatchChanges, disposeAccessBatch } from '#lib/api.ts';
 import { deferred } from '../../../test/deferred';
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   prepareAccessBatch: vi.fn(),
   runAccessBatch: vi.fn(),
   getAccessBatch: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('$lib/api', () => ({
   disposeAccessBatch: vi.fn().mockResolvedValue(undefined),
   decideAccessBatch: vi.fn(),
 }));
-vi.mock('$lib/shared/platform/native-events', () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
+vi.mock('#lib/shared/platform/native-events.ts', () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 
 const target = { objectType: 'document' as const, objectId: 'a', name: 'A' };
 

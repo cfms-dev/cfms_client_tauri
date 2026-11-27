@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SearchFilesResponse } from '$lib/api';
+import type { SearchFilesResponse } from '#lib/api.ts';
 
 const mocks = vi.hoisted(() => ({
   searchFiles: vi.fn(),
   getDirectoryInfo: vi.fn(),
 }));
 
-vi.mock('$lib/api', async (original) => ({
-  ...(await original<typeof import('$lib/api')>()),
+vi.mock('#lib/api.ts', async (original) => ({
+  ...(await original<typeof import('#lib/api.ts')>()),
   searchFiles: mocks.searchFiles,
   getDirectoryInfo: mocks.getDirectoryInfo,
 }));

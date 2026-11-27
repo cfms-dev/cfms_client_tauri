@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ServerDocumentEntry } from '$lib/api';
-import { createProgressiveDirectorySorter, type ProgressiveSortSnapshot } from '$lib/features/files/sort-worker-client';
+import type { ServerDocumentEntry } from '#lib/api.ts';
+import { createProgressiveDirectorySorter, type ProgressiveSortSnapshot } from '#lib/features/files/sort-worker-client.ts';
 
 function documents(count: number): ServerDocumentEntry[] {
   return Array.from({ length: count }, (_, index) => ({

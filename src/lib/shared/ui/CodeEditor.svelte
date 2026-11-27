@@ -2,13 +2,13 @@
   import { onMount } from 'svelte';
   import type { EditorView as EditorViewType } from '@codemirror/view';
   import type { Compartment as CompartmentType, Extension } from '@codemirror/state';
-  import CodeEditorContextMenu from '$lib/shared/ui/CodeEditorContextMenu.svelte';
+  import CodeEditorContextMenu from '#lib/shared/ui/CodeEditorContextMenu.svelte';
   import {
     createFormatKeymapExtension,
     getEditorContextMenuAnchor,
     usesDarkColorScheme,
-  } from '$lib/shared/ui/code-editor-commands';
-  import { shortcutMatches } from '$lib/shared/ui/keyboard';
+  } from '#lib/shared/ui/code-editor-commands.ts';
+  import { shortcutMatches } from '#lib/shared/ui/keyboard.ts';
 
   export interface CodeEditorMountModules {
     EditorState: typeof import('@codemirror/state').EditorState;
@@ -64,7 +64,7 @@
     void Promise.all([
       import('@codemirror/state'),
       import('@codemirror/view'),
-      import('$lib/shared/ui/code-editor-setup'),
+      import('#lib/shared/ui/code-editor-setup.ts'),
     ]).then(async ([stateModule, viewModule, setupModule]) => {
       if (disposed) return;
       const { EditorState, Compartment } = stateModule;

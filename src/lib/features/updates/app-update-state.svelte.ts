@@ -1,17 +1,17 @@
-import { getSetting, setSetting } from '$lib/api';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-import { notifyGithubAuthFallback } from '$lib/features/updates/github-auth-notices';
+import { getSetting, setSetting } from '#lib/api.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+import { notifyGithubAuthFallback } from '#lib/features/updates/github-auth-notices.ts';
 import {
   checkAppUpdate,
   installAppUpdate,
   type AppUpdateMetadata,
   type UpdateChannel,
   type UpdateProgressSnapshot,
-} from '$lib/api/updates';
+} from '#lib/api/updates.ts';
 import {
   updateNotificationReporter,
   type UpdateNotificationCopy,
-} from '$lib/features/updates/update-notifications';
+} from '#lib/features/updates/update-notifications.ts';
 import {
   ACTIVE_UPDATE_CHECK_PAUSE,
   MAX_UPDATE_CHECK_TIMER_MS,
@@ -21,7 +21,7 @@ import {
   serializeUpdateCheckPause,
   updateCheckPausesEqual,
   type UpdateCheckPause,
-} from '$lib/features/updates/update-check-pause';
+} from '#lib/features/updates/update-check-pause.ts';
 
 interface CheckOptions {
   force?: boolean;

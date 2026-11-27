@@ -2,8 +2,8 @@
   import '@fluentui/web-components/text-input.js';
   import type { TextInput } from '@fluentui/web-components';
   import { tick, type Snippet } from 'svelte';
-  import { disabledAttribute } from '$lib/shared/fluent/control';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import { disabledAttribute } from '#lib/shared/fluent/control.ts';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
 
   // Only non-sensitive types: this component reflects its value into attributes.
   interface Props {

@@ -10,23 +10,23 @@
     loadUserPreference,
     type SearchDirectoryEntry,
     type SearchDocumentEntry,
-  } from '$lib/api';
-  import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import HomeRecordPanel from '$lib/features/files/HomeRecordPanel.svelte';
-  import SearchPreviewList from '$lib/features/files/SearchPreviewList.svelte';
-  import ServerSearchView from '$lib/features/files/ServerSearchView.svelte';
+  } from '#lib/api.ts';
+  import { isAccessDeniedError, serverErrorStatus } from '#lib/api/server-errors.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import HomeRecordPanel from '#lib/features/files/HomeRecordPanel.svelte';
+  import SearchPreviewList from '#lib/features/files/SearchPreviewList.svelte';
+  import ServerSearchView from '#lib/features/files/ServerSearchView.svelte';
   import {
     toSearchResultRows,
     type SearchResultRow,
-  } from '$lib/features/files/search-grouping';
+  } from '#lib/features/files/search-grouping.ts';
   import {
     createSearchPreviewController,
-  } from '$lib/features/files/search-preview-controller.svelte.ts';
+  } from '#lib/features/files/search-preview-controller.svelte.ts';
   import {
     createServerSearchController,
-  } from '$lib/features/files/server-search-controller.svelte.ts';
-  import { normalizeDirectoryId, ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
+  } from '#lib/features/files/server-search-controller.svelte.ts';
+  import { normalizeDirectoryId, ROOT_DIRECTORY_ID } from '#lib/features/files/file-browser.ts';
   import {
     clearFavoriteRecords,
     clearRecentVisits,
@@ -40,16 +40,16 @@
     type FilePreferenceScope,
     type FileRecord,
     type RecentFileRecord,
-  } from '$lib/features/files/file-preferences';
-  import { canSearchFiles } from '$lib/features/files/search-permissions';
-  import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
-  import { eventLog } from '$lib/features/diagnostics/event-log.svelte.ts';
-  import { fileShortcutValidationStore } from '$lib/features/files/shortcut-state.svelte.ts';
-  import { notificationStore } from '$lib/shared/notifications/notifications.svelte.ts';
-  import { serverStateStore } from '$lib/features/connection/connection-state.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import { shortIdentifier } from '$lib/shared/format/identifiers';
+  } from '#lib/features/files/file-preferences.ts';
+  import { canSearchFiles } from '#lib/features/files/search-permissions.ts';
+  import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+  import { eventLog } from '#lib/features/diagnostics/event-log.svelte.ts';
+  import { fileShortcutValidationStore } from '#lib/features/files/shortcut-state.svelte.ts';
+  import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+  import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import { shortIdentifier } from '#lib/shared/format/identifiers.ts';
 
   let recent = $state<RecentFileRecord[]>([]);
   let favorites = $state<FileRecord[]>([]);

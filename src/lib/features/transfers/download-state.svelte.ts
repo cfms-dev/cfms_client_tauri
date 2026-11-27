@@ -1,6 +1,6 @@
-import type { DownloadTaskDto, DownloadTaskStatus } from "$lib/api/types";
+import type { DownloadTaskDto, DownloadTaskStatus } from "#lib/api/types.ts";
 import { resetDownloadBatches } from './download-batch-control';
-import { TransferSpeedTracker } from "$lib/features/transfers/transfer-speed";
+import { TransferSpeedTracker } from "#lib/features/transfers/transfer-speed.ts";
 
 class DownloadStoreImpl {
   private removed = new Set<string>();

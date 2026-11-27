@@ -1,6 +1,6 @@
-import type { AuthStatus } from "$lib/api/types";
-import { downloadStore } from "$lib/features/transfers/download-state.svelte";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte";
+import type { AuthStatus } from "#lib/api/types.ts";
+import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
 
 class AuthStoreImpl {
   userId = $state<string | null>(null);

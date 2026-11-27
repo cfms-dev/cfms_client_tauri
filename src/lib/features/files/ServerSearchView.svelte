@@ -8,23 +8,23 @@
     SearchDirectoryEntry,
     SearchDocumentEntry,
     SearchFilesResponse,
-  } from '$lib/api';
+  } from '#lib/api.ts';
   import {
     buildGroupedSearchDisplayRows,
     toSearchResultRows,
     type SearchDisplayRow,
-  } from '$lib/features/files/search-grouping';
-  import { ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
-  import type { ParentDirectoryResolution } from '$lib/features/files/search-parent-directory-resolver.svelte.ts';
-  import SearchGroupHeader from '$lib/features/files/SearchGroupHeader.svelte';
-  import type { SearchTypeFilter } from '$lib/features/files/server-search-controller.svelte.ts';
-  import type { SortDirection, SortField } from '$lib/features/files/sorting';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import { formatBytes, formatDate } from '$lib/shared/format/values';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  } from '#lib/features/files/search-grouping.ts';
+  import { ROOT_DIRECTORY_ID } from '#lib/features/files/file-browser.ts';
+  import type { ParentDirectoryResolution } from '#lib/features/files/search-parent-directory-resolver.svelte.ts';
+  import SearchGroupHeader from '#lib/features/files/SearchGroupHeader.svelte';
+  import type { SearchTypeFilter } from '#lib/features/files/server-search-controller.svelte.ts';
+  import type { SortDirection, SortField } from '#lib/features/files/sorting.ts';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import { formatBytes, formatDate } from '#lib/shared/format/values.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   interface Props {
     query: string;

@@ -2,11 +2,11 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import type { ManagedUserInfo } from '$lib/api';
-import AccountSettingsPage from '$lib/app/settings/AccountSettingsPage.svelte';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import type { ManagedUserInfo } from '#lib/api.ts';
+import AccountSettingsPage from '#lib/app/settings/AccountSettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   setUserNickname: vi.fn(),
@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   listDirectory: vi.fn(),
 }));
 
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   cancelTwoFactorSetup: vi.fn(),
   changePassword: vi.fn(),
   clearAuthSession: vi.fn(),
@@ -37,8 +37,8 @@ vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
 vi.mock('$app/state', () => ({
   page: { url: new URL('https://example.test/home/settings/account') },
 }));
-vi.mock('$lib/app/navigation', () => ({ navigateUp: vi.fn() }));
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/app/navigation.ts', () => ({ navigateUp: vi.fn() }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 vi.mock('svelte-i18n', () => ({

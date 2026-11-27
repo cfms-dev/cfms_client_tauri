@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import type { Switch, TextInput } from '@fluentui/web-components';
-import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-import MdCheckbox from '$lib/shared/ui/MdCheckbox.svelte';
-import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-import FluentTextInput from '$lib/shared/ui/FluentTextInput.svelte';
-import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+import MdCheckbox from '#lib/shared/ui/MdCheckbox.svelte';
+import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+import FluentTextInput from '#lib/shared/ui/FluentTextInput.svelte';
+import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
 
 afterEach(() => { cleanup(); document.body.innerHTML = ''; });
 const children = createRawSnippet(() => ({ render: () => '<span>Continue</span>' }));

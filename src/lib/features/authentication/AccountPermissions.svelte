@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { locale, _ as t } from 'svelte-i18n';
-  import type { ManagedUserInfo } from '$lib/api';
-  import { filterAccountPermissions, formatAccountTimestamp } from '$lib/features/authentication/account-profile';
-  import { permissionEntryState } from '$lib/features/access/permission-entries';
+  import type { ManagedUserInfo } from '#lib/api.ts';
+  import { filterAccountPermissions, formatAccountTimestamp } from '#lib/features/authentication/account-profile.ts';
+  import { permissionEntryState } from '#lib/features/access/permission-entries.ts';
 
   let { info }: { info: ManagedUserInfo } = $props();
   let now = $state(Date.now() / 1000);

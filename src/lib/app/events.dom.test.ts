@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listen } from '@tauri-apps/api/event';
-import type { DownloadTaskDto, ServiceEvent, UploadTaskDto } from '$lib/api';
-import { initEventListeners, stopEventListeners } from '$lib/app/events';
-import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
-import { eventLog } from "$lib/features/diagnostics/event-log.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+import type { DownloadTaskDto, ServiceEvent, UploadTaskDto } from '#lib/api.ts';
+import { initEventListeners, stopEventListeners } from '#lib/app/events.ts';
+import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import { eventLog } from "#lib/features/diagnostics/event-log.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
 
 const eventCallbacks = vi.hoisted(() => new Map<string, (payload: { payload: unknown }) => void>());
 

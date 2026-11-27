@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/svelte';
 import { afterEach, describe, expect, it } from 'vitest';
-import Icon from '$lib/shared/ui/Icon.svelte';
+import Icon from '#lib/shared/ui/Icon.svelte';
 
 afterEach(cleanup);
 

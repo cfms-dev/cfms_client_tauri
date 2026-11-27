@@ -2,15 +2,15 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { screenProtectionStore } from '$lib/features/settings/screen-protection.svelte.ts';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
+  import { screenProtectionStore } from '#lib/features/settings/screen-protection.svelte.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
 
   let loading = $state(true);
   let screenshotProtectionEnabled = $state(true);

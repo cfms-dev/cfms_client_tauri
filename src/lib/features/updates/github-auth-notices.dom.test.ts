@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { locale } from 'svelte-i18n';
-import '$lib/shared/i18n';
-import { notifyGithubAuthFallback, resetGithubAuthNotice } from '$lib/features/updates/github-auth-notices';
+import '#lib/shared/i18n.ts';
+import { notifyGithubAuthFallback, resetGithubAuthNotice } from '#lib/features/updates/github-auth-notices.ts';
 
 const mocks = vi.hoisted(() => ({
   getGithubAuthStatus: vi.fn(),
   warning: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({ getGithubAuthStatus: mocks.getGithubAuthStatus }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/api.ts', () => ({ getGithubAuthStatus: mocks.getGithubAuthStatus }));
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: { warning: mocks.warning }
 }));
 

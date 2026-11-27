@@ -1,6 +1,6 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
   import {
     createBannedSubnet,
@@ -13,16 +13,16 @@
     type AuthLockout,
     type AuthLockoutSelector,
     type BannedSubnet,
-  } from '$lib/api';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { formatDate } from '$lib/shared/format/values';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  } from '#lib/api.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { formatDate } from '#lib/shared/format/values.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let {
     canListSubnets,

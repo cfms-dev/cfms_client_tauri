@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { ParentDirectoryResolution } from '$lib/features/files/search-parent-directory-resolver.svelte.ts';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import type { ParentDirectoryResolution } from '#lib/features/files/search-parent-directory-resolver.svelte.ts';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   interface Props {
     parentId: string;

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
 
   let inputValue = $state('');
   let applyChoiceToAll = $state(false);

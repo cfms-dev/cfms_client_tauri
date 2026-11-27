@@ -8,11 +8,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: mocks.platform }));
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   selectUploadDirectory: mocks.selectUploadDirectory,
 }));
 
-import { pickDirectory } from '$lib/shared/platform/directory-picker';
+import { pickDirectory } from '#lib/shared/platform/directory-picker.ts';
 
 describe('pickDirectory', () => {
   beforeEach(() => {

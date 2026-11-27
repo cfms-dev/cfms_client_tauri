@@ -1,16 +1,16 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { PermissionEntry } from '$lib/api';
+  import type { PermissionEntry } from '#lib/api.ts';
   import {
     permissionEntryMatchesFilter,
     type PermissionEntryChangeKind,
     type PermissionEntryFilter,
     type PermissionEntryState,
-  } from '$lib/features/access/permission-entries';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import { formatUnixTimestamp } from '$lib/shared/format/date-time';
+  } from '#lib/features/access/permission-entries.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import { formatUnixTimestamp } from '#lib/shared/format/date-time.ts';
 
   interface EntryListRow {
     key: string;

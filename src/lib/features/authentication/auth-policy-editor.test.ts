@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canCompleteChain, invalidPolicyDraft, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
+import { canCompleteChain, invalidPolicyDraft, type AuthCredential } from '#lib/features/authentication/auth-policy-editor.ts';
 
 const key = (id: string, identity = id, active = true): AuthCredential => ({ method: 'publickey', credential_id: id, key_identity: identity, active, label: null });
 const step = (...ids: string[]) => ({ method: 'publickey', credential_ids: ids });

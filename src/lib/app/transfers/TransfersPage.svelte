@@ -1,44 +1,44 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount, untrack } from 'svelte';
-  import { open } from '$lib/shared/platform/native-dialog';
+  import { open } from '#lib/shared/platform/native-dialog.ts';
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskDto, UploadTaskDto, TransferControlAction, BatchActionResult } from '$lib/api';
+  import type { DownloadTaskDto, UploadTaskDto, TransferControlAction, BatchActionResult } from '#lib/api.ts';
   import {
     cancelDownload, controlTransferTasks, deleteDownloadedFiles, getDownloadTasks, getUploadTasks,
     getDocument, getDocumentInfo, openDownloadedFile, pauseDownload, removeTransferRecords,
     resumeDownload, retryDownload, retryUploadTask,
-  } from '$lib/api';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-  import { downloadBatchSnapshots, refreshDownloadBatches } from '$lib/features/transfers/download-batch-control';
+  } from '#lib/api.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+  import { downloadBatchSnapshots, refreshDownloadBatches } from '#lib/features/transfers/download-batch-control.ts';
   import {
     buildDownloadTaskRows,
     type DownloadTaskRow,
-  } from '$lib/features/transfers/download-task-groups';
+  } from '#lib/features/transfers/download-task-groups.ts';
   import {
     TRANSFER_SECTION_ORDER, downloadSection, matchesTransferQuery,
     uploadSection, type TransferSectionFilter, type TransferSectionKey,
-  } from '$lib/features/transfers/transfer-task-view';
-  import { registerKeyboardCommands } from '$lib/shared/ui/keyboard';
-  import { pickDirectory } from '$lib/shared/platform/directory-picker';
-  import { flyScale } from '$lib/shared/motion/transitions';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import DownloadTaskCard from '$lib/features/transfers/DownloadTaskCard.svelte';
-  import DownloadTaskGroupHeader from '$lib/features/transfers/DownloadTaskGroupHeader.svelte';
-  import DocumentIdDownloadDialog from '$lib/features/transfers/DocumentIdDownloadDialog.svelte';
-  import UploadTaskCard from '$lib/features/transfers/UploadTaskCard.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdCheckbox from '$lib/shared/ui/MdCheckbox.svelte';
-  import UploadTaskGroupHeader from '$lib/features/transfers/UploadTaskGroupHeader.svelte';
-  import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
-  import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
-  import { buildUploadTaskRows, canControlTransfer, matchesCleanup, transferId, type UploadTaskGroup, type CleanupKind, type TransferTask } from '$lib/features/transfers/transfer-batches';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
-  import { TRANSFER_ACTIONS, transferControlMenu, transferCleanupMenu } from '$lib/features/transfers/transfer-actions';
+  } from '#lib/features/transfers/transfer-task-view.ts';
+  import { registerKeyboardCommands } from '#lib/shared/ui/keyboard.ts';
+  import { pickDirectory } from '#lib/shared/platform/directory-picker.ts';
+  import { flyScale } from '#lib/shared/motion/transitions.ts';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
+  import DownloadTaskCard from '#lib/features/transfers/DownloadTaskCard.svelte';
+  import DownloadTaskGroupHeader from '#lib/features/transfers/DownloadTaskGroupHeader.svelte';
+  import DocumentIdDownloadDialog from '#lib/features/transfers/DocumentIdDownloadDialog.svelte';
+  import UploadTaskCard from '#lib/features/transfers/UploadTaskCard.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdCheckbox from '#lib/shared/ui/MdCheckbox.svelte';
+  import UploadTaskGroupHeader from '#lib/features/transfers/UploadTaskGroupHeader.svelte';
+  import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
+  import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
+  import { buildUploadTaskRows, canControlTransfer, matchesCleanup, transferId, type UploadTaskGroup, type CleanupKind, type TransferTask } from '#lib/features/transfers/transfer-batches.ts';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
+  import { TRANSFER_ACTIONS, transferControlMenu, transferCleanupMenu } from '#lib/features/transfers/transfer-actions.ts';
 
   type TaskTab = 'downloads' | 'uploads';
   type GroupAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'delete' | 'remove';

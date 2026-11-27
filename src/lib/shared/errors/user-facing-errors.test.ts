@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { locale, waitLocale } from 'svelte-i18n';
-import '$lib/shared/i18n';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import '#lib/shared/i18n.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 describe('user-facing server errors', () => {
   beforeEach(async () => {

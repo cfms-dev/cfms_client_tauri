@@ -1,8 +1,8 @@
-import { getSetting, setSetting } from '$lib/api';
-import { loadAppVersion } from '$lib/features/updates/app-info';
-import { compareAppVersions } from '$lib/features/updates/app-version';
-import { filterReleaseHighlights, findReleaseTour } from '$lib/features/updates/release-highlights/catalog';
-import type { ReleaseTour, ReleaseTourPresentation } from '$lib/features/updates/release-highlights/types';
+import { getSetting, setSetting } from '#lib/api.ts';
+import { loadAppVersion } from '#lib/features/updates/app-info.ts';
+import { compareAppVersions } from '#lib/features/updates/app-version.ts';
+import { filterReleaseHighlights, findReleaseTour } from '#lib/features/updates/release-highlights/catalog.ts';
+import type { ReleaseTour, ReleaseTourPresentation } from '#lib/features/updates/release-highlights/types.ts';
 
 export const RELEASE_HIGHLIGHTS_SEEN_KEY = 'release_highlights_seen_version';
 

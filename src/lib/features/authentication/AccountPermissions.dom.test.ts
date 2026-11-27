@@ -1,9 +1,9 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ManagedUserInfo } from '$lib/api';
-import AccountPermissions from '$lib/features/authentication/AccountPermissions.svelte';
+import type { ManagedUserInfo } from '#lib/api.ts';
+import AccountPermissions from '#lib/features/authentication/AccountPermissions.svelte';
 
 const now = Date.now() / 1000;
 const info: ManagedUserInfo = {

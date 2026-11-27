@@ -1,5 +1,5 @@
-import type { DownloadTaskDto, TransferControlAction, UploadTaskDto } from '$lib/api';
-import { compareTransferEntries, compareTransferIds, isTransferInProgress, downloadCapabilities, uploadCapabilities, matchesTransferQuery, uploadSection, type TransferSectionFilter } from '$lib/features/transfers/transfer-task-view';
+import type { DownloadTaskDto, TransferControlAction, UploadTaskDto } from '#lib/api.ts';
+import { compareTransferEntries, compareTransferIds, isTransferInProgress, downloadCapabilities, uploadCapabilities, matchesTransferQuery, uploadSection, type TransferSectionFilter } from '#lib/features/transfers/transfer-task-view.ts';
 
 export type TransferTask = DownloadTaskDto | UploadTaskDto;
 export type CleanupKind = 'completed' | 'failed' | 'cancelled' | 'finished' | 'active';

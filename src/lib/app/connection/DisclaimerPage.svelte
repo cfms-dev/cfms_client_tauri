@@ -1,5 +1,5 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   // Disclaimer page
   //
   // Shown on first launch before connecting to a server.  The user must
@@ -9,10 +9,10 @@
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { quitApplication } from '$lib/api';
-  import { disclaimerStore } from "$lib/features/connection/disclaimer-state.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import { isMobilePlatform } from '$lib/shared/platform/platform';
+  import { quitApplication } from '#lib/api.ts';
+  import { disclaimerStore } from "#lib/features/connection/disclaimer-state.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
 
   let busy = $state(false);
   const isMobile = isMobilePlatform();

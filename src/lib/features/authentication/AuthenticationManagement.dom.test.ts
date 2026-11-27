@@ -2,15 +2,15 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import type { AuthPolicy, UserAuthentication } from '$lib/api';
-import AuthenticationManagement from '$lib/features/authentication/AuthenticationManagement.svelte';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import type { AuthPolicy, UserAuthentication } from '#lib/api.ts';
+import AuthenticationManagement from '#lib/features/authentication/AuthenticationManagement.svelte';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
 
 const mocks = vi.hoisted(() => ({ inventory: vi.fn(), policies: vi.fn(), register: vi.fn(), generate: vi.fn(), managedKeys: vi.fn(), update: vi.fn(), remove: vi.fn(), totp: vi.fn(), setup: vi.fn(), verify: vi.fn(), cancel: vi.fn(), changePassword: vi.fn(), reset: vi.fn(), clear: vi.fn(), goto: vi.fn() }));
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   getTwoFactorStatus: mocks.totp, changePassword: mocks.changePassword, clearAuthSession: mocks.clear,
   setupTwoFactor: mocks.setup, validateTwoFactor: mocks.verify, cancelTwoFactorSetup: mocks.cancel,
   resetUserPassword: mocks.reset,
@@ -19,7 +19,7 @@ vi.mock('$lib/api', async (importOriginal) => ({
   updateUserAuthPublicKey: mocks.update, deleteUserAuthPublicKey: mocks.remove,
 }));
 vi.mock('$app/navigation', () => ({ beforeNavigate: vi.fn(), goto: mocks.goto }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
 vi.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,AA==' }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));

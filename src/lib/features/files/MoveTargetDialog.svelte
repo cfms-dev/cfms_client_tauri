@@ -1,25 +1,25 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import {
     type ServerDirectoryEntry,
     type ServerObjectType,
-  } from '$lib/api';
+  } from '#lib/api.ts';
   import {
     excludedDirectorySet,
     formatDirectoryPath,
     normalizeDirectoryId,
     sameDirectoryId,
     type DirectoryBreadcrumbSegment,
-  } from '$lib/features/files/file-browser';
-  import { createDirectoryPickerState } from '$lib/features/files/directory-picker-state.svelte.ts';
-  import Breadcrumb from '$lib/features/files/Breadcrumb.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
+  } from '#lib/features/files/file-browser.ts';
+  import { createDirectoryPickerState } from '#lib/features/files/directory-picker-state.svelte.ts';
+  import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
 
   type MoveTargetRow =
     | { kind: 'parent' }

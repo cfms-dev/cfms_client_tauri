@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { formatDate } from '$lib/shared/format/values';
+  import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { formatDate } from '#lib/shared/format/values.ts';
   import ConnectionSecurityNotice from './ConnectionSecurityNotice.svelte';
 
   let { details = false }: { details?: boolean } = $props();

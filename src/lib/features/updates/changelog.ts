@@ -1,5 +1,5 @@
-import changelogMarkdown from '$lib/features/updates/changelog/CHANGELOG.md?raw';
-import { markdownInlineToText } from '$lib/shared/format/markdown';
+import changelogMarkdown from '#lib/features/updates/changelog/CHANGELOG.md?raw';
+import { markdownInlineToText } from '#lib/shared/format/markdown.ts';
 
 export type ChangelogCategoryKind =
   | 'added'

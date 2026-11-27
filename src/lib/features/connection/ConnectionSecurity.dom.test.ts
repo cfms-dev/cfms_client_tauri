@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
-import ConnectionSecurity from '$lib/features/connection/ConnectionSecurity.svelte';
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+import ConnectionSecurity from '#lib/features/connection/ConnectionSecurity.svelte';
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
 
 beforeEach(() => { locale.set('en'); serverStateStore.clear(); });
 afterEach(() => { cleanup(); serverStateStore.clear(); });

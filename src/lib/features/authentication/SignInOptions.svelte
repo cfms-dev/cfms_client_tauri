@@ -1,6 +1,6 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
   let { value, disabled = false, onchange }: { value: 'password' | 'publickey'; disabled?: boolean; onchange: (value: 'password' | 'publickey') => void } = $props();
   const optionsId = $props.id();
   let expanded = $state(false);

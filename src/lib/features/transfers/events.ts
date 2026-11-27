@@ -1,9 +1,9 @@
 import { refreshDownloadBatches, resetDownloadBatches } from './download-batch-control';
-import type { ServiceEvent } from '$lib/api/types';
-import { eventLog } from '$lib/features/diagnostics/event-log.svelte';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
-import { translate } from '$lib/shared/i18n/translate';
-import type { UploadTaskDto, TransferDirection } from '$lib/api/types';
+import type { ServiceEvent } from '#lib/api/types.ts';
+import { eventLog } from '#lib/features/diagnostics/event-log.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+import { translate } from '#lib/shared/i18n/translate.ts';
+import type { UploadTaskDto, TransferDirection } from '#lib/api/types.ts';
 import { downloadStore } from './download-state.svelte';
 import { uploadStore } from './upload-state.svelte';
 

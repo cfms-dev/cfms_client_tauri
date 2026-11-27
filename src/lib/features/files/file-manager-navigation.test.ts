@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   directoryHistoryTarget, FileManagerNavigationStore, recordDirectoryVisit, resolveDirectoryVisit,
   type DirectoryNavigationSnapshot, type DirectoryNavigationTimeline,
-} from '$lib/features/files/file-manager-navigation';
+} from '#lib/features/files/file-manager-navigation.ts';
 
 const nestedDirectory: DirectoryNavigationSnapshot = {
   folderId: 'child-id',

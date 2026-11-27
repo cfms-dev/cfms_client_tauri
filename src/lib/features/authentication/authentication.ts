@@ -1,4 +1,4 @@
-import type { UserAuthentication } from '$lib/api/types';
+import type { UserAuthentication } from '#lib/api/types.ts';
 
 export const supportedVerificationMethods = ['totp', 'password'];
 

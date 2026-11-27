@@ -20,16 +20,16 @@
     clearAuthSession,
     disconnect,
     quitApplication,
-  } from '$lib/api';
-  import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+  } from '#lib/api.ts';
+  import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
 
   let currentTime = $state('');
   let busyAction = $state<'quit' | 'disconnect' | 'logout' | null>(null);

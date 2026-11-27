@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
+import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
 
 const mocks = vi.hoisted(() => ({
   navigateUp: vi.fn(),

@@ -3,10 +3,10 @@
   import { cubicOut } from 'svelte/easing';
   import { _ as t } from 'svelte-i18n';
   import type { ObjectType } from 'codemirror-lang-cacl';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import { inlineNotice } from '$lib/shared/motion/transitions';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import { inlineNotice } from '#lib/shared/motion/transitions.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
   import CaclRuleCard from './CaclRuleCard.svelte';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
   import { createCaclRuleId, createDefaultCaclRule, type CaclPolicyDocument, type CaclVisualRule } from './cacl-model';

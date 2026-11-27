@@ -1,7 +1,7 @@
-import type { TransferControlAction } from '$lib/api';
-import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
-import type { IconName } from '$lib/shared/ui/icons';
-import type { CleanupKind } from '$lib/features/transfers/transfer-batches';
+import type { TransferControlAction } from '#lib/api.ts';
+import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
+import type { IconName } from '#lib/shared/ui/icons.ts';
+import type { CleanupKind } from '#lib/features/transfers/transfer-batches.ts';
 
 export const TRANSFER_ACTIONS = {
   pause: { icon: 'pause', label: 'tasks.pause' },

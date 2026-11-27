@@ -2,8 +2,8 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { UserPreference } from '$lib/api';
-import TaskSettingsPage from '$lib/app/settings/TasksSettingsPage.svelte';
+import type { UserPreference } from '#lib/api.ts';
+import TaskSettingsPage from '#lib/app/settings/TasksSettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   loadUserPreference: vi.fn(),
@@ -12,14 +12,14 @@ const mocks = vi.hoisted(() => ({
   notifyError: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   loadUserPreference: mocks.loadUserPreference,
   updateUserPreferences: mocks.updateUserPreferences,
 }));
-vi.mock('$lib/features/transfers/upload-state.svelte', () => ({
+vi.mock('#lib/features/transfers/upload-state.svelte.ts', () => ({
   uploadStore: { configureConcurrency: mocks.configureConcurrency }
 }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: { error: mocks.notifyError }
 }));
 vi.mock('svelte-i18n', () => ({

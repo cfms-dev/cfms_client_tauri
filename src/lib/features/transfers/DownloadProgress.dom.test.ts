@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/svelte';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { addMessages, init } from 'svelte-i18n';
-import DownloadProgress from '$lib/features/transfers/DownloadProgress.svelte';
+import DownloadProgress from '#lib/features/transfers/DownloadProgress.svelte';
 
 beforeAll(() => {
   addMessages('en', {

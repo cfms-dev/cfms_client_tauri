@@ -1,4 +1,4 @@
-import { formatPathFilename } from '$lib/shared/format/path-format';
+import { formatPathFilename } from '#lib/shared/format/path-format.ts';
 
 export function isAndroidTreeUri(path: string): boolean {
   return path.startsWith('content://') && path.includes('/tree/');

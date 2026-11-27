@@ -7,7 +7,7 @@ import {
   toCodeMirrorDiagnostics,
   type ObjectType,
 } from 'codemirror-lang-cacl';
-import type { ServerCaclDiagnostic } from '$lib/api/types';
+import type { ServerCaclDiagnostic } from '#lib/api/types.ts';
 import { KNOWN_GLOBAL_PERMISSIONS } from './permission-entries';
 
 export interface CaclPrincipalDirectory {

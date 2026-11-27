@@ -2,19 +2,19 @@
   import { onDestroy, tick, untrack } from 'svelte';
   import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ShortcutKeys from '$lib/shared/ui/ShortcutKeys.svelte';
-  import { menuScale } from '$lib/shared/motion/transitions';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ShortcutKeys from '#lib/shared/ui/ShortcutKeys.svelte';
+  import { menuScale } from '#lib/shared/motion/transitions.ts';
   import type {
     ContextMenuActionItem,
     ContextMenuItem,
-  } from '$lib/shared/ui/context-menu';
+  } from '#lib/shared/ui/context-menu.ts';
   import {
     filterContextMenuItems,
     isContextMenuDivider,
-  } from '$lib/shared/ui/context-menu';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
-  import { portal } from '$lib/shared/actions/portal';
+  } from '#lib/shared/ui/context-menu.ts';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
+  import { portal } from '#lib/shared/actions/portal.ts';
 
   interface Props {
     open: boolean;

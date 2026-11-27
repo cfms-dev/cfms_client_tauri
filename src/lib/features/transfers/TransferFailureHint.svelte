@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { portal } from '$lib/shared/actions/portal';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import { portal } from '#lib/shared/actions/portal.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   let { reason }: { reason: string } = $props();
   const tooltipId = $props.id();

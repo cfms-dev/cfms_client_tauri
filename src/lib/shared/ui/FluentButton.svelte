@@ -3,7 +3,7 @@
   import type { Snippet } from 'svelte';
   import type { HTMLAttributes } from 'svelte/elements';
   import type { Button } from '@fluentui/web-components';
-  import { disabledAttribute } from '$lib/shared/fluent/control';
+  import { disabledAttribute } from '#lib/shared/fluent/control.ts';
 
   interface Props extends Omit<HTMLAttributes<HTMLElement>, 'class' | 'children'> {
     type?: 'button' | 'submit' | 'reset';

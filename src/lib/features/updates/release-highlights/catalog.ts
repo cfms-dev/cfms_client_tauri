@@ -1,5 +1,5 @@
-import { compareAppVersions } from '$lib/features/updates/app-version';
-import type { ReleaseHighlight, ReleaseTour } from '$lib/features/updates/release-highlights/types';
+import { compareAppVersions } from '#lib/features/updates/app-version.ts';
+import type { ReleaseHighlight, ReleaseTour } from '#lib/features/updates/release-highlights/types.ts';
 
 const managementPermissions = [
   'list_users',
@@ -20,8 +20,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v046.permissionManagement.title',
         bodyKey: 'releaseHighlights.v046.permissionManagement.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json'),
         },
         fallbackIcon: 'rule',
         requiredAnyPermission: managementPermissions,
@@ -37,8 +37,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v045.fullscreenTour.title',
         bodyKey: 'releaseHighlights.v045.fullscreenTour.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json'),
         },
         fallbackIcon: 'maximizeDialog',
       },
@@ -47,8 +47,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v045.documentDownload.title',
         bodyKey: 'releaseHighlights.v045.documentDownload.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.43/document-download.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.43/document-download.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.43/document-download.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.43/document-download.dark.json'),
         },
         fallbackIcon: 'download',
       },
@@ -57,8 +57,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v045.flexibleWorkspace.title',
         bodyKey: 'releaseHighlights.v045.flexibleWorkspace.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json'),
         },
         fallbackIcon: 'maximizeDialog',
       },
@@ -67,8 +67,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v045.diagnostics.title',
         bodyKey: 'releaseHighlights.v045.diagnostics.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.dark.json'),
         },
         fallbackIcon: 'bugReport',
         requiredAnyPermission: ['diagnostics'],
@@ -78,8 +78,8 @@ export const releaseTours: readonly ReleaseTour[] = [
         titleKey: 'releaseHighlights.v045.administration.title',
         bodyKey: 'releaseHighlights.v045.administration.body',
         animation: {
-          light: () => import('$lib/features/updates/release-highlights/animations/v0.43/account-administration.light.json'),
-          dark: () => import('$lib/features/updates/release-highlights/animations/v0.43/account-administration.dark.json'),
+          light: () => import('#lib/features/updates/release-highlights/animations/v0.43/account-administration.light.json'),
+          dark: () => import('#lib/features/updates/release-highlights/animations/v0.43/account-administration.dark.json'),
         },
         fallbackIcon: 'manageAccounts',
         requiredAnyPermission: managementPermissions,

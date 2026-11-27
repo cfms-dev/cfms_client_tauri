@@ -1,29 +1,30 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import { writable, type Writable } from 'svelte/store';
-import { page } from '$app/stores';
 import { locale } from 'svelte-i18n';
 import { afterAll, afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import WorkspaceLayout from '$lib/app/WorkspaceShell.svelte';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import WorkspaceLayout from '#lib/app/WorkspaceShell.svelte';
 
-const mocks = vi.hoisted(() => ({ goto: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  goto: vi.fn(),
+  page: { url: new URL('https://example.test/home/files') },
+}));
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$app/stores', () => ({ page: writable({ url: new URL('https://example.test/home/files') }) }));
-vi.mock('$lib/shared/platform/platform', () => ({ supportsKeyboardShortcuts: () => false, isMobilePlatform: () => false }));
-vi.mock('$lib/api', async (original) => ({
-  ...await original<typeof import('$lib/api')>(),
+vi.mock('$app/state', () => ({ page: mocks.page }));
+vi.mock('#lib/shared/platform/platform.ts', () => ({ supportsKeyboardShortcuts: () => false, isMobilePlatform: () => false }));
+vi.mock('#lib/api.ts', async (original) => ({
+  ...await original<typeof import('#lib/api.ts')>(),
   loadUserPreference: async () => ({}),
   listDirectory: async () => ({ folders: [], documents: [], parent_id: null }),
 }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 beforeEach(() => {
   locale.set('en');
-  (page as unknown as Writable<{ url: URL }>).set({ url: new URL('https://example.test/home/files') });
+  mocks.page.url = new URL('https://example.test/home/files');
   authStore.apply({ user_id: 'self-id', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 1_900_000_000, groups: [], permissions: [] });
   serverStateStore.updateConnection(true, 'wss://example.test', false);
   mocks.goto.mockReset();
@@ -78,7 +79,7 @@ it('keeps the avatar picker accessible from the account menu', async () => {
 it.each(['/home/settings', '/home/about'])('returns from public %s to connection while signed out', async (path) => {
   authStore.clear();
   serverStateStore.clear();
-  (page as unknown as Writable<{ url: URL }>).set({ url: new URL(path, 'https://example.test') });
+  mocks.page.url = new URL(path, 'https://example.test');
   render(WorkspaceLayout, { children: createRawSnippet(() => ({ render: () => '<div>Workspace content</div>' })) });
   const close = screen.getByRole('button', { name: 'Return to connection' });
   expect(close.hasAttribute('icon-only')).toBe(true);

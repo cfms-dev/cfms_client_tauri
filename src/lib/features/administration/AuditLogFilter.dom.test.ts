@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import AuditLogFilter from '$lib/features/administration/AuditLogFilter.svelte';
+import AuditLogFilter from '#lib/features/administration/AuditLogFilter.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -13,7 +13,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   menuScale: () => ({ duration: 0 }),
 }));
 

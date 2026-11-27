@@ -1,10 +1,10 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { SearchDirectoryEntry, SearchDocumentEntry } from '$lib/api';
-  import type { SearchResultRow } from '$lib/features/files/search-grouping';
-  import { formatBytes, formatDate } from '$lib/shared/format/values';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import type { SearchDirectoryEntry, SearchDocumentEntry } from '#lib/api.ts';
+  import type { SearchResultRow } from '#lib/features/files/search-grouping.ts';
+  import { formatBytes, formatDate } from '#lib/shared/format/values.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   interface Props {
     id: string;

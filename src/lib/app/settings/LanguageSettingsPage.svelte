@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getLocale } from '$lib/api';
-  import { normalizeLocale, setAppLocale, type AppLocale } from '$lib/shared/i18n';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  import { getLocale } from '#lib/api.ts';
+  import { normalizeLocale, setAppLocale, type AppLocale } from '#lib/shared/i18n.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   const languages: Array<{ value: AppLocale; labelKey: string }> = [
     { value: 'zh_CN', labelKey: 'settings.language.chinese' },

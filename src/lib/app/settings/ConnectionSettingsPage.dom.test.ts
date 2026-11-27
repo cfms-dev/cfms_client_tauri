@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { locale } from 'svelte-i18n';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TextInput } from '@fluentui/web-components';
-import ConnectionSettings from '$lib/app/settings/ConnectionSettingsPage.svelte';
-import { serverStateStore } from '$lib/features/connection/connection-state.svelte.ts';
+import ConnectionSettings from '#lib/app/settings/ConnectionSettingsPage.svelte';
+import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
 
 const mocks = vi.hoisted(() => ({ save: vi.fn(async () => {}) }));
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getConnectionSettings: async () => ({ enable_proxy: false, follow_system_proxy: false, custom_proxy: '', force_ipv4: false,
     client_cert_path: '', client_key_path: '', remember_connection_addresses: false, recent_connection_addresses: [], crl_allowed_hosts: [] }),
   getCaCertificateStatus: async () => ({ caDir: '/ca', certificateCount: 1, lastChecked: null }),

@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LockdownPage from '$lib/app/authentication/LockdownPage.svelte';
+import LockdownPage from '#lib/app/authentication/LockdownPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   authStore: {
@@ -21,23 +21,23 @@ const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
 }));
 
-vi.mock('$lib/features/authentication/auth-state.svelte', () => ({
+vi.mock('#lib/features/authentication/auth-state.svelte.ts', () => ({
   authStore: mocks.authStore
 }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: mocks.notificationStore
 }));
-vi.mock('$lib/features/connection/connection-state.svelte', () => ({
+vi.mock('#lib/features/connection/connection-state.svelte.ts', () => ({
   serverStateStore: mocks.serverStateStore
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   clearAuthSession: vi.fn(),
   disconnect: vi.fn(),
   quitApplication: vi.fn(),
 }));
 
-vi.mock('$lib/features/settings/app-lock.svelte.ts', () => ({
+vi.mock('#lib/features/settings/app-lock.svelte.ts', () => ({
   appLockStore: {
     canLock: false,
     lock: vi.fn(),

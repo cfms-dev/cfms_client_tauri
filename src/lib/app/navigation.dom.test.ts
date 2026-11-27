@@ -16,22 +16,22 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/navigation', () => ({ afterNavigate: mocks.afterNavigate, goto: mocks.goto }));
-vi.mock('$lib/api/settings', () => ({ getRootBackButtonBehavior: mocks.getRootBackButtonBehavior }));
-vi.mock('$lib/api/mobile', () => ({
+vi.mock('#lib/api/settings.ts', () => ({ getRootBackButtonBehavior: mocks.getRootBackButtonBehavior }));
+vi.mock('#lib/api/mobile.ts', () => ({
   moveAppToBackground: mocks.moveAppToBackground,
   exitAppAfterLauncherTransition: mocks.exitAppAfterLauncherTransition,
 }));
-vi.mock('$lib/features/settings/app-lock.svelte.ts', () => ({ appLockStore: { canUseRootBackBackground: true } }));
-vi.mock('$lib/features/authentication/auth-state.svelte', () => ({
+vi.mock('#lib/features/settings/app-lock.svelte.ts', () => ({ appLockStore: { canUseRootBackBackground: true } }));
+vi.mock('#lib/features/authentication/auth-state.svelte.ts', () => ({
   authStore: { isLoggedIn: true }
 }));
 
-let navigation: typeof import('$lib/app/navigation');
+let navigation: typeof import('#lib/app/navigation.ts');
 
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
-  navigation = await import('$lib/app/navigation');
+  navigation = await import('#lib/app/navigation.ts');
   navigation.initNavigationHistory();
 });
 

@@ -2,9 +2,9 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ExplorerDetailsPane from '$lib/features/files/ExplorerDetailsPane.svelte';
+import ExplorerDetailsPane from '#lib/features/files/ExplorerDetailsPane.svelte';
 
-vi.mock('$lib/shared/appearance', () => ({
+vi.mock('#lib/shared/appearance.ts', () => ({
   isReducedMotionEnabled: () => true,
 }));
 

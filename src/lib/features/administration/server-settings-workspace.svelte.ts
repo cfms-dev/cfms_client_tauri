@@ -1,12 +1,12 @@
 import { untrack } from 'svelte';
 import { get } from 'svelte/store';
 import { _ as t } from 'svelte-i18n';
-import { listServerSettings, getServerSettings, updateServerSettings, getServerState, getAuthStatus, getUserInfo, serverErrorStatus, type ServerSettingDefinition, type ServerSettingsValues } from '$lib/api';
-import { authStore } from '$lib/features/authentication/auth-state.svelte';
-import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { listServerSettings, getServerSettings, updateServerSettings, getServerState, getAuthStatus, getUserInfo, serverErrorStatus, type ServerSettingDefinition, type ServerSettingsValues } from '#lib/api.ts';
+import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 import { parseSetting, settingChanges } from './server-settings';
 
 interface NamespaceState {

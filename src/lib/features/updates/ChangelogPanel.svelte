@@ -1,13 +1,13 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
   import {
     changelogEntries,
     formatChangelogDate,
     type ChangelogEntry,
-  } from '$lib/features/updates/changelog';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MarkdownView from '$lib/shared/ui/MarkdownView.svelte';
+  } from '#lib/features/updates/changelog.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MarkdownView from '#lib/shared/ui/MarkdownView.svelte';
 
   let expanded = $state(false);
 

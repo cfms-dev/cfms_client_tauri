@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LockdownControl from '$lib/features/authentication/LockdownControl.svelte';
+import LockdownControl from '#lib/features/authentication/LockdownControl.svelte';
 
 afterEach(cleanup);
 

@@ -5,12 +5,12 @@
     loadUserPreference,
     updateUserPreferences,
     type UserPreference,
-  } from '$lib/api';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
+  } from '#lib/api.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
 
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);

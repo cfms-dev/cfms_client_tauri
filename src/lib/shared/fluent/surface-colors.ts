@@ -1,4 +1,4 @@
-import type { ResolvedColorScheme } from '$lib/shared/appearance';
+import type { ResolvedColorScheme } from '#lib/shared/appearance.ts';
 
 // Dedicated painted surfaces retain their established appearance. These names
 // describe colors, never component geometry or behavior.

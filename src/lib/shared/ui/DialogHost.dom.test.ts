@@ -3,11 +3,11 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import DialogHost from '$lib/shared/ui/DialogHost.svelte';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import '$lib/shared/i18n';
+import DialogHost from '#lib/shared/ui/DialogHost.svelte';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import '#lib/shared/i18n.ts';
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 

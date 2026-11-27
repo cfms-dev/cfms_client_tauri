@@ -1,15 +1,15 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { setUserUsername, serverErrorStatus } from '$lib/api';
+  import { setUserUsername, serverErrorStatus } from '#lib/api.ts';
   import { authStore } from './auth-state.svelte';
-  import { serverStateStore } from '$lib/features/connection/connection-state.svelte';
+  import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
   import { ensureEscalation } from './escalation.svelte';
-  import { canSetAccountName } from '$lib/features/authentication/auth-permissions';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { canSetAccountName } from '#lib/features/authentication/auth-permissions.ts';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let { userId, username, onClose, onSaved }: {
     userId: string; username: string; onClose: () => void; onSaved: () => void | Promise<void>;

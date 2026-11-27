@@ -2,7 +2,7 @@ import { flip } from "svelte/animate";
 import { cubicIn, cubicOut } from "svelte/easing";
 import type { AnimationConfig } from "svelte/animate";
 import { slide, type TransitionConfig } from "svelte/transition";
-import { isReducedMotionEnabled } from "$lib/shared/appearance";
+import { isReducedMotionEnabled } from "#lib/shared/appearance.ts";
 
 export interface FlyScaleParams {
   y?: number;

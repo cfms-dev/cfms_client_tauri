@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import { smoothPosition } from '$lib/shared/motion/actions';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import { smoothPosition } from '#lib/shared/motion/actions.ts';
 
   let { label }: { label: string } = $props();
 </script>

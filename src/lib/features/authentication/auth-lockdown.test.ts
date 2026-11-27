@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldDeferPostLoginForLockdown } from '$lib/features/authentication/auth-lockdown';
+import { shouldDeferPostLoginForLockdown } from '#lib/features/authentication/auth-lockdown.ts';
 
 describe('post-login lockdown gating', () => {
   it('defers initialization for a locked server without bypass permission', () => {

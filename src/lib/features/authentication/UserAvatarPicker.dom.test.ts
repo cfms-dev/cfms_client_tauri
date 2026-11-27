@@ -1,19 +1,19 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import UserAvatarPicker from '$lib/features/authentication/UserAvatarPicker.svelte';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import UserAvatarPicker from '#lib/features/authentication/UserAvatarPicker.svelte';
 
 const mocks = vi.hoisted(() => ({ set: vi.fn(), avatar: vi.fn(), download: vi.fn(), directory: vi.fn() }));
-vi.mock('$lib/api', async (original) => ({
-  ...await original<typeof import('$lib/api')>(),
+vi.mock('#lib/api.ts', async (original) => ({
+  ...await original<typeof import('#lib/api.ts')>(),
   setUserAvatar: mocks.set, getUserAvatar: mocks.avatar, downloadAvatar: mocks.download, listDirectory: mocks.directory,
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), convertFileSrc: (path: string) => `asset://localhost/${path}` }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 
 const status = { user_id: 'self-id', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 1_900_000_000, permissions: ['set_user_avatar'], groups: [], avatar_path: 'old.png' };

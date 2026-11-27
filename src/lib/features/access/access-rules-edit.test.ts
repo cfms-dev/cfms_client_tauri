@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accessRulesDraftFingerprint, accessRulesTemplateKey } from '$lib/features/access/access-rules-edit';
+import { accessRulesDraftFingerprint, accessRulesTemplateKey } from '#lib/features/access/access-rules-edit.ts';
 
 describe('access rules editor baseline', () => {
   it('treats whitespace differences and @username annotations as unchanged', () => {

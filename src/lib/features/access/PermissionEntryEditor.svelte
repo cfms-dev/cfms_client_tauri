@@ -1,8 +1,8 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { PermissionEntry } from '$lib/api';
+  import type { PermissionEntry } from '#lib/api.ts';
   import {
     parseLocalDateTimeInput,
     toLocalDateTimeInput,
@@ -10,9 +10,9 @@
     type PermissionEntryChangeKind,
     type PermissionEntryValidation,
     type StartMode,
-  } from '$lib/features/access/permission-entries';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
+  } from '#lib/features/access/permission-entries.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
 
   interface EditorRow {
     key: string;

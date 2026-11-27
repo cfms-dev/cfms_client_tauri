@@ -1,10 +1,10 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import FilterPopover from '$lib/shared/ui/FilterPopover.svelte';
-  import MultiSelectOptions from '$lib/shared/ui/MultiSelectOptions.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  import FilterPopover from '#lib/shared/ui/FilterPopover.svelte';
+  import MultiSelectOptions from '#lib/shared/ui/MultiSelectOptions.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
   import { DEFAULT_AUDIT_EXCLUSIONS, defaultAuditFilters, normalizeAuditActions, normalizeAuditFilters, selectAuditAction, type AuditActionFilters } from './audit-filters';
 
   interface Props {

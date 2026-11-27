@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ListDirectoryPageResponse } from '$lib/api';
+import type { ListDirectoryPageResponse } from '#lib/api.ts';
 import { directoryPage } from '../../../test/directory-fixtures';
 import {
   DirectoryLoadController,
   DirectoryRequestTimeoutError,
-} from '$lib/features/files/directory-load-controller';
+} from '#lib/features/files/directory-load-controller.ts';
 
 function page(id: string, nextCursor: string | null): ListDirectoryPageResponse {
   return directoryPage({

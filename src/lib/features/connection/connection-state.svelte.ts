@@ -1,4 +1,4 @@
-import type { ServerState, ServerInfo, RevocationStatus } from "$lib/api/types";
+import type { ServerState, ServerInfo, RevocationStatus } from "#lib/api/types.ts";
 
 class ServerStateStoreImpl {
   connectionId = $state<number | null>(null);

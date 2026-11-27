@@ -6,8 +6,8 @@ import {
   type ServerDocumentEntry,
   type ServerObjectType,
   type UserPreference,
-} from '$lib/api';
-import { normalizeDirectoryId } from '$lib/features/files/file-browser';
+} from '#lib/api.ts';
+import { normalizeDirectoryId } from '#lib/features/files/file-browser.ts';
 
 export type FileRecordType = ServerObjectType;
 

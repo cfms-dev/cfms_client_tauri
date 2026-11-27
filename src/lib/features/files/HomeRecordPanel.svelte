@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { IconName } from '$lib/shared/ui/icons';
-  import type { FileRecord } from '$lib/features/files/file-preferences';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { flyScale, staggeredList } from '$lib/shared/motion/transitions';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import type { FileRecord } from '#lib/features/files/file-preferences.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { flyScale, staggeredList } from '#lib/shared/motion/transitions.ts';
 
   interface Props {
     title: string;

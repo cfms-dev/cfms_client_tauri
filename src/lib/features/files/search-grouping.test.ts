@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SearchFilesResponse } from '$lib/api';
+import type { SearchFilesResponse } from '#lib/api.ts';
 import {
   buildGroupedSearchDisplayRows,
   mergeSearchResponses,

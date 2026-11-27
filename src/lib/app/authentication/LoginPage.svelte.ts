@@ -1,11 +1,11 @@
 import { onDestroy, onMount, tick } from "svelte";
-import { browser } from "$app/environment";
+import { browser } from '$app/env';
 import { goto } from "$app/navigation";
 import { _ as t } from 'svelte-i18n';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { fileShortcutValidationStore } from "$lib/features/files/shortcut-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { fileShortcutValidationStore } from "#lib/features/files/shortcut-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
 import {
   login,
   loginWithPublicKey,
@@ -39,14 +39,14 @@ import {
   serverErrorStatus,
   type AuthStatus,
   type ServerState,
-} from "$lib/api";
-import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
-import { appearanceStore } from "$lib/features/settings/appearance.svelte.ts";
-import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "$lib/features/authentication/auth-transition";
-import { shouldDeferPostLoginForLockdown } from '$lib/features/authentication/auth-lockdown';
-import { formatLocalDateTimeWithUtcOffset } from '$lib/shared/format/date-time';
-import { info } from '$lib/shared/platform/native-log';
-import { publicKeyError } from '$lib/features/authentication/public-key-errors';
+} from "#lib/api.ts";
+import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import { appearanceStore } from "#lib/features/settings/appearance.svelte.ts";
+import { consumeConnectToLoginTransition, markLoginToConnectTransition } from "#lib/features/authentication/auth-transition.ts";
+import { shouldDeferPostLoginForLockdown } from '#lib/features/authentication/auth-lockdown.ts';
+import { formatLocalDateTimeWithUtcOffset } from '#lib/shared/format/date-time.ts';
+import { info } from '#lib/shared/platform/native-log.ts';
+import { publicKeyError } from '#lib/features/authentication/public-key-errors.ts';
 import { fromStore } from 'svelte/store';
 
 export type UnreadablePreferenceDecision = 'cancel' | 'delete' | 'recovered';
@@ -167,7 +167,7 @@ export function createLoginFlow() {
 
     // Phase 3: "Loading preferences…"
     loadingPhase = loadingPhases[2];
-    if (!(await ensureUserPreferencesReadable(currentPassword, recoveryAvailable))) {
+    if (!await ensureUserPreferencesReadable(currentPassword, recoveryAvailable)) {
       return false;
     }
     await appearanceStore.load(
@@ -266,14 +266,8 @@ export function createLoginFlow() {
 
   function isUnreadablePreferenceError(e: unknown): boolean {
     const message = formatError(e).toLowerCase();
-    return (
-      message.includes('cfms_account_storage_recovery')
-      || message.includes('encrypted preference file found but dek is unavailable')
-      || message.includes('preference dek is unavailable')
-      || message.includes('failed to decrypt preference file')
-      || (message.includes('preference file') && message.includes('is not encrypted'))
-      || message.includes('invalid preference data')
-    );
+
+    return message.includes('cfms_account_storage_recovery') || message.includes('encrypted preference file found but dek is unavailable') || message.includes('preference dek is unavailable') || message.includes('failed to decrypt preference file') || message.includes('preference file') && message.includes('is not encrypted') || message.includes('invalid preference data');
   }
 
   async function cancelAuthenticatedSession() {
@@ -295,17 +289,8 @@ export function createLoginFlow() {
 
   function isConnectionFlowError(e: unknown): boolean {
     const message = formatError(e).toLowerCase();
-    return (
-      message.includes('not connected')
-      || message.includes('connection closed')
-      || message.includes('connection failed')
-      || message.includes('failed to create stream')
-      || message.includes('failed to send')
-      || message.includes('send failed')
-      || message.includes('stream closed')
-      || message.includes('websocket')
-      || message.includes('tcp connect')
-    );
+
+    return message.includes('not connected') || message.includes('connection closed') || message.includes('connection failed') || message.includes('failed to create stream') || message.includes('failed to send') || message.includes('send failed') || message.includes('stream closed') || message.includes('websocket') || message.includes('tcp connect');
   }
 
   async function returnToConnectAfterPostLoginBlocked(message: string) {
@@ -636,14 +621,10 @@ export function createLoginFlow() {
       // Animate the loading phases only after lockdown gating succeeds.
       loadingPhase = loadingPhases[0];
       await info("Login successful, running post-login loading phases...");
-      if (!(await runLoadingPhases(
-        username,
-        password,
-        authResult.has_server_preference_dek === true,
-        authResult.needs_preference_dek_setup === true,
-      ))) return;
-      await info("Loading phases complete, finalizing auth state...");
 
+      if (!await runLoadingPhases(username, password, authResult.has_server_preference_dek === true, authResult.needs_preference_dek_setup === true)) return;
+
+      await info("Loading phases complete, finalizing auth state...");
       await finalizeAuthenticatedLogin(authResult);
     } catch (e) {
       const throttleError = throttledMessage(e);
@@ -692,7 +673,7 @@ export function createLoginFlow() {
 
   async function handle2faVerify(
     method: string,
-    data: Record<string, import('$lib/api').JsonValue>,
+    data: Record<string, import('#lib/api.ts').JsonValue>,
     onInteraction?: (event: PublicKeyInteraction) => void,
   ): Promise<boolean> {
     let authResult;
@@ -739,12 +720,8 @@ export function createLoginFlow() {
 
       // Animate the loading phases only after lockdown gating succeeds.
       loadingPhase = loadingPhases[0];
-      if (!(await runLoadingPhases(
-        username,
-        pendingPassword,
-        authResult.has_server_preference_dek === true,
-        authResult.needs_preference_dek_setup === true,
-      ))) return true;
+
+      if (!await runLoadingPhases(username, pendingPassword, authResult.has_server_preference_dek === true, authResult.needs_preference_dek_setup === true)) return true;
 
       await finalizeAuthenticatedLogin(authResult);
 
@@ -782,16 +759,41 @@ export function createLoginFlow() {
   }
 
   return {
+    get accountDisabled() {
+      return accountDisabled;
+    },
 
-    get accountDisabled() { return accountDisabled; },
-    set accountDisabled(value) { accountDisabled = value; },
-    get accountDisabledReason() { return accountDisabledReason; },
-    set accountDisabledReason(value) { accountDisabledReason = value; },
-    get accountDisabledRequestTimeText() { return accountDisabledRequestTimeText; },
-    get busy() { return busy; },
-    set busy(value) { busy = value; },
-    get cachedAvatarPath() { return cachedAvatarPath; },
-    set cachedAvatarPath(value) { cachedAvatarPath = value; },
+    set accountDisabled(value) {
+      accountDisabled = value;
+    },
+
+    get accountDisabledReason() {
+      return accountDisabledReason;
+    },
+
+    set accountDisabledReason(value) {
+      accountDisabledReason = value;
+    },
+
+    get accountDisabledRequestTimeText() {
+      return accountDisabledRequestTimeText;
+    },
+
+    get busy() {
+      return busy;
+    },
+
+    set busy(value) {
+      busy = value;
+    },
+
+    get cachedAvatarPath() {
+      return cachedAvatarPath;
+    },
+
+    set cachedAvatarPath(value) {
+      cachedAvatarPath = value;
+    },
     cancelKeyLogin,
     get corruptedPreferenceRecoveryAvailable() { return corruptedPreferenceRecoveryAvailable; },
     set corruptedPreferenceRecoveryAvailable(value) { corruptedPreferenceRecoveryAvailable = value; },
@@ -852,11 +854,20 @@ export function createLoginFlow() {
     get successMessage() { return successMessage; },
     set successMessage(value) { successMessage = value; },
     switchLoginMethod,
-    get username() { return username; },
-    set username(value) { username = value; },
-    get usernameInput() { return usernameInput; },
-    set usernameInput(value) { usernameInput = value; },
+    get username() {
+      return username;
+    },
 
+    set username(value) {
+      username = value;
+    },
+
+    get usernameInput() {
+      return usernameInput;
+    },
+
+    set usernameInput(value) {
+      usernameInput = value;
+    }
   };
-
 }

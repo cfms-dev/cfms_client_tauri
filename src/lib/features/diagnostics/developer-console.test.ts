@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canOpenDeveloperConsole, developerConsoleIdentityKey } from '$lib/features/diagnostics/developer-console';
+import { canOpenDeveloperConsole, developerConsoleIdentityKey } from '#lib/features/diagnostics/developer-console.ts';
 
 const availableState = {
   connected: true,

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import type { FileDetailModel } from '$lib/features/files/explorer-types';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import type { FileDetailModel } from '#lib/features/files/explorer-types.ts';
   import type { TransitionConfig } from 'svelte/transition';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
 
   let {
     open,

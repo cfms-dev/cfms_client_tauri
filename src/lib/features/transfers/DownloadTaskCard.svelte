@@ -1,20 +1,20 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { DownloadTaskDto, DownloadTaskStatus } from '$lib/api';
+  import type { DownloadTaskDto, DownloadTaskStatus } from '#lib/api.ts';
   import {
     downloadCapabilities, downloadPhaseMessageKey, downloadStatusMessageKey,
-  } from '$lib/features/transfers/transfer-task-view';
-  import { formatPathFilename } from '$lib/shared/format/path-format';
-  import { shortIdentifier } from '$lib/shared/format/identifiers';
-  import { formatLocalDateTimeWithUtcOffset } from '$lib/shared/format/date-time';
-  import { serverAvailability } from '$lib/api/server-errors';
-  import { transferFailureReason } from '$lib/features/transfers/transfer-failure-reason';
-  import TransferFailureHint from '$lib/features/transfers/TransferFailureHint.svelte';
-  import { flyScale } from '$lib/shared/motion/transitions';
-  import type { IconName } from '$lib/shared/ui/icons';
-  import DownloadProgress from '$lib/features/transfers/DownloadProgress.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
+  } from '#lib/features/transfers/transfer-task-view.ts';
+  import { formatPathFilename } from '#lib/shared/format/path-format.ts';
+  import { shortIdentifier } from '#lib/shared/format/identifiers.ts';
+  import { formatLocalDateTimeWithUtcOffset } from '#lib/shared/format/date-time.ts';
+  import { serverAvailability } from '#lib/api/server-errors.ts';
+  import { transferFailureReason } from '#lib/features/transfers/transfer-failure-reason.ts';
+  import TransferFailureHint from '#lib/features/transfers/TransferFailureHint.svelte';
+  import { flyScale } from '#lib/shared/motion/transitions.ts';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import DownloadProgress from '#lib/features/transfers/DownloadProgress.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
 
   type PendingAction = 'pause' | 'resume' | 'retry' | 'cancel' | 'open' | 'remove' | 'delete' | null;
   interface Props {

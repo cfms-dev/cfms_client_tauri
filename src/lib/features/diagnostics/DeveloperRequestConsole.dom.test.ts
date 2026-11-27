@@ -1,25 +1,25 @@
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import DeveloperRequestConsole from '$lib/features/diagnostics/DeveloperRequestConsole.svelte';
+import DeveloperRequestConsole from '#lib/features/diagnostics/DeveloperRequestConsole.svelte';
 
 const apiMocks = vi.hoisted(() => ({
   sendDeveloperRequest: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   sendDeveloperRequest: apiMocks.sendDeveloperRequest,
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 
-vi.mock('$lib/shared/platform/platform', () => ({
+vi.mock('#lib/shared/platform/platform.ts', () => ({
   isMobilePlatform: () => false,
 }));
 

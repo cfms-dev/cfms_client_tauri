@@ -1,5 +1,5 @@
-import { caclDraftFingerprint } from '$lib/features/access/cacl-model';
-import { batchRulesTargetKey, type BatchRulesTarget } from '$lib/features/access/batch-access-rules';
+import { caclDraftFingerprint } from '#lib/features/access/cacl-model.ts';
+import { batchRulesTargetKey, type BatchRulesTarget } from '#lib/features/access/batch-access-rules.ts';
 
 /** Ignore whitespace and `# @username` comment annotations when checking unsaved DACL changes. */
 export function accessRulesDraftFingerprint(dacl: string): string {

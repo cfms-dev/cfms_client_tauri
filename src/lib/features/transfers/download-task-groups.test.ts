@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { DownloadTaskDto } from '$lib/api';
-import type { DownloadBatchSnapshot } from '$lib/features/transfers/download-batch-control';
+import type { DownloadTaskDto } from '#lib/api.ts';
+import type { DownloadBatchSnapshot } from '#lib/features/transfers/download-batch-control.ts';
 import {
   buildDownloadTaskRows, canDeleteDownloadTaskGroupFiles,
   canRemoveDownloadTaskGroupRecords,
-} from '$lib/features/transfers/download-task-groups';
+} from '#lib/features/transfers/download-task-groups.ts';
 
 function task(
   taskId: string,

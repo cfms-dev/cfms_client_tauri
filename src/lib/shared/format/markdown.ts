@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import DOMPurify, { type Config } from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
@@ -9,15 +9,8 @@ const markdownSanitizeConfig: Config = {
   FORBID_ATTR: ['style'],
 };
 
-const markdown = new MarkdownIt({
-  html: false,
-  linkify: true,
-  typographer: false,
-});
-
-const defaultLinkOpen =
-  markdown.renderer.rules.link_open ??
-  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+const markdown = new MarkdownIt({ html: false, linkify: true, typographer: false });
+const defaultLinkOpen = markdown.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
 
 markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   const token = tokens[idx];

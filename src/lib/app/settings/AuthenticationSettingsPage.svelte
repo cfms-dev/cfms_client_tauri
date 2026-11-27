@@ -1,8 +1,8 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import AuthenticationManagement from '$lib/features/authentication/AuthenticationManagement.svelte';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import AuthenticationManagement from '#lib/features/authentication/AuthenticationManagement.svelte';
 </script>
 
 <div class="workspace-page settings-page-shell">

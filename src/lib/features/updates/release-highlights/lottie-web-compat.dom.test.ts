@@ -2,18 +2,18 @@
 
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AnimationItem } from 'lottie-web';
-import administrationDark from '$lib/features/updates/release-highlights/animations/v0.43/account-administration.dark.json';
-import administrationLight from '$lib/features/updates/release-highlights/animations/v0.43/account-administration.light.json';
-import documentDownloadDark from '$lib/features/updates/release-highlights/animations/v0.43/document-download.dark.json';
-import documentDownloadLight from '$lib/features/updates/release-highlights/animations/v0.43/document-download.light.json';
-import diagnosticsDark from '$lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.dark.json';
-import diagnosticsLight from '$lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.light.json';
-import flexibleWorkspaceDark from '$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json';
-import flexibleWorkspaceLight from '$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json';
-import fullscreenTourDark from '$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json';
-import fullscreenTourLight from '$lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json';
-import permissionManagementDark from '$lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json';
-import permissionManagementLight from '$lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json';
+import administrationDark from '#lib/features/updates/release-highlights/animations/v0.43/account-administration.dark.json';
+import administrationLight from '#lib/features/updates/release-highlights/animations/v0.43/account-administration.light.json';
+import documentDownloadDark from '#lib/features/updates/release-highlights/animations/v0.43/document-download.dark.json';
+import documentDownloadLight from '#lib/features/updates/release-highlights/animations/v0.43/document-download.light.json';
+import diagnosticsDark from '#lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.dark.json';
+import diagnosticsLight from '#lib/features/updates/release-highlights/animations/v0.43/server-diagnostics.light.json';
+import flexibleWorkspaceDark from '#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json';
+import flexibleWorkspaceLight from '#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json';
+import fullscreenTourDark from '#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.dark.json';
+import fullscreenTourLight from '#lib/features/updates/release-highlights/animations/v0.45/fullscreen-tour.light.json';
+import permissionManagementDark from '#lib/features/updates/release-highlights/animations/v0.46/permission-management.dark.json';
+import permissionManagementLight from '#lib/features/updates/release-highlights/animations/v0.46/permission-management.light.json';
 
 const diagnosticsThemes = [
   ['light', diagnosticsLight],

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
+import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
 
 describe('TaskActionButton', () => {
   it('uses an accessible tooltip label for compact icon actions', async () => {

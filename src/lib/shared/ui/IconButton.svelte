@@ -1,7 +1,7 @@
 <script lang="ts">
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
   interface Props {
     icon: IconName; label: string; active?: boolean; disabled?: boolean; badge?: number;
     tone?: 'default' | 'danger'; size?: number | string; class?: string; onclick?: (event: MouseEvent) => void;

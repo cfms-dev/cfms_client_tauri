@@ -1,6 +1,6 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
   import { onDestroy, onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { _ as t } from 'svelte-i18n';
@@ -8,17 +8,17 @@
     appLockStore,
     getRequiredPinLength,
     isCredentialOperationCancelled,
-  } from '$lib/features/settings/app-lock.svelte.ts';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import AppPinPad from '$lib/features/settings/AppPinPad.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import ViewportScaleFrame from '$lib/shared/ui/ViewportScaleFrame.svelte';
-  import { isMobilePlatform } from '$lib/shared/platform/platform';
+  } from '#lib/features/settings/app-lock.svelte.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import AppPinPad from '#lib/features/settings/AppPinPad.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import ViewportScaleFrame from '#lib/shared/ui/ViewportScaleFrame.svelte';
+  import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
 
   const pinLength = getRequiredPinLength();
   const isMobile = isMobilePlatform();

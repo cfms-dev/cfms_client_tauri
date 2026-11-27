@@ -1,15 +1,15 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { estimatePasswordStrength, generateRandomPassword } from '$lib/shared/password';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { estimatePasswordStrength, generateRandomPassword } from '#lib/shared/password.ts';
 
   let {
     username,

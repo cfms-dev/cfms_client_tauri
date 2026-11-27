@@ -6,14 +6,14 @@
     getUserAvatar,
     setUserAvatar,
     type ServerDocumentEntry,
-  } from '$lib/api';
-  import { serverErrorMessage, serverErrorStatus } from '$lib/api/server-errors';
-  import { canSetAvatarFor, canSetOtherUserAvatar } from '$lib/features/authentication/avatar-permissions';
-  import { isImageDocumentName } from '$lib/features/files/image-documents';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import ServerDocumentPicker from '$lib/features/files/ServerDocumentPicker.svelte';
+  } from '#lib/api.ts';
+  import { serverErrorMessage, serverErrorStatus } from '#lib/api/server-errors.ts';
+  import { canSetAvatarFor, canSetOtherUserAvatar } from '#lib/features/authentication/avatar-permissions.ts';
+  import { isImageDocumentName } from '#lib/features/files/image-documents.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import ServerDocumentPicker from '#lib/features/files/ServerDocumentPicker.svelte';
 
   let {
     username = authStore.username ?? '',

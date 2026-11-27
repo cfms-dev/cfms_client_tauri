@@ -3,9 +3,9 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
-import type { DownloadTaskDto } from '$lib/api';
-import TasksPage from '$lib/app/transfers/TransfersPage.svelte';
+import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import type { DownloadTaskDto } from '#lib/api.ts';
+import TasksPage from '#lib/app/transfers/TransfersPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   getDocumentInfo: vi.fn(),
@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   controlTransferTasks: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   cancelDownload: vi.fn(),
   controlTransferTasks: mocks.controlTransferTasks,
   deleteDownloadedFiles: mocks.deleteDownloadedFiles,
@@ -37,7 +37,7 @@ vi.mock('$lib/api', () => ({
   retryUploadTask: vi.fn(),
 }));
 
-vi.mock('$lib/features/transfers/download-state.svelte', () => ({
+vi.mock('#lib/features/transfers/download-state.svelte.ts', () => ({
   downloadStore: {
     tasks: new Map(),
     speeds: new Map(),
@@ -45,7 +45,7 @@ vi.mock('$lib/features/transfers/download-state.svelte', () => ({
     remove: vi.fn(),
   }
 }));
-vi.mock('$lib/features/transfers/upload-state.svelte', () => ({
+vi.mock('#lib/features/transfers/upload-state.svelte.ts', () => ({
   uploadStore: {
     allTasks: [],
     tasks: new Map(),
@@ -57,18 +57,18 @@ vi.mock('$lib/features/transfers/upload-state.svelte', () => ({
     registerRunner: vi.fn(),
   }
 }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: {
     success: mocks.notifySuccess,
     error: vi.fn(),
   }
 }));
 
-vi.mock('$lib/shared/ui/dialogs.svelte.ts', () => ({
+vi.mock('#lib/shared/ui/dialogs.svelte.ts', () => ({
   dialogStore: { confirm: mocks.confirmDialog },
 }));
 
-vi.mock('$lib/features/transfers/download-batch-control', () => ({
+vi.mock('#lib/features/transfers/download-batch-control.ts', () => ({
   downloadBatchSnapshots: {
     subscribe(run: (value: never[]) => void) {
       run([]);
@@ -81,12 +81,12 @@ vi.mock('$lib/features/transfers/download-batch-control', () => ({
   stopDownloadBatchAndWait: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('$lib/shared/ui/keyboard', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/shared/ui/keyboard')>(),
+vi.mock('#lib/shared/ui/keyboard.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/shared/ui/keyboard.ts')>(),
   registerKeyboardCommands: () => () => undefined,
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
   menuScale: () => ({ duration: 0 }),
 }));

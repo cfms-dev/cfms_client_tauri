@@ -1,5 +1,5 @@
 import type { BrandVariants, Theme } from '@fluentui/tokens';
-import type { ResolvedColorScheme } from '$lib/shared/appearance';
+import type { ResolvedColorScheme } from '#lib/shared/appearance.ts';
 import { defaultSurfaceColors, type SurfaceColors } from './surface-colors.ts';
 
 /** Palette overrides are colors only; geometry, typography and motion stay shared. */

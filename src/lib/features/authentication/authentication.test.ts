@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { escalationMethods, escalationRemaining, formatEscalationRemaining } from '$lib/features/authentication/authentication';
-import type { UserAuthentication } from '$lib/api';
+import { escalationMethods, escalationRemaining, formatEscalationRemaining } from '#lib/features/authentication/authentication.ts';
+import type { UserAuthentication } from '#lib/api.ts';
 
 describe('authentication policy selection', () => {
   it('keeps authorized alternatives and rejects inactive, missing, and mixed-method steps', () => {

@@ -1,4 +1,4 @@
-import type { ListDirectoryPageResponse } from '$lib/api';
+import type { ListDirectoryPageResponse } from '#lib/api.ts';
 
 /** Fresh wire-shaped data; each scenario supplies only its relevant fields. */
 export function directoryPage(overrides: Partial<ListDirectoryPageResponse> = {}): ListDirectoryPageResponse {

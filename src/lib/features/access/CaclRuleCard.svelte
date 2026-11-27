@@ -8,11 +8,11 @@
     type ObjectType,
     type Scope,
   } from 'codemirror-lang-cacl';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import { inlineNotice } from '$lib/shared/motion/transitions';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import { inlineNotice } from '#lib/shared/motion/transitions.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
   import CaclPrincipalPicker from './CaclPrincipalPicker.svelte';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
   import {

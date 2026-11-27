@@ -1,9 +1,9 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import ConnectionSecurity from '$lib/features/connection/ConnectionSecurity.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { formatDate } from '$lib/shared/format/values';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import ConnectionSecurity from '#lib/features/connection/ConnectionSecurity.svelte';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { formatDate } from '#lib/shared/format/values.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import {
@@ -14,14 +14,14 @@
     type CaCertificateStatus,
     type CaCertificateUpdateResult,
     type ConnectionSettings,
-  } from '$lib/api';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { notifyGithubAuthFallback } from '$lib/features/updates/github-auth-notices';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import FluentTextInput from '$lib/shared/ui/FluentTextInput.svelte';
+  } from '#lib/api.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { notifyGithubAuthFallback } from '#lib/features/updates/github-auth-notices.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import FluentTextInput from '#lib/shared/ui/FluentTextInput.svelte';
 
   const defaultConfig: ConnectionSettings = {
     crl_allowed_hosts: [],

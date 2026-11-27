@@ -1,4 +1,4 @@
-import type { AuthPolicy, AuthPolicyReplacement, AuthPolicyStep, AuthPurpose, UserAuthentication } from '$lib/api/types';
+import type { AuthPolicy, AuthPolicyReplacement, AuthPolicyStep, AuthPurpose, UserAuthentication } from '#lib/api/types.ts';
 
 export const AUTH_PURPOSES: AuthPurpose[] = ['login', 'mfa', 'escalation'];
 

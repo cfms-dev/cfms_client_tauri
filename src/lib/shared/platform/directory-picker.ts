@@ -1,9 +1,9 @@
-import { open } from '$lib/shared/platform/native-dialog';
-import { platform } from '$lib/shared/platform/native-os';
-import { selectUploadDirectory } from '$lib/api';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-import { isPickerCancel } from '$lib/shared/format/values';
-import { basename } from '$lib/shared/platform/upload-names';
+import { open } from '#lib/shared/platform/native-dialog.ts';
+import { platform } from '#lib/shared/platform/native-os.ts';
+import { selectUploadDirectory } from '#lib/api.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+import { isPickerCancel } from '#lib/shared/format/values.ts';
+import { basename } from '#lib/shared/platform/upload-names.ts';
 
 export interface DirectoryPickerOptions {
   title?: string;

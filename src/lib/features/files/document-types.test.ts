@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyDocumentType } from '$lib/features/files/document-types';
+import { classifyDocumentType } from '#lib/features/files/document-types.ts';
 
 describe('document type classification', () => {
   it('matches known extensions without regard to case', () => {

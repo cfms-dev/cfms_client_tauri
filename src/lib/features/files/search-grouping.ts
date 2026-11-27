@@ -3,7 +3,7 @@ import type {
   SearchDocumentEntry,
   SearchFilesResponse,
   SearchResultItem,
-} from '$lib/api';
+} from '#lib/api.ts';
 import { normalizeDirectoryId, ROOT_DIRECTORY_ID } from './file-browser';
 
 export type SearchResultRow =

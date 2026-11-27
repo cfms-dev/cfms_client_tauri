@@ -1,4 +1,4 @@
-import type { RevisionEntry } from '$lib/api';
+import type { RevisionEntry } from '#lib/api.ts';
 
 export interface RevisionGraphLane {
   revisionId: string;

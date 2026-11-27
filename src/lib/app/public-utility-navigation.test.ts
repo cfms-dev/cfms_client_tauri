@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAccountProfileRoute, isPublicUtilityRoute, shouldOfferConnectionReturn } from '$lib/app/public-utility-navigation';
+import { isAccountProfileRoute, isPublicUtilityRoute, shouldOfferConnectionReturn } from '#lib/app/public-utility-navigation.ts';
 
 describe('public utility connection recovery', () => {
   it.each([

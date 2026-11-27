@@ -1,7 +1,7 @@
 import { Validator, type Schema, type ValidationResult } from '@cfworker/json-schema';
-import type { JsonValue } from '$lib/api';
-import { extractErrorMessage } from '$lib/api/server-errors';
-import { decodeJsonPointerSegment } from '$lib/shared/format/values';
+import type { JsonValue } from '#lib/api.ts';
+import { extractErrorMessage } from '#lib/api/server-errors.ts';
+import { decodeJsonPointerSegment } from '#lib/shared/format/values.ts';
 
 export type VisualSchemaKind = 'object' | 'array' | 'string' | 'integer' | 'number' | 'boolean';
 

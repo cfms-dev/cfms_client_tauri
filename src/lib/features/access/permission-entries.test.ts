@@ -9,7 +9,7 @@ import {
   permissionEntryState,
   toLocalDateTimeInput,
   validatePermissionEntry,
-} from '$lib/features/access/permission-entries';
+} from '#lib/features/access/permission-entries.ts';
 
 describe('permission entries', () => {
   it('uses inclusive protocol v24 time-window boundaries', () => {

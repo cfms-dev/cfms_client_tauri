@@ -4,21 +4,21 @@ import { frontendViolations, rustDependencyViolations, ipcViolations, moduleRefe
 
 test('finds alias, re-export, type import, lazy module and Worker dependencies in Svelte', () => {
   const source = `<script lang="ts">
-    import type { Task } from '$lib/api/types/transfers';
+    import type { Task } from '#lib/api/types/transfers.ts';
     export { command } from './commands';
     const loader = () => import('./details.svelte');
     const worker = new Worker(new URL('./sort.worker.ts', import.meta.url));
     type Lazy = typeof import('./types');
   </script><p>import('not-a-module')</p>`;
   assert.deepEqual(moduleReferences(source, 'fixture.svelte').map((ref) => ref.specifier), [
-    '$lib/api/types/transfers', './commands', './details.svelte', './sort.worker.ts', './types',
+    '#lib/api/types/transfers.ts', './commands', './details.svelte', './sort.worker.ts', './types',
   ]);
 });
 
 test('rejects foundation-to-business and business-to-application imports', () => {
   const sources = new Map([
-    ['src/lib/shared/control.ts', `import '$lib/features/files/model';`],
-    ['src/lib/features/files/model.ts', `import '$lib/app/session';`],
+    ['src/lib/shared/control.ts', `import '#lib/features/files/model.ts';`],
+    ['src/lib/features/files/model.ts', `import '#lib/app/session.ts';`],
     ['src/lib/app/session.ts', 'export {};'],
   ]);
   const errors = frontendViolations(sources);
@@ -29,9 +29,9 @@ test('rejects foundation-to-business and business-to-application imports', () =>
 
 test('detects business cycles even when individual source modules are acyclic', () => {
   const sources = new Map([
-    ['src/lib/features/files/list.ts', `import '$lib/features/access/model';`],
+    ['src/lib/features/files/list.ts', `import '#lib/features/access/model.ts';`],
     ['src/lib/features/access/model.ts', 'export {};'],
-    ['src/lib/features/access/editor.ts', `import '$lib/features/files/types';`],
+    ['src/lib/features/access/editor.ts', `import '#lib/features/files/types.ts';`],
     ['src/lib/features/files/types.ts', 'export {};'],
   ]);
   assert.match(frontendViolations(sources).join('\n'), /Business dependency cycle/);
@@ -39,8 +39,8 @@ test('detects business cycles even when individual source modules are acyclic', 
 
 test('rejects private cross-business imports and native SDK calls outside adapters', () => {
   const sources = new Map([
-    ['src/lib/features/files/work.ts', `import '$lib/features/transfers/internal/queue'; import { invoke } from '@tauri-apps/api/core';`],
-    ['src/lib/app/Workspace.ts', `import '$lib/features/transfers/internal/queue';`],
+    ['src/lib/features/files/work.ts', `import '#lib/features/transfers/internal/queue.ts'; import { invoke } from '@tauri-apps/api/core';`],
+    ['src/lib/app/Workspace.ts', `import '#lib/features/transfers/internal/queue.ts';`],
     ['src/lib/features/transfers/internal/queue.ts', 'export {};'],
   ]);
   const errors = frontendViolations(sources);
@@ -53,11 +53,11 @@ test('resolves Worker and raw asset references and checks moved mock paths', () 
   const sources = new Map([
     ['src/lib/features/files/sort.ts', `new Worker(new URL('./sort.worker.ts', import.meta.url)); import icon from './icon.svg?raw';`],
     ['src/lib/features/files/sort.worker.ts', 'export {};'],
-    ['src/lib/features/files/sort.test.ts', `vi.mock('$lib/stores.svelte', () => ({}));`],
+    ['src/lib/features/files/sort.test.ts', `vi.mock('#lib/stores.svelte.ts', () => ({}));`],
   ]);
   const errors = frontendViolations(sources, ['src/lib/features/files/icon.svg']);
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /unresolved local reference \$lib\/stores.svelte/);
+  assert.match(errors[0], /unresolved local reference #lib\/stores.svelte.ts/);
 });
 
 test('rejects reverse crate dependencies including target-specific and test dependencies', () => {
@@ -69,9 +69,9 @@ test('rejects reverse crate dependencies including target-specific and test depe
 
 test('allows leaf libraries and domain imports through public root modules', () => {
   const sources = new Map([
-    ['src/lib/app/Workspace.svelte', `<script>import '$lib/features/files/model';</script>`],
-    ['src/lib/features/files/model.ts', `import '$lib/features/transfers/queue';`],
-    ['src/lib/features/transfers/queue.ts', `import '$lib/shared/platform/native-events';`],
+    ['src/lib/app/Workspace.svelte', `<script>import '#lib/features/files/model.ts';</script>`],
+    ['src/lib/features/files/model.ts', `import '#lib/features/transfers/queue.ts';`],
+    ['src/lib/features/transfers/queue.ts', `import '#lib/shared/platform/native-events.ts';`],
     ['src/lib/shared/platform/native-events.ts', `export { listen } from '@tauri-apps/api/event';`],
   ]);
   assert.deepEqual(frontendViolations(sources), []);

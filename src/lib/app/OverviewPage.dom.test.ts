@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
-import { serverStateStore } from '$lib/features/connection/connection-state.svelte.ts';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte.ts';
+import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
 import OverviewPage from './OverviewPage.svelte';
 import { replaceProperty, stubInstantAnimations } from '../../test/dom-fixtures';
 
@@ -22,8 +22,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$lib/api', async (original) => ({
-  ...(await original<typeof import('$lib/api')>()),
+vi.mock('#lib/api.ts', async (original) => ({
+  ...(await original<typeof import('#lib/api.ts')>()),
   getDirectoryInfo: mocks.getDirectoryInfo,
   getDocument: mocks.getDocument,
   getDocumentInfo: mocks.getDocumentInfo,

@@ -1,24 +1,24 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getSetting, setSetting } from '$lib/api';
-  import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
-  import { formatUpdatePauseDate } from '$lib/features/updates/update-notifications';
-  import type { UpdateChannel } from '$lib/api/updates';
+  import { getSetting, setSetting } from '#lib/api.ts';
+  import { appUpdateState } from '#lib/features/updates/app-update-state.svelte.ts';
+  import { formatUpdatePauseDate } from '#lib/features/updates/update-notifications.ts';
+  import type { UpdateChannel } from '#lib/api/updates.ts';
   import {
     ACTIVE_UPDATE_CHECK_PAUSE,
     createUpdateCheckPause,
     type UpdateCheckPausePreset,
-  } from '$lib/features/updates/update-check-pause';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  } from '#lib/features/updates/update-check-pause.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   const channels: UpdateChannel[] = ['stable', 'beta', 'alpha'];
 

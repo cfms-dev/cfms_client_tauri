@@ -3,10 +3,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import type { AppUpdateMetadata, UpdateProgressSnapshot } from '$lib/api/updates';
-import type { UpdateCheckPause } from '$lib/features/updates/update-check-pause';
-import AppUpdateChecker from '$lib/features/updates/AppUpdateChecker.svelte';
+import '#lib/shared/i18n.ts';
+import type { AppUpdateMetadata, UpdateProgressSnapshot } from '#lib/api/updates.ts';
+import type { UpdateCheckPause } from '#lib/features/updates/update-check-pause.ts';
+import AppUpdateChecker from '#lib/features/updates/AppUpdateChecker.svelte';
 
 const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
@@ -39,12 +39,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
-vi.mock('$lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
-vi.mock('$lib/api/updates', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api/updates')>(),
+vi.mock('#lib/features/updates/app-update-state.svelte.ts', () => ({ appUpdateState: mocks.appUpdateState }));
+vi.mock('#lib/api/updates.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api/updates.ts')>(),
   relaunchApp: mocks.relaunchApp,
 }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: {
     success: mocks.notificationSuccess,
     error: mocks.notificationError,

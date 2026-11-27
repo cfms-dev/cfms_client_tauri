@@ -5,16 +5,16 @@
     loadUserPreference,
     updateUserPreferences,
     type UserPreference,
-  } from '$lib/api';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { pickDirectory } from '$lib/shared/platform/directory-picker';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import FluentTextInput from '$lib/shared/ui/FluentTextInput.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  } from '#lib/api.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { pickDirectory } from '#lib/shared/platform/directory-picker.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import FluentTextInput from '#lib/shared/ui/FluentTextInput.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
 
   let preferences = $state<UserPreference | null>(null);
   let loading = $state(true);

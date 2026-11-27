@@ -1,5 +1,5 @@
 import type { Action } from "svelte/action";
-import { isReducedMotionEnabled } from "$lib/shared/appearance";
+import { isReducedMotionEnabled } from "#lib/shared/appearance.ts";
 
 export interface SmoothPositionParams {
   duration?: number;

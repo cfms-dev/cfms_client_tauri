@@ -1,11 +1,11 @@
 import { get } from 'svelte/store';
 import { _ as t } from 'svelte-i18n';
-import { dropEscalation, getUserAuthentication, requestEscalation, type JsonValue } from '$lib/api';
-import { escalationMethods } from '$lib/features/authentication/authentication';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { dropEscalation, getUserAuthentication, requestEscalation, type JsonValue } from '#lib/api.ts';
+import { escalationMethods } from '#lib/features/authentication/authentication.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 interface EscalationRequest {
   userId: string | null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { UploadTaskDto } from '$lib/api';
-import { buildUploadTaskRows, canControlTransfer, matchesCleanup, summarizeTransfers } from '$lib/features/transfers/transfer-batches';
+import type { UploadTaskDto } from '#lib/api.ts';
+import { buildUploadTaskRows, canControlTransfer, matchesCleanup, summarizeTransfers } from '#lib/features/transfers/transfer-batches.ts';
 
 function task(index: number, status: UploadTaskDto['status'] = 'pending'): UploadTaskDto {
   return {

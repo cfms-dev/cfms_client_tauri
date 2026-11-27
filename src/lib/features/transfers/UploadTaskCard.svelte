@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { transferFailureReason } from '$lib/features/transfers/transfer-failure-reason';
-  import TransferFailureHint from '$lib/features/transfers/TransferFailureHint.svelte';
+  import { transferFailureReason } from '#lib/features/transfers/transfer-failure-reason.ts';
+  import TransferFailureHint from '#lib/features/transfers/TransferFailureHint.svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { UploadTaskDto, UploadTaskStatus } from '$lib/api';
-  import { uploadCapabilities, uploadStatusMessageKey } from '$lib/features/transfers/transfer-task-view';
-  import { shortIdentifier } from '$lib/shared/format/identifiers';
-  import { formatLocalDateTimeWithUtcOffset } from '$lib/shared/format/date-time';
-  import { flyScale } from '$lib/shared/motion/transitions';
-  import type { IconName } from '$lib/shared/ui/icons';
-  import DownloadProgress from '$lib/features/transfers/DownloadProgress.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
+  import type { UploadTaskDto, UploadTaskStatus } from '#lib/api.ts';
+  import { uploadCapabilities, uploadStatusMessageKey } from '#lib/features/transfers/transfer-task-view.ts';
+  import { shortIdentifier } from '#lib/shared/format/identifiers.ts';
+  import { formatLocalDateTimeWithUtcOffset } from '#lib/shared/format/date-time.ts';
+  import { flyScale } from '#lib/shared/motion/transitions.ts';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import DownloadProgress from '#lib/features/transfers/DownloadProgress.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
 
   interface Props {
     task: UploadTaskDto;

@@ -1,4 +1,4 @@
-import { downloadAvatar, getUserAvatar, getUserInfo, type ManagedUserInfo } from '$lib/api';
+import { downloadAvatar, getUserAvatar, getUserInfo, type ManagedUserInfo } from '#lib/api.ts';
 
 /** Owned by one log page; clearing also invalidates pending avatar downloads. */
 export function createAuditUserPreviewCache() {

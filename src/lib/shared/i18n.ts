@@ -1,8 +1,8 @@
 import { addMessages, init, locale, waitLocale } from 'svelte-i18n';
-import { browser } from '$app/environment';
-import { getLocale, setLocale as setBackendLocale } from '$lib/api';
-import { en } from '$lib/shared/i18n/messages/en';
-import { zh_CN } from '$lib/shared/i18n/messages/zh-CN';
+import { browser } from '$app/env';
+import { getLocale, setLocale as setBackendLocale } from '#lib/api.ts';
+import { en } from '#lib/shared/i18n/messages/en.ts';
+import { zh_CN } from '#lib/shared/i18n/messages/zh-CN.ts';
 
 export type AppLocale = 'en' | 'zh_CN';
 type FrontendLocale = 'en' | 'zh-CN';

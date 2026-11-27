@@ -6,10 +6,10 @@ FIRST VIEWPORT: Command bar and schedule ledger fill the left; selected definiti
 FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; seed 862d8542.
 -->
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { portal } from '$lib/shared/actions/portal';
+  import { portal } from '#lib/shared/actions/portal.ts';
   import { _ as t } from 'svelte-i18n';
   import {
     createSchedule,
@@ -22,17 +22,17 @@ FORM: Grounded structure 7/7, a control-room ledger with persistent inspector; s
     type ScheduleCreateInput,
     type ScheduledTaskType,
     type ScheduleUpdateInput,
-  } from '$lib/api';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { formatUnixTimestamp } from '$lib/shared/format/date-time';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import ScheduleEditor from '$lib/features/schedules/ScheduleEditor.svelte';
+  } from '#lib/api.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { formatUnixTimestamp } from '#lib/shared/format/date-time.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import ScheduleEditor from '#lib/features/schedules/ScheduleEditor.svelte';
 
   const PAGE_SIZE = 64;
 

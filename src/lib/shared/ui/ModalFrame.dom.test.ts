@@ -5,18 +5,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { createRawSnippet } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-import '$lib/shared/i18n';
+import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+import '#lib/shared/i18n.ts';
 
 const platformMocks = vi.hoisted(() => ({
   isMobilePlatform: vi.fn(() => false),
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 
-vi.mock('$lib/shared/platform/platform', () => ({
+vi.mock('#lib/shared/platform/platform.ts', () => ({
   isMobilePlatform: platformMocks.isMobilePlatform,
 }));
 

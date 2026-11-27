@@ -1,4 +1,4 @@
-import { getVersion } from '$lib/shared/platform/native-app';
+import { getVersion } from '#lib/shared/platform/native-app.ts';
 
 export const FALLBACK_APP_VERSION = '0.15.0';
 

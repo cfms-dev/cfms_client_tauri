@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
+import { canReadAuthentication, canConfigureAuthentication } from '#lib/features/authentication/auth-permissions.ts';
 
 describe('authentication permissions', () => {
   it.each([

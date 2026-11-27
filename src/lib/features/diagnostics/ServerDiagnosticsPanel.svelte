@@ -1,11 +1,11 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { getServerDiagnostics, type ServerDiagnostics } from '$lib/api';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { getServerDiagnostics, type ServerDiagnostics } from '#lib/api.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let diagnostics = $state<ServerDiagnostics | null>(null);
   let loading = $state(false);

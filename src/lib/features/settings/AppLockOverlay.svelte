@@ -1,18 +1,18 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { fade } from 'svelte/transition';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { appLockStore, isCredentialOperationCancelled } from '$lib/features/settings/app-lock.svelte.ts';
-  import { disconnect, logout } from '$lib/api';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import AppPinPad from '$lib/features/settings/AppPinPad.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import ViewportScaleFrame from '$lib/shared/ui/ViewportScaleFrame.svelte';
+  import { appLockStore, isCredentialOperationCancelled } from '#lib/features/settings/app-lock.svelte.ts';
+  import { disconnect, logout } from '#lib/api.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import AppPinPad from '#lib/features/settings/AppPinPad.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import ViewportScaleFrame from '#lib/shared/ui/ViewportScaleFrame.svelte';
 
   let pin = $state('');
   let busy = $state(false);

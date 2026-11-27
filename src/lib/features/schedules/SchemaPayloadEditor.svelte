@@ -1,8 +1,8 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { JsonValue } from '$lib/api';
+  import type { JsonValue } from '#lib/api.ts';
   import {
     issueMatchesPath,
     jsonPointer,
@@ -12,9 +12,9 @@
     valueCanRender,
     type PayloadValidationIssue,
     type VisualSchemaNode,
-  } from '$lib/features/schedules/schedule-schema';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import JsonCodeEditor, { type JsonEditorDiagnostic } from '$lib/shared/ui/JsonCodeEditor.svelte';
+  } from '#lib/features/schedules/schedule-schema.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import JsonCodeEditor, { type JsonEditorDiagnostic } from '#lib/shared/ui/JsonCodeEditor.svelte';
 
   interface Props {
     schema: Record<string, JsonValue>;

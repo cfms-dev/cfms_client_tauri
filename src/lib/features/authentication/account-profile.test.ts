@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterAccountPermissions, formatAccountTimestamp } from '$lib/features/authentication/account-profile';
+import { filterAccountPermissions, formatAccountTimestamp } from '#lib/features/authentication/account-profile.ts';
 
 describe('account profile presentation', () => {
   it.each([undefined, null, 0, -1, NaN, Infinity, Number.MAX_VALUE])('does not invent a date for %s', (value) => {

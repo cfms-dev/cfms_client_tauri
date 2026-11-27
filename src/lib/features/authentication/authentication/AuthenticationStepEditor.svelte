@@ -1,8 +1,8 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { AuthPolicyStep, AuthPurpose, UserAuthentication } from '$lib/api';
-  import { authMethodName, canCompleteChain, credentialName } from '$lib/features/authentication/auth-policy-editor';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
+  import type { AuthPolicyStep, AuthPurpose, UserAuthentication } from '#lib/api.ts';
+  import { authMethodName, canCompleteChain, credentialName } from '#lib/features/authentication/auth-policy-editor.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
   let { inventory, purpose, chain, chainIndex, stepIndex, writable, onMethod, onToggle, onAddStep, onRemoveStep, onRemoveChain }: {
     inventory: UserAuthentication; purpose: AuthPurpose; chain: AuthPolicyStep[]; chainIndex: number; stepIndex: number; writable: boolean;
     onMethod: (method: string) => void; onToggle: (id: string) => void; onAddStep: () => void; onRemoveStep: () => void; onRemoveChain: () => void;

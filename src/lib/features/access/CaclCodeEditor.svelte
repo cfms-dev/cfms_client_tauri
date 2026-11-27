@@ -2,8 +2,8 @@
   import type { EditorView as EditorViewType } from '@codemirror/view';
   import type { Compartment as CompartmentType, Extension } from '@codemirror/state';
   import type { ObjectType } from 'codemirror-lang-cacl';
-  import type { ServerCaclDiagnostic } from '$lib/api/types';
-  import CodeEditor, { type CodeEditorMountModules } from '$lib/shared/ui/CodeEditor.svelte';
+  import type { ServerCaclDiagnostic } from '#lib/api/types.ts';
+  import CodeEditor, { type CodeEditorMountModules } from '#lib/shared/ui/CodeEditor.svelte';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
 
   interface Props {

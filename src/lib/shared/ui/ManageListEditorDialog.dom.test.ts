@@ -1,10 +1,10 @@
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import ManageListEditorDialog from '$lib/shared/ui/ManageListEditorDialog.svelte';
+import ManageListEditorDialog from '#lib/shared/ui/ManageListEditorDialog.svelte';
 
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 beforeEach(stubInstantAnimations);
 afterEach(cleanup);
 

@@ -1,4 +1,4 @@
-import { ROOT_DIRECTORY_ID } from '$lib/features/files/file-browser';
+import { ROOT_DIRECTORY_ID } from '#lib/features/files/file-browser.ts';
 
 export interface ResolvedNodePathSegment {
   id: string;

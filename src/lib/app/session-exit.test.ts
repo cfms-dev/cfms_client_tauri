@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { transitionOutOfSession } from '$lib/app/session-exit';
+import { transitionOutOfSession } from '#lib/app/session-exit.ts';
 
 describe('transitionOutOfSession', () => {
   it('clears local state and starts navigation without waiting for backend cleanup', async () => {

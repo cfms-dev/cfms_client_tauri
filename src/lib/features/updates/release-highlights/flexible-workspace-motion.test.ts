@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import flexibleWorkspaceDark from '$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json';
-import flexibleWorkspaceLight from '$lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json';
+import flexibleWorkspaceDark from '#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.dark.json';
+import flexibleWorkspaceLight from '#lib/features/updates/release-highlights/animations/v0.43/flexible-workspace.light.json';
 
 type Keyframe = { t: number; s: number[] };
 type AnimatedProperty = { a: number; k: Keyframe[] };

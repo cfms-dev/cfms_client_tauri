@@ -4,10 +4,10 @@
   //
   // MD3 styling: error container with on-error-container text.
 
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
   import { _ as t } from 'svelte-i18n';
   import type { TransitionConfig } from 'svelte/transition';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
 
   interface Props {
     active: boolean;

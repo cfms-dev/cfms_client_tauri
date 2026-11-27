@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   let {
     title,

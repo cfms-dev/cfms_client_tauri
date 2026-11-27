@@ -1,4 +1,4 @@
-import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
+import type { ServerDirectoryEntry, ServerDocumentEntry } from '#lib/api.ts';
 
 export type SortField = 'name' | 'size' | 'modified';
 export type SortDirection = 'asc' | 'desc';

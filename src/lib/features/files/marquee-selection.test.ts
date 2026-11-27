@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMarqueeRect, marqueeAutoScrollDelta, marqueeRowRange } from '$lib/features/files/marquee-selection';
+import { createMarqueeRect, marqueeAutoScrollDelta, marqueeRowRange } from '#lib/features/files/marquee-selection.ts';
 
 describe('marquee selection geometry', () => {
   it('normalizes a rectangle dragged in any direction', () => {

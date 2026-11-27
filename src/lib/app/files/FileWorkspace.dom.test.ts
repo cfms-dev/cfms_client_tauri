@@ -1,17 +1,17 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ListDirectoryPageResponse, UploadTaskDto } from '$lib/api';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { fileManagerNavigationStore } from '$lib/features/files/file-manager-navigation';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
-import FilesPage from '$lib/app/files/FileWorkspace.svelte';
+import type { ListDirectoryPageResponse, UploadTaskDto } from '#lib/api.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+import { fileManagerNavigationStore } from '#lib/features/files/file-manager-navigation.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import SnackBarHost from '#lib/shared/ui/SnackBarHost.svelte';
+import FilesPage from '#lib/app/files/FileWorkspace.svelte';
 import { deferred } from '../../../test/deferred';
 import { replaceProperty, stubInstantAnimations } from '../../../test/dom-fixtures';
 import { directoryPage } from '../../../test/directory-fixtures';
@@ -34,10 +34,10 @@ vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({ onDragDropEvent: async (callback: typeof mocks.drop) => { mocks.drop = callback; return vi.fn(); } }),
 }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open }));
-vi.mock('$lib/shared/platform/directory-picker', () => ({ pickDirectory: mocks.pickDirectory }));
-vi.mock('$lib/shared/platform/platform', () => ({ isMobilePlatform: () => false, supportsKeyboardShortcuts: () => true }));
-vi.mock('$lib/api', async (original) => ({
-  ...await original<typeof import('$lib/api')>(),
+vi.mock('#lib/shared/platform/directory-picker.ts', () => ({ pickDirectory: mocks.pickDirectory }));
+vi.mock('#lib/shared/platform/platform.ts', () => ({ isMobilePlatform: () => false, supportsKeyboardShortcuts: () => true }));
+vi.mock('#lib/api.ts', async (original) => ({
+  ...await original<typeof import('#lib/api.ts')>(),
   listDirectoryPage: mocks.listDirectoryPage, listDirectory: mocks.listDirectory,
   getDocumentInfo: mocks.getDocumentInfo,
   searchFiles: mocks.searchFiles,

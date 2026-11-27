@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { EditorView } from '@codemirror/view';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import CaclCodeEditor from '$lib/features/access/CaclCodeEditor.svelte';
+import CaclCodeEditor from '#lib/features/access/CaclCodeEditor.svelte';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');

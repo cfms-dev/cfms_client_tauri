@@ -7,7 +7,7 @@
   //
   // Reference: AvatarPreviewContainer in reference/src/include/ui/controls/views/login.py
 
-  import { convertFileSrc } from "$lib/shared/platform/native-core";
+  import { convertFileSrc } from "#lib/shared/platform/native-core.ts";
   import { _ as t } from 'svelte-i18n';
 
   interface Props {

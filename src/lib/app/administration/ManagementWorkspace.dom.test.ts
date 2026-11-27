@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import ManagePage from '$lib/app/administration/ManagementWorkspace.svelte';
-import EscalationControl from '$lib/features/authentication/EscalationControl.svelte';
-import { escalationFlow } from '$lib/features/authentication/escalation.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import ManagePage from '#lib/app/administration/ManagementWorkspace.svelte';
+import EscalationControl from '#lib/features/authentication/EscalationControl.svelte';
+import { escalationFlow } from '#lib/features/authentication/escalation.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
   viewAuditLogs: vi.fn(),
@@ -28,8 +28,8 @@ const mocks = vi.hoisted(() => ({
 const defaultExclusions = ['core.audit.entry.list', 'core.setting.get'];
 const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   viewAuditLogs: mocks.viewAuditLogs,
   getUserInfo: mocks.getUserInfo,
   getUserAvatar: mocks.getUserAvatar,
@@ -43,7 +43,7 @@ vi.mock('$lib/api', async (importOriginal) => ({
   getServerSettings: mocks.getServerSettings,
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
   menuScale: () => ({ duration: 0 }),
   popScale: () => ({ duration: 0 }),

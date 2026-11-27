@@ -2,9 +2,9 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DownloadTaskDto } from '$lib/api';
-import type { DownloadTaskGroup } from '$lib/features/transfers/download-task-groups';
-import DownloadTaskGroupHeader from '$lib/features/transfers/DownloadTaskGroupHeader.svelte';
+import type { DownloadTaskDto } from '#lib/api.ts';
+import type { DownloadTaskGroup } from '#lib/features/transfers/download-task-groups.ts';
+import DownloadTaskGroupHeader from '#lib/features/transfers/DownloadTaskGroupHeader.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -20,7 +20,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
   menuScale: () => ({ duration: 0 }),
 }));

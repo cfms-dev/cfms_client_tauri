@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
+import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
 
 afterEach(cleanup);
 

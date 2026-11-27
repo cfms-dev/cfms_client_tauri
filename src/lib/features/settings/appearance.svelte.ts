@@ -1,17 +1,17 @@
-import { loadAppearancePreference, saveAppearancePreference } from '$lib/api';
-import type { AppearancePreference } from '$lib/api';
-import { getCurrentWindow } from '$lib/shared/platform/native-window';
-import { isTauri } from '$lib/shared/platform/native-core';
-import { setWindowBackdrop } from '$lib/api/core';
-import { colorPalettes, DEFAULT_PALETTE_ID } from '$lib/shared/fluent/palettes';
-import { paletteWindowAppearance } from '$lib/shared/fluent/theme';
+import { loadAppearancePreference, saveAppearancePreference } from '#lib/api.ts';
+import type { AppearancePreference } from '#lib/api.ts';
+import { getCurrentWindow } from '#lib/shared/platform/native-window.ts';
+import { isTauri } from '#lib/shared/platform/native-core.ts';
+import { setWindowBackdrop } from '#lib/api/core.ts';
+import { colorPalettes, DEFAULT_PALETTE_ID } from '#lib/shared/fluent/palettes.ts';
+import { paletteWindowAppearance } from '#lib/shared/fluent/theme.ts';
 import {
   DEFAULT_APPEARANCE,
   normalizeAppearance,
   resolveColorScheme,
   resolveReducedMotion,
   type ResolvedColorScheme,
-} from '$lib/shared/appearance';
+} from '#lib/shared/appearance.ts';
 
 class AppearanceStore {
   preference = $state<AppearancePreference>({ ...DEFAULT_APPEARANCE });
@@ -125,7 +125,7 @@ class AppearanceStore {
     // overrides WebView2's prefers-color-scheme and prevents system following.
     const nativeTheme = this.preference.color_scheme === 'system' ? null : this.preference.color_scheme;
     const revision = ++this.appearanceRevision;
-    void import('$lib/shared/fluent/runtime').then(({ applyFluentTheme }) => {
+    void import('#lib/shared/fluent/runtime.ts').then(({ applyFluentTheme }) => {
       if (revision === this.appearanceRevision) applyFluentTheme({ paletteId: DEFAULT_PALETTE_ID, mode: scheme, reduceMotion });
     });
     root.dataset.windowBackdrop = 'solid';

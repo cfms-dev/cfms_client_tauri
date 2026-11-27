@@ -1,12 +1,12 @@
-import { refreshDownloadBatches, resetDownloadBatches } from '$lib/features/transfers/download-batch-control';
-import { appLockStore } from '$lib/features/settings/app-lock.svelte';
+import { refreshDownloadBatches, resetDownloadBatches } from '#lib/features/transfers/download-batch-control.ts';
+import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
 /** Application-owned native subscriptions; business handlers own state updates. */
-import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
-import type { ServiceEvent, UploadTaskDto, TransferDirection } from '$lib/api/types';
-import { handleTransferEvent, handleUploadTask, handleRemovedRecords } from '$lib/features/transfers/events';
-import { handleConnectionEvent } from '$lib/features/connection/events';
-import { handleAuthenticationEvent } from '$lib/features/authentication/events';
-import { handleFileEvent } from '$lib/features/files/events';
+import { listen, type UnlistenFn } from '#lib/shared/platform/native-events.ts';
+import type { ServiceEvent, UploadTaskDto, TransferDirection } from '#lib/api/types.ts';
+import { handleTransferEvent, handleUploadTask, handleRemovedRecords } from '#lib/features/transfers/events.ts';
+import { handleConnectionEvent } from '#lib/features/connection/events.ts';
+import { handleAuthenticationEvent } from '#lib/features/authentication/events.ts';
+import { handleFileEvent } from '#lib/features/files/events.ts';
 
 let subscriptions: UnlistenFn[] = [];
 let initialization: Promise<void> | null = null;

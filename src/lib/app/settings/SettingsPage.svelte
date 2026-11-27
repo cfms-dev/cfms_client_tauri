@@ -6,14 +6,14 @@
 
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getUserAuthentication } from '$lib/api';
-  import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-  import { screenProtectionStore } from '$lib/features/settings/screen-protection.svelte.ts';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import { getVisibleSettingsGroups } from '$lib/features/settings/settings-entries';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
+  import { getUserAuthentication } from '#lib/api.ts';
+  import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+  import { screenProtectionStore } from '#lib/features/settings/screen-protection.svelte.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import { getVisibleSettingsGroups } from '#lib/features/settings/settings-entries.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
 
   type ProtectionState = 'loading' | 'enabled' | 'attention' | 'unavailable';
   type StatusTone = ProtectionState | 'neutral';

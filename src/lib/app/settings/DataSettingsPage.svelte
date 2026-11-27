@@ -1,12 +1,12 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
-  import { resetLocalData } from '$lib/api';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import LocalDataResetDialog from '$lib/features/settings/LocalDataResetDialog.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { resetLocalData } from '#lib/api.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import LocalDataResetDialog from '#lib/features/settings/LocalDataResetDialog.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let dialogOpen = $state(false);
   let busy = $state(false);

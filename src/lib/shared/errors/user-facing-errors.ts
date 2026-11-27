@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { _ as t } from 'svelte-i18n';
-import { serverAvailability, serverErrorMessage } from '$lib/api/server-errors';
+import { serverAvailability, serverErrorMessage } from '#lib/api/server-errors.ts';
 
 const transferErrors: Record<string, string> = {
   'Upload was interrupted when the application closed': 'tasks.errors.previousSessionIncomplete',

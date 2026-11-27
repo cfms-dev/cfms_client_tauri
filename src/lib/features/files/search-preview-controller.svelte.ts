@@ -1,7 +1,7 @@
-import { searchFiles, type SearchFilesResponse } from '$lib/api';
-import { serverErrorStatus } from '$lib/api/server-errors';
-import { mergeSearchResponses } from '$lib/features/files/search-grouping';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+import { searchFiles, type SearchFilesResponse } from '#lib/api.ts';
+import { serverErrorStatus } from '#lib/api/server-errors.ts';
+import { mergeSearchResponses } from '#lib/features/files/search-grouping.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 export interface SearchPreviewState {
   query: string;

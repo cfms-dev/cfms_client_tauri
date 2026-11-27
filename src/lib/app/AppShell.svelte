@@ -15,20 +15,20 @@
   import "../../app.css";
   import type { Snippet } from "svelte";
   import { onMount, tick, setContext } from "svelte";
-  import { NAVIGATION_CONTEXT, type NavigationContext } from "$lib/shared/ui/navigation-context";
+  import { NAVIGATION_CONTEXT, type NavigationContext } from "#lib/shared/ui/navigation-context.ts";
   import { page } from "$app/state";
   import { afterNavigate, goto } from "$app/navigation";
   import { _ as t } from "svelte-i18n";
-  import { onBackButtonPress } from "$lib/shared/platform/native-app";
-  import { initEventListeners, stopEventListeners } from "$lib/app/events";
-  import { initI18n } from "$lib/shared/i18n";
-  import { initNavigationHistory, navigateUp, parentRouteFor } from "$lib/app/navigation";
-  import { isAccountProfileRoute, isPublicUtilityRoute as isPublicHomeRoute } from '$lib/app/public-utility-navigation';
-  import { appUpdateState } from "$lib/features/updates/app-update-state.svelte.ts";
-  import { releaseHighlightsState } from "$lib/features/updates/release-highlights-state.svelte.ts";
-  import { appearanceStore } from "$lib/features/settings/appearance.svelte.ts";
-  import { screenProtectionStore } from "$lib/features/settings/screen-protection.svelte.ts";
-  import { formatUserFacingError } from "$lib/shared/errors/user-facing-errors";
+  import { onBackButtonPress } from "#lib/shared/platform/native-app.ts";
+  import { initEventListeners, stopEventListeners } from "#lib/app/events.ts";
+  import { initI18n } from "#lib/shared/i18n.ts";
+  import { initNavigationHistory, navigateUp, parentRouteFor } from "#lib/app/navigation.ts";
+  import { isAccountProfileRoute, isPublicUtilityRoute as isPublicHomeRoute } from '#lib/app/public-utility-navigation.ts';
+  import { appUpdateState } from "#lib/features/updates/app-update-state.svelte.ts";
+  import { releaseHighlightsState } from "#lib/features/updates/release-highlights-state.svelte.ts";
+  import { appearanceStore } from "#lib/features/settings/appearance.svelte.ts";
+  import { screenProtectionStore } from "#lib/features/settings/screen-protection.svelte.ts";
+  import { formatUserFacingError } from "#lib/shared/errors/user-facing-errors.ts";
   import {
     cycleKeyboardRegion,
     dispatchKeyboardCommand,
@@ -36,24 +36,24 @@
     isEditableTarget,
     registerKeyboardCommands,
     type KeyboardCommand,
-  } from "$lib/shared/ui/keyboard";
-  import { supportsKeyboardShortcuts } from "$lib/shared/platform/platform";
-  import { canOpenDeveloperConsole, developerConsoleIdentityKey } from "$lib/features/diagnostics/developer-console";
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { disclaimerStore } from "$lib/features/connection/disclaimer-state.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { appLockStore } from "$lib/features/settings/app-lock.svelte.ts";
-  import { clearAuthSession, getLocalDataResetStatus, getAuthStatus, getServerState, refreshConnectionSecurity } from "$lib/api";
-  import AppLockOverlay from "$lib/features/settings/AppLockOverlay.svelte";
-  import LockdownBanner from "$lib/features/authentication/LockdownBanner.svelte";
-  import DialogHost from "$lib/shared/ui/DialogHost.svelte";
-  import NewUpdatePrompt from "$lib/features/updates/NewUpdatePrompt.svelte";
-  import ReleaseHighlightsWizard from "$lib/features/updates/ReleaseHighlightsWizard.svelte";
-  import SnackBarHost from "$lib/shared/ui/SnackBarHost.svelte";
-  import KeyboardShortcutHelp from "$lib/shared/ui/KeyboardShortcutHelp.svelte";
-  import DeveloperRequestConsole from "$lib/features/diagnostics/DeveloperRequestConsole.svelte";
+  } from "#lib/shared/ui/keyboard.ts";
+  import { supportsKeyboardShortcuts } from "#lib/shared/platform/platform.ts";
+  import { canOpenDeveloperConsole, developerConsoleIdentityKey } from "#lib/features/diagnostics/developer-console.ts";
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { disclaimerStore } from "#lib/features/connection/disclaimer-state.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { appLockStore } from "#lib/features/settings/app-lock.svelte.ts";
+  import { clearAuthSession, getLocalDataResetStatus, getAuthStatus, getServerState, refreshConnectionSecurity } from "#lib/api.ts";
+  import AppLockOverlay from "#lib/features/settings/AppLockOverlay.svelte";
+  import LockdownBanner from "#lib/features/authentication/LockdownBanner.svelte";
+  import DialogHost from "#lib/shared/ui/DialogHost.svelte";
+  import NewUpdatePrompt from "#lib/features/updates/NewUpdatePrompt.svelte";
+  import ReleaseHighlightsWizard from "#lib/features/updates/ReleaseHighlightsWizard.svelte";
+  import SnackBarHost from "#lib/shared/ui/SnackBarHost.svelte";
+  import KeyboardShortcutHelp from "#lib/shared/ui/KeyboardShortcutHelp.svelte";
+  import DeveloperRequestConsole from "#lib/features/diagnostics/DeveloperRequestConsole.svelte";
 
   let { children }: { children: Snippet } = $props();
   setContext<NavigationContext>(NAVIGATION_CONTEXT, { navigateUp });
@@ -66,6 +66,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   initNavigationHistory();
 
   afterNavigate((navigation) => {
+    if (navigation.shallow && navigation.type === 'goto') return;
     if (!navigation.from?.url || navigation.from.url.pathname === navigation.to?.url?.pathname) return;
     void tick().then(() => {
       const heading = document.querySelector<HTMLElement>(
@@ -87,17 +88,10 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   // Auth-protected route prefix.
   const HOME_PREFIX = "/home";
 
-  const showRootLockdownBanner = $derived(
-    serverStateStore.lockdown && page.url.pathname !== LOCKDOWN_ROUTE,
-  );
-  const forcedScreenProtection = $derived(
-    appLockStore.locked
-      || appLockStore.pinSetupActive
-      || (page.url.pathname === "/login" && serverStateStore.connected && !authStore.isLoggedIn),
-  );
-  const desiredScreenProtection = $derived(
-    forcedScreenProtection || (authStore.isLoggedIn && screenProtectionStore.userEnabled),
-  );
+  const showRootLockdownBanner = $derived(serverStateStore.lockdown && page.url.pathname !== LOCKDOWN_ROUTE);
+  const forcedScreenProtection = $derived(appLockStore.locked || appLockStore.pinSetupActive || page.url.pathname === "/login" && serverStateStore.connected && !authStore.isLoggedIn);
+  const desiredScreenProtection = $derived(forcedScreenProtection || authStore.isLoggedIn && screenProtectionStore.userEnabled);
+
   const developerConsoleAccessState = $derived({
     connected: serverStateStore.connected,
     isLoggedIn: authStore.isLoggedIn,
@@ -267,9 +261,8 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 
     // Resolve the device update policy, then run or schedule this session's automatic check.
     void appUpdateState.initializeAutomaticChecks();
+
     void releaseHighlightsState.initialize();
-
-
   });
 
   onMount(() => {
@@ -452,30 +445,30 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   $effect(() => {
     if (resetRecoveryMode) return;
     const interval = setInterval(async () => {
-      try {
-        const serverState = await getServerState();
-        serverStateStore.apply(serverState);
+        try {
+          const serverState = await getServerState();
+          serverStateStore.apply(serverState);
 
-        if (!serverState.connected) {
-          if (authStore.isLoggedIn || authStore.isPending2FA) {
-            const hasReconnectTarget = serverState.server_address !== null;
-            if (!hasReconnectTarget) {
-              authStore.clear();
-              appLockStore.resetForSignedOut();
-              void clearAuthSession().catch(() => {
-                /* backend may already be disconnected/cleared */
-              });
+          if (!serverState.connected) {
+            if (authStore.isLoggedIn || authStore.isPending2FA) {
+              const hasReconnectTarget = serverState.server_address !== null;
+              if (!hasReconnectTarget) {
+                authStore.clear();
+                appLockStore.resetForSignedOut();
+                void clearAuthSession().catch(() => {
+                  /* backend may already be disconnected/cleared */
+                });
+              }
             }
+            return;
           }
-          return;
-        }
 
-        if (!authStore.postLoginPending) {
-          authStore.apply(await getAuthStatus());
+          if (!authStore.postLoginPending) {
+            authStore.apply(await getAuthStatus());
+          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
-      }
     }, 30_000);
     return () => clearInterval(interval);
   });
@@ -520,7 +513,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   onkeydown={handleWindowKeydown}
   ontouchstart={recordUserActivity}
   onwheel={recordUserActivity}
-/>
+></svelte:window>
 
 <!--
   Root layout wrapper — the gradient background is set on <body> via app.css.
@@ -563,13 +556,17 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   {/if}
   <DeveloperRequestConsole
     open={developerConsoleOpen}
-    onClose={() => (developerConsoleOpen = false)}
+    onClose={() => developerConsoleOpen = false}
     serverAddress={serverStateStore.remoteAddress ?? ''}
     username={authStore.username ?? ''}
     scopeKey={developerConsoleScopeKey}
   />
   <AppLockOverlay />
-  <KeyboardShortcutHelp open={keyboardHelpOpen} onClose={() => (keyboardHelpOpen = false)} />
+
+  <KeyboardShortcutHelp
+    open={keyboardHelpOpen}
+    onClose={() => keyboardHelpOpen = false}
+  />
 </div>
 
 <style>

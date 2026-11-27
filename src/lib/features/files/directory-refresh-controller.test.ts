@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ListDirectoryPageResponse } from '$lib/api';
-import { DirectoryRefreshController } from '$lib/features/files/directory-refresh-controller';
+import type { ListDirectoryPageResponse } from '#lib/api.ts';
+import { DirectoryRefreshController } from '#lib/features/files/directory-refresh-controller.ts';
 import { deferred } from '../../../test/deferred';
 import { directoryPage } from '../../../test/directory-fixtures';
 

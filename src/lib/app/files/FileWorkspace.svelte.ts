@@ -2,9 +2,9 @@ import { _ as t } from 'svelte-i18n';
 import { onMount, tick, untrack } from 'svelte';
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
-import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
-import { getCurrentWebview } from '$lib/shared/platform/native-webview';
-import { open } from '$lib/shared/platform/native-dialog';
+import { listen, type UnlistenFn } from '#lib/shared/platform/native-events.ts';
+import { getCurrentWebview } from '#lib/shared/platform/native-webview.ts';
+import { open } from '#lib/shared/platform/native-dialog.ts';
 import {
   listDirectory,
   listDirectoryPage,
@@ -40,16 +40,16 @@ import {
   type UploadEnqueueRequest,
   type UploadTaskDto,
   type UserPreference,
-} from '$lib/api';
-import type { ServerDirectoryEntry, ServerDocumentEntry, ServerObjectType } from '$lib/api';
-import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarget } from '$lib/features/access/batch-access-rules';
-import { accessRulesTemplateKey } from '$lib/features/access/access-rules-edit';
+} from '#lib/api.ts';
+import type { ServerDirectoryEntry, ServerDocumentEntry, ServerObjectType } from '#lib/api.ts';
+import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarget } from '#lib/features/access/batch-access-rules.ts';
+import { accessRulesTemplateKey } from '#lib/features/access/access-rules-edit.ts';
 
-import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '$lib/features/files/FileTable.svelte';
-import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-import { pickDirectory, type SelectedDirectory } from '$lib/shared/platform/directory-picker';
-import { normalizeDirectoryId, ROOT_DIRECTORY_ID, sameDirectoryId, type DirectoryBreadcrumbSegment } from '$lib/features/files/file-browser';
+import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '#lib/features/files/FileTable.svelte';
+import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+import { pickDirectory, type SelectedDirectory } from '#lib/shared/platform/directory-picker.ts';
+import { normalizeDirectoryId, ROOT_DIRECTORY_ID, sameDirectoryId, type DirectoryBreadcrumbSegment } from '#lib/features/files/file-browser.ts';
 import {
   directoryToRecord,
   documentToRecord,
@@ -58,14 +58,14 @@ import {
   isFavoriteRecord,
   rememberVisit,
   setFavoriteRecord,
-} from '$lib/features/files/file-preferences';
+} from '#lib/features/files/file-preferences.ts';
 import {
   formatBytes,
   formatDate,
   isPickerCancel,
-} from '$lib/shared/format/values';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-import { graphWidth, buildRevisionRows } from '$lib/features/files/revision-graph';
+} from '#lib/shared/format/values.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+import { graphWidth, buildRevisionRows } from '#lib/features/files/revision-graph.ts';
 import {
   fileManagerNavigationStore,
   recordDirectoryVisit,
@@ -73,56 +73,56 @@ import {
   directoryHistoryTarget,
   type DirectoryNavigationTimeline,
   type DirectoryNavigationSnapshot,
-} from '$lib/features/files/file-manager-navigation';
-import type { SortDirection, SortField } from '$lib/features/files/sorting';
-import { createProgressiveDirectorySorter, type ProgressiveDirectorySorter, type ProgressiveSortSnapshot } from '$lib/features/files/sort-worker-client';
-import { DIRECTORY_PAGE_SIZE } from '$lib/features/files/progressive-listing';
-import { DirectoryLoadController, DirectoryRequestTimeoutError } from '$lib/features/files/directory-load-controller';
-import { DirectoryRefreshController } from '$lib/features/files/directory-refresh-controller';
-import { canSearchFiles } from '$lib/features/files/search-permissions';
+} from '#lib/features/files/file-manager-navigation.ts';
+import type { SortDirection, SortField } from '#lib/features/files/sorting.ts';
+import { createProgressiveDirectorySorter, type ProgressiveDirectorySorter, type ProgressiveSortSnapshot } from '#lib/features/files/sort-worker-client.ts';
+import { DIRECTORY_PAGE_SIZE } from '#lib/features/files/progressive-listing.ts';
+import { DirectoryLoadController, DirectoryRequestTimeoutError } from '#lib/features/files/directory-load-controller.ts';
+import { DirectoryRefreshController } from '#lib/features/files/directory-refresh-controller.ts';
+import { canSearchFiles } from '#lib/features/files/search-permissions.ts';
 import {
   toSearchResultRows,
   type SearchResultRow,
-} from '$lib/features/files/search-grouping';
+} from '#lib/features/files/search-grouping.ts';
 import {
   createSearchPreviewController,
-} from '$lib/features/files/search-preview-controller.svelte.ts';
+} from '#lib/features/files/search-preview-controller.svelte.ts';
 import {
   createServerSearchController,
-} from '$lib/features/files/server-search-controller.svelte.ts';
-import { isAccessDeniedError, serverErrorStatus } from '$lib/api/server-errors';
+} from '#lib/features/files/server-search-controller.svelte.ts';
+import { isAccessDeniedError, serverErrorStatus } from '#lib/api/server-errors.ts';
 import {
   FILE_SHORTCUTS,
   isFindShortcut,
   registerKeyboardCommands,
   keyboardMenuAnchor,
-} from '$lib/shared/ui/keyboard';
-import { isAndroidTreeUri, uploadDisplayName } from '$lib/shared/platform/upload-names';
+} from '#lib/shared/ui/keyboard.ts';
+import { isAndroidTreeUri, uploadDisplayName } from '#lib/shared/platform/upload-names.ts';
 import {
   createUploadConflictResolver,
   partitionUploadConflicts,
   type UploadCandidate,
   type UploadConflictAction,
   type UploadConflictDecision,
-} from '$lib/features/files/upload-conflicts';
-import { shortIdentifier } from '$lib/shared/format/identifiers';
-import { knownAbsoluteNodePath, type ResolvedNodePathSegment } from '$lib/features/files/node-path';
-import type { IconName } from '$lib/shared/ui/icons';
-import type { CommandAction, FileDetailModel } from '$lib/features/files/explorer-types';
+} from '#lib/features/files/upload-conflicts.ts';
+import { shortIdentifier } from '#lib/shared/format/identifiers.ts';
+import { knownAbsoluteNodePath, type ResolvedNodePathSegment } from '#lib/features/files/node-path.ts';
+import type { IconName } from '#lib/shared/ui/icons.ts';
+import type { CommandAction, FileDetailModel } from '#lib/features/files/explorer-types.ts';
 import {
   fileSelectionKey,
   isAllVisibleSelected,
   parseFileSelectionKey,
   selectedDocumentSize as sumDocumentSelectionSize,
   selectFileRangeByIndex,
-} from '$lib/features/files/file-selection';
-import { isMobilePlatform } from '$lib/shared/platform/platform';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { startDirectoryDownload } from '$lib/features/transfers/directory-download-controller';
+} from '#lib/features/files/file-selection.ts';
+import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+import { startDirectoryDownload } from '#lib/features/transfers/directory-download-controller.ts';
 import { fromStore } from 'svelte/store';
 
 export type { SearchResultRow };

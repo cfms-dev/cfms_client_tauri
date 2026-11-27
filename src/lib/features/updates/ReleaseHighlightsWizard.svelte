@@ -1,12 +1,12 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import { FOCUSABLE_SELECTOR } from '$lib/shared/ui/keyboard';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import { FOCUSABLE_SELECTOR } from '#lib/shared/ui/keyboard.ts';
   import { onDestroy, onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { isReducedMotionEnabled, type ResolvedColorScheme } from '$lib/shared/appearance';
-  import type { ReleaseTourPresentation } from '$lib/features/updates/release-highlights/types';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import LottieScene from '$lib/features/updates/LottieScene.svelte';
+  import { isReducedMotionEnabled, type ResolvedColorScheme } from '#lib/shared/appearance.ts';
+  import type { ReleaseTourPresentation } from '#lib/features/updates/release-highlights/types.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import LottieScene from '#lib/features/updates/LottieScene.svelte';
 
   const EXIT_DURATION_MS = 180;
 

@@ -1,21 +1,21 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { relaunchApp } from '$lib/api/updates';
-  import { appUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
+  import { relaunchApp } from '#lib/api/updates.ts';
+  import { appUpdateState } from '#lib/features/updates/app-update-state.svelte.ts';
   import {
     createUpdateNotificationCopy,
     formatUpdatePauseDate,
-  } from '$lib/features/updates/update-notifications';
-  import { formatReleaseDate as formatReleaseDateValue } from '$lib/features/updates/app-info';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { formatBytes } from '$lib/shared/format/values';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MarkdownView from '$lib/shared/ui/MarkdownView.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  } from '#lib/features/updates/update-notifications.ts';
+  import { formatReleaseDate as formatReleaseDateValue } from '#lib/features/updates/app-info.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { formatBytes } from '#lib/shared/format/values.ts';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MarkdownView from '#lib/shared/ui/MarkdownView.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   interface Props {
     currentVersion: string | null;

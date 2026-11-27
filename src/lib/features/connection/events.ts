@@ -1,7 +1,7 @@
-import type { ServiceEvent } from '$lib/api/types';
-import { eventLog } from '$lib/features/diagnostics/event-log.svelte';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
-import { translate } from '$lib/shared/i18n/translate';
+import type { ServiceEvent } from '#lib/api/types.ts';
+import { eventLog } from '#lib/features/diagnostics/event-log.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+import { translate } from '#lib/shared/i18n/translate.ts';
 import { serverStateStore } from './connection-state.svelte';
 
 export function handleConnectionEvent(event: ServiceEvent): void {

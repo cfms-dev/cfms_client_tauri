@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
 
 afterEach(() => {
   while (dialogStore.current) dialogStore.resolve(null);

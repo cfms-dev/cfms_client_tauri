@@ -1,10 +1,10 @@
-import { listDirectory, type ServerDirectoryEntry, type ServerDocumentEntry } from '$lib/api';
+import { listDirectory, type ServerDirectoryEntry, type ServerDocumentEntry } from '#lib/api.ts';
 import {
   normalizeDirectoryId,
   ROOT_DIRECTORY_ID,
   type DirectoryBreadcrumbSegment,
-} from '$lib/features/files/file-browser';
-import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+} from '#lib/features/files/file-browser.ts';
+import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
 export interface DirectoryPickerStateOptions {
   canLoad?: () => boolean;

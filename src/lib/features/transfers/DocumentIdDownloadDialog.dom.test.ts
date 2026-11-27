@@ -3,7 +3,7 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import DocumentIdDownloadDialog from '$lib/features/transfers/DocumentIdDownloadDialog.svelte';
+import DocumentIdDownloadDialog from '#lib/features/transfers/DocumentIdDownloadDialog.svelte';
 
 vi.mock('svelte-i18n', () => ({
   _: {
@@ -14,7 +14,7 @@ vi.mock('svelte-i18n', () => ({
   },
 }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 

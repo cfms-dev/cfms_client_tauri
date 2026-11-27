@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
-import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
+import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
+import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
 import { locale } from 'svelte-i18n';
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   menuScale: () => ({ duration: 0 }),
 }));
 

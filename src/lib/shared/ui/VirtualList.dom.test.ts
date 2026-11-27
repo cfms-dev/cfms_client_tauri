@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import type { VirtualItem } from '@tanstack/svelte-virtual';
 import { createRawSnippet } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import VirtualList from '$lib/shared/ui/VirtualList.svelte';
+import VirtualList from '#lib/shared/ui/VirtualList.svelte';
 
 afterEach(() => {
   cleanup();

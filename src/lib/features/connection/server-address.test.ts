@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isServerAddressValid, parseServerAddress } from '$lib/features/connection/server-address';
+import { isServerAddressValid, parseServerAddress } from '#lib/features/connection/server-address.ts';
 
 describe('server address parsing', () => {
   it.each([

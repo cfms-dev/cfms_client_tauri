@@ -1,7 +1,7 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { afterEach, expect, it, vi } from 'vitest';
-import AvatarPreview from '$lib/features/authentication/AvatarPreview.svelte';
+import AvatarPreview from '#lib/features/authentication/AvatarPreview.svelte';
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (path: string) => `asset://localhost/${path}` }));
 afterEach(cleanup);

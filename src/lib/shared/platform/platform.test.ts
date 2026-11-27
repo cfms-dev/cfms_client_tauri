@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { supportsKeyboardShortcuts } from '$lib/shared/platform/platform';
+import { supportsKeyboardShortcuts } from '#lib/shared/platform/platform.ts';
 
 describe('keyboard shortcut platform support', () => {
   it.each(['windows', 'macos', 'linux'] as const)('is available on %s', (platform) => {

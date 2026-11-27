@@ -2,15 +2,15 @@
 
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LocalDataSettingsPage from '$lib/app/settings/DataSettingsPage.svelte';
+import LocalDataSettingsPage from '#lib/app/settings/DataSettingsPage.svelte';
 
 vi.mock('$app/state', () => ({
   page: { url: new URL('https://example.test/home/settings/data') },
 }));
 
-vi.mock('$lib/app/navigation', () => ({ navigateUp: vi.fn() }));
+vi.mock('#lib/app/navigation.ts', () => ({ navigateUp: vi.fn() }));
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
 }));
 

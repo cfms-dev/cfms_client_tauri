@@ -46,11 +46,15 @@ export function moduleReferences(source, file) {
 
 function resolveReference(file, specifier, files) {
   const raw = specifier.split('?')[0];
-  const base = raw.startsWith('$lib/') ? `src/lib/${raw.slice(5)}`
+  const base = raw.startsWith('#lib/') ? `src/lib/${raw.slice(5)}`
     : raw.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), raw)) : null;
   if (base === null) return { external: true };
-  const resolved = ['', '.ts', '.js', '.svelte.ts', '/index.ts', '/index.js']
-    .map((extension) => base + extension).find((candidate) => files.has(candidate));
+  const candidates = ['', '.ts', '.js', '.svelte.ts', '/index.ts', '/index.js'].map((extension) => base + extension);
+  if (base.endsWith('.js')) {
+    const stem = base.slice(0, -3);
+    candidates.push(`${stem}.ts`, `${stem}.svelte.ts`);
+  }
+  const resolved = candidates.find((candidate) => files.has(candidate));
   return { resolved };
 }
 

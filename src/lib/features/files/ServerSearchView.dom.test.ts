@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SearchFilesResponse } from '$lib/api';
+import type { SearchFilesResponse } from '#lib/api.ts';
 import ServerSearchView from './ServerSearchView.svelte';
 
 beforeEach(() => {

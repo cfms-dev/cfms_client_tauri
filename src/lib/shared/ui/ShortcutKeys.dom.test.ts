@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import ShortcutKeys from '$lib/shared/ui/ShortcutKeys.svelte';
+import ShortcutKeys from '#lib/shared/ui/ShortcutKeys.svelte';
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 

@@ -1,12 +1,12 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { UploadTaskDto } from '$lib/api';
-import { buildUploadTaskRows } from '$lib/features/transfers/transfer-batches';
-import UploadTaskGroupHeader from '$lib/features/transfers/UploadTaskGroupHeader.svelte';
+import type { UploadTaskDto } from '#lib/api.ts';
+import { buildUploadTaskRows } from '#lib/features/transfers/transfer-batches.ts';
+import UploadTaskGroupHeader from '#lib/features/transfers/UploadTaskGroupHeader.svelte';
 
-vi.mock('$lib/shared/motion/transitions', () => ({ menuScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ menuScale: () => ({ duration: 0 }) }));
 vi.mock('svelte/transition', () => ({ fade: () => ({ duration: 0 }) }));
 afterEach(cleanup);
 

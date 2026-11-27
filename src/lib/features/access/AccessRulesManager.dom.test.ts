@@ -4,8 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/sv
 import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
-import AccessRulesManager from '$lib/features/access/AccessRulesManager.svelte';
-import { DACL_SOURCE_MAX_LENGTH, DACL_SOURCE_WARN_REMAINING } from '$lib/features/access/cacl-model';
+import AccessRulesManager from '#lib/features/access/AccessRulesManager.svelte';
+import { DACL_SOURCE_MAX_LENGTH, DACL_SOURCE_WARN_REMAINING } from '#lib/features/access/cacl-model.ts';
 import { stubInstantAnimations } from '../../../test/dom-fixtures';
 
 const rangeRects = Object.getOwnPropertyDescriptor(Range.prototype, 'getClientRects');

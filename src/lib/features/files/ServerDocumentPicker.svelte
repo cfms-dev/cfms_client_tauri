@@ -1,19 +1,19 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import { _ as t } from 'svelte-i18n';
   import {
     type ServerDirectoryEntry,
     type ServerDocumentEntry,
-  } from '$lib/api';
-  import { formatDirectoryPath } from '$lib/features/files/file-browser';
-  import { createDirectoryPickerState } from '$lib/features/files/directory-picker-state.svelte.ts';
-  import Breadcrumb from '$lib/features/files/Breadcrumb.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
+  } from '#lib/api.ts';
+  import { formatDirectoryPath } from '#lib/features/files/file-browser.ts';
+  import { createDirectoryPickerState } from '#lib/features/files/directory-picker-state.svelte.ts';
+  import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
 
   type PickerRow =
     | { kind: 'folder'; folder: ServerDirectoryEntry }

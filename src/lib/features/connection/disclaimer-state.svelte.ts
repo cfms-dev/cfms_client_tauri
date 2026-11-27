@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from "$lib/api/settings";
+import { getSetting, setSetting } from "#lib/api/settings.ts";
 
 class DisclaimerStoreImpl {
   accepted = $state(false);

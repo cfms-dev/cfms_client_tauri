@@ -2,15 +2,15 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/sve
 import { createRawSnippet, tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
-import { chromeStore } from "$lib/shared/ui/chrome-state.svelte.ts";
-import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
+import '#lib/shared/i18n.ts';
+import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+import SnackBarHost from '#lib/shared/ui/SnackBarHost.svelte';
+import { chromeStore } from "#lib/shared/ui/chrome-state.svelte.ts";
+import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
 import { stubInstantAnimations, stubMatchMedia } from '../../../test/dom-fixtures';
 
-vi.mock('$lib/shared/motion/transitions', () => ({
+vi.mock('#lib/shared/motion/transitions.ts', () => ({
   flyScale: () => ({ duration: 0 }),
   snackbarMotion: () => ({ duration: 0 }),
   snackbarReflow: () => ({ duration: 0 }),

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
   import type {
     JsonValue,
@@ -9,20 +9,20 @@
     ScheduledTaskType,
     ScheduleTriggerType,
     ScheduleUpdateInput,
-  } from '$lib/api';
+  } from '#lib/api.ts';
   import {
     browserTimeZone,
     buildScheduleTrigger,
     isoToZonedDateTimeInput,
     ScheduleValidationError,
     toZonedDateTimeInput,
-  } from '$lib/features/schedules/schedule-form';
-  import { buildPayloadDefaults, preparePayloadSchema } from '$lib/features/schedules/schedule-schema';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdSwitch from '$lib/shared/ui/MdSwitch.svelte';
-  import SchemaPayloadEditor from '$lib/features/schedules/SchemaPayloadEditor.svelte';
+  } from '#lib/features/schedules/schedule-form.ts';
+  import { buildPayloadDefaults, preparePayloadSchema } from '#lib/features/schedules/schedule-schema.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdSwitch from '#lib/shared/ui/MdSwitch.svelte';
+  import SchemaPayloadEditor from '#lib/features/schedules/SchemaPayloadEditor.svelte';
 
   interface Props {
     taskTypes: ScheduledTaskType[];

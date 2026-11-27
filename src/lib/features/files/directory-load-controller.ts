@@ -1,4 +1,4 @@
-import type { ListDirectoryPageResponse, ListDirectoryResponse } from '$lib/api';
+import type { ListDirectoryPageResponse, ListDirectoryResponse } from '#lib/api.ts';
 
 export type DirectoryPageFetcher = (
   folderId: string | null,

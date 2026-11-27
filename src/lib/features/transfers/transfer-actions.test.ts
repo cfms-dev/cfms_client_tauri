@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { filterContextMenuItems, isContextMenuDivider } from '$lib/shared/ui/context-menu';
-import { transferCleanupMenu, transferControlMenu } from '$lib/features/transfers/transfer-actions';
-import type { CleanupKind } from '$lib/features/transfers/transfer-batches';
+import { filterContextMenuItems, isContextMenuDivider } from '#lib/shared/ui/context-menu.ts';
+import { transferCleanupMenu, transferControlMenu } from '#lib/features/transfers/transfer-actions.ts';
+import type { CleanupKind } from '#lib/features/transfers/transfer-batches.ts';
 
 describe('transfer menus', () => {
   const translate = (key: string) => key;

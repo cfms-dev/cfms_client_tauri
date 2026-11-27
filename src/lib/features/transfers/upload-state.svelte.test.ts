@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { UploadEnqueueRequest, UploadTaskDto } from '$lib/api';
-import { UploadStoreImpl } from "$lib/features/transfers/upload-state.svelte.ts";
+import type { UploadEnqueueRequest, UploadTaskDto } from '#lib/api.ts';
+import { UploadStoreImpl } from "#lib/features/transfers/upload-state.svelte.ts";
 
 const mocks = vi.hoisted(() => ({ enqueueUploadBatch: vi.fn() }));
-vi.mock('$lib/api', () => ({ enqueueUploadBatch: mocks.enqueueUploadBatch }));
+vi.mock('#lib/api.ts', () => ({ enqueueUploadBatch: mocks.enqueueUploadBatch }));
 
 function task(id: string, revision = 1, status: UploadTaskDto['status'] = 'pending'): UploadTaskDto {
   return { upload_id: id, task_id: null, file_name: id, source_path: id, kind: 'file', target_parent_id: null,

@@ -1,15 +1,15 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import type { UploadTaskGroup, CleanupKind } from '$lib/features/transfers/transfer-batches';
-  import { canControlTransfer, matchesCleanup } from '$lib/features/transfers/transfer-batches';
-  import { TRANSFER_ACTIONS, transferControlMenu, transferCleanupMenu } from '$lib/features/transfers/transfer-actions';
-  import type { TransferControlAction } from '$lib/api';
-  import { formatBytes } from '$lib/shared/format/values';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
-  import TransferGroupHeader from '$lib/features/transfers/TransferGroupHeader.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
+  import type { UploadTaskGroup, CleanupKind } from '#lib/features/transfers/transfer-batches.ts';
+  import { canControlTransfer, matchesCleanup } from '#lib/features/transfers/transfer-batches.ts';
+  import { TRANSFER_ACTIONS, transferControlMenu, transferCleanupMenu } from '#lib/features/transfers/transfer-actions.ts';
+  import type { TransferControlAction } from '#lib/api.ts';
+  import { formatBytes } from '#lib/shared/format/values.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
+  import TransferGroupHeader from '#lib/features/transfers/TransferGroupHeader.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
 
   let { group, expanded, pending = false, onToggle, onControl, onRemove }: {
     group: UploadTaskGroup; expanded: boolean; pending?: boolean;

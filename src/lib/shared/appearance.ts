@@ -2,7 +2,7 @@ import type {
   AppearancePreference,
   ColorSchemePreference,
   ReduceMotionPreference,
-} from '$lib/api';
+} from '#lib/api.ts';
 
 export type ResolvedColorScheme = 'light' | 'dark';
 

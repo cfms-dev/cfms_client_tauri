@@ -1,9 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import Breadcrumb from '$lib/features/files/Breadcrumb.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   interface Props {
     segments: Array<{ label: string; path: string }>;

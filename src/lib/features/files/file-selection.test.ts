@@ -5,7 +5,7 @@ import {
   parseFileSelectionKey,
   selectedDocumentSize,
   selectFileRangeByIndex,
-} from '$lib/features/files/file-selection';
+} from '#lib/features/files/file-selection.ts';
 
 describe('file selection helpers', () => {
   it('preserves identifiers containing colons', () => {

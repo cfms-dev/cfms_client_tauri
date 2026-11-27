@@ -3,9 +3,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import '$lib/shared/i18n';
-import { changelogEntries } from '$lib/features/updates/changelog';
-import ChangelogPanel from '$lib/features/updates/ChangelogPanel.svelte';
+import '#lib/shared/i18n.ts';
+import { changelogEntries } from '#lib/features/updates/changelog.ts';
+import ChangelogPanel from '#lib/features/updates/ChangelogPanel.svelte';
 
 beforeEach(() => {
   locale.set('en');

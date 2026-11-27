@@ -3,13 +3,13 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { fade } from 'svelte/transition';
-  import { isReducedMotionEnabled } from '$lib/shared/appearance';
-  import { flyScale } from '$lib/shared/motion/transitions';
-  import { isMobilePlatform } from '$lib/shared/platform/platform';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import { chromeStore } from '$lib/shared/ui/chrome-state.svelte.ts';
-  import { FOCUSABLE_SELECTOR } from '$lib/shared/ui/keyboard';
-  import { portal } from '$lib/shared/actions/portal';
+  import { isReducedMotionEnabled } from '#lib/shared/appearance.ts';
+  import { flyScale } from '#lib/shared/motion/transitions.ts';
+  import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import { chromeStore } from '#lib/shared/ui/chrome-state.svelte.ts';
+  import { FOCUSABLE_SELECTOR } from '#lib/shared/ui/keyboard.ts';
+  import { portal } from '#lib/shared/actions/portal.ts';
 
   const DRAG_THRESHOLD = 4;
 

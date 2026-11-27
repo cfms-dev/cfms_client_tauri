@@ -1,19 +1,19 @@
 <script lang="ts">
   import { untrack, tick, onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { JsonValue } from '$lib/api';
-  import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
-  import { supportedVerificationMethods } from '$lib/features/authentication/authentication';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import TwoFactorVerifyDialog from '$lib/features/authentication/TwoFactorVerifyDialog.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import type { IconName } from '$lib/shared/ui/icons';
-  import PublicKeyVerification from '$lib/features/authentication/PublicKeyVerification.svelte';
-  import type { PublicKeyInteraction } from '$lib/api';
+  import type { JsonValue } from '#lib/api.ts';
+  import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+  import { supportedVerificationMethods } from '#lib/features/authentication/authentication.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import TwoFactorVerifyDialog from '#lib/features/authentication/TwoFactorVerifyDialog.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import PublicKeyVerification from '#lib/features/authentication/PublicKeyVerification.svelte';
+  import type { PublicKeyInteraction } from '#lib/api.ts';
 
   let { methods, onVerify, onCancel, title, allowPublicKey = false, onClosed }: {
     methods: string[];

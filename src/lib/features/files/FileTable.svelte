@@ -2,15 +2,15 @@
   import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
   import { createVirtualizer, type VirtualItem } from '@tanstack/svelte-virtual';
-  import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
-  import { formatBytes, formatDate } from '$lib/shared/format/values';
-  import { classifyDocumentType } from '$lib/features/files/document-types';
-  import type { SortField } from '$lib/features/files/sorting';
-  import { fileSelectionKey } from '$lib/features/files/file-selection';
-  import { createMarqueeRect, marqueeAutoScrollDelta, marqueeRowRange } from '$lib/features/files/marquee-selection';
-  import type { IconName } from '$lib/shared/ui/icons';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import type { ServerDirectoryEntry, ServerDocumentEntry } from '#lib/api.ts';
+  import { formatBytes, formatDate } from '#lib/shared/format/values.ts';
+  import { classifyDocumentType } from '#lib/features/files/document-types.ts';
+  import type { SortField } from '#lib/features/files/sorting.ts';
+  import { fileSelectionKey } from '#lib/features/files/file-selection.ts';
+  import { createMarqueeRect, marqueeAutoScrollDelta, marqueeRowRange } from '#lib/features/files/marquee-selection.ts';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let rowHeight = $state(40);
   onMount(() => {

@@ -1,8 +1,8 @@
-import type { ServiceEvent } from '$lib/api/types';
-import { eventLog } from '$lib/features/diagnostics/event-log.svelte';
-import { notificationStore } from '$lib/shared/notifications/notifications.svelte';
+import type { ServiceEvent } from '#lib/api/types.ts';
+import { eventLog } from '#lib/features/diagnostics/event-log.svelte.ts';
+import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
 import { authStore } from './auth-state.svelte';
-import { translate } from '$lib/shared/i18n/translate';
+import { translate } from '#lib/shared/i18n/translate.ts';
 
 export function handleAuthenticationEvent(event: ServiceEvent): void {
   switch (event.event) {

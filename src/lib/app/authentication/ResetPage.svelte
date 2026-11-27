@@ -7,11 +7,11 @@
     quitApplication,
     retryLocalDataReset,
     type LocalDataResetFailure,
-  } from '$lib/api';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  } from '#lib/api.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let failures = $state<LocalDataResetFailure[]>([]);
   let loading = $state(true);

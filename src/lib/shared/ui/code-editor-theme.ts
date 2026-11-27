@@ -1,7 +1,7 @@
 import { type HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { ICON_VARIANTS } from '$lib/shared/ui/icons';
+import { ICON_VARIANTS } from '#lib/shared/ui/icons.ts';
 
 const MASK_BASE = {
   maskRepeat: 'no-repeat',

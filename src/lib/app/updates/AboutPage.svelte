@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { protocolVersion } from '$lib/api';
-  import { loadAppVersion } from '$lib/features/updates/app-info';
-  import { releaseHighlightsState } from '$lib/features/updates/release-highlights-state.svelte.ts';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-  import AppUpdateChecker from '$lib/features/updates/AppUpdateChecker.svelte';
-  import ChangelogPanel from '$lib/features/updates/ChangelogPanel.svelte';
+  import { protocolVersion } from '#lib/api.ts';
+  import { loadAppVersion } from '#lib/features/updates/app-info.ts';
+  import { releaseHighlightsState } from '#lib/features/updates/release-highlights-state.svelte.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+  import AppUpdateChecker from '#lib/features/updates/AppUpdateChecker.svelte';
+  import ChangelogPanel from '#lib/features/updates/ChangelogPanel.svelte';
 
   let protoVer = $state<number | null>(null);
   let appVersion = $state<string | null>(null);

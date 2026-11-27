@@ -5,24 +5,24 @@
   import type { Snippet } from 'svelte';
   import { beforeNavigate, goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { getUserAuthentication, setUserAuthPolicies, registerUserAuthPublicKey, generateUserAuthPublicKey, getManagedAuthKeys, updateUserAuthPublicKey, deleteUserAuthPublicKey, changePassword, clearAuthSession, resetUserPassword, disableManagedTwoFactor, serverErrorData, type AuthPolicyStep, type AuthPurpose, type ManagedAuthKeyInventory, type UserAuthentication } from '$lib/api';
-  import { AUTH_PURPOSES, changedAuthPolicies, canCompleteChain, invalidPolicyDraft, hasDuplicateAuthChains, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
-  import { publicKeyError } from '$lib/features/authentication/public-key-errors';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import ChangePasswordDialog from '$lib/features/authentication/ChangePasswordDialog.svelte';
-  import ResetUserPasswordDialog from '$lib/features/authentication/ResetUserPasswordDialog.svelte';
-  import AuthenticationMethods from '$lib/features/authentication/authentication/AuthenticationMethods.svelte';
-  import AuthenticationFlowGraph from '$lib/features/authentication/authentication/AuthenticationFlowGraph.svelte';
-  import AuthenticationStepEditor from '$lib/features/authentication/authentication/AuthenticationStepEditor.svelte';
-  import AuthenticatorSettings from '$lib/features/authentication/authentication/AuthenticatorSettings.svelte';
-  import '$lib/features/authentication/authentication/authentication.css';
+  import { getUserAuthentication, setUserAuthPolicies, registerUserAuthPublicKey, generateUserAuthPublicKey, getManagedAuthKeys, updateUserAuthPublicKey, deleteUserAuthPublicKey, changePassword, clearAuthSession, resetUserPassword, disableManagedTwoFactor, serverErrorData, type AuthPolicyStep, type AuthPurpose, type ManagedAuthKeyInventory, type UserAuthentication } from '#lib/api.ts';
+  import { AUTH_PURPOSES, changedAuthPolicies, canCompleteChain, invalidPolicyDraft, hasDuplicateAuthChains, type AuthCredential } from '#lib/features/authentication/auth-policy-editor.ts';
+  import { publicKeyError } from '#lib/features/authentication/public-key-errors.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { canReadAuthentication, canConfigureAuthentication } from '#lib/features/authentication/auth-permissions.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import ChangePasswordDialog from '#lib/features/authentication/ChangePasswordDialog.svelte';
+  import ResetUserPasswordDialog from '#lib/features/authentication/ResetUserPasswordDialog.svelte';
+  import AuthenticationMethods from '#lib/features/authentication/authentication/AuthenticationMethods.svelte';
+  import AuthenticationFlowGraph from '#lib/features/authentication/authentication/AuthenticationFlowGraph.svelte';
+  import AuthenticationStepEditor from '#lib/features/authentication/authentication/AuthenticationStepEditor.svelte';
+  import AuthenticatorSettings from '#lib/features/authentication/authentication/AuthenticatorSettings.svelte';
+  import '#lib/features/authentication/authentication/authentication.css';
 
   let { userId, username, header }: {
     userId?: string;
@@ -67,7 +67,9 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     return () => window.clearInterval(timer);
   });
   beforeNavigate((navigation) => {
-    if (allowNavigation || (!changed.length && !authenticatorSettings?.hasPending())) return;
+    if (navigation.shallow && navigation.type === 'goto') return;
+    if (allowNavigation || !changed.length && !authenticatorSettings?.hasPending()) return;
+
     navigation.cancel();
     if (navigation.willUnload) return;
     void canLeave().then((leave) => {
@@ -102,14 +104,18 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     finally { loading = false; }
   }
   async function reload() {
-    if (!(await canLeave())) return;
+    if (!await canLeave()) return;
     busy = true;
     try { await load(); await authenticatorSettings?.refreshStatus(); } finally { busy = false; }
   }
   export async function canLeave(): Promise<boolean> {
     if (busy || methodBusy || showPassword) return false;
     if (changed.length) {
-      if (!(await dialogStore.confirm({ message: $t('authManagement.leaveChanges'), confirmLabel: $t('authManagement.discard'), danger: true }))) return false;
+      if (!await dialogStore.confirm({
+        message: $t('authManagement.leaveChanges'),
+        confirmLabel: $t('authManagement.discard'),
+        danger: true
+      })) return false;
     }
     if (!(await authenticatorSettings?.canLeave() ?? true)) return false;
     discardDraft();
@@ -174,7 +180,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   }
   async function setMethod(method: string) {
     if (!selected || selected[0]?.method === method || !writable) return;
-    if (selected.some((step) => step.credential_ids.length) && !(await dialogStore.confirm({ message: $t('authManagement.replaceMethod') }))) return;
+    if (selected.some((step) => step.credential_ids.length) && !await dialogStore.confirm({ message: $t('authManagement.replaceMethod') })) return;
     if (!writable) return;
     const active = inventory!.credentials.filter((c) => c.method === method && c.active);
     draft[purpose][selectedChain] = [{ method, credential_ids: active.length === 1 ? [active[0].credential_id] : [] }];
@@ -211,12 +217,21 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
     await write(async () => { const result = await updateUserAuthPublicKey(credential.credential_id, next.trim() || null, userId); credential.label = result.label; await refreshManagedKeys(); });
   }
   async function deleteKey(credential: AuthCredential) {
-    if (!writable || !(await beforeMethodChange())) return;
-    if (!(await dialogStore.confirm({ title: $t('authManagement.deleteKey'), message: $t('authManagement.deleteKeyConfirm'), danger: true }))) return;
-    await write(async () => { await deleteUserAuthPublicKey(credential.credential_id, userId); await load(); });
+    if (!writable || !await beforeMethodChange()) return;
+
+    if (!await dialogStore.confirm({
+      title: $t('authManagement.deleteKey'),
+      message: $t('authManagement.deleteKeyConfirm'),
+      danger: true
+    })) return;
+
+    await write(async () => {
+      await deleteUserAuthPublicKey(credential.credential_id, userId);
+      await load();
+    });
   }
   async function beginPassword() {
-    if (!canPassword || busy || methodBusy || !(await beforeMethodChange())) return;
+    if (!canPassword || busy || methodBusy || !await beforeMethodChange()) return;
     if (!(await authenticatorSettings?.canLeave() ?? true)) return;
     showPassword = true;
   }
@@ -264,10 +279,35 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
         <button id={`auth-tab-${value}`} type="button" role="tab" aria-selected={tab === value} aria-controls={`auth-panel-${value}`} tabindex={tab === value ? 0 : -1} onclick={() => { tab = value as typeof tab; }} onkeydown={(event) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); tab = event.key === 'Home' ? 'methods' : event.key === 'End' ? 'flows' : tab === 'methods' ? 'flows' : 'methods'; document.getElementById(`auth-tab-${tab}`)?.focus(); } }}>{$t(`authManagement.${value}Tab`)}</button>
       {/each}
     </div>
-    <div id="auth-panel-methods" role="tabpanel" aria-labelledby="auth-tab-methods" hidden={tab !== 'methods'}>
-      <AuthenticationMethods {inventory} {managedKeys} {writable} {managed} busy={busy || methodBusy} canChangePassword={canPassword} onPassword={beginPassword} onRegister={registerKey} onGenerate={generateKey} onEdit={editKey} onDelete={deleteKey}>
+
+    <div
+      id="auth-panel-methods"
+      role="tabpanel"
+      aria-labelledby="auth-tab-methods"
+      hidden={tab !== 'methods'}
+    >
+      <AuthenticationMethods
+        inventory={inventory}
+        managedKeys={managedKeys}
+        writable={writable}
+        managed={managed}
+        busy={busy || methodBusy}
+        canChangePassword={canPassword}
+        onPassword={beginPassword}
+        onRegister={registerKey}
+        onGenerate={generateKey}
+        onEdit={editKey}
+        onDelete={deleteKey}
+      >
         {#snippet authenticator()}
-          <AuthenticatorSettings bind:this={authenticatorSettings} {userId} bind:busy={methodBusy} disabled={busy || loading || !authStore.isLoggedIn} beforeChange={beforeMethodChange} onChanged={load} />
+          <AuthenticatorSettings
+            bind:this={authenticatorSettings}
+            userId={userId}
+            bind:busy={methodBusy}
+            disabled={busy || loading || !authStore.isLoggedIn}
+            beforeChange={beforeMethodChange}
+            onChanged={load}
+          />
         {/snippet}
       </AuthenticationMethods>
     </div>
@@ -281,7 +321,18 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       {#if !loginAvailable}<p class="auth-notice">{$t('authManagement.noCompleteLogin')}</p>{/if}
       <div class="auth-flow-layout">
         <div class="auth-grow">
-          <AuthenticationFlowGraph chains={draft[purpose]} {purpose} credentials={inventory.credentials} {selectedChain} {selectedStep} onSelect={(chain, step) => { selectedChain = chain; selectedStep = step; }} />
+          <AuthenticationFlowGraph
+            chains={draft[purpose]}
+            purpose={purpose}
+            credentials={inventory.credentials}
+            selectedChain={selectedChain}
+            selectedStep={selectedStep}
+            onSelect={(chain, step) => {
+              selectedChain = chain;
+              selectedStep = step;
+            }}
+          />
+
           <div class="auth-actions">
             {#if purpose === 'escalation' && draft.escalation.length}
               <DialogActionButton variant="danger" disabled={!writable} onclick={clearEscalationPolicy}>{$t('authManagement.clearEscalation')}</DialogActionButton>
@@ -290,11 +341,38 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
           </div>
         </div>
         {#if selected?.[selectedStep]}
-          <AuthenticationStepEditor {inventory} {purpose} chain={selected} chainIndex={selectedChain} stepIndex={selectedStep} {writable} onMethod={setMethod} onToggle={toggle}
-            onAddStep={() => { if (writable) { selected.push({ method: selected[0].method, credential_ids: [] }); selectedStep = selected.length - 1; } }}
-            onRemoveStep={() => { if (writable) { selected.splice(selectedStep, 1); selectedStep = Math.max(0, selectedStep - 1); } }}
-            onRemoveChain={() => { if (writable) { draft[purpose].splice(selectedChain, 1); selectedChain = Math.max(0, selectedChain - 1); selectedStep = 0; } }} />
-        {:else}<p>{$t('authManagement.selectNode')}</p>{/if}
+          <AuthenticationStepEditor
+            inventory={inventory}
+            purpose={purpose}
+            chain={selected}
+            chainIndex={selectedChain}
+            stepIndex={selectedStep}
+            writable={writable}
+            onMethod={setMethod}
+            onToggle={toggle}
+            onAddStep={() => {
+              if (writable) {
+                selected.push({ method: selected[0].method, credential_ids: [] });
+                selectedStep = selected.length - 1;
+              }
+            }}
+            onRemoveStep={() => {
+              if (writable) {
+                selected.splice(selectedStep, 1);
+                selectedStep = Math.max(0, selectedStep - 1);
+              }
+            }}
+            onRemoveChain={() => {
+              if (writable) {
+                draft[purpose].splice(selectedChain, 1);
+                selectedChain = Math.max(0, selectedChain - 1);
+                selectedStep = 0;
+              }
+            }}
+          />
+        {:else}
+          <p>{$t('authManagement.selectNode')}</p>
+        {/if}
       </div>
     </div>
     {#if changed.length}<div class="auth-savebar"><p role="status">{$t('authManagement.unsaved')}</p><div class="auth-actions"><DialogActionButton disabled={busy || methodBusy} onclick={reload}>{$t('authManagement.discard')}</DialogActionButton><DialogActionButton variant="primary" disabled={!canSave} onclick={savePolicies}>{$t('authManagement.savePolicies')}</DialogActionButton></div></div>{/if}

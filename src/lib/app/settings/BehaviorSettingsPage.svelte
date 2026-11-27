@@ -7,16 +7,16 @@
     getRootBackButtonBehavior,
     setRootBackButtonBehavior,
     type RootBackButtonBehavior,
-  } from '$lib/api';
-  import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-  import { createAutoSave } from '$lib/features/settings/settings-autosave.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import SettingsPageHeader from '$lib/shared/ui/SettingsPageHeader.svelte';
-  import { focusRovingItem } from '$lib/shared/ui/keyboard';
+  } from '#lib/api.ts';
+  import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+  import { createAutoSave } from '#lib/features/settings/settings-autosave.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import SettingsPageHeader from '#lib/shared/ui/SettingsPageHeader.svelte';
+  import { focusRovingItem } from '#lib/shared/ui/keyboard.ts';
 
   const behaviorOptions: Array<{ value: RootBackButtonBehavior; labelKey: string; descriptionKey: string }> = [
     {

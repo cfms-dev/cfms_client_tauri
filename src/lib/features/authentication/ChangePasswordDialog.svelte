@@ -1,16 +1,16 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   // Shared password change dialog for elevated self-service and POST_AUTH.
   import { onDestroy } from 'svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
   import { _ as t } from 'svelte-i18n';
-  import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { estimatePasswordStrength, generateRandomPassword } from '$lib/shared/password';
+  import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { estimatePasswordStrength, generateRandomPassword } from '#lib/shared/password.ts';
 
   interface Props {
     /** The username whose password is being changed. */

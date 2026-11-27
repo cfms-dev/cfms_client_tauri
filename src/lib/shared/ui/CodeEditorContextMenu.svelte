@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { EditorView } from '@codemirror/view';
   import { _ as t } from 'svelte-i18n';
-  import ContextMenu from '$lib/shared/ui/ContextMenu.svelte';
-  import type { ContextMenuItem } from '$lib/shared/ui/context-menu';
+  import ContextMenu from '#lib/shared/ui/ContextMenu.svelte';
+  import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
   import {
     getCodeEditorCommandState,
     getCodeEditorShortcuts,
@@ -12,7 +12,7 @@
     runCodeEditorRedo,
     runCodeEditorSelectAll,
     runCodeEditorUndo,
-  } from '$lib/shared/ui/code-editor-commands';
+  } from '#lib/shared/ui/code-editor-commands.ts';
 
   interface Props {
     open: boolean;

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onDestroy, onMount, tick } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { publicKeyError } from '$lib/features/authentication/public-key-errors';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { publicKeyError } from '#lib/features/authentication/public-key-errors.ts';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
   let { onUnlock, onDiscard, onCancel }: { onUnlock: (password: string) => Promise<void>; onDiscard: () => Promise<void>; onCancel: () => void } = $props();
   let password = $state('');
   let busy = $state(false);

@@ -1,39 +1,39 @@
 <script lang="ts">
-  import { canAccessAdministration } from '$lib/features/administration/permissions';
+  import { canAccessAdministration } from '#lib/features/administration/permissions.ts';
   import type { Snippet } from 'svelte';
   import { onMount, tick } from 'svelte';
-  import { page } from '$app/stores';
-  import FluentButton from "$lib/shared/ui/FluentButton.svelte";
+  import { page } from '$app/state';
+  import FluentButton from "#lib/shared/ui/FluentButton.svelte";
   import { goto } from '$app/navigation';
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import { downloadStore } from "$lib/features/transfers/download-state.svelte.ts";
-import { uploadStore } from "$lib/features/transfers/upload-state.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-  import { canSetOwnAvatar } from '$lib/features/authentication/avatar-permissions';
-  import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '$lib/api';
-  import { favoriteRecordsFromPreference, type FileRecord } from '$lib/features/files/file-preferences';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import AvatarPreview from '$lib/features/authentication/AvatarPreview.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import LockdownControl from '$lib/features/authentication/LockdownControl.svelte';
-  import EscalationControl from '$lib/features/authentication/EscalationControl.svelte';
-  import EscalationCountdown from '$lib/features/authentication/EscalationCountdown.svelte';
-  import ShortcutKeys from '$lib/shared/ui/ShortcutKeys.svelte';
-  import UserAvatarPicker from '$lib/features/authentication/UserAvatarPicker.svelte';
-  import type { WorkspaceNavItem } from '$lib/features/files/explorer-types';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import { downloadStore } from "#lib/features/transfers/download-state.svelte.ts";
+import { uploadStore } from "#lib/features/transfers/upload-state.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+  import { canSetOwnAvatar } from '#lib/features/authentication/avatar-permissions.ts';
+  import { clearAuthSession, disconnect, getDocument, loadUserPreference, setLockdown } from '#lib/api.ts';
+  import { favoriteRecordsFromPreference, type FileRecord } from '#lib/features/files/file-preferences.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import AvatarPreview from '#lib/features/authentication/AvatarPreview.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import LockdownControl from '#lib/features/authentication/LockdownControl.svelte';
+  import EscalationControl from '#lib/features/authentication/EscalationControl.svelte';
+  import EscalationCountdown from '#lib/features/authentication/EscalationCountdown.svelte';
+  import ShortcutKeys from '#lib/shared/ui/ShortcutKeys.svelte';
+  import UserAvatarPicker from '#lib/features/authentication/UserAvatarPicker.svelte';
+  import type { WorkspaceNavItem } from '#lib/features/files/explorer-types.ts';
   import {
     focusRovingItem,
     KEYBOARD_HELP_SHORTCUTS,
     openKeyboardShortcutHelp,
     registerKeyboardCommands,
-  } from '$lib/shared/ui/keyboard';
-  import { supportsKeyboardShortcuts } from '$lib/shared/platform/platform';
-  import { shouldOfferConnectionReturn } from '$lib/app/public-utility-navigation';
-  import { transitionOutOfSession } from '$lib/app/session-exit';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  } from '#lib/shared/ui/keyboard.ts';
+  import { supportsKeyboardShortcuts } from '#lib/shared/platform/platform.ts';
+  import { shouldOfferConnectionReturn } from '#lib/app/public-utility-navigation.ts';
+  import { transitionOutOfSession } from '#lib/app/session-exit.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   let { children }: { children: Snippet } = $props();
 
@@ -77,11 +77,11 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
       && authStore.permissions.includes('view_schedules'),
   );
   const isSettingsRoute = $derived(
-    $page.url.pathname === '/home/settings' || $page.url.pathname.startsWith('/home/settings/'),
+    page.url.pathname === '/home/settings' || page.url.pathname.startsWith('/home/settings/'),
   );
   const showPublicUtilityClose = $derived(
     shouldOfferConnectionReturn(
-      $page.url.pathname,
+      page.url.pathname,
       serverStateStore.connected,
       authStore.isLoggedIn,
     ),
@@ -111,7 +111,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   );
 
   const currentTitle = $derived.by(() => {
-    const path = $page.url.pathname;
+    const path = page.url.pathname;
     if (path === '/home/overview') return $t('nav.home');
     if (path === '/home/files') return $t('workspace.fileManagement');
     if (path === '/home/tasks') return $t('workspace.transfers');
@@ -128,7 +128,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
 
   $effect(() => {
     const scope = `${serverStateStore.remoteAddress ?? ''}:${authStore.userId ?? ''}`;
-    const path = $page.url.pathname;
+    const path = page.url.pathname;
     drawerOpen = false;
     accountMenuOpen = false;
     if (!authStore.isLoggedIn || !authStore.username || scope === loadedFavoriteScope) return;
@@ -166,8 +166,8 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   }
 
   function isActive(item: WorkspaceNavItem) {
-    const path = $page.url.pathname;
-    if (item.href.includes('?')) return `${path}${$page.url.search}` === item.href;
+    const path = page.url.pathname;
+    if (item.href.includes('?')) return `${path}${page.url.search}` === item.href;
     return item.exact ? path === item.href : path === item.href || path.startsWith(`${item.href}/`);
   }
 
@@ -192,7 +192,7 @@ import { notificationStore } from "$lib/shared/notifications/notifications.svelt
   async function openFavorite(record: FileRecord) {
     drawerOpen = false;
     if (record.type === 'directory') {
-      const reloadFilesView = $page.url.pathname === '/home/files';
+      const reloadFilesView = page.url.pathname === '/home/files';
       const params = new URLSearchParams({ folder: record.id, name: record.name });
       await goto(`/home/files?${params.toString()}`);
       if (reloadFilesView) routeReloadToken += 1;

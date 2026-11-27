@@ -1,7 +1,7 @@
-import { prepareAccessBatch, getAccessBatch, getAccessBatchChanges, runAccessBatch, stopAccessBatch, disposeAccessBatch, decideAccessBatch } from '$lib/api';
-import { listen, type UnlistenFn } from '$lib/shared/platform/native-events';
-import type { ServiceEvent, BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction } from '$lib/api/types';
-export type { BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction, BatchRulesItemStatus, BatchRulesItemResult, BatchRulesProblemKind } from '$lib/api/types';
+import { prepareAccessBatch, getAccessBatch, getAccessBatchChanges, runAccessBatch, stopAccessBatch, disposeAccessBatch, decideAccessBatch } from '#lib/api.ts';
+import { listen, type UnlistenFn } from '#lib/shared/platform/native-events.ts';
+import type { ServiceEvent, BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction } from '#lib/api/types.ts';
+export type { BatchRulesTarget, BatchRulesProblem, BatchRulesIdentity, BatchRulesSession, BatchRulesSnapshot, BatchRulesFailureAction, BatchRulesItemStatus, BatchRulesItemResult, BatchRulesProblemKind } from '#lib/api/types.ts';
 
 export function batchRulesSessionProblem(expected: BatchRulesIdentity, current: BatchRulesSession): BatchRulesProblem | null {
   if (expected.server !== current.server || expected.userId !== current.userId) return { kind: 'identity' };

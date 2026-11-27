@@ -1,12 +1,12 @@
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { locale, waitLocale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
-import UploadTaskCard from '$lib/features/transfers/UploadTaskCard.svelte';
-import DownloadTaskCard from '$lib/features/transfers/DownloadTaskCard.svelte';
+import type { DownloadTaskDto, UploadTaskDto } from '#lib/api.ts';
+import UploadTaskCard from '#lib/features/transfers/UploadTaskCard.svelte';
+import DownloadTaskCard from '#lib/features/transfers/DownloadTaskCard.svelte';
 
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
 afterEach(cleanup);
 beforeEach(async () => { locale.set('en'); await waitLocale(); });
 

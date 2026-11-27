@@ -1,6 +1,6 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { _ as t } from 'svelte-i18n';
@@ -12,20 +12,20 @@
     restoreDocument,
     type DeletedDirectoryEntry,
     type DeletedDocumentEntry,
-  } from '$lib/api';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { floatingProgressStore } from "$lib/shared/notifications/progress.svelte.ts";
-import { notificationStore } from "$lib/shared/notifications/notifications.svelte.ts";
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import PageHeading from '$lib/shared/ui/PageHeading.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
-  import TaskActionButton from '$lib/features/transfers/TaskActionButton.svelte';
-  import VirtualList from '$lib/shared/ui/VirtualList.svelte';
-  import { registerKeyboardCommands } from '$lib/shared/ui/keyboard';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import { formatDate } from '$lib/shared/format/values';
+  } from '#lib/api.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
+import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import PageHeading from '#lib/shared/ui/PageHeading.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
+  import TaskActionButton from '#lib/features/transfers/TaskActionButton.svelte';
+  import VirtualList from '#lib/shared/ui/VirtualList.svelte';
+  import { registerKeyboardCommands } from '#lib/shared/ui/keyboard.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import { formatDate } from '#lib/shared/format/values.ts';
 
   type TrashKind = 'directory' | 'document';
 

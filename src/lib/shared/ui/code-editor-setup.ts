@@ -27,7 +27,7 @@ import {
   lineNumbers,
   rectangularSelection,
 } from '@codemirror/view';
-import { ICONS } from '$lib/shared/ui/icons';
+import { ICONS } from '#lib/shared/ui/icons.ts';
 
 /**
  * CodeMirror's basic setup with a Fluent SVG fold marker in place of its

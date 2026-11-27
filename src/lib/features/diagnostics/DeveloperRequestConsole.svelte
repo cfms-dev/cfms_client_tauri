@@ -1,12 +1,12 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import { _ as t } from 'svelte-i18n';
-  import { sendDeveloperRequest, type JsonValue, type ServerResponse } from '$lib/api';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import { copyText } from '$lib/shared/platform/clipboard';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
+  import { sendDeveloperRequest, type JsonValue, type ServerResponse } from '#lib/api.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import { copyText } from '#lib/shared/platform/clipboard.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
 
   const HISTORY_LIMIT = 30;
 

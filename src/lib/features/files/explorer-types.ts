@@ -1,4 +1,4 @@
-import type { IconName } from '$lib/shared/ui/icons';
+import type { IconName } from '#lib/shared/ui/icons.ts';
 
 export interface WorkspaceNavItem {
   id: string;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ICON_VARIANTS, type IconName } from '$lib/shared/ui/icons';
+  import { ICON_VARIANTS, type IconName } from '#lib/shared/ui/icons.ts';
   interface Props { name: IconName; size?: string | number; filled?: boolean; duotone?: boolean; tone?: 'default' | 'warning'; class?: string; }
   let { name, size = 24, filled = false, duotone = false, tone = 'default', class: className = '' }: Props = $props();
   const isDuotone = $derived(duotone && 'duotone' in ICON_VARIANTS[name]);

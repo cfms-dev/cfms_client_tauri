@@ -1,7 +1,7 @@
 /** Read-only mirror of native download producer state. */
 import { writable } from 'svelte/store';
-import { getDownloadBatches, type DownloadBatchSnapshot } from '$lib/api';
-export type { DownloadBatchSnapshot } from '$lib/api';
+import { getDownloadBatches, type DownloadBatchSnapshot } from '#lib/api.ts';
+export type { DownloadBatchSnapshot } from '#lib/api.ts';
 export const downloadBatchSnapshots = writable<DownloadBatchSnapshot[]>([]);
 let generation = 0;
 export async function refreshDownloadBatches() {

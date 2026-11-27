@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { DownloadTaskDto, UploadTaskDto } from '$lib/api';
+import type { DownloadTaskDto, UploadTaskDto } from '#lib/api.ts';
 import {
   downloadCapabilities, downloadPhaseMessageKey, downloadSection, downloadStatusMessageKey,
   matchesTransferQuery, uploadCapabilities, uploadSection, uploadStatusMessageKey,
-} from '$lib/features/transfers/transfer-task-view';
+} from '#lib/features/transfers/transfer-task-view.ts';
 
 const download = (status: DownloadTaskDto['status']): DownloadTaskDto => ({
   task_id: 'd1', file_id: 'f1', filename: 'Report.pdf', file_path: 'C:/Files/Report.pdf',

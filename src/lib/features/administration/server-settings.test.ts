@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseSetting, settingChanges, settingControl } from './server-settings';
-import { canSetAccountName } from '$lib/features/authentication/auth-permissions';
+import { canSetAccountName } from '#lib/features/authentication/auth-permissions.ts';
 import { canAccessAdministration } from './permissions';
-import type { ServerSettingDefinition } from '$lib/api/types';
+import type { ServerSettingDefinition } from '#lib/api/types.ts';
 
 const definition: ServerSettingDefinition = { namespace: 'n', option_key: 'limit', owner: 'core', schema_version: 1, title: 'Limit', description: '', default: 2, value_schema: { type: 'integer', minimum: 1 } };
 describe('server setting drafts', () => {

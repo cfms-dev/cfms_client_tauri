@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { JsonValue } from '$lib/api';
+import type { JsonValue } from '#lib/api.ts';
 import {
   buildPayloadDefaults,
   parsePayloadSource,
   preparePayloadSchema,
   validatePayloadAgainstSchema,
   valueCanRender,
-} from '$lib/features/schedules/schedule-schema';
+} from '#lib/features/schedules/schedule-schema.ts';
 
 const lockdownSchema: Record<string, JsonValue> = {
   additionalProperties: false,

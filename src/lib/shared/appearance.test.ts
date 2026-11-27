@@ -6,7 +6,7 @@ import {
   normalizeReduceMotion,
   resolveColorScheme,
   resolveReducedMotion,
-} from '$lib/shared/appearance';
+} from '#lib/shared/appearance.ts';
 
 describe('appearance preferences', () => {
   it('defaults both appearance preferences to the system settings', () => {

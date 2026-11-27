@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import DiagnosticsPage from '$lib/app/diagnostics/DiagnosticsPage.svelte';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import DiagnosticsPage from '#lib/app/diagnostics/DiagnosticsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   getServerDiagnostics: vi.fn(),
 }));
 
-vi.mock('$lib/api', async (importOriginal) => ({
-  ...await importOriginal<typeof import('$lib/api')>(),
+vi.mock('#lib/api.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('#lib/api.ts')>(),
   getServerDiagnostics: mocks.getServerDiagnostics,
 }));
 

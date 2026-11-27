@@ -3,17 +3,17 @@ import { stubInstantAnimations } from '../../../test/dom-fixtures';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import { serverStateStore } from "$lib/features/connection/connection-state.svelte.ts";
-import EscalationControl from '$lib/features/authentication/EscalationControl.svelte';
-import EscalationCountdown from '$lib/features/authentication/EscalationCountdown.svelte';
-import { ensureEscalation, escalationFlow } from '$lib/features/authentication/escalation.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+import EscalationControl from '#lib/features/authentication/EscalationControl.svelte';
+import EscalationCountdown from '#lib/features/authentication/EscalationCountdown.svelte';
+import { ensureEscalation, escalationFlow } from '#lib/features/authentication/escalation.svelte.ts';
 
 const mocks = vi.hoisted(() => ({ inventory: vi.fn(), escalate: vi.fn(), drop: vi.fn() }));
-vi.mock('$lib/api', () => ({ getUserAuthentication: mocks.inventory, requestEscalation: mocks.escalate, dropEscalation: mocks.drop }));
+vi.mock('#lib/api.ts', () => ({ getUserAuthentication: mocks.inventory, requestEscalation: mocks.escalate, dropEscalation: mocks.drop }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: () => 'windows' }));
-vi.mock('$lib/shared/motion/transitions', () => ({ flyScale: () => ({ duration: 0 }) }));
-vi.mock('$lib/shared/appearance', () => ({ isReducedMotionEnabled: () => true }));
+vi.mock('#lib/shared/motion/transitions.ts', () => ({ flyScale: () => ({ duration: 0 }) }));
+vi.mock('#lib/shared/appearance.ts', () => ({ isReducedMotionEnabled: () => true }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 
 const status = { username: 'alice', user_id: 'aabbccdd-0000-4000-8000-000000000001', nickname: 'Alice', has_token: true, token_exp: 2e9, permissions: [], groups: [] };

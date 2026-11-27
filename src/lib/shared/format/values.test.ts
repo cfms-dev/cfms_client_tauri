@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBytes } from '$lib/shared/format/values';
+import { formatBytes } from '#lib/shared/format/values.ts';
 
 describe('file size formatting', () => {
   it('includes the byte unit for an empty document', () => {

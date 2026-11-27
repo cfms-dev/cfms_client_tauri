@@ -1,9 +1,9 @@
-import { getDirectoryInfo } from '$lib/api';
+import { getDirectoryInfo } from '#lib/api.ts';
 import {
   isAccessDeniedError,
   serverAvailability,
   serverErrorStatus,
-} from '$lib/api/server-errors';
+} from '#lib/api/server-errors.ts';
 import { normalizeDirectoryId, ROOT_DIRECTORY_ID } from './file-browser';
 
 export type ParentDirectoryResolution =

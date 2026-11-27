@@ -1,14 +1,14 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
-  import ModalFrame from '$lib/shared/ui/ModalFrame.svelte';
-  import ShortcutKeys from '$lib/shared/ui/ShortcutKeys.svelte';
+  import ModalFrame from '#lib/shared/ui/ModalFrame.svelte';
+  import ShortcutKeys from '#lib/shared/ui/ShortcutKeys.svelte';
   import {
     commandGroup,
     commandLabel,
     isCommandShownInHelp,
     keyboardCommands,
     type KeyboardCommand,
-  } from '$lib/shared/ui/keyboard';
+  } from '#lib/shared/ui/keyboard.ts';
 
   let {
     open,

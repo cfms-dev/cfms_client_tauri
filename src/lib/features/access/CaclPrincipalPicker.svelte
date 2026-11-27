@@ -1,10 +1,10 @@
 <script lang="ts">
   import { _ as t } from 'svelte-i18n';
   import { parseCanonicalUuid } from 'codemirror-lang-cacl';
-  import { inlineNotice } from '$lib/shared/motion/transitions';
-  import FluentButton from '$lib/shared/ui/FluentButton.svelte';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import { inlineNotice } from '#lib/shared/motion/transitions.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
   import type { CaclPrincipalDirectory } from './cacl-editor-extensions';
   import type { CaclPrincipalRef } from './cacl-model';
 

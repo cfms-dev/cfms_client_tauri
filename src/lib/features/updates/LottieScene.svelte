@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { AnimationItem } from 'lottie-web';
-  import type { IconName } from '$lib/shared/ui/icons';
+  import type { IconName } from '#lib/shared/ui/icons.ts';
   import type {
     LottieAnimationData,
     ReleaseHighlightAnimationLoader,
-  } from '$lib/features/updates/release-highlights/types';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  } from '#lib/features/updates/release-highlights/types.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   interface Props {
     loadAnimationData: ReleaseHighlightAnimationLoader;

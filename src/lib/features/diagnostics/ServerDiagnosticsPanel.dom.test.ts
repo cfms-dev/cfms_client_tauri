@@ -1,21 +1,21 @@
 // @vitest-environment jsdom
 
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import ServerDiagnosticsPanel from '$lib/features/diagnostics/ServerDiagnosticsPanel.svelte';
+import ServerDiagnosticsPanel from '#lib/features/diagnostics/ServerDiagnosticsPanel.svelte';
 
 const mocks = vi.hoisted(() => ({
   getServerDiagnostics: vi.fn(),
   formatUserFacingError: vi.fn((reason: unknown) => String(reason)),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getServerDiagnostics: mocks.getServerDiagnostics,
 }));
 
-vi.mock('$lib/shared/errors/user-facing-errors', () => ({
+vi.mock('#lib/shared/errors/user-facing-errors.ts', () => ({
   formatUserFacingError: mocks.formatUserFacingError,
 }));
 

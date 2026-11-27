@@ -7,8 +7,8 @@ import {
   UPDATE_CHECK_PAUSE_DURATIONS,
   UPDATE_CHECK_PAUSE_SETTING_KEY,
   serializeUpdateCheckPause,
-} from '$lib/features/updates/update-check-pause';
-import { AppUpdateState } from '$lib/features/updates/app-update-state.svelte.ts';
+} from '#lib/features/updates/update-check-pause.ts';
+import { AppUpdateState } from '#lib/features/updates/app-update-state.svelte.ts';
 
 const mocks = vi.hoisted(() => ({
   getSetting: vi.fn(),
@@ -20,17 +20,17 @@ const mocks = vi.hoisted(() => ({
   report: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getSetting: mocks.getSetting,
   setSetting: mocks.setSetting,
 }));
 
-vi.mock('$lib/api/updates', () => ({
+vi.mock('#lib/api/updates.ts', () => ({
   checkAppUpdate: mocks.checkAppUpdate,
   installAppUpdate: mocks.installAppUpdate,
 }));
 
-vi.mock('$lib/features/updates/update-notifications', () => ({
+vi.mock('#lib/features/updates/update-notifications.ts', () => ({
   updateNotificationReporter: {
     dismiss: mocks.dismiss,
     reset: mocks.reset,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareAppVersions, parseAppVersion } from '$lib/features/updates/app-version';
+import { compareAppVersions, parseAppVersion } from '#lib/features/updates/app-version.ts';
 
 describe('app version helpers', () => {
   it('compares stable and prerelease versions using SemVer precedence', () => {

@@ -1,5 +1,5 @@
-import type { ServerDirectoryEntry, ServerDocumentEntry } from '$lib/api';
-import { sortFileEntries, type SortDirection, type SortField, type SortedFileEntries } from '$lib/features/files/sorting';
+import type { ServerDirectoryEntry, ServerDocumentEntry } from '#lib/api.ts';
+import { sortFileEntries, type SortDirection, type SortField, type SortedFileEntries } from '#lib/features/files/sorting.ts';
 
 export const DIRECTORY_PAGE_SIZE = 128;
 

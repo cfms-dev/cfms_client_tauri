@@ -3,7 +3,7 @@ import {
   canSetAvatarFor,
   canSetOtherUserAvatar,
   canSetOwnAvatar,
-} from '$lib/features/authentication/avatar-permissions';
+} from '#lib/features/authentication/avatar-permissions.ts';
 
 describe('avatar permissions', () => {
   it('allows the ordinary avatar permission only for the current user', () => {

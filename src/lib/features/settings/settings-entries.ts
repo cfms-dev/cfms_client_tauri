@@ -1,5 +1,5 @@
-import type { IconName } from '$lib/shared/ui/icons';
-import { isMobilePlatform } from '$lib/shared/platform/platform';
+import type { IconName } from '#lib/shared/ui/icons.ts';
+import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
 
 type SettingsPlatformScope = 'all' | 'mobile';
 

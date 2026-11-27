@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ServerDirectoryInfo } from '$lib/api';
+import type { ServerDirectoryInfo } from '#lib/api.ts';
 import { createSearchParentDirectoryResolver } from './search-parent-directory-resolver.svelte.ts';
 
 function deferred<T>() {

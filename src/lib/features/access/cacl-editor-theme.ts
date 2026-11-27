@@ -1,7 +1,7 @@
 import { HighlightStyle } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
 import { tags } from '@lezer/highlight';
-import { createCodeEditorTheme } from '$lib/shared/ui/code-editor-theme';
+import { createCodeEditorTheme } from '#lib/shared/ui/code-editor-theme.ts';
 
 interface CaclSyntaxPalette {
   controlKeyword: string;

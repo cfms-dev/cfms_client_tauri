@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { formatShortcut, type ShortcutSpec } from '$lib/shared/ui/keyboard';
+  import { formatShortcut, type ShortcutSpec } from '#lib/shared/ui/keyboard.ts';
 
   interface Props {
     shortcuts: readonly ShortcutSpec[];

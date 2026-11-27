@@ -3,8 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '$lib/shared/i18n';
-import GithubApiSettingsPage from '$lib/app/settings/GithubApiSettingsPage.svelte';
+import '#lib/shared/i18n.ts';
+import GithubApiSettingsPage from '#lib/app/settings/GithubApiSettingsPage.svelte';
 
 const mocks = vi.hoisted(() => ({
   getStatus: vi.fn(),
@@ -16,20 +16,20 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock('$lib/api', () => ({
+vi.mock('#lib/api.ts', () => ({
   getGithubAuthStatus: mocks.getStatus,
   saveGithubToken: mocks.save,
   deleteGithubToken: mocks.remove,
 }));
-vi.mock('$lib/features/updates/github-auth-notices', () => ({ resetGithubAuthNotice: mocks.resetNotice }));
+vi.mock('#lib/features/updates/github-auth-notices.ts', () => ({ resetGithubAuthNotice: mocks.resetNotice }));
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: mocks.openUrl }));
-vi.mock('$lib/shared/notifications/notifications.svelte', () => ({
+vi.mock('#lib/shared/notifications/notifications.svelte.ts', () => ({
   notificationStore: { success: mocks.success, error: mocks.error }
 }));
 vi.mock('$app/state', () => ({
   page: { url: new URL('https://example.test/home/settings/github-api') },
 }));
-vi.mock('$lib/app/navigation', () => ({ navigateUp: vi.fn() }));
+vi.mock('#lib/app/navigation.ts', () => ({ navigateUp: vi.fn() }));
 
 beforeEach(() => {
   locale.set('en');

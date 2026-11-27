@@ -2,12 +2,12 @@ import { afterNavigate, goto } from '$app/navigation';
 import {
   getRootBackButtonBehavior,
   type RootBackButtonBehavior,
-} from '$lib/api/settings';
-import { moveAppToBackground, exitAppAfterLauncherTransition } from '$lib/api/mobile';
-import { appLockStore } from '$lib/features/settings/app-lock.svelte.ts';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
+} from '#lib/api/settings.ts';
+import { moveAppToBackground, exitAppAfterLauncherTransition } from '#lib/api/mobile.ts';
+import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
 
-export type { RootBackButtonBehavior } from '$lib/api/settings';
+export type { RootBackButtonBehavior } from '#lib/api/settings.ts';
 
 const HOME_ROOT_ROUTES = new Set([
   '/home/overview',
@@ -37,6 +37,8 @@ export function initNavigationHistory(): void {
   initialized = true;
 
   afterNavigate((navigation) => {
+    if (navigation.shallow && navigation.type === 'goto') return;
+
     const from = navigation.from?.url?.pathname;
     const to = navigation.to?.url?.pathname;
     if (!from || !to) return;
@@ -79,7 +81,7 @@ export function parentRouteFor(pathname: string): string | null {
   }
 
   if (path.startsWith('/home/')) {
-    const rest = path.slice('/home/'.length);
+    const rest = path.slice(('/home/').length);
     if (!rest.includes('/')) {
       return '/home';
     }
@@ -128,7 +130,7 @@ async function exitApp(): Promise<void> {
     await exitAppAfterLauncherTransition();
     return;
   } catch {
-    const { exit } = await import('$lib/shared/platform/native-process');
+    const { exit } = await import('#lib/shared/platform/native-process.ts');
     await exit(0);
   }
 }

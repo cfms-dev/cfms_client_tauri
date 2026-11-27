@@ -1,8 +1,8 @@
 import { redo, redoDepth, selectAll, undo, undoDepth } from '@codemirror/commands';
 import { Prec, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { copyText, readClipboardText } from '$lib/shared/platform/clipboard';
-import { isMacLikePlatform, shortcutMatches, type ShortcutSpec } from '$lib/shared/ui/keyboard';
+import { copyText, readClipboardText } from '#lib/shared/platform/clipboard.ts';
+import { isMacLikePlatform, shortcutMatches, type ShortcutSpec } from '#lib/shared/ui/keyboard.ts';
 
 export function usesDarkColorScheme(): boolean {
   return document.documentElement.dataset.theme !== 'light';

@@ -1,6 +1,6 @@
 import type {
   DownloadTaskDto, DownloadTaskStatus, UploadTaskDto, UploadTaskStatus,
-} from '$lib/api';
+} from '#lib/api.ts';
 
 export type TransferSectionKey = 'attention' | 'active' | 'waiting' | 'history';
 export type TransferSectionFilter = 'all' | TransferSectionKey;

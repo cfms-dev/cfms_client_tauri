@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { inlineNotice, snackbarMotion, snackbarReflow } from '$lib/shared/motion/transitions';
+import { inlineNotice, snackbarMotion, snackbarReflow } from '#lib/shared/motion/transitions.ts';
 
 
 afterEach(() => { delete document.documentElement.dataset.reduceMotion; });

@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { EditorView as EditorViewType } from '@codemirror/view';
   import type { Diagnostic } from '@codemirror/lint';
-  import { decodeJsonPointerSegment } from '$lib/shared/format/values';
-  import CodeEditor, { type CodeEditorMountModules } from '$lib/shared/ui/CodeEditor.svelte';
+  import { decodeJsonPointerSegment } from '#lib/shared/format/values.ts';
+  import CodeEditor, { type CodeEditorMountModules } from '#lib/shared/ui/CodeEditor.svelte';
 
   export interface JsonEditorDiagnostic {
     path: string;
@@ -46,7 +46,7 @@
     const [jsonModule, lintModule, themeModule] = await Promise.all([
       import('@codemirror/lang-json'),
       import('@codemirror/lint'),
-      import('$lib/shared/ui/json-code-editor-theme'),
+      import('#lib/shared/ui/json-code-editor-theme.ts'),
     ]);
     const { json, jsonParseLinter } = jsonModule;
     const { linter, lintGutter } = lintModule;

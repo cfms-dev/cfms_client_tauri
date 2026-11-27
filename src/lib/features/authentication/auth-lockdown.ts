@@ -1,4 +1,4 @@
-import type { AuthStatus, ServerState } from '$lib/api';
+import type { AuthStatus, ServerState } from '#lib/api.ts';
 
 const BYPASS_LOCKDOWN_PERMISSION = 'bypass_lockdown';
 

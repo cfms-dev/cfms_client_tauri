@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RELEASE_HIGHLIGHTS_SEEN_KEY, ReleaseHighlightsState } from '$lib/features/updates/release-highlights-state.svelte.ts';
+import { RELEASE_HIGHLIGHTS_SEEN_KEY, ReleaseHighlightsState } from '#lib/features/updates/release-highlights-state.svelte.ts';
 
 function createState(seenVersion: string | null = null) {
   const writeSetting = vi.fn(async () => {});

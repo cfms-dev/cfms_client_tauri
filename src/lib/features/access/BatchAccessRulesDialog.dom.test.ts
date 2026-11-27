@@ -7,11 +7,11 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { EditorView } from '@codemirror/view';
 import BatchAccessRulesDialog from './BatchAccessRulesDialog.svelte';
-import { getNodeDacl } from '$lib/api';
-import { floatingProgressStore } from '$lib/shared/notifications/progress.svelte.ts';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+import { getNodeDacl } from '#lib/api.ts';
+import { floatingProgressStore } from '#lib/shared/notifications/progress.svelte.ts';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
 import type { BatchRulesTarget, BatchRulesProblem, BatchRulesSnapshot, BatchRulesFailureAction } from './batch-access-rules';
-import '$lib/shared/i18n';
+import '#lib/shared/i18n.ts';
 
 const controls = vi.hoisted(() => ({
   discover: vi.fn(),
@@ -22,8 +22,8 @@ const controls = vi.hoisted(() => ({
   applySnapshot: null as null | ((roots: BatchRulesTarget[]) => Partial<BatchRulesSnapshot>),
 }));
 
-vi.mock('$lib/api', async (original) => ({
-  ...(await original<typeof import('$lib/api')>()),
+vi.mock('#lib/api.ts', async (original) => ({
+  ...(await original<typeof import('#lib/api.ts')>()),
   getNodeDacl: vi.fn(),
   getLocale: vi.fn(),
   setLocale: vi.fn(),

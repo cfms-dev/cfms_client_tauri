@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterReleaseHighlights, findReleaseTour } from '$lib/features/updates/release-highlights/catalog';
+import { filterReleaseHighlights, findReleaseTour } from '#lib/features/updates/release-highlights/catalog.ts';
 
 describe('release highlight catalog', () => {
   it('matches an installed version with or without a tag prefix', () => {

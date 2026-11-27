@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-  import { escalationRemaining, formatEscalationRemaining } from '$lib/features/authentication/authentication';
-  import Icon from '$lib/shared/ui/Icon.svelte';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+  import { escalationRemaining, formatEscalationRemaining } from '#lib/features/authentication/authentication.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
 
   let now = $state(Date.now());
   const remaining = $derived(escalationRemaining(authStore.escalationExp, now));

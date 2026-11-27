@@ -1,12 +1,12 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
   import type { Snippet } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import type { ManagedAuthKeyInventory, ManagedAuthKeySummary, UserAuthentication } from '$lib/api';
-  import { AUTH_PURPOSES, authMethodName, credentialName, shortKeyIdentity, type AuthCredential } from '$lib/features/authentication/auth-policy-editor';
-  import Icon from '$lib/shared/ui/Icon.svelte';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import type { ManagedAuthKeyInventory, ManagedAuthKeySummary, UserAuthentication } from '#lib/api.ts';
+  import { AUTH_PURPOSES, authMethodName, credentialName, shortKeyIdentity, type AuthCredential } from '#lib/features/authentication/auth-policy-editor.ts';
+  import Icon from '#lib/shared/ui/Icon.svelte';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let { inventory, managedKeys = null, writable, busy, managed = false, canChangePassword, onPassword, onRegister, onGenerate, onEdit, onDelete, authenticator }: {
     inventory: UserAuthentication;

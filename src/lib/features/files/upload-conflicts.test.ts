@@ -3,7 +3,7 @@ import {
   createUploadConflictResolver,
   partitionUploadConflicts,
   type UploadCandidate,
-} from '$lib/features/files/upload-conflicts';
+} from '#lib/features/files/upload-conflicts.ts';
 
 const candidates: UploadCandidate[] = [
   { sourcePath: 'C:/incoming/report.pdf', name: 'report.pdf', kind: 'file' },

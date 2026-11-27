@@ -1,5 +1,5 @@
-import { searchFiles, type SearchFilesResponse } from '$lib/api';
-import { serverErrorStatus } from '$lib/api/server-errors';
+import { searchFiles, type SearchFilesResponse } from '#lib/api.ts';
+import { serverErrorStatus } from '#lib/api/server-errors.ts';
 import { mergeSearchResponses } from './search-grouping';
 import {
   createSearchParentDirectoryResolver,

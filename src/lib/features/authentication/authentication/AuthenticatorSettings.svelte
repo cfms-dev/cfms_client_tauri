@@ -1,15 +1,15 @@
 <script lang="ts">
-  import MdOutlinedField from '$lib/shared/ui/MdOutlinedField.svelte';
+  import MdOutlinedField from '#lib/shared/ui/MdOutlinedField.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { _ as t } from 'svelte-i18n';
-  import { setupTwoFactor, validateTwoFactor, cancelTwoFactorSetup, disableTwoFactor, getTwoFactorStatus, getManagedTwoFactorStatus, disableManagedTwoFactor, type TwoFactorSetup, type TwoFactorStatus } from '$lib/api';
-  import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-  import { canReadAuthentication, canConfigureAuthentication } from '$lib/features/authentication/auth-permissions';
-  import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
-  import { formatUserFacingError } from '$lib/shared/errors/user-facing-errors';
-  import DialogActionButton from '$lib/shared/ui/DialogActionButton.svelte';
-  import IconButton from '$lib/shared/ui/IconButton.svelte';
-  import ProgressRing from '$lib/shared/ui/ProgressRing.svelte';
+  import { setupTwoFactor, validateTwoFactor, cancelTwoFactorSetup, disableTwoFactor, getTwoFactorStatus, getManagedTwoFactorStatus, disableManagedTwoFactor, type TwoFactorSetup, type TwoFactorStatus } from '#lib/api.ts';
+  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+  import { canReadAuthentication, canConfigureAuthentication } from '#lib/features/authentication/auth-permissions.ts';
+  import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
+  import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
+  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import IconButton from '#lib/shared/ui/IconButton.svelte';
+  import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
 
   let { userId, busy = $bindable(false), disabled = false, beforeChange, onChanged }: {
     userId?: string; busy?: boolean; disabled?: boolean; beforeChange: () => Promise<boolean>; onChanged: () => Promise<void>;

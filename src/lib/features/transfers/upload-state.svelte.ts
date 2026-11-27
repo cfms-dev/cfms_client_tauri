@@ -1,5 +1,5 @@
-import { cancelUpload, enqueueUploadBatch, loadUserPreference, pauseUpload, resumeUpload } from "$lib/api";
-import type { UploadTaskDto, UploadEnqueueRequest } from "$lib/api/types";
+import { cancelUpload, enqueueUploadBatch, loadUserPreference, pauseUpload, resumeUpload } from "#lib/api.ts";
+import type { UploadTaskDto, UploadEnqueueRequest } from "#lib/api/types.ts";
 
 const DEFAULT_TASK_CONCURRENCY = 3;
 const MIN_TASK_CONCURRENCY = 1;

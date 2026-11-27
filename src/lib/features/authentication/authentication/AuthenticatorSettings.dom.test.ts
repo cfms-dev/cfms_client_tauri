@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authStore } from "$lib/features/authentication/auth-state.svelte.ts";
-import AuthenticatorSettings from '$lib/features/authentication/authentication/AuthenticatorSettings.svelte';
-import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
+import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+import AuthenticatorSettings from '#lib/features/authentication/authentication/AuthenticatorSettings.svelte';
+import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
 
 const mocks = vi.hoisted(() => ({ status: vi.fn(), managedStatus: vi.fn(), setup: vi.fn(), verify: vi.fn(), cancel: vi.fn(), disable: vi.fn(), managedDisable: vi.fn(), before: vi.fn(), changed: vi.fn() }));
-vi.mock('$lib/api', () => ({ getTwoFactorStatus: mocks.status, getManagedTwoFactorStatus: mocks.managedStatus, setupTwoFactor: mocks.setup, validateTwoFactor: mocks.verify, cancelTwoFactorSetup: mocks.cancel, disableTwoFactor: mocks.disable, disableManagedTwoFactor: mocks.managedDisable }));
+vi.mock('#lib/api.ts', () => ({ getTwoFactorStatus: mocks.status, getManagedTwoFactorStatus: mocks.managedStatus, setupTwoFactor: mocks.setup, validateTwoFactor: mocks.verify, cancelTwoFactorSetup: mocks.cancel, disableTwoFactor: mocks.disable, disableManagedTwoFactor: mocks.managedDisable }));
 vi.mock('qrcode', () => ({ toDataURL: async () => 'data:image/png;base64,AA==' }));
 vi.mock('svelte-i18n', () => ({ _: { subscribe(run: (t: (key: string) => string) => void) { run((key) => key); return () => {}; } } }));
 const userId = 'aabbccdd-0000-4000-8000-000000000001';
