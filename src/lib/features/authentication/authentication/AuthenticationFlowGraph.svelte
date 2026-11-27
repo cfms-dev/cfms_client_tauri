@@ -19,7 +19,7 @@
   {#if chains.length}
     <div class="graph-caption">{$t('authManagement.anyAlternative')} · {$t('authManagement.inOrder')}</div>
     <div class="graph-network">
-    <div class="terminal terminal-start"><Icon name="login" size="17px" /><span>{$t('authManagement.start')}</span></div>
+    <div class="terminal terminal-start"><Icon name="flow_start" size="17px" /><span>{$t('authManagement.start')}</span></div>
     <ol class="branches">
       {#each chains as chain, chainIndex}
         <li class="branch" class:unavailable={!canCompleteChain(chain, credentials)}>
@@ -40,7 +40,7 @@
         </li>
       {/each}
     </ol>
-    <div class="terminal terminal-end"><Icon name="verified" size="17px" /><span>{$t('authManagement.finish')}</span></div>
+    <div class="terminal terminal-end"><Icon name="finish" size="17px" /><span>{$t('authManagement.finish')}</span></div>
     </div>
   {:else}<div class="graph-empty"><Icon name={purpose === 'login' ? 'warningAmber' : 'verifiedUser'} size="28px" /><p>{$t(`authManagement.empty.${purpose}`)}</p></div>{/if}
 </div>
