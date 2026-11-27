@@ -4,6 +4,33 @@ This file is the product changelog shown inside the app. Keep entries newest fir
 
 ---
 
+## v0.62.0
+**Released on:** 2026-11-27
+
+**Title:** Refactoring the Search Results Page
+
+### Added
+- Update username and nickname labels, icons;
+- Adjust icons used in authentication flow graph
+- Enhance ChangelogPanel with structured headings and warning notices; improve MarkdownView styling
+- Update navigation labels for improved clarity and consistency
+- Securely store usernames
+- Implement search preview functionality in FileWorkspace
+- Implement parent directory resolution with animations and accessibility improvements
+- Implement search grouping functionality with tests
+
+### Fixed
+- Decouple hover from preview result index
+- Add search query validation to prevent empty submissions
+- Refactor search view layout for improved structure and responsiveness
+- Make sure that placeholder texts cannot be selected
+
+### Improved
+- Refactor code editor components and utilities
+- Remove dead codes, unify duplicate implementation
+
+--- 
+
 ## v0.61.0
 **Released on:** 2026-11-26
 
