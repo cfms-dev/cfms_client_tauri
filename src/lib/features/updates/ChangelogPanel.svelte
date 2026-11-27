@@ -20,12 +20,13 @@
 
 <section class="changelog-panel" aria-labelledby="changelog-heading">
   <div class="panel-heading">
-    <div>
+    <div class="panel-heading__copy">
       <h2 id="changelog-heading">{$t('changelog.title')}</h2>
       <p>{$t('changelog.description')}</p>
     </div>
     {#if changelogEntries.length > 1}
-      <FluentButton data-fluent-owner="lib-components-changelog-panel"
+      <FluentButton
+        data-fluent-owner="lib-components-changelog-panel"
         type="button"
         aria-expanded={expanded}
         aria-controls="changelog-entries"
@@ -43,21 +44,40 @@
     {#each visibleEntries as entry, index (entry.version)}
       <article
         class="changelog-entry"
+        class:changelog-entry--latest={index === 0}
         class:entry-revealed={expanded && index > 0}
         style:animation-delay={expanded && index > 0 ? `${Math.min(index * 35, 175)}ms` : undefined}
       >
-        <div class="entry-rail" aria-hidden="true">
-          <span></span>
-        </div>
-        <div class="entry-body">
-          <div class="entry-title">
-            <div>
-              <span class="version">{entry.version}</span>
-              <h3>{entry.title}</h3>
-            </div>
-            <time datetime={entry.date ?? undefined}>{entryDate(entry)}</time>
+        <header class="entry-header">
+          <div class="entry-identity">
+            <span class="version" class:version--latest={index === 0}>{entry.version}</span>
+            <h3>{entry.title}</h3>
           </div>
-          <MarkdownView content={entry.content} compact font="serif" />
+          <time datetime={entry.date ?? undefined}>{entryDate(entry)}</time>
+        </header>
+
+        <div class="entry-body">
+          {#if entry.lead}
+            <div class="entry-lead" class:entry-lead--warning={entry.leadIsWarning}>
+              <MarkdownView content={entry.lead} />
+            </div>
+          {/if}
+
+          {#if entry.groups.length > 0}
+            <div class="change-groups">
+              {#each entry.groups as group (`${entry.version}:${group.category}`)}
+                <section class="change-group">
+                  <h4 class="group-heading" data-category={group.kind}>
+                    <span class="group-dot" aria-hidden="true"></span>
+                    <span>{group.category}</span>
+                  </h4>
+                  <MarkdownView content={group.content} />
+                </section>
+              {/each}
+            </div>
+          {:else if entry.content}
+            <MarkdownView content={entry.content} />
+          {/if}
         </div>
       </article>
     {/each}
@@ -67,9 +87,9 @@
 <style>
   .changelog-panel {
     display: grid;
-    gap: 16px;
-    padding-top: 1.5rem;
-    border-top: 1px solid color-mix(in srgb, var(--color-md3-outline) 72%, transparent);
+    gap: 20px;
+    padding-top: 24px;
+    border-top: 1px solid color-mix(in srgb, var(--colorNeutralStroke2) 72%, transparent);
   }
 
   .panel-heading {
@@ -79,106 +99,171 @@
     gap: 16px;
   }
 
+  .panel-heading__copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
   h2,
   h3,
+  h4,
   p {
     margin: 0;
   }
 
   h2,
   h3 {
-    color: var(--color-md3-on-surface);
-    font-family: var(--font-md3-sans);
+    color: var(--colorNeutralForeground1);
+    font-family: var(--fontFamilyBase);
+    font-size: 16px;
     font-weight: 600;
+    line-height: 22px;
     letter-spacing: -0.01em;
   }
 
-  h2 {
-    font-size: 16px;
-  }
-
-  h3 {
-    margin-top: 0.1rem;
-    font-size: 16px;
-  }
-
-  p {
-    margin-top: 0.3rem;
-    color: var(--color-md3-on-surface-variant);
+  .panel-heading__copy p {
+    color: var(--colorNeutralForeground3);
+    font-family: var(--fontFamilyBase);
     font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
   }
 
   .entry-list {
     display: grid;
-    gap: 16px;
+    gap: 32px;
   }
 
   .changelog-entry {
     display: grid;
-    grid-template-columns: 1.2rem minmax(0, 1fr);
-    gap: 12px;
+    gap: 14px;
     min-width: 0;
   }
 
-  .entry-rail {
-    position: relative;
+  .entry-header {
     display: flex;
-    justify-content: center;
-    padding-top: 0.2rem;
-  }
-
-  .entry-rail::before {
-    content: "";
-    position: absolute;
-    top: 1rem;
-    bottom: -1rem;
-    width: 1px;
-    background: color-mix(in srgb, var(--color-md3-outline) 70%, transparent);
-  }
-
-  .changelog-entry:last-child .entry-rail::before {
-    display: none;
-  }
-
-  .entry-rail span {
-    position: relative;
-    z-index: 1;
-    width: 0.5rem;
-    height: 0.5rem;
-    border: 1px solid var(--color-md3-outline-variant);
-    border-radius: 999px;
-    background: var(--color-md3-surface-container-high);
-  }
-
-  .changelog-entry:first-child .entry-rail span {
-    border-color: var(--color-md3-primary-emphasis);
-    background: var(--color-md3-primary-emphasis);
-  }
-
-  .entry-body {
-    min-width: 0;
-    display: grid;
-    gap: 12px;
-    padding-bottom: 0.15rem;
-  }
-
-  .entry-title {
-    display: flex;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 16px;
+    gap: 8px 16px;
+  }
+
+  .entry-identity {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-width: 0;
+  }
+
+  .entry-identity h3 {
+    overflow-wrap: anywhere;
   }
 
   .version {
     display: inline-flex;
-    color: var(--color-md3-primary-emphasis);
-    font: 650 0.75rem var(--font-md3-sans);
+    flex: none;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--borderRadiusMedium);
+    background: color-mix(in srgb, var(--colorNeutralForeground1) 8%, transparent);
+    color: var(--colorNeutralForeground2);
+    font-family: var(--fontFamilyMonospace);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .version--latest {
+    background: var(--colorBrandBackground2);
+    color: var(--colorBrandForeground1);
   }
 
   time {
     flex: none;
-    color: var(--color-md3-on-surface-variant);
-    font-family: var(--font-md3-sans);
+    color: var(--colorNeutralForeground3);
+    font-family: var(--fontFamilyBase);
     font-size: 12px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .entry-body {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .entry-lead--warning {
+    padding: 10px 14px;
+    border-radius: var(--borderRadiusLarge);
+    background: var(--colorStatusWarningBackground1);
+  }
+
+  .entry-lead--warning :global(.markdown-view),
+  .entry-lead--warning :global(.markdown-view strong) {
+    color: var(--colorStatusWarningForeground2);
+  }
+
+  .change-groups {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .change-group {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .group-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--fontFamilyBase);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.02em;
+    color: var(--colorNeutralForeground3);
+  }
+
+  .group-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--colorNeutralForeground4);
+  }
+
+  .group-heading[data-category='added'],
+  .group-heading[data-category='improved'] {
+    color: var(--colorBrandForeground1);
+  }
+
+  .group-heading[data-category='added'] .group-dot,
+  .group-heading[data-category='improved'] .group-dot {
+    background: var(--colorCompoundBrandForeground1);
+  }
+
+  .group-heading[data-category='fixed'] {
+    color: var(--colorStatusSuccessForeground1);
+  }
+
+  .group-heading[data-category='fixed'] .group-dot {
+    background: var(--colorStatusSuccessForeground1);
+  }
+
+  .group-heading[data-category='changed'] {
+    color: var(--colorStatusWarningForeground2);
+  }
+
+  .group-heading[data-category='changed'] .group-dot {
+    background: var(--colorStatusWarningForeground1);
   }
 
   :global(.text-action[data-fluent-owner="lib-components-changelog-panel"]) {
@@ -186,19 +271,22 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-height: 2.2rem;
+    min-height: 32px;
     flex: none;
     border-radius: var(--borderRadiusMedium);
-    padding: 0 0.65rem;
-    color: var(--color-md3-primary-emphasis);
-    font: 650 0.8125rem var(--font-md3-sans);
+    padding: 0 10px;
+    color: var(--colorBrandForeground1);
+    font-family: var(--fontFamilyBase);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
     transition:
       background-color var(--motion-duration-short4) var(--motion-easing-standard),
       transform var(--motion-duration-short4) var(--motion-easing-emphasized-decelerate);
   }
 
   :global(.text-action[data-fluent-owner="lib-components-changelog-panel"]:hover) {
-    background: color-mix(in srgb, var(--color-md3-primary-emphasis) 10%, transparent);
+    background: color-mix(in srgb, var(--colorBrandForeground1) 10%, transparent);
   }
 
   :global(.text-action[data-fluent-owner="lib-components-changelog-panel"]:active) {
@@ -218,7 +306,7 @@
 
   @media (max-width: 640px) {
     .panel-heading,
-    .entry-title {
+    .entry-header {
       flex-direction: column;
       align-items: flex-start;
     }
@@ -227,6 +315,41 @@
   @media (pointer: coarse) {
     :global(.text-action[data-fluent-owner="lib-components-changelog-panel"]) {
       min-height: 44px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .entry-revealed {
+      animation: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .version,
+    .entry-lead--warning {
+      border: 1px solid CanvasText;
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    .version--latest {
+      border-color: Highlight;
+      color: Highlight;
+    }
+
+    .group-heading,
+    .entry-lead--warning :global(.markdown-view),
+    .entry-lead--warning :global(.markdown-view strong) {
+      color: CanvasText;
+    }
+
+    .group-dot {
+      background: CanvasText;
+    }
+
+    .group-heading[data-category='added'] .group-dot,
+    .group-heading[data-category='improved'] .group-dot {
+      background: Highlight;
     }
   }
 </style>

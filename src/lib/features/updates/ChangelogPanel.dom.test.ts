@@ -36,4 +36,27 @@ describe('ChangelogPanel', () => {
     expect(container.querySelectorAll('.changelog-entry')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Show all' }).getAttribute('aria-expanded')).toBe('false');
   });
+
+  it('renders category groups as structured h4 headings with semantic categories', () => {
+    const { container } = render(ChangelogPanel);
+
+    const groupHeadings = [...container.querySelectorAll<HTMLElement>('.group-heading')];
+    expect(groupHeadings.length).toBeGreaterThan(0);
+    expect(groupHeadings.every((heading) => heading.tagName === 'H4')).toBe(true);
+    expect(groupHeadings.some((heading) => heading.dataset.category === 'added')).toBe(true);
+    expect(container.querySelector('.markdown-view h3')).toBeNull();
+  });
+
+  it('renders release warning leads in a warning notice alongside category groups when expanded', async () => {
+    const { container } = render(ChangelogPanel);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
+
+    const warningLead = container.querySelector('.entry-lead--warning');
+    expect(warningLead).toBeTruthy();
+    expect(warningLead?.textContent).toContain('WARNING:');
+    const warningEntry = warningLead?.closest('.changelog-entry');
+    expect(warningEntry?.querySelector('.version')?.textContent).toBe('v0.53.0');
+    expect(warningEntry?.querySelectorAll('.group-heading').length).toBeGreaterThan(0);
+  });
 });

@@ -21,17 +21,17 @@
 <style>
   .markdown-view {
     display: grid;
-    gap: 12px;
-    color: var(--color-md3-on-surface-variant);
-    font-family: var(--font-md3-sans);
+    gap: 10px;
+    color: var(--colorNeutralForeground2);
+    font-family: var(--fontFamilyBase);
     font-size: 14px;
-    line-height: 1.65;
+    line-height: 20px;
   }
 
   .markdown-view.compact {
     gap: 8px;
-    font-size: 12px;
-    line-height: 1.55;
+    font-size: 13px;
+    line-height: 20px;
   }
 
   .markdown-view.serif {
@@ -43,52 +43,111 @@
   }
 
   .markdown-view :global(:where(h1, h2, h3, h4, h5, h6)) {
-    color: var(--color-md3-on-surface);
+    color: var(--colorNeutralForeground1);
     font-family: inherit;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0;
   }
 
-  .markdown-view :global(:where(h1, h2, h3)) {
-    font-size: 28px;
+  .markdown-view :global(:where(h1, h2, h3, h4, h5, h6):not(:first-child)) {
+    margin-top: 8px;
+  }
+
+  .markdown-view.compact :global(:where(h1, h2, h3, h4, h5, h6):not(:first-child)) {
+    margin-top: 6px;
+  }
+
+  .markdown-view :global(h1) {
+    font-size: 18px;
+    line-height: 24px;
+  }
+
+  .markdown-view :global(h2) {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .markdown-view :global(h3) {
+    font-size: 14px;
+    line-height: 20px;
   }
 
   .markdown-view :global(:where(h4, h5, h6)) {
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .markdown-view.compact :global(h1) {
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .markdown-view.compact :global(h2) {
     font-size: 14px;
+    line-height: 20px;
+  }
+
+  .markdown-view.compact :global(h3) {
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .markdown-view.compact :global(:where(h4, h5, h6)) {
+    font-size: 12px;
+    line-height: 16px;
   }
 
   .markdown-view :global(:where(p, li, blockquote)) {
     overflow-wrap: anywhere;
   }
 
+  .markdown-view :global(ul) {
+    list-style-type: disc;
+  }
+
+  .markdown-view :global(ul ul) {
+    list-style-type: circle;
+  }
+
+  .markdown-view :global(ol) {
+    list-style-type: decimal;
+  }
+
   .markdown-view :global(:where(ul, ol)) {
     display: grid;
-    gap: 4px;
-    padding-left: 1.25rem;
+    gap: 6px;
+    padding-left: 1.15rem;
+  }
+
+  .markdown-view :global(li) {
+    padding-left: 2px;
   }
 
   .markdown-view :global(li::marker) {
-    color: var(--color-md3-primary-emphasis);
+    color: var(--colorNeutralForeground4);
   }
 
   .markdown-view :global(a) {
-    color: var(--color-md3-primary-emphasis);
-    font-weight: 700;
+    color: var(--colorBrandForegroundLink);
+    font-weight: 500;
     text-decoration: none;
-    transition: filter var(--motion-duration-short4) var(--motion-easing-standard);
+    text-underline-offset: 2px;
+    transition: color var(--motion-duration-short4) var(--motion-easing-standard);
   }
 
   .markdown-view :global(a:hover) {
-    filter: none;
+    color: var(--colorBrandForegroundLinkHover);
     text-decoration: underline;
   }
 
   .markdown-view :global(:where(code, kbd)) {
     border-radius: 4px;
-    padding: 0.1rem 0.28rem;
-    background: color-mix(in srgb, var(--colorNeutralBackground1) 82%, transparent);
-    color: var(--color-md3-on-surface);
-    font: 0.8rem/1.45 var(--font-md3-mono);
+    padding: 1px 5px;
+    background: color-mix(in srgb, var(--colorNeutralForeground1) 8%, transparent);
+    color: var(--colorNeutralForeground1);
+    font-family: var(--fontFamilyMonospace);
+    font-size: 0.85em;
+    line-height: 1.4;
   }
 
   .markdown-view :global(pre) {

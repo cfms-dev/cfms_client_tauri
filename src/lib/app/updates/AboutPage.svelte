@@ -78,7 +78,7 @@
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 0.35rem 0.8rem;
+    gap: 4px 12px;
     min-width: 0;
     padding-block: 0.2rem 0.05rem;
   }
@@ -89,16 +89,19 @@
   }
 
   .product-heading h2 {
-    color: var(--color-md3-on-surface);
-    font: 700 20px/26px var(--font-md3-sans);
-    letter-spacing: -0.01em;
+    color: var(--colorNeutralForeground1);
+    font-family: 'Google Sans Flex', var(--fontFamilyBase);
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 32px;
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
 
   .product-heading p {
-    color: var(--color-md3-on-surface-variant);
+    color: var(--colorNeutralForeground3);
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 20px;
   }
 
   .product-legal {
