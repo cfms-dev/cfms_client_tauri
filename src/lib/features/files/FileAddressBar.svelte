@@ -172,9 +172,14 @@
     box-sizing: border-box;
     height: var(--file-address-height);
     align-items: center;
-    border: 1px solid var(--explorer-border);
-    border-radius: var(--explorer-radius-small);
+    border: 1px solid var(--colorNeutralStroke1);
+    border-radius: var(--borderRadiusMedium);
     background: transparent;
+    transition: border-color var(--durationFaster) var(--curveEasyEase);
+  }
+
+  .file-address__view:hover {
+    border-color: var(--colorNeutralStroke1Hover);
   }
 
   .file-address__view--editable {
@@ -189,8 +194,8 @@
   }
 
   .file-address__form {
-    border-color: var(--explorer-accent);
-    box-shadow: inset 0 0 0 1px var(--explorer-accent);
+    border-color: var(--colorStrokeFocus2);
+    box-shadow: inset 0 0 0 1px var(--colorStrokeFocus2);
   }
 
   .file-address--error .file-address__form {
@@ -301,6 +306,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .file-address__view,
+    .file-address__form,
     .file-address__action {
       transition: none;
     }

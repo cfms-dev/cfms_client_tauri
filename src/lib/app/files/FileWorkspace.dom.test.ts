@@ -367,6 +367,34 @@ describe('toolbar search preview', () => {
     });
   });
 
+  it('ignores Enter and form submit when search query is empty or whitespace-only', async () => {
+    const { container } = await openFiles();
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    const form = input.closest('form')!;
+
+    input.focus();
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.submit(form);
+    expect(container.querySelector('[data-search-back]')).toBeNull();
+    expect(mocks.searchFiles).not.toHaveBeenCalled();
+
+    await fireEvent.input(input, { target: { value: '   ' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.submit(form);
+    expect(container.querySelector('[data-search-back]')).toBeNull();
+    expect(mocks.searchFiles).not.toHaveBeenCalled();
+
+    await fireEvent.input(input, { target: { value: '1' } });
+    await vi.waitFor(() => expect(mocks.searchFiles).toHaveBeenCalledOnce());
+    mocks.searchFiles.mockClear();
+
+    await fireEvent.input(input, { target: { value: '' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await fireEvent.submit(form);
+    expect(container.querySelector('[data-search-back]')).toBeNull();
+    expect(mocks.searchFiles).not.toHaveBeenCalled();
+  });
+
   it('stays closed on empty focus and renders a minimal Home-style preview list on non-empty input', async () => {
     const { container } = await openFiles();
     const input = screen.getByRole('combobox') as HTMLInputElement;

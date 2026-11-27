@@ -310,16 +310,16 @@
     align-items: center;
     gap: 2px;
     border: 1px solid var(--colorNeutralStroke1);
-    border-bottom-color: var(--colorNeutralStrokeAccessible);
     border-radius: var(--borderRadiusMedium);
     padding: 0;
     color: var(--colorNeutralForeground1);
     background: transparent;
+    transition: border-color var(--durationFaster) var(--curveEasyEase);
   }
   .files-search-field:hover { border-color: var(--colorNeutralStroke1Hover); }
   [data-search-box]:has([data-focus-ring="delegated"]:focus) {
     border-color: var(--colorStrokeFocus2);
-    box-shadow: inset 0 -1px var(--colorStrokeFocus2);
+    box-shadow: inset 0 0 0 1px var(--colorStrokeFocus2);
   }
   .files-search-input {
     width: 0;
@@ -431,6 +431,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .files-search-field {
+      transition: none;
+    }
     .search-preview-panel {
       animation: none;
     }

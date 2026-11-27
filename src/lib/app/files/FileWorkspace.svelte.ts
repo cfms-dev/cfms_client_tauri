@@ -3027,6 +3027,7 @@ export function createFileWorkspace() {
         else void navigateToSearchDocument(row.document);
         return;
       }
+      if (!searchPreviewHasQuery) return;
       openSearchView(true);
     }
   }
@@ -3035,7 +3036,8 @@ export function createFileWorkspace() {
 
   function openSearchView(runImmediately = false) {
     if (!canUseServerSearch) return;
-    const query = searchQuery.trim() ? searchQuery : searchPreviewController.state.query;
+    const query = searchQuery.trim();
+    if (!query) return;
     closeSearchPreview();
     searchView.openSearch({
       query,
