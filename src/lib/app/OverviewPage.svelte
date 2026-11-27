@@ -351,11 +351,13 @@
       }
 
       if (event.key === 'Enter' && previewActive && searchPreviewActiveIndex >= 0) {
-        event.preventDefault();
         const row = searchPreviewRows[searchPreviewActiveIndex];
-        if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
-        else void navigateToSearchDocument(row.document);
-        return;
+        if (row) {
+          event.preventDefault();
+          if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
+          else void navigateToSearchDocument(row.document);
+          return;
+        }
       }
     }
   }
@@ -653,7 +655,6 @@
               activeIndex={searchPreviewActiveIndex}
               borderTop
               animateExpand
-              onActiveIndexChange={(index) => (searchPreviewActiveIndex = index)}
               onSelectDirectory={navigateToSearchDirectory}
               onSelectDocument={navigateToSearchDocument}
               onScroll={handleSearchPreviewScroll}

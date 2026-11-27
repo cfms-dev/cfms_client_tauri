@@ -18,7 +18,6 @@
     borderTop?: boolean;
     animateExpand?: boolean;
     maxHeight?: string;
-    onActiveIndexChange: (index: number) => void;
     onSelectDirectory: (directory: SearchDirectoryEntry) => void;
     onSelectDocument: (document: SearchDocumentEntry) => void;
     onScroll: (event: Event) => void;
@@ -36,7 +35,6 @@
     borderTop = false,
     animateExpand = false,
     maxHeight = 'min(364px, 52vh)',
-    onActiveIndexChange,
     onSelectDirectory,
     onSelectDocument,
     onScroll,
@@ -80,7 +78,6 @@
         aria-selected={activeIndex === index}
         tabindex="-1"
         onmousedown={(event) => event.preventDefault()}
-        onmouseenter={() => onActiveIndexChange(index)}
         onclick={() =>
           row.kind === 'directory'
             ? onSelectDirectory(row.directory)

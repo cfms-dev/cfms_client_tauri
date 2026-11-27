@@ -180,7 +180,6 @@
             error={workspace.searchPreview.error}
             activeIndex={workspace.searchPreviewActiveIndex}
             maxHeight={workspace.searchPreviewListMaxHeight}
-            onActiveIndexChange={(index) => (workspace.searchPreviewActiveIndex = index)}
             onSelectDirectory={workspace.navigateToSearchDirectory}
             onSelectDocument={workspace.navigateToSearchDocument}
             onScroll={workspace.handleSearchPreviewScroll}

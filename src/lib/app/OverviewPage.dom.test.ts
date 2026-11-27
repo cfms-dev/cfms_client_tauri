@@ -8,7 +8,7 @@ import { authStore } from '$lib/features/authentication/auth-state.svelte.ts';
 import { serverStateStore } from '$lib/features/connection/connection-state.svelte.ts';
 import { notificationStore } from '$lib/shared/notifications/notifications.svelte.ts';
 import OverviewPage from './OverviewPage.svelte';
-import { stubInstantAnimations } from '../../test/dom-fixtures';
+import { replaceProperty, stubInstantAnimations } from '../../test/dom-fixtures';
 
 const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
@@ -35,6 +35,7 @@ vi.mock('$lib/api', async (original) => ({
 
 beforeEach(() => {
   stubInstantAnimations();
+  replaceProperty(HTMLElement.prototype, 'scrollIntoView', { value: vi.fn() });
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'true';
   authStore.apply({
@@ -355,5 +356,55 @@ describe('OverviewPage redesign', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not select a preview item on hover when pressing Enter to submit search, while ArrowDown + Enter navigates', async () => {
+    const { container } = render(OverviewPage);
+    await tick();
+
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    const form = container.querySelector<HTMLFormElement>('.home-search-row')!;
+    input.focus();
+    await fireEvent.input(input, { target: { value: '122' } });
+    await vi.waitFor(() => expect(screen.getByText('Hello World')).toBeTruthy());
+
+    const docRow = screen.getByText('Hello World').closest('button')!;
+    await fireEvent.mouseEnter(docRow);
+    await tick();
+
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(docRow.getAttribute('aria-selected')).toBe('false');
+    expect(docRow.classList.contains('search-preview-row--active')).toBe(false);
+
+    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true });
+    input.dispatchEvent(enterEvent);
+    await tick();
+    expect(enterEvent.defaultPrevented).toBe(false);
+    expect(mocks.goto).not.toHaveBeenCalled();
+
+    await fireEvent.submit(form);
+    await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).not.toBeNull());
+    expect(mocks.goto).not.toHaveBeenCalled();
+
+    // Return to Overview and verify explicit keyboard selection still navigates on Enter
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('[data-search-back]')!);
+    await vi.waitFor(() => expect(container.querySelector('.home-overview')).not.toBeNull());
+
+    const reopenedInput = screen.getByRole('combobox') as HTMLInputElement;
+    reopenedInput.focus();
+    await tick();
+    await vi.waitFor(() => expect(screen.getByText('System Folder')).toBeTruthy());
+
+    await fireEvent.keyDown(reopenedInput, { key: 'ArrowDown' });
+    await tick();
+    expect(reopenedInput.getAttribute('aria-activedescendant')).toBe('home-search-preview-option-0');
+
+    const navEnterEvent = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true });
+    reopenedInput.dispatchEvent(navEnterEvent);
+    expect(navEnterEvent.defaultPrevented).toBe(true);
+    await vi.waitFor(() =>
+      expect(mocks.goto).toHaveBeenCalledWith('/home/files?folder=dir-sys&name=System+Folder'),
+    );
+    expect(container.querySelector('[data-search-back]')).toBeNull();
   });
 });

@@ -3023,9 +3023,11 @@ export function createFileWorkspace() {
       event.preventDefault();
       if (searchPreviewOpen && searchPreviewActiveIndex >= 0) {
         const row = searchPreviewRows[searchPreviewActiveIndex];
-        if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
-        else void navigateToSearchDocument(row.document);
-        return;
+        if (row) {
+          if (row.kind === 'directory') void navigateToSearchDirectory(row.directory);
+          else void navigateToSearchDocument(row.document);
+          return;
+        }
       }
       if (!searchPreviewHasQuery) return;
       openSearchView(true);
@@ -3527,7 +3529,6 @@ export function createFileWorkspace() {
     get searchPreview() { return searchPreviewController.state; },
     set searchPreview(value) { searchPreviewController.state = value; },
     get searchPreviewActiveIndex() { return searchPreviewActiveIndex; },
-    set searchPreviewActiveIndex(value) { searchPreviewActiveIndex = value; },
     get searchPreviewHasQuery() { return searchPreviewHasQuery; },
     get searchPreviewListMaxHeight() { return searchPreviewListMaxHeight; },
     get searchPreviewOpen() { return searchPreviewOpen; },

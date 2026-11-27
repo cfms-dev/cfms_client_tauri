@@ -13,7 +13,7 @@ import { dialogStore } from '$lib/shared/ui/dialogs.svelte.ts';
 import SnackBarHost from '$lib/shared/ui/SnackBarHost.svelte';
 import FilesPage from '$lib/app/files/FileWorkspace.svelte';
 import { deferred } from '../../../test/deferred';
-import { stubInstantAnimations } from '../../../test/dom-fixtures';
+import { replaceProperty, stubInstantAnimations } from '../../../test/dom-fixtures';
 import { directoryPage } from '../../../test/directory-fixtures';
 
 const mocks = vi.hoisted(() => ({
@@ -73,6 +73,7 @@ async function uploadCompleted() {
 
 beforeEach(() => {
   stubInstantAnimations();
+  replaceProperty(HTMLElement.prototype, 'scrollIntoView', { value: vi.fn() });
   locale.set('en');
   document.documentElement.dataset.reduceMotion = 'true';
   authStore.apply({ user_id: 'self', username: 'alice', nickname: 'Alice', has_token: true, token_exp: 1_900_000_000, permissions: [], groups: [] });
@@ -462,5 +463,46 @@ describe('toolbar search preview', () => {
     await fireEvent.keyDown(input, { key: 'Escape' });
     await fireEvent.keyDown(input, { key: 'Enter' });
     await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).not.toBeNull());
+  });
+
+  it('opens ServerSearchView on Enter when only hovering a preview item, while ArrowDown + Enter navigates', async () => {
+    const { container } = await openFiles();
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    const initialDirectoryCalls = mocks.listDirectoryPage.mock.calls.length;
+
+    input.focus();
+    await fireEvent.input(input, { target: { value: '1' } });
+    await vi.waitFor(() => expect(screen.getByText('crc16.c')).toBeTruthy());
+
+    const docRow = screen.getByText('crc16.c').closest('button')!;
+    await fireEvent.mouseEnter(docRow);
+    await tick();
+
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    expect(docRow.getAttribute('aria-selected')).toBe('false');
+    expect(docRow.classList.contains('search-preview-row--active')).toBe(false);
+
+    await fireEvent.keyDown(input, { key: 'Enter' });
+    await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).not.toBeNull());
+    expect(mocks.listDirectoryPage).toHaveBeenCalledTimes(initialDirectoryCalls);
+
+    // Return to Files view and verify explicit keyboard selection still navigates on Enter
+    await fireEvent.click(container.querySelector<HTMLButtonElement>('[data-search-back]')!);
+    await vi.waitFor(() => expect(container.querySelector('[data-search-back]')).toBeNull());
+    await vi.waitFor(() => expect(screen.getByText('111')).toBeTruthy());
+
+    const reopenedInput = screen.getByRole('combobox') as HTMLInputElement;
+    reopenedInput.focus();
+    await tick();
+
+    await fireEvent.keyDown(reopenedInput, { key: 'ArrowDown' });
+    await tick();
+    expect(reopenedInput.getAttribute('aria-activedescendant')).toBe('files-search-preview-option-0');
+
+    await fireEvent.keyDown(reopenedInput, { key: 'Enter' });
+    await vi.waitFor(() =>
+      expect(mocks.listDirectoryPage).toHaveBeenCalledWith('dir-sys', null, expect.any(Number)),
+    );
+    expect(container.querySelector('[data-search-back]')).toBeNull();
   });
 });
