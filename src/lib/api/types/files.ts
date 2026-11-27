@@ -5,6 +5,7 @@ export interface ServerDirectoryEntry {
   id: string;
   name: string;
   created_time: number | null;
+  effective_mask?: number;
 }
 
 /** A document/file entry returned by the server's list_directory action. */
@@ -13,6 +14,7 @@ export interface ServerDocumentEntry {
   title: string;
   size: number | null;
   last_modified: number | null;
+  effective_mask?: number;
 }
 
 export interface ServerDocumentMetadata {
@@ -29,6 +31,7 @@ export interface ServerDocumentInfo {
   last_modified?: number | null;
   parent_id?: string | null;
   metadata?: ServerDocumentMetadata;
+  effective_mask?: number;
 }
 
 export interface ServerDirectoryInfo {
@@ -37,6 +40,7 @@ export interface ServerDirectoryInfo {
   count_of_child?: number;
   created_time?: number | null;
   parent_id?: string | null;
+  effective_mask?: number;
 }
 
 export type ServerObjectType = "document" | "directory";
@@ -48,11 +52,17 @@ export interface RevisionEntry {
   is_current?: boolean;
 }
 
+export interface RevisionListResponse {
+  revisions: RevisionEntry[];
+  effective_mask?: number;
+}
+
 /** Response data for the list_directory server action. */
 export interface ListDirectoryResponse {
   folders: ServerDirectoryEntry[];
   documents: ServerDocumentEntry[];
   parent_id: string | null;
+  effective_mask?: number;
 }
 
 export interface ListDirectoryPageResponse extends ListDirectoryResponse, CursorPageMeta {}
@@ -68,6 +78,7 @@ export interface SearchDocumentEntry {
   parent_id?: string | null;
   size?: number | null;
   last_modified?: number | null;
+  effective_mask?: number;
 }
 
 export type SearchResultItem =
@@ -83,17 +94,21 @@ export interface DeletedDirectoryEntry {
   id: string;
   name: string;
   created_time?: number | null;
+  effective_mask?: number;
 }
 
 export interface DeletedDocumentEntry {
   id: string;
   title: string;
   created_time?: number | null;
+  effective_mask?: number;
 }
 
 export interface DeletedItemsResponse {
   folders: DeletedDirectoryEntry[];
   documents: DeletedDocumentEntry[];
+  parent_id?: string | null;
+  effective_mask?: number;
 }
 
 export interface FileShortcutValidationResult {

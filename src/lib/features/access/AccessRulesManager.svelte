@@ -46,6 +46,7 @@
     canListUsers?: boolean;
     canListGroups?: boolean;
     saving?: boolean;
+    readOnly?: boolean;
     submitLabel?: string;
     submitDisabled?: boolean;
     resetRevision?: number;
@@ -64,6 +65,7 @@
     canListUsers = false,
     canListGroups = false,
     saving = false,
+    readOnly = false,
     submitLabel,
     submitDisabled = false,
     resetRevision = 0,
@@ -73,6 +75,8 @@
     onSave,
     onCancel,
   }: Props = $props();
+
+  const editingDisabled = $derived(saving || readOnly);
 
   let activeView = $state<'visual' | 'source'>('visual');
   let hasSwitchedView = $state(false);
@@ -172,7 +176,7 @@
   });
 
   function updateFromVisual(nextDoc: CaclPolicyDocument) {
-    if (saving) return;
+    if (saving || readOnly) return;
     onEdit?.();
     visualDoc = nextDoc;
     sourceText = serializeModelToCacl(nextDoc, {
@@ -182,7 +186,7 @@
   }
 
   function toggleInherit(nextInherit: boolean) {
-    if (saving) return;
+    if (saving || readOnly) return;
     onEdit?.();
     if (activeView === 'visual') {
       updateFromVisual({ ...visualDoc, inherit: nextInherit });
@@ -192,7 +196,7 @@
   }
 
   function changeSource(nextSource: string) {
-    if (saving) return;
+    if (saving || readOnly) return;
     onEdit?.();
     sourceText = nextSource;
     switchError = null;
@@ -224,7 +228,7 @@
   }
 
   function formatSource() {
-    if (saving) return;
+    if (saving || readOnly) return;
     const formatted = formatCaclSource(sourceText);
     if (!formatted.ok) {
       switchError = formatted.error;
@@ -275,7 +279,7 @@
   }
 
   async function submitPolicy(intent?: 'ok' | 'apply') {
-    if (saving || submitDisabled || hasErrors) return;
+    if (saving || readOnly || submitDisabled || hasErrors) return;
     const payload = activeView === 'visual'
       ? serializeModelToCacl(visualDoc, { annotateUsers: false })
       : sourceText;
@@ -344,7 +348,7 @@
         <label class="inherit-switch" class:inherit-switch--off={!currentInherit}>
           <MdSwitch
             checked={currentInherit}
-            disabled={saving}
+            disabled={editingDisabled}
             onChange={(checked) => toggleInherit(checked)}
             ariaLabel={$t('files.inheritParentRules')}
           />
@@ -372,7 +376,7 @@
             {directory}
             {canListUsers}
             {canListGroups}
-            disabled={saving}
+            disabled={editingDisabled}
             {expandedRuleId}
             onExpandedChange={(id) => { expandedRuleId = id; }}
             onChange={updateFromVisual}
@@ -384,46 +388,48 @@
           in:fly={{ x: 10, duration: !hasSwitchedView || isReducedMotionEnabled() ? 0 : 180, easing: cubicOut }}
         >
           <div class="source-toolbar">
-            <div class="source-toolbar-left">
-              <FluentButton
-                data-fluent-owner="cacl-access-manager"
-                type="button"
-                appearance="subtle"
-                class={'source-tool-btn ' + (showPrincipalInsert ? 'source-tool-btn--active' : '')}
-                aria-expanded={showPrincipalInsert}
-                disabled={saving}
-                onclick={() => { showPrincipalInsert = !showPrincipalInsert; }}
-              >
-                <Icon name="manageAccounts" size="15px" />
-                <span>{$t('files.cacl.insertPrincipal')}</span>
-              </FluentButton>
-
-              <span class="toolbar-divider" aria-hidden="true"></span>
-
-              <div class="template-insert-group">
-                <select
-                  class="cfms-native-field code-template-select"
-                  bind:value={selectedCodeTemplateId}
-                  disabled={saving}
-                  aria-label={$t('files.cacl.templatePicker')}
-                >
-                  {#each CACL_RULE_TEMPLATES as tpl (tpl.id)}
-                    <option value={tpl.id}>{$t(tpl.labelKey)}</option>
-                  {/each}
-                </select>
+            {#if !readOnly}
+              <div class="source-toolbar-left">
                 <FluentButton
                   data-fluent-owner="cacl-access-manager"
                   type="button"
                   appearance="subtle"
-                  class="source-tool-btn"
+                  class={'source-tool-btn ' + (showPrincipalInsert ? 'source-tool-btn--active' : '')}
+                  aria-expanded={showPrincipalInsert}
                   disabled={saving}
-                  onclick={insertCodeTemplate}
+                  onclick={() => { showPrincipalInsert = !showPrincipalInsert; }}
                 >
-                  <Icon name="add" size="15px" />
-                  <span>{$t('files.cacl.insertTemplate')}</span>
+                  <Icon name="manageAccounts" size="15px" />
+                  <span>{$t('files.cacl.insertPrincipal')}</span>
                 </FluentButton>
+
+                <span class="toolbar-divider" aria-hidden="true"></span>
+
+                <div class="template-insert-group">
+                  <select
+                    class="cfms-native-field code-template-select"
+                    bind:value={selectedCodeTemplateId}
+                    disabled={saving}
+                    aria-label={$t('files.cacl.templatePicker')}
+                  >
+                    {#each CACL_RULE_TEMPLATES as tpl (tpl.id)}
+                      <option value={tpl.id}>{$t(tpl.labelKey)}</option>
+                    {/each}
+                  </select>
+                  <FluentButton
+                    data-fluent-owner="cacl-access-manager"
+                    type="button"
+                    appearance="subtle"
+                    class="source-tool-btn"
+                    disabled={saving}
+                    onclick={insertCodeTemplate}
+                  >
+                    <Icon name="add" size="15px" />
+                    <span>{$t('files.cacl.insertTemplate')}</span>
+                  </FluentButton>
+                </div>
               </div>
-            </div>
+            {/if}
 
             <div class="source-toolbar-right">
               <label class="annotate-toggle">
@@ -438,7 +444,7 @@
             </div>
           </div>
 
-          {#if showPrincipalInsert}
+          {#if !readOnly && showPrincipalInsert}
             <div class="principal-popover" transition:inlineNotice>
               <CaclPrincipalPicker
                 {directory}
@@ -457,7 +463,7 @@
               {targetObjectType}
               {serverDiagnostics}
               principalDirectory={directory}
-              disabled={saving}
+              disabled={editingDisabled}
               ariaLabel={$t('files.accessRules')}
               loadingLabel={$t('files.accessRulesEditorLoading')}
               onChange={changeSource}
@@ -566,22 +572,28 @@
     {@render footer(submitPolicy)}
   {:else}
     <footer class="dacl-footer">
-      <DialogActionButton onclick={onCancel} disabled={saving}>
-        {$t('common.cancel')}
-      </DialogActionButton>
-      <DialogActionButton
-        variant="primary"
-        onclick={() => submitPolicy()}
-        disabled={saving || submitDisabled || hasErrors}
-      >
-        {#if saving}
-          <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
-          {$t('common.saving')}
-        {:else}
-          <Icon name="done" size="17px" />
-          {submitLabel ?? $t('common.save')}
-        {/if}
-      </DialogActionButton>
+      {#if readOnly}
+        <DialogActionButton onclick={onCancel}>
+          {$t('common.close')}
+        </DialogActionButton>
+      {:else}
+        <DialogActionButton onclick={onCancel} disabled={saving}>
+          {$t('common.cancel')}
+        </DialogActionButton>
+        <DialogActionButton
+          variant="primary"
+          onclick={() => submitPolicy()}
+          disabled={saving || submitDisabled || hasErrors}
+        >
+          {#if saving}
+            <ProgressRing size={17} strokeWidth={2.4} label={$t('common.loadingEllipsis')} />
+            {$t('common.saving')}
+          {:else}
+            <Icon name="done" size="17px" />
+            {submitLabel ?? $t('common.save')}
+          {/if}
+        </DialogActionButton>
+      {/if}
     </footer>
   {/if}
 </div>

@@ -100,7 +100,7 @@
   onkeydown={handleKeydown}
 >
   {#each visibleActions as action, index (action.id)}
-    {#if action.dividerBefore}
+    {#if action.dividerBefore && index > 0}
       <span class="explorer-command-divider" aria-hidden="true"></span>
     {/if}
     <FluentButton data-fluent-owner="lib-components-explorer-explorer-command-bar"
@@ -125,8 +125,8 @@
 </div>
 
 <div bind:this={measurementElement} class="explorer-command-measure" aria-hidden="true">
-  {#each visibleActions as action (action.id)}
-    {#if action.dividerBefore}
+  {#each visibleActions as action, index (action.id)}
+    {#if action.dividerBefore && index > 0}
       <span class="explorer-command-divider" aria-hidden="true"></span>
     {/if}
     <span

@@ -4,6 +4,7 @@ import { tick } from 'svelte';
 import { locale } from 'svelte-i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ListDirectoryPageResponse, UploadTaskDto } from '#lib/api.ts';
+import { EFFECTIVE_OP } from '#lib/features/access/effective-permissions.ts';
 import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
 import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
 import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
@@ -17,7 +18,9 @@ import { replaceProperty, stubInstantAnimations } from '../../../test/dom-fixtur
 import { directoryPage } from '../../../test/directory-fixtures';
 
 const mocks = vi.hoisted(() => ({
-  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), getDocumentInfo: vi.fn(), searchFiles: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
+  listDirectoryPage: vi.fn(), listDirectory: vi.fn(), getDocumentInfo: vi.fn(),
+  listRevisions: vi.fn(), getNodeDacl: vi.fn(), setNodeDacl: vi.fn(),
+  searchFiles: vi.fn(), open: vi.fn(), pickDirectory: vi.fn(),
   classifyUploadPath: vi.fn(), inspectUploadDirectoryConflicts: vi.fn(), goto: vi.fn(),
   events: new Map<string, (event: { payload: unknown }) => void>(),
   drop: null as ((event: { payload: unknown }) => void) | null,
@@ -40,6 +43,9 @@ vi.mock('#lib/api.ts', async (original) => ({
   ...await original<typeof import('#lib/api.ts')>(),
   listDirectoryPage: mocks.listDirectoryPage, listDirectory: mocks.listDirectory,
   getDocumentInfo: mocks.getDocumentInfo,
+  listRevisions: mocks.listRevisions,
+  getNodeDacl: mocks.getNodeDacl,
+  setNodeDacl: mocks.setNodeDacl,
   searchFiles: mocks.searchFiles,
   loadUserPreference: async () => ({}), classifyUploadPath: mocks.classifyUploadPath,
   mutateFilePreferences: async () => ({ recent_visits: [] }),
@@ -85,6 +91,19 @@ beforeEach(() => {
   mocks.listDirectoryPage.mockReset().mockResolvedValue(page(['alpha', 'beta']));
   mocks.listDirectory.mockReset().mockResolvedValue({ folders: [], documents: [], parent_id: null });
   mocks.getDocumentInfo.mockReset();
+  mocks.listRevisions.mockReset().mockResolvedValue({ revisions: [] });
+  mocks.getNodeDacl.mockReset().mockResolvedValue({
+    dacl: 'inherit on;\n',
+    inherit: true,
+    fingerprint: 'fp',
+  });
+  mocks.setNodeDacl.mockReset().mockResolvedValue({
+    dacl: 'inherit on;\n',
+    inherit: true,
+    fingerprint: 'fp',
+    diagnostics: [],
+    self_lockout_warning: false,
+  });
   mocks.searchFiles.mockReset().mockResolvedValue({
     items: [
       { type: 'directory', id: 'dir-sys', name: '111', parent_id: null, created_time: 1_795_665_643 },
@@ -504,5 +523,176 @@ describe('toolbar search preview', () => {
       expect(mocks.listDirectoryPage).toHaveBeenCalledWith('dir-sys', null, expect.any(Number)),
     );
     expect(container.querySelector('[data-search-back]')).toBeNull();
+  });
+});
+
+describe('effective_mask capability hiding', () => {
+  it('hides disallowed directory toolbar actions and blank context menu items', async () => {
+    mocks.listDirectoryPage.mockResolvedValueOnce(
+      directoryPage({
+        folders: [
+          {
+            id: 'folder-ro',
+            name: 'Shared',
+            created_time: 1,
+            effective_mask: EFFECTIVE_OP.LIST_DIRECTORY | EFFECTIVE_OP.READ_METADATA,
+          },
+        ],
+        documents: [
+          {
+            id: 'alpha',
+            title: 'alpha.txt',
+            size: 10,
+            last_modified: 1,
+            effective_mask: EFFECTIVE_OP.READ_CONTENT | EFFECTIVE_OP.READ_METADATA,
+          },
+        ],
+        effective_mask: EFFECTIVE_OP.LIST_DIRECTORY | EFFECTIVE_OP.READ_METADATA,
+      }),
+    );
+
+    const { container } = await openFiles();
+
+    expect(screen.queryByRole('button', { name: 'Create folder' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Upload files' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Upload folder' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recycle bin' })).toBeNull();
+
+    const filesPage = container.querySelector<HTMLElement>('.files-page')!;
+    await fireEvent.contextMenu(filesPage);
+    await tick();
+
+    expect(screen.getByRole('menuitem', { name: /^Refresh\b/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Properties' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /^Create folder\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Upload files' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Upload folder' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Set permissions' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Access rules' })).toBeNull();
+  });
+
+  it('hides disallowed selection toolbar and document/folder context menu items based on effective_mask', async () => {
+    mocks.listDirectoryPage.mockResolvedValueOnce(
+      directoryPage({
+        folders: [
+          {
+            id: 'folder-zero',
+            name: 'LockedFolder',
+            created_time: 1,
+            effective_mask: 0,
+          },
+        ],
+        documents: [
+          {
+            id: 'alpha',
+            title: 'alpha.txt',
+            size: 10,
+            last_modified: 1,
+            effective_mask:
+              EFFECTIVE_OP.READ_CONTENT
+              | EFFECTIVE_OP.RENAME
+              | EFFECTIVE_OP.LIST_REVISIONS
+              | EFFECTIVE_OP.READ_DACL,
+          },
+        ],
+        effective_mask: EFFECTIVE_OP.LIST_DIRECTORY,
+      }),
+    );
+
+    await openFiles();
+
+    const docRow = screen.getByText('alpha.txt').closest<HTMLElement>('[data-file-row-index]')!;
+    await fireEvent.click(docRow);
+    await tick();
+
+    expect(screen.getByRole('button', { name: 'Download selected' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Move selected' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Set permissions' })).toBeNull();
+
+    await fireEvent.contextMenu(docRow);
+    await tick();
+
+    expect(screen.getByRole('menuitem', { name: /^Download\b/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /^Rename\b/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'View revisions' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Access rules' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Move' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Delete\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Edit tags' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Upload new version' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Properties' })).toBeNull();
+
+    const folderRow = screen.getByText('LockedFolder').closest<HTMLElement>('[data-file-row-index]')!;
+    await fireEvent.contextMenu(folderRow);
+    await tick();
+
+    expect(screen.queryByRole('menuitem', { name: /^Open\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Download\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Rename\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Move' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Delete\b/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Set permissions' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Access rules' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Properties' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Add to favorites' })).toBeTruthy();
+  });
+
+  it('hides revision actions and opens document DACL in read-only mode when only READ_DACL is granted', async () => {
+    mocks.listDirectoryPage.mockResolvedValueOnce(
+      directoryPage({
+        documents: [
+          {
+            id: 'alpha',
+            title: 'alpha.txt',
+            size: 10,
+            last_modified: 1,
+            effective_mask: EFFECTIVE_OP.LIST_REVISIONS | EFFECTIVE_OP.READ_DACL,
+          },
+        ],
+        effective_mask: EFFECTIVE_OP.LIST_DIRECTORY,
+      }),
+    );
+    mocks.listRevisions.mockResolvedValueOnce({
+      revisions: [
+        { id: 'rev-2', parent_id: 'rev-1', created_time: 2, is_current: true },
+        { id: 'rev-1', parent_id: null, created_time: 1, is_current: false },
+      ],
+      effective_mask: EFFECTIVE_OP.LIST_REVISIONS | EFFECTIVE_OP.READ_REVISION,
+    });
+    mocks.getNodeDacl.mockResolvedValueOnce({
+      dacl: 'inherit on;\n',
+      inherit: true,
+      fingerprint: 'fp-1',
+      effective_mask: EFFECTIVE_OP.READ_DACL,
+    });
+
+    await openFiles();
+    const docRow = screen.getByText('alpha.txt').closest<HTMLElement>('[data-file-row-index]')!;
+
+    await fireEvent.contextMenu(docRow);
+    await tick();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'View revisions' }));
+
+    await vi.waitFor(() => expect(mocks.listRevisions).toHaveBeenCalledWith('alpha'));
+    await tick();
+    // Only the historical revision (READ_REVISION) is downloadable; current (READ_CONTENT), set-current, and delete are hidden.
+    expect(screen.getAllByRole('button', { name: 'Download' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Set current' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete revision' })).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await tick();
+
+    await fireEvent.contextMenu(docRow);
+    await tick();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Access rules' }));
+
+    await vi.waitFor(() => expect(mocks.getNodeDacl).toHaveBeenCalledWith('document', 'alpha', true));
+    await tick();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('dialog').querySelector('.dacl-footer')?.textContent).toContain('Close');
   });
 });

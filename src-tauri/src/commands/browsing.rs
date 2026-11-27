@@ -149,7 +149,7 @@ pub async fn get_document(
 
 // ---------------------------------------------------------------------------
 
-async fn collect_cursor_pages<T, F>(
+pub(super) async fn collect_cursor_pages<T, F>(
     state: &AppHandleState,
     action: &str,
     mut data: serde_json::Value,
@@ -194,6 +194,7 @@ pub(super) async fn fetch_all_listing_pages(
         folders: Vec::new(),
         documents: Vec::new(),
         parent_id: None,
+        effective_mask: None,
     };
     collect_cursor_pages::<ListingCursorPage, _>(state, action, data, |page| {
         let has_more = page.has_more;

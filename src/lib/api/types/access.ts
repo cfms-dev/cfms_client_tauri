@@ -18,6 +18,7 @@ export interface NodeDaclResponse {
   inherit: boolean;
   fingerprint: string;
   annotated_dacl?: string;
+  effective_mask?: number;
 }
 
 export interface SetNodeDaclResponse {
@@ -26,6 +27,7 @@ export interface SetNodeDaclResponse {
   fingerprint: string;
   diagnostics: ServerCaclDiagnostic[];
   self_lockout_warning: boolean;
+  effective_mask?: number;
 }
 
 export interface PermissionEntry {
@@ -40,6 +42,7 @@ export interface BatchRulesTarget {
   objectId: string;
   name: string;
   path?: string;
+  effectiveMask?: number;
 }
 
 export type BatchRulesProblemKind = 'identity' | 'session' | 'permission' | 'disconnected'

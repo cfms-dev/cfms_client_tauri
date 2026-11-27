@@ -24,6 +24,8 @@ pub struct ListingCursorPage {
     pub has_more: bool,
     #[serde(default)]
     pub parent_id: Option<String>,
+    #[serde(default)]
+    pub effective_mask: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,6 +33,8 @@ pub struct ListDirectoryPageDto {
     pub folders: Vec<cfms_core::ServerDirectoryEntry>,
     pub documents: Vec<cfms_core::ServerDocumentEntry>,
     pub parent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_mask: Option<u32>,
     pub page_size: u32,
     pub next_cursor: Option<String>,
     pub has_more: bool,
@@ -51,6 +55,7 @@ pub fn split_listing_page(page: ListingCursorPage) -> ListDirectoryResponse {
         folders,
         documents,
         parent_id: page.parent_id,
+        effective_mask: page.effective_mask,
     }
 }
 
@@ -64,6 +69,7 @@ fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
         folders: split.folders,
         documents: split.documents,
         parent_id: split.parent_id,
+        effective_mask: split.effective_mask,
         page_size,
         next_cursor,
         has_more,
@@ -72,6 +78,7 @@ fn split_listing_page_dto(page: ListingCursorPage) -> ListDirectoryPageDto {
 
 pub fn merge_listing_response(target: &mut ListDirectoryResponse, page: ListingCursorPage) {
     target.parent_id = page.parent_id.clone();
+    target.effective_mask = page.effective_mask.or(target.effective_mask);
     let split = split_listing_page(page);
     target.folders.extend(split.folders);
     target.documents.extend(split.documents);
@@ -254,5 +261,68 @@ mod node_lookup_response_tests {
             "node-lookup".into(),
             "documents".into()
         ]));
+    }
+}
+
+#[cfg(test)]
+mod protocol_v32_tests {
+    use super::*;
+
+    #[test]
+    fn listing_and_search_preserve_effective_masks() {
+        let page1: ListingCursorPage = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "directory", "id": "dir", "name": "Folder", "created_time": 1.0, "effective_mask": 15 },
+                    { "type": "document", "id": "doc", "title": "File", "size": 5, "last_modified": 2.0, "effective_mask": 1040 }
+                ],
+                "page_size": 128,
+                "next_cursor": "next-page",
+                "has_more": true,
+                "parent_id": "/",
+                "effective_mask": 7
+            }"#,
+        )
+        .unwrap();
+
+        let dto = split_listing_page_dto(page1.clone());
+        assert_eq!(dto.effective_mask, Some(7));
+        assert_eq!(dto.folders[0].effective_mask, Some(15));
+        assert_eq!(dto.documents[0].effective_mask, Some(1040));
+
+        let mut combined = split_listing_page(page1);
+        assert_eq!(combined.effective_mask, Some(7));
+
+        let page2: ListingCursorPage = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "document", "id": "doc-2", "title": "Second", "effective_mask": 0 }
+                ],
+                "page_size": 128,
+                "next_cursor": null,
+                "has_more": false,
+                "parent_id": "/"
+            }"#,
+        )
+        .unwrap();
+        merge_listing_response(&mut combined, page2);
+        assert_eq!(combined.effective_mask, Some(7));
+        assert_eq!(combined.documents[1].effective_mask, Some(0));
+
+        let search_page: CursorPage<serde_json::Value> = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "document", "id": "doc-1", "name": "Alpha.txt", "effective_mask": 1040 },
+                    { "type": "directory", "id": "dir-1", "name": "Beta", "effective_mask": 3 }
+                ],
+                "page_size": 64,
+                "next_cursor": null,
+                "has_more": false
+            }"#,
+        )
+        .unwrap();
+        let normalized = normalize_search_page(search_page);
+        assert_eq!(normalized["items"][0]["effective_mask"], 1040);
+        assert_eq!(normalized["items"][1]["effective_mask"], 3);
     }
 }

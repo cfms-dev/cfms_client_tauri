@@ -1,4 +1,4 @@
-use super::browsing::fetch_all_cursor_items;
+use super::browsing::collect_cursor_pages;
 use super::browsing::fetch_all_listing_pages;
 use super::mobile_types::AndroidSelectedUploadDirectory;
 use super::server_actions::server_action_bool;
@@ -313,20 +313,44 @@ pub async fn set_node_dacl(
     }
 }
 
+#[derive(serde::Deserialize)]
+struct RevisionListPage {
+    #[serde(default)]
+    items: Vec<serde_json::Value>,
+    #[serde(default)]
+    next_cursor: Option<String>,
+    #[serde(default)]
+    has_more: bool,
+    #[serde(default)]
+    effective_mask: Option<u32>,
+}
+
 /// List all revisions for a document.
 #[tauri::command]
 pub async fn list_revisions(
     state: tauri::State<'_, AppHandleState>,
     document_id: String,
 ) -> Result<serde_json::Value, String> {
-    let items = fetch_all_cursor_items(
+    let mut items = Vec::new();
+    let mut effective_mask = None;
+    collect_cursor_pages::<RevisionListPage, _>(
         &state,
         "core.document.revision.list",
         serde_json::json!({ "document_id": document_id }),
+        |page| {
+            let has_more = page.has_more;
+            let next_cursor = page.next_cursor;
+            effective_mask = page.effective_mask.or(effective_mask);
+            items.extend(page.items);
+            (has_more, next_cursor)
+        },
     )
     .await?;
 
-    Ok(serde_json::json!({ "revisions": items }))
+    Ok(serde_json::json!({
+        "revisions": items,
+        "effective_mask": effective_mask,
+    }))
 }
 
 /// Delete a non-current document revision.
@@ -947,6 +971,7 @@ pub async fn list_deleted_items(
         "folders": listing.folders,
         "documents": listing.documents,
         "parent_id": listing.parent_id,
+        "effective_mask": listing.effective_mask,
     }))
 }
 

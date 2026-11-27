@@ -16,6 +16,7 @@ export function createDirectoryPickerState(options: DirectoryPickerStateOptions 
 
   let currentFolderId = $state<string | null>(null);
   let parentId = $state<string | null>(null);
+  let currentFolderEffectiveMask = $state<number | null>(null);
   let folders = $state<ServerDirectoryEntry[]>([]);
   let documents = $state<ServerDocumentEntry[]>([]);
   let breadcrumb = $state<DirectoryBreadcrumbSegment[]>([]);
@@ -40,6 +41,7 @@ export function createDirectoryPickerState(options: DirectoryPickerStateOptions 
       const response = await listDirectory(normalized);
       currentFolderId = normalized;
       parentId = normalizeDirectoryId(response.parent_id);
+      currentFolderEffectiveMask = typeof response.effective_mask === 'number' ? response.effective_mask : null;
       folders = response.folders;
       if (includeDocuments) {
         documents = response.documents;
@@ -52,6 +54,7 @@ export function createDirectoryPickerState(options: DirectoryPickerStateOptions 
         documents = [];
       }
       parentId = null;
+      currentFolderEffectiveMask = null;
       return false;
     } finally {
       loading = false;
@@ -96,6 +99,7 @@ export function createDirectoryPickerState(options: DirectoryPickerStateOptions 
   return {
     get currentFolderId() { return currentFolderId; },
     get parentId() { return parentId; },
+    get currentFolderEffectiveMask() { return currentFolderEffectiveMask; },
     get folders() { return folders; },
     get documents() { return documents; },
     get breadcrumb() { return breadcrumb; },

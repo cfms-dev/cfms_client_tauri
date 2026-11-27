@@ -15,6 +15,11 @@
   } from '#lib/api.ts';
   import { dialogStore } from '#lib/shared/ui/dialogs.svelte.ts';
   import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
+  import {
+    canPurgeDeletedItem,
+    EFFECTIVE_OP,
+    hasEffectiveOp,
+  } from '#lib/features/access/effective-permissions.ts';
 import { floatingProgressStore } from "#lib/shared/notifications/progress.svelte.ts";
 import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
   import Icon from '#lib/shared/ui/Icon.svelte';
@@ -42,7 +47,7 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
   let error = $state<string | null>(null);
   let status = $state<string | null>(null);
 
-  const canPurge = $derived(authStore.permissions.includes('purge'));
+  const hasGlobalPurge = $derived(authStore.permissions.includes('purge'));
   const totalSelected = $derived(selectedFolderIds.size + selectedDocumentIds.size);
   const totalVisibleSelectable = $derived(folders.length + documents.length);
   const allVisibleSelected = $derived(
@@ -57,14 +62,30 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
       name: item.name,
       created_time: item.created_time ?? null,
       kind: 'directory' as const,
+      effective_mask: item.effective_mask,
+      canRestore: hasEffectiveOp(item.effective_mask, EFFECTIVE_OP.RESTORE),
+      canPurge: canPurgeDeletedItem(item.effective_mask, authStore.permissions),
     })),
     ...documents.map((item) => ({
       id: item.id,
       name: item.title,
       created_time: item.created_time ?? null,
       kind: 'document' as const,
+      effective_mask: item.effective_mask,
+      canRestore: hasEffectiveOp(item.effective_mask, EFFECTIVE_OP.RESTORE),
+      canPurge: canPurgeDeletedItem(item.effective_mask, authStore.permissions),
     })),
   ]);
+  const anyRestorable = $derived(items.some((item) => item.canRestore));
+  const anyPurgeable = $derived(items.some((item) => item.canPurge));
+  const hasBatchActionableItems = $derived(anyRestorable || anyPurgeable);
+  const selectedItems = $derived(items.filter((item) => isSelected(item)));
+  const canRestoreSelected = $derived(
+    selectedItems.length > 0 && selectedItems.every((item) => item.canRestore),
+  );
+  const canPurgeSelected = $derived(
+    selectedItems.length > 0 && selectedItems.every((item) => item.canPurge),
+  );
 
   $effect(() => {
     if (!status) return;
@@ -104,6 +125,14 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
       documents = data.documents;
       selectedFolderIds = new Set();
       selectedDocumentIds = new Set();
+      const loadedAnyActionable = [...data.folders, ...data.documents].some(
+        (item) =>
+          hasEffectiveOp(item.effective_mask, EFFECTIVE_OP.RESTORE)
+          || canPurgeDeletedItem(item.effective_mask, authStore.permissions),
+      );
+      if (!loadedAnyActionable) {
+        selectMode = false;
+      }
     } catch (err) {
       error = formatUserFacingError(err);
       folders = [];
@@ -221,7 +250,7 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
   }
 
   async function handleRestoreSelected() {
-    if (totalSelected === 0 || batchBusy) return;
+    if (!canRestoreSelected || batchBusy) return;
     const progressId = 'trash:batch-restore';
     const progressTitle = $t('trash.batchRestoring');
     const total = totalSelected;
@@ -255,7 +284,7 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
   }
 
   async function handlePurgeSelected() {
-    if (totalSelected === 0 || batchBusy) return;
+    if (!canPurgeSelected || batchBusy) return;
     const confirmed = await dialogStore.confirm({
       title: $t('common.delete'),
       message: $t('trash.purgeSelectedConfirm', { values: { count: totalSelected } }),
@@ -351,18 +380,20 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
       {$t('trash.load')}
     </FluentButton>
 
-    <span class="toolbar-divider" aria-hidden="true"></span>
+    {#if items.length === 0 || hasBatchActionableItems}
+      <span class="toolbar-divider" aria-hidden="true"></span>
 
-    <FluentButton data-fluent-owner="routes-home-trash-page"
-      type="button"
-      aria-pressed={selectMode}
-      onclick={toggleSelectMode}
-      appearance="subtle"
-      class={"select-button" + ((selectMode) ? " active" : '')}
-    >
-      <Icon name="checklist" size="18px" />
-      {$t('files.select')}
-    </FluentButton>
+      <FluentButton data-fluent-owner="routes-home-trash-page"
+        type="button"
+        aria-pressed={selectMode}
+        onclick={toggleSelectMode}
+        appearance="subtle"
+        class={"select-button" + ((selectMode) ? " active" : '')}
+      >
+        <Icon name="checklist" size="18px" />
+        {$t('files.select')}
+      </FluentButton>
+    {/if}
   </form>
 
   {#if selectMode}
@@ -379,22 +410,26 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
           disabled={totalVisibleSelectable === 0}
           onclick={toggleAllVisibleSelection}
         />
-        <TaskActionButton
-          presentation="labelled"
-          icon="restoreFromTrash"
-          label={$t('trash.restoreSelected')}
-          tone="primary"
-          disabled={totalSelected === 0 || batchBusy}
-          onclick={handleRestoreSelected}
-        />
-        <TaskActionButton
-          presentation="labelled"
-          icon="deleteForever"
-          label={$t('trash.purgeSelected')}
-          tone="danger"
-          disabled={totalSelected === 0 || batchBusy || !canPurge}
-          onclick={handlePurgeSelected}
-        />
+        {#if anyRestorable && (totalSelected === 0 || canRestoreSelected)}
+          <TaskActionButton
+            presentation="labelled"
+            icon="restoreFromTrash"
+            label={$t('trash.restoreSelected')}
+            tone="primary"
+            disabled={totalSelected === 0 || batchBusy}
+            onclick={handleRestoreSelected}
+          />
+        {/if}
+        {#if anyPurgeable && (totalSelected === 0 || canPurgeSelected)}
+          <TaskActionButton
+            presentation="labelled"
+            icon="deleteForever"
+            label={$t('trash.purgeSelected')}
+            tone="danger"
+            disabled={totalSelected === 0 || batchBusy}
+            onclick={handlePurgeSelected}
+          />
+        {/if}
         <TaskActionButton
           presentation="labelled"
           icon="close"
@@ -405,7 +440,7 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
     </div>
   {/if}
 
-  {#if !canPurge}
+  {#if !hasGlobalPurge}
     <div class="permission-note">
       <Icon name="info" size="17px" />
       {$t('trash.noPermission')}
@@ -479,20 +514,24 @@ import { notificationStore } from "#lib/shared/notifications/notifications.svelt
                   {formatDate(item.created_time)}
                 </span>
                 <div class="row-actions" role="cell">
-                  <TaskActionButton
-                    icon="restoreFromTrash"
-                    label={$t('trash.restore')}
-                    tone="primary"
-                    onclick={() => handleRestore(item.kind, item.id, item.name)}
-                    disabled={busyItemId === item.id}
-                  />
-                  <TaskActionButton
-                    icon="deleteForever"
-                    label={$t('trash.purge')}
-                    tone="danger"
-                    onclick={() => handlePurge(item.kind, item.id, item.name)}
-                    disabled={!canPurge || busyItemId === item.id}
-                  />
+                  {#if item.canRestore}
+                    <TaskActionButton
+                      icon="restoreFromTrash"
+                      label={$t('trash.restore')}
+                      tone="primary"
+                      onclick={() => handleRestore(item.kind, item.id, item.name)}
+                      disabled={busyItemId === item.id}
+                    />
+                  {/if}
+                  {#if item.canPurge}
+                    <TaskActionButton
+                      icon="deleteForever"
+                      label={$t('trash.purge')}
+                      tone="danger"
+                      onclick={() => handlePurge(item.kind, item.id, item.name)}
+                      disabled={busyItemId === item.id}
+                    />
+                  {/if}
                 </div>
               </div>
             {/snippet}

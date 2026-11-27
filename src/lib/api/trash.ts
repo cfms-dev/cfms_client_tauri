@@ -11,6 +11,8 @@ export async function listDeletedItems(
   return {
     folders: data.folders ?? [],
     documents: data.documents ?? [],
+    parent_id: data.parent_id ?? null,
+    ...(typeof data.effective_mask === 'number' ? { effective_mask: data.effective_mask } : {}),
   };
 }
 

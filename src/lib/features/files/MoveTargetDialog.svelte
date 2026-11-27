@@ -13,6 +13,11 @@
     sameDirectoryId,
     type DirectoryBreadcrumbSegment,
   } from '#lib/features/files/file-browser.ts';
+  import {
+    EFFECTIVE_OP,
+    hasAllEffectiveOps,
+    hasEffectiveOp,
+  } from '#lib/features/access/effective-permissions.ts';
   import { createDirectoryPickerState } from '#lib/features/files/directory-picker-state.svelte.ts';
   import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
   import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
@@ -33,6 +38,7 @@
     originalParentId = null,
     initialBreadcrumb = [],
     excludedDirectoryIds = [],
+    requiredDestinationMask,
     moving = false,
     onMove,
     onCancel,
@@ -44,6 +50,7 @@
     originalParentId?: string | null;
     initialBreadcrumb?: DirectoryBreadcrumbSegment[];
     excludedDirectoryIds?: string[];
+    requiredDestinationMask?: number;
     moving?: boolean;
     onMove: (targetFolderId: string | null) => void;
     onCancel: () => void;
@@ -63,7 +70,14 @@
       : $t('files.moveDocumentTitle', { values: { name: objectName } }),
   );
   const excludedIds = $derived(excludedDirectorySet(excludedDirectoryIds));
-  const visibleFolders = $derived(folders.filter((folder) => !excludedIds.has(folder.id)));
+  const visibleFolders = $derived(
+    folders.filter(
+      (folder) => !excludedIds.has(folder.id) && hasEffectiveOp(folder.effective_mask, EFFECTIVE_OP.LIST_DIRECTORY),
+    ),
+  );
+  const effectiveRequiredMask = $derived(
+    requiredDestinationMask ?? (objectType === 'directory' ? EFFECTIVE_OP.CREATE_DIRECTORY : EFFECTIVE_OP.CREATE_DOCUMENT),
+  );
   const currentPath = $derived(formatDirectoryPath(breadcrumb));
   const normalizedNavigationRootId = $derived(normalizeDirectoryId(navigationRootId));
   const parentTargetId = $derived.by<string | null | undefined>(() => {
@@ -92,7 +106,8 @@
     !moving
       && !loading
       && loadError === null
-      && !sameDirectoryId(currentFolderId, originalParentId),
+      && !sameDirectoryId(currentFolderId, originalParentId)
+      && hasAllEffectiveOps(picker.currentFolderEffectiveMask, effectiveRequiredMask),
   );
 
   onMount(() => {

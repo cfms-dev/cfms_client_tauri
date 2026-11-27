@@ -2,7 +2,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type { NodeDaclResponse, SetNodeDaclResponse } from './types/access';
 import type { BatchActionResult, DirectoryUploadConflict, SelectedUploadDirectory, UploadEnqueueRequest, UploadBatchResult, UploadTaskDto } from './types/transfers';
-import type { ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
+import type { ListDirectoryPageResponse, ListDirectoryResponse, RevisionEntry, RevisionListResponse, SearchFilesResponse, ServerDirectoryInfo, ServerDocumentInfo, ServerObjectType } from './types/files';
 
 export interface DownloadBatchMetadata {
   batchId: string;
@@ -172,11 +172,11 @@ export async function setNodeDacl(
   });
 }
 
-export async function listRevisions(documentId: string): Promise<RevisionEntry[]> {
-  const data = await invoke<{ revisions?: RevisionEntry[] }>("list_revisions", {
+export async function listRevisions(documentId: string): Promise<RevisionListResponse> {
+  const data = await invoke<{ revisions?: RevisionEntry[]; effective_mask?: number }>("list_revisions", {
     documentId,
   });
-  return (data.revisions ?? []).map((revision) => ({
+  const revisions = (data.revisions ?? []).map((revision) => ({
     ...revision,
     id: String(revision.id),
     parent_id:
@@ -184,6 +184,10 @@ export async function listRevisions(documentId: string): Promise<RevisionEntry[]
         ? null
         : String(revision.parent_id),
   }));
+  return {
+    revisions,
+    ...(typeof data.effective_mask === 'number' ? { effective_mask: data.effective_mask } : {}),
+  };
 }
 
 export async function getRevision(

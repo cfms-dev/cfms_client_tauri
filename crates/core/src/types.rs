@@ -363,6 +363,9 @@ pub struct ServerDirectoryEntry {
     /// Creation timestamp (Unix seconds).
     #[serde(default)]
     pub created_time: Option<f64>,
+    /// Protocol 32 21-bit CACL effective permission bitmask for this folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_mask: Option<u32>,
 }
 
 /// A document/file entry returned by the server's `list_directory` action.
@@ -381,6 +384,9 @@ pub struct ServerDocumentEntry {
     /// Last modification timestamp (Unix seconds).
     #[serde(default)]
     pub last_modified: Option<f64>,
+    /// Protocol 32 21-bit CACL effective permission bitmask for this document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_mask: Option<u32>,
 }
 
 /// Generic cursor-paginated response returned by CFMS protocol v15 list APIs.
@@ -550,6 +556,9 @@ pub struct ListDirectoryResponse {
     pub documents: Vec<ServerDocumentEntry>,
     /// ID of the parent directory (`None` at the root).
     pub parent_id: Option<String>,
+    /// Protocol 32 21-bit CACL effective permission bitmask for the listed folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective_mask: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -998,6 +1007,46 @@ mod tests {
         assert!(parsed.has_more);
         assert!(matches!(parsed.items[0], ServerListingItem::Directory(_)));
         assert!(matches!(parsed.items[1], ServerListingItem::Document(_)));
+    }
+
+    #[test]
+    fn listing_types_preserve_protocol_32_effective_masks_and_default_when_omitted() {
+        let with_masks_raw = r#"{
+            "folders": [{ "id": "dir-1", "name": "Folder", "created_time": 1.0, "effective_mask": 524295 }],
+            "documents": [{ "id": "doc-1", "title": "File.txt", "size": 12, "last_modified": 2.0, "effective_mask": 1040 }],
+            "parent_id": "root",
+            "effective_mask": 15
+        }"#;
+        let parsed: ListDirectoryResponse = serde_json::from_str(with_masks_raw).unwrap();
+        assert_eq!(parsed.effective_mask, Some(15));
+        assert_eq!(parsed.folders[0].effective_mask, Some(524295));
+        assert_eq!(parsed.documents[0].effective_mask, Some(1040));
+
+        let serialized = serde_json::to_value(&parsed).unwrap();
+        assert_eq!(serialized["effective_mask"], 15);
+        assert_eq!(serialized["folders"][0]["effective_mask"], 524295);
+        assert_eq!(serialized["documents"][0]["effective_mask"], 1040);
+
+        let without_masks: CursorPage<ServerListingItem> = serde_json::from_str(
+            r#"{
+                "items": [
+                    { "type": "directory", "id": "dir-2", "name": "Plain" },
+                    { "type": "document", "id": "doc-2", "title": "Plain.txt" }
+                ],
+                "page_size": 128,
+                "next_cursor": null,
+                "has_more": false
+            }"#,
+        )
+        .unwrap();
+        match &without_masks.items[0] {
+            ServerListingItem::Directory(dir) => assert_eq!(dir.effective_mask, None),
+            ServerListingItem::Document(_) => panic!("expected directory"),
+        }
+        match &without_masks.items[1] {
+            ServerListingItem::Document(doc) => assert_eq!(doc.effective_mask, None),
+            ServerListingItem::Directory(_) => panic!("expected document"),
+        }
     }
 
     #[test]

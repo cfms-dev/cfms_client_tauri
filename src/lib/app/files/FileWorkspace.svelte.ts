@@ -44,6 +44,17 @@ import {
 import type { ServerDirectoryEntry, ServerDocumentEntry, ServerObjectType } from '#lib/api.ts';
 import { batchRulesSessionProblem, type BatchRulesIdentity, type BatchRulesTarget } from '#lib/features/access/batch-access-rules.ts';
 import { accessRulesTemplateKey } from '#lib/features/access/access-rules-edit.ts';
+import {
+  canAccessDacl,
+  canDeleteRevision as canDeleteRevisionMask,
+  canDownloadRevision as canDownloadRevisionMask,
+  canReadDacl,
+  canWriteDacl,
+  EFFECTIVE_OP,
+  hasAllEffectiveOps,
+  hasEffectiveOp,
+  requiredMoveDestinationMask,
+} from '#lib/features/access/effective-permissions.ts';
 
 import { type FileTableDragItems, type FileTableRow, type FileTableViewportAnchor } from '#lib/features/files/FileTable.svelte';
 import type { ContextMenuItem } from '#lib/shared/ui/context-menu.ts';
@@ -164,6 +175,8 @@ export function createFileWorkspace() {
   let documents = $state<ServerDocumentEntry[]>([]);
 
   let parentId = $state<string | null>(null);
+
+  let currentDirectoryEffectiveMask = $state<number | null>(null);
 
   let loading = $state(false);
 
@@ -319,6 +332,7 @@ export function createFileWorkspace() {
     dacl: string;
     annotatedDacl: string | null;
     fingerprint: string | null;
+    readOnly: boolean;
     saving: boolean;
     serverDiagnostics: ServerCaclDiagnostic[];
   } | null>(null);
@@ -349,6 +363,7 @@ export function createFileWorkspace() {
     documentId: string;
     filename: string;
     entries: RevisionEntry[];
+    effectiveMask: number | null;
   } | null>(null);
 
   let documentTagsDialog = $state<{
@@ -668,6 +683,7 @@ export function createFileWorkspace() {
         directorySorter?.dispose();
         directorySorter = sorter;
         parentId = normalizeDirectoryId(listing.parent_id);
+        currentDirectoryEffectiveMask = typeof listing.effective_mask === 'number' ? listing.effective_mask : null;
         directoryLoadError = null;
         clearRefreshErrorNotification();
         handleDirectorySnapshot(snapshot, true);
@@ -798,6 +814,9 @@ export function createFileWorkspace() {
           pageResponse.documents,
           complete,
         );
+        if (typeof pageResponse.effective_mask === 'number') {
+          currentDirectoryEffectiveMask = pageResponse.effective_mask;
+        }
         directoryNextCursor = pageResponse.next_cursor;
       },
     );
@@ -844,6 +863,7 @@ export function createFileWorkspace() {
     documents = [];
     fileListIndex = createFileListIndex([], []);
     parentId = null;
+    currentDirectoryEffectiveMask = 0;
     directoryLoadedCount = 0;
     directoryNextCursor = null;
     directoryLoadPhase = 'idle';
@@ -878,6 +898,7 @@ export function createFileWorkspace() {
     const previousPhase = directoryLoadPhase;
     const previousFolders = folders;
     const previousDocuments = documents;
+    const previousEffectiveMask = currentDirectoryEffectiveMask;
     const previousSelectedFolders = new Set(selectedFolderIds);
     const previousSelectedDocuments = new Set(selectedDocumentIds);
     loading = true;
@@ -904,6 +925,7 @@ export function createFileWorkspace() {
       if (!firstVisible || generation !== directoryGeneration) return false;
       currentFolderId = normalizedFolderId;
       parentId = normalizeDirectoryId(resp.parent_id);
+      currentDirectoryEffectiveMask = typeof resp.effective_mask === 'number' ? resp.effective_mask : null;
       if (resp.has_more) {
         if (!resp.next_cursor) throw new Error('Directory page reported more items without a cursor.');
         void continueDirectoryLoad(generation, resp.next_cursor);
@@ -916,6 +938,7 @@ export function createFileWorkspace() {
         if (preserveOnError) {
           folders = previousFolders;
           documents = previousDocuments;
+          currentDirectoryEffectiveMask = previousEffectiveMask;
           directoryLoadedCount = previousLoadedCount;
           directoryNextCursor = previousNextCursor;
           directoryLoadPhase = previousPhase === 'initial-loading' ? 'complete' : previousPhase;
@@ -936,6 +959,7 @@ export function createFileWorkspace() {
         folders = [];
         documents = [];
         parentId = null;
+        currentDirectoryEffectiveMask = null;
       }
       return false;
     } finally {
@@ -1346,6 +1370,78 @@ export function createFileWorkspace() {
     return id ? fileListIndex.documentById.get(id) ?? null : null;
   });
 
+  const selectedFolders = $derived(
+    [...selectedFolderIds]
+      .map((id) => fileListIndex.folderById.get(id))
+      .filter((folder): folder is ServerDirectoryEntry => folder !== undefined),
+  );
+
+  const selectedDocuments = $derived(
+    [...selectedDocumentIds]
+      .map((id) => fileListIndex.documentById.get(id))
+      .filter((doc): doc is ServerDocumentEntry => doc !== undefined),
+  );
+
+  const canCreateDirectoryInCurrentFolder = $derived(
+    hasEffectiveOp(currentDirectoryEffectiveMask, EFFECTIVE_OP.CREATE_DIRECTORY),
+  );
+
+  const canCreateDocumentInCurrentFolder = $derived(
+    hasEffectiveOp(currentDirectoryEffectiveMask, EFFECTIVE_OP.CREATE_DOCUMENT),
+  );
+
+  const canUploadToCurrentFolder = $derived(
+    canCreateDocumentInCurrentFolder || canCreateDirectoryInCurrentFolder,
+  );
+
+  const canListDeletedInCurrentFolder = $derived(
+    hasEffectiveOp(currentDirectoryEffectiveMask, EFFECTIVE_OP.LIST_DELETED),
+  );
+
+  const canAccessCurrentDirectoryDacl = $derived(
+    canAccessDacl(currentDirectoryEffectiveMask),
+  );
+
+  const canReadCurrentDirectoryMetadata = $derived(
+    hasEffectiveOp(currentDirectoryEffectiveMask, EFFECTIVE_OP.READ_METADATA),
+  );
+
+  const canDownloadSelection = $derived(
+    totalSelected > 0
+      && selectedDocuments.every((doc) => hasEffectiveOp(doc.effective_mask, EFFECTIVE_OP.READ_CONTENT))
+      && selectedFolders.every((folder) => hasEffectiveOp(folder.effective_mask, EFFECTIVE_OP.LIST_DIRECTORY)),
+  );
+
+  const canRenameSelection = $derived(
+    totalSelected === 1
+      && ((selectedFolder !== null && hasEffectiveOp(selectedFolder.effective_mask, EFFECTIVE_OP.RENAME))
+        || (selectedDocument !== null && hasEffectiveOp(selectedDocument.effective_mask, EFFECTIVE_OP.RENAME))),
+  );
+
+  const canMoveSelection = $derived(
+    totalSelected > 0
+      && selectedFolders.every((folder) => hasEffectiveOp(folder.effective_mask, EFFECTIVE_OP.REPARENT))
+      && selectedDocuments.every((doc) => hasEffectiveOp(doc.effective_mask, EFFECTIVE_OP.REPARENT)),
+  );
+
+  const canManageSelectionAccessRules = $derived(
+    totalSelected === 1
+      ? (selectedFolder !== null && canAccessDacl(selectedFolder.effective_mask))
+      : totalSelected > 1
+        && selectedFolders.every((folder) => canWriteDacl(folder.effective_mask))
+        && selectedDocuments.every((doc) => canWriteDacl(doc.effective_mask)),
+  );
+
+  const canDeleteSelection = $derived(
+    totalSelected > 0
+      && selectedFolders.every((folder) => hasEffectiveOp(folder.effective_mask, EFFECTIVE_OP.DELETE))
+      && selectedDocuments.every((doc) => hasEffectiveOp(doc.effective_mask, EFFECTIVE_OP.DELETE)),
+  );
+
+  const batchMoveDestinationMask = $derived(
+    requiredMoveDestinationMask(selectedFolderIds.size > 0, selectedDocumentIds.size > 0),
+  );
+
   const statusBarPrimary = $derived(
     directoryLoadPhase === 'complete' || directoryLoadPhase === 'idle'
       ? translator.current('workspace.itemCount', { values: { count: totalVisibleSelectable } })
@@ -1364,95 +1460,123 @@ export function createFileWorkspace() {
             : '',
   );
 
-  const fileCommandActions = $derived.by<CommandAction[]>(() => [
-    { id: 'new-folder', label: translator.current('files.createFolder'), icon: 'createNewFolder', run: handleCreateFolder },
-    { id: 'upload-files', label: translator.current('files.uploadFiles'), icon: 'uploadFile', run: handleUploadFiles },
-    { id: 'upload-folder', label: translator.current('files.uploadFolder'), icon: 'folderUpload', run: handleUploadFolder },
-    {
-      id: 'download-selected',
-      label: translator.current('files.downloadSelected'),
-      icon: 'download',
-      visible: totalSelected > 0,
-      disabled: batchBusy,
-      dividerBefore: true,
-      run: handleDownloadSelected,
-    },
-    {
-      id: 'rename-selected',
-      label: translator.current('files.rename'),
-      icon: 'edit',
-      visible: totalSelected === 1,
-      disabled: batchBusy || totalSelected !== 1,
-      run: handleRenameSelected,
-    },
-    {
-      id: 'move-selected',
-      label: translator.current('files.moveSelected'),
-      icon: 'driveFileMove',
-      visible: totalSelected > 0,
-      disabled: batchBusy,
-      run: handleMoveSelected,
-    },
-    {
-      id: 'access-rules-selected',
-      label: translator.current('files.setPermissions'),
-      icon: 'settings',
-      visible: totalSelected > 1 || !!selectedFolder,
-      disabled: batchBusy || loading,
-      run: handleBatchAccessRules,
-    },
-    {
-      id: 'delete-selected',
-      label: translator.current('common.delete'),
-      icon: 'delete',
-      tone: 'danger',
-      visible: totalSelected > 0,
-      disabled: batchBusy,
-      run: handleDeleteSelected,
-    },
-    {
-      id: 'selection-mode',
-      label: translator.current('files.select'),
-      icon: 'checklist',
-      compact: true,
-      active: selectMode,
-      dividerBefore: true,
-      run: toggleSelectMode,
-    },
-    {
-      id: 'select-all',
-      label: allVisibleSelected ? translator.current('files.selectNone') : translator.current('files.selectAll'),
-      icon: allVisibleSelected ? 'clearAll' : 'selectAll',
-      active: allVisibleSelected,
-      visible: selectMode,
-      disabled: totalVisibleSelectable === 0,
-      run: toggleAllVisibleSelection,
-    },
-    {
-      id: 'jump',
-      label: translator.current('files.jumpToDirectory'),
-      icon: 'arrowStepIn',
-      compact: true,
-      run: handleJumpToDirectory,
-    },
-    {
-      id: 'details',
-      label: translator.current('workspace.details'),
-      icon: 'info',
-      compact: true,
-      active: detailsOpen,
-      run: () => { detailsOpen = !detailsOpen; },
-    },
-    {
-      id: 'trash',
-      label: translator.current('workspace.recycleBin'),
-      icon: 'deleteSweep',
-      compact: true,
-      dividerBefore: true,
-      disabled: batchBusy,
-      run: handleNavigateTrash,
-    },
-  ]);
+  const fileCommandActions = $derived.by<CommandAction[]>(() => {
+    const selectionActions: CommandAction[] = [
+      {
+        id: 'download-selected',
+        label: translator.current('files.downloadSelected'),
+        icon: 'download',
+        visible: canDownloadSelection,
+        disabled: batchBusy,
+        run: handleDownloadSelected,
+      },
+      {
+        id: 'rename-selected',
+        label: translator.current('files.rename'),
+        icon: 'edit',
+        visible: canRenameSelection,
+        disabled: batchBusy || totalSelected !== 1,
+        run: handleRenameSelected,
+      },
+      {
+        id: 'move-selected',
+        label: translator.current('files.moveSelected'),
+        icon: 'driveFileMove',
+        visible: canMoveSelection,
+        disabled: batchBusy,
+        run: handleMoveSelected,
+      },
+      {
+        id: 'access-rules-selected',
+        label: selectedFolder && !canWriteDacl(selectedFolder.effective_mask)
+          ? translator.current('files.accessRules')
+          : translator.current('files.setPermissions'),
+        icon: 'settings',
+        visible: canManageSelectionAccessRules,
+        disabled: batchBusy || loading,
+        run: handleBatchAccessRules,
+      },
+      {
+        id: 'delete-selected',
+        label: translator.current('common.delete'),
+        icon: 'delete',
+        tone: 'danger',
+        visible: canDeleteSelection,
+        disabled: batchBusy,
+        run: handleDeleteSelected,
+      },
+    ];
+    const firstVisibleSelection = selectionActions.find((action) => action.visible !== false);
+    if (firstVisibleSelection) firstVisibleSelection.dividerBefore = true;
+
+    return [
+      {
+        id: 'new-folder',
+        label: translator.current('files.createFolder'),
+        icon: 'createNewFolder',
+        visible: canCreateDirectoryInCurrentFolder,
+        run: handleCreateFolder,
+      },
+      {
+        id: 'upload-files',
+        label: translator.current('files.uploadFiles'),
+        icon: 'uploadFile',
+        visible: canCreateDocumentInCurrentFolder,
+        run: handleUploadFiles,
+      },
+      {
+        id: 'upload-folder',
+        label: translator.current('files.uploadFolder'),
+        icon: 'folderUpload',
+        visible: canCreateDirectoryInCurrentFolder,
+        run: handleUploadFolder,
+      },
+      ...selectionActions,
+      {
+        id: 'selection-mode',
+        label: translator.current('files.select'),
+        icon: 'checklist',
+        compact: true,
+        active: selectMode,
+        dividerBefore: true,
+        run: toggleSelectMode,
+      },
+      {
+        id: 'select-all',
+        label: allVisibleSelected ? translator.current('files.selectNone') : translator.current('files.selectAll'),
+        icon: allVisibleSelected ? 'clearAll' : 'selectAll',
+        active: allVisibleSelected,
+        visible: selectMode,
+        disabled: totalVisibleSelectable === 0,
+        run: toggleAllVisibleSelection,
+      },
+      {
+        id: 'jump',
+        label: translator.current('files.jumpToDirectory'),
+        icon: 'arrowStepIn',
+        compact: true,
+        run: handleJumpToDirectory,
+      },
+      {
+        id: 'details',
+        label: translator.current('workspace.details'),
+        icon: 'info',
+        compact: true,
+        active: detailsOpen,
+        run: () => { detailsOpen = !detailsOpen; },
+      },
+      {
+        id: 'trash',
+        label: translator.current('workspace.recycleBin'),
+        icon: 'deleteSweep',
+        compact: true,
+        visible: canListDeletedInCurrentFolder,
+        dividerBefore: true,
+        disabled: batchBusy,
+        run: handleNavigateTrash,
+      },
+    ];
+  });
 
   $effect(() => {
     const open = detailsOpen;
@@ -1582,17 +1706,17 @@ export function createFileWorkspace() {
       if (!navigationUnavailable) void loadDirectory(currentFolderId, true);
     } else if (shortcut === 'create-folder') {
       event.preventDefault();
-      if (!loading && !batchBusy) void handleCreateFolder();
+      if (!loading && !batchBusy && canCreateDirectoryInCurrentFolder) void handleCreateFolder();
     } else if (shortcut === 'select-all') {
       event.preventDefault();
       selectAllVisible();
     } else if (shortcut === 'clear-selection' && totalSelected > 0) {
       event.preventDefault();
       deselectAll();
-    } else if (shortcut === 'delete-selection' && totalSelected > 0) {
+    } else if (shortcut === 'delete-selection' && canDeleteSelection) {
       event.preventDefault();
       void handleDeleteSelected();
-    } else if (shortcut === 'rename-selection' && totalSelected === 1) {
+    } else if (shortcut === 'rename-selection' && canRenameSelection) {
       event.preventDefault();
       void handleRenameSelected();
     }
@@ -1627,6 +1751,31 @@ export function createFileWorkspace() {
     }
 
     const selectedName = selectedFolder?.name ?? selectedDocument?.title ?? '';
+    if (selectedFolder && !hasEffectiveOp(selectedFolder.effective_mask, EFFECTIVE_OP.READ_METADATA)) {
+      detailModel = {
+        title: selectedFolder.name,
+        subtitle: translator.current('files.directory'),
+        icon: 'folder',
+        rows: [
+          { label: translator.current('files.directoryId'), value: selectedFolder.id },
+          { label: translator.current('files.created'), value: formatDate(selectedFolder.created_time) },
+        ],
+      };
+      return;
+    }
+    if (selectedDocument && !hasEffectiveOp(selectedDocument.effective_mask, EFFECTIVE_OP.READ_METADATA)) {
+      detailModel = {
+        title: selectedDocument.title,
+        subtitle: translator.current('files.document'),
+        icon: 'filePresent',
+        rows: [
+          { label: translator.current('files.documentId'), value: selectedDocument.id },
+          { label: translator.current('files.size'), value: formatBytes(selectedDocument.size) },
+          { label: translator.current('files.modified'), value: formatDate(selectedDocument.last_modified) },
+        ],
+      };
+      return;
+    }
     detailModel = { title: selectedName, icon: selectedFolder ? 'folder' : 'filePresent', loading: true, rows: [] };
     try {
       if (selectedFolder) {
@@ -1726,6 +1875,7 @@ export function createFileWorkspace() {
           id: 'download-selection',
           label: translator.current('files.downloadSelected'),
           icon: 'download',
+          hidden: !canDownloadSelection,
           disabled: batchBusy,
           onSelect: handleDownloadSelected,
         },
@@ -1733,6 +1883,7 @@ export function createFileWorkspace() {
           id: 'move-selection',
           label: translator.current('files.moveSelected'),
           icon: 'driveFileMove',
+          hidden: !canMoveSelection,
           disabled: batchBusy,
           onSelect: handleMoveSelected,
         },
@@ -1740,6 +1891,7 @@ export function createFileWorkspace() {
           id: 'access-rules-selection',
           label: translator.current('files.setPermissions'),
           icon: 'settings',
+          hidden: !canManageSelectionAccessRules,
           disabled: batchBusy || loading,
           onSelect: () => handleBatchAccessRules(targetKey),
         },
@@ -1749,6 +1901,7 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.delete,
           label: translator.current('common.delete'),
           icon: 'delete',
+          hidden: !canDeleteSelection,
           disabled: batchBusy,
           danger: true,
           onSelect: handleDeleteSelected,
@@ -1775,32 +1928,39 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.createFolder,
           label: translator.current('files.createFolder'),
           icon: 'createNewFolder',
+          hidden: !canCreateDirectoryInCurrentFolder,
           onSelect: handleCreateFolder,
         },
         {
           id: 'upload-folder-here',
           label: translator.current('files.uploadFolder'),
           icon: 'folderUpload',
+          hidden: !canCreateDirectoryInCurrentFolder,
           onSelect: handleUploadFolder,
         },
         {
           id: 'upload-files-here',
           label: translator.current('files.uploadFiles'),
           icon: 'uploadFile',
+          hidden: !canCreateDocumentInCurrentFolder,
           onSelect: handleUploadFiles,
         },
         { type: 'divider' },
         {
           id: 'current-directory-rules',
-          label: translator.current('files.setPermissions'),
+          label: canWriteDacl(currentDirectoryEffectiveMask)
+            ? translator.current('files.setPermissions')
+            : translator.current('files.accessRules'),
           icon: 'settings',
-          onSelect: () => handleSetAccessRules('directory', directoryId, directoryName),
+          hidden: !canAccessCurrentDirectoryDacl,
+          onSelect: () => handleSetAccessRules('directory', directoryId, directoryName, currentDirectoryEffectiveMask),
         },
         { type: 'divider' },
         {
           id: 'current-directory-properties',
           label: translator.current('files.properties'),
           icon: 'info',
+          hidden: !canReadCurrentDirectoryMetadata,
           onSelect: () => handleDirectoryProperties(directoryId, directoryName, null),
         },
       ];
@@ -1810,6 +1970,7 @@ export function createFileWorkspace() {
 
     if (contextMenu.kind === 'document') {
       const doc = contextMenu.item as ServerDocumentEntry;
+      const mask = doc.effective_mask;
       const record = documentToRecord(doc, currentFolderId);
       const favorite = isFavoriteRecord(userPreference, record);
       return [
@@ -1818,6 +1979,7 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.activate,
           label: translator.current('common.download'),
           icon: 'download',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.READ_CONTENT),
           onSelect: () => handleDownload(doc),
         },
         {
@@ -1833,12 +1995,14 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.rename,
           label: translator.current('files.rename'),
           icon: 'edit',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.RENAME),
           onSelect: () => handleRenameDocument(doc),
         },
         {
           id: 'move-document',
           label: translator.current('files.move'),
           icon: 'driveFileMove',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.REPARENT),
           onSelect: () => handleMoveDocument(doc),
         },
         {
@@ -1846,20 +2010,25 @@ export function createFileWorkspace() {
           shortcuts: FILE_SHORTCUTS.delete,
           label: translator.current('common.delete'),
           icon: 'delete',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.DELETE),
           onSelect: () => handleDeleteSingle('document', doc),
           danger: true,
         },
         { type: 'divider' },
         {
           id: 'document-rules',
-          label: translator.current('files.setPermissions'),
+          label: canWriteDacl(mask)
+            ? translator.current('files.setPermissions')
+            : translator.current('files.accessRules'),
           icon: 'settings',
-          onSelect: () => handleSetAccessRules('document', doc.id, doc.title),
+          hidden: !canAccessDacl(mask),
+          onSelect: () => handleSetAccessRules('document', doc.id, doc.title, mask),
         },
         {
           id: 'edit-document-tags',
           label: translator.current('files.editTags'),
           icon: 'label',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.WRITE_METADATA),
           onSelect: () => handleEditDocumentTags(doc),
         },
         { type: 'divider' },
@@ -1867,12 +2036,14 @@ export function createFileWorkspace() {
           id: 'upload-document-revision',
           label: translator.current('files.uploadNewVersion'),
           icon: 'uploadFile',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.WRITE_CONTENT),
           onSelect: () => handleUploadNewVersion(doc),
         },
         {
           id: 'view-document-revisions',
           label: translator.current('files.viewRevisions'),
           icon: 'history',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.LIST_REVISIONS),
           onSelect: () => handleViewRevisions(doc),
         },
         { type: 'divider' },
@@ -1880,12 +2051,14 @@ export function createFileWorkspace() {
           id: 'document-properties',
           label: translator.current('files.properties'),
           icon: 'info',
+          hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.READ_METADATA),
           onSelect: () => handleDocumentProperties(doc),
         },
       ];
     }
 
     const folder = contextMenu.item as ServerDirectoryEntry;
+    const mask = folder.effective_mask;
     const record = directoryToRecord(folder, currentFolderId);
     const favorite = isFavoriteRecord(userPreference, record);
     return [
@@ -1894,12 +2067,14 @@ export function createFileWorkspace() {
         shortcuts: FILE_SHORTCUTS.activate,
         label: translator.current('common.open'),
         icon: 'folderOpen',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.LIST_DIRECTORY),
         onSelect: () => handleNavigate(folder.id, folder.name),
       },
       {
         id: 'download-folder',
         label: translator.current('common.download'),
         icon: 'download',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.LIST_DIRECTORY),
         disabled: batchBusy,
         onSelect: () => handleDownloadFolder(folder),
       },
@@ -1916,12 +2091,14 @@ export function createFileWorkspace() {
         shortcuts: FILE_SHORTCUTS.rename,
         label: translator.current('files.rename'),
         icon: 'edit',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.RENAME),
         onSelect: () => handleRenameFolder(folder),
       },
       {
         id: 'move-folder',
         label: translator.current('files.move'),
         icon: 'driveFileMove',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.REPARENT),
         onSelect: () => handleMoveFolder(folder),
       },
       {
@@ -1929,21 +2106,26 @@ export function createFileWorkspace() {
         shortcuts: FILE_SHORTCUTS.delete,
         label: translator.current('common.delete'),
         icon: 'delete',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.DELETE),
         onSelect: () => handleDeleteSingle('folder', folder),
         danger: true,
       },
       { type: 'divider' },
       {
         id: 'folder-rules',
-        label: translator.current('files.setPermissions'),
+        label: canWriteDacl(mask)
+          ? translator.current('files.setPermissions')
+          : translator.current('files.accessRules'),
         icon: 'settings',
-        onSelect: () => handleSetAccessRules('directory', folder.id, folder.name),
+        hidden: !canAccessDacl(mask),
+        onSelect: () => handleSetAccessRules('directory', folder.id, folder.name, mask),
       },
       { type: 'divider' },
       {
         id: 'folder-properties',
         label: translator.current('files.properties'),
         icon: 'info',
+        hidden: !hasEffectiveOp(mask, EFFECTIVE_OP.READ_METADATA),
         onSelect: () => handleFolderProperties(folder),
       },
     ];
@@ -2085,11 +2267,30 @@ export function createFileWorkspace() {
     for (const id of items.folderIds) await moveDirectory(id, targetFolderId);
   }
 
+  function canDropItems(items: FileTableDragItems, targetFolderId: string): boolean {
+    const allMovable =
+      items.folderIds.every((id) =>
+        hasEffectiveOp(fileListIndex.folderById.get(id)?.effective_mask, EFFECTIVE_OP.REPARENT),
+      )
+      && items.documentIds.every((id) =>
+        hasEffectiveOp(fileListIndex.documentById.get(id)?.effective_mask, EFFECTIVE_OP.REPARENT),
+      );
+    if (!allMovable) return false;
+    const targetFolder = fileListIndex.folderById.get(targetFolderId);
+    if (!targetFolder) return false;
+    const requiredMask = requiredMoveDestinationMask(
+      items.folderIds.length > 0,
+      items.documentIds.length > 0,
+    );
+    return hasAllEffectiveOps(targetFolder.effective_mask, requiredMask);
+  }
+
   async function handleDropMove(items: FileTableDragItems, targetFolderId: string) {
     if (
       dropMoveBusy
       || items.folderIds.includes(targetFolderId)
       || items.folderIds.length + items.documentIds.length === 0
+      || !canDropItems(items, targetFolderId)
     ) return;
 
     dropMoveBusy = true;
@@ -2132,6 +2333,14 @@ export function createFileWorkspace() {
   }
 
   async function handleEditDocumentTags(doc: ServerDocumentEntry) {
+    if (!hasEffectiveOp(doc.effective_mask, EFFECTIVE_OP.READ_METADATA)) {
+      documentTagsDialog = {
+        documentId: doc.id,
+        title: doc.title,
+        tags: [],
+      };
+      return;
+    }
     await runFileAction(async () => {
       const info = await getDocumentInfo(doc.id);
       documentTagsDialog = {
@@ -2190,18 +2399,26 @@ export function createFileWorkspace() {
   }
 
   function handleBatchAccessRules(contextItemKey: string | null = null) {
-    if (totalSelected < 2 && !selectedFolder) return;
+    if (!canManageSelectionAccessRules) return;
     const targets: BatchRulesTarget[] = [
-      ...[...selectedFolderIds].map((objectId) => ({
-        objectType: 'directory' as const,
-        objectId,
-        name: fileListIndex.folderById.get(objectId)?.name ?? objectId,
-      })),
-      ...[...selectedDocumentIds].map((objectId) => ({
-        objectType: 'document' as const,
-        objectId,
-        name: fileListIndex.documentById.get(objectId)?.title ?? objectId,
-      })),
+      ...[...selectedFolderIds].map((objectId) => {
+        const folder = fileListIndex.folderById.get(objectId);
+        return {
+          objectType: 'directory' as const,
+          objectId,
+          name: folder?.name ?? objectId,
+          effectiveMask: folder?.effective_mask,
+        };
+      }),
+      ...[...selectedDocumentIds].map((objectId) => {
+        const doc = fileListIndex.documentById.get(objectId);
+        return {
+          objectType: 'document' as const,
+          objectId,
+          name: doc?.title ?? objectId,
+          effectiveMask: doc?.effective_mask,
+        };
+      }),
     ];
     openBatchAccessRules(targets, contextItemKey);
   }
@@ -2246,13 +2463,38 @@ export function createFileWorkspace() {
     objectType: ServerObjectType,
     objectId: string,
     objectName: string,
+    effectiveMask?: number | null,
   ) {
     if (objectType === 'directory') {
-      openBatchAccessRules([{ objectType, objectId, name: objectName }]);
+      openBatchAccessRules([
+        {
+          objectType,
+          objectId,
+          name: objectName,
+          ...(typeof effectiveMask === 'number' ? { effectiveMask } : {}),
+        },
+      ]);
+      return;
+    }
+    if (!canReadDacl(effectiveMask) && canWriteDacl(effectiveMask)) {
+      accessRulesDialog = {
+        title: translator.current('files.ruleManagerTitle', { values: { name: objectName } }),
+        objectType,
+        objectId,
+        dacl: 'inherit on;\n',
+        annotatedDacl: null,
+        fingerprint: null,
+        readOnly: false,
+        saving: false,
+        serverDiagnostics: [],
+      };
       return;
     }
     await runFileAction(async () => {
       const current = await getNodeDacl(objectType, objectId, true);
+      const resolvedMask = typeof current.effective_mask === 'number'
+        ? current.effective_mask
+        : effectiveMask;
       accessRulesDialog = {
         title: translator.current('files.ruleManagerTitle', { values: { name: objectName } }),
         objectType,
@@ -2260,6 +2502,7 @@ export function createFileWorkspace() {
         dacl: current.dacl ?? '',
         annotatedDacl: current.annotated_dacl ?? null,
         fingerprint: current.fingerprint ?? null,
+        readOnly: !canWriteDacl(resolvedMask),
         saving: false,
         serverDiagnostics: [],
       };
@@ -2362,9 +2605,11 @@ export function createFileWorkspace() {
         await uploadNewRevision(doc.id, selected);
         await refreshDirectory(refreshTarget);
         if (revisionsDialog?.documentId === doc.id) {
+          const result = await listRevisions(doc.id);
           revisionsDialog = {
             ...revisionsDialog,
-            entries: await listRevisions(doc.id),
+            entries: result.revisions,
+            effectiveMask: result.effective_mask ?? revisionsDialog.effectiveMask,
           };
         }
       } finally {
@@ -2375,23 +2620,41 @@ export function createFileWorkspace() {
 
   async function handleViewRevisions(doc: ServerDocumentEntry) {
     await runFileAction(async () => {
-      const entries = await listRevisions(doc.id);
+      const result = await listRevisions(doc.id);
       revisionsDialog = {
         title: translator.current('files.revisionsFor', { values: { name: doc.title } }),
         documentId: doc.id,
         filename: doc.title,
-        entries,
+        entries: result.revisions,
+        effectiveMask: result.effective_mask ?? doc.effective_mask ?? null,
       };
     });
   }
 
   async function refreshRevisionsDialog() {
     if (!revisionsDialog) return;
+    const result = await listRevisions(revisionsDialog.documentId);
     revisionsDialog = {
       ...revisionsDialog,
-      entries: await listRevisions(revisionsDialog.documentId),
+      entries: result.revisions,
+      effectiveMask: result.effective_mask ?? revisionsDialog.effectiveMask,
     };
   }
+
+  function canDownloadRevision(revision: RevisionEntry): boolean {
+    return canDownloadRevisionMask(
+      revisionsDialog?.effectiveMask,
+      Boolean(revision.is_current),
+    );
+  }
+
+  const canSetCurrentRevision = $derived(
+    hasEffectiveOp(revisionsDialog?.effectiveMask, EFFECTIVE_OP.SET_CURRENT_REVISION),
+  );
+
+  const canDeleteRevision = $derived(
+    canDeleteRevisionMask(revisionsDialog?.effectiveMask, authStore.permissions),
+  );
 
   async function handleDownloadRevision(revision: RevisionEntry) {
     if (!revisionsDialog) return;
@@ -2598,6 +2861,7 @@ export function createFileWorkspace() {
   const DROP_BATCH_DEDUP_WINDOW_MS = 1000;
 
   async function handleDroppedUploadPaths(paths: string[]) {
+    if (!canUploadToCurrentFolder) return;
     const uniquePaths = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
     if (uniquePaths.length === 0) return;
 
@@ -2655,6 +2919,7 @@ export function createFileWorkspace() {
   }
 
   function handleNativeDragEnter() {
+    if (!canUploadToCurrentFolder) return;
     dragUploadActive = true;
   }
 
@@ -2664,14 +2929,14 @@ export function createFileWorkspace() {
   }
 
   function handleHtmlDragEnter(event: DragEvent) {
-    if (!hasFileDrag(event)) return;
+    if (!canUploadToCurrentFolder || !hasFileDrag(event)) return;
     event.preventDefault();
     dragUploadDepth += 1;
     dragUploadActive = true;
   }
 
   function handleHtmlDragOver(event: DragEvent) {
-    if (!hasFileDrag(event)) return;
+    if (!canUploadToCurrentFolder || !hasFileDrag(event)) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     dragUploadActive = true;
@@ -2684,7 +2949,7 @@ export function createFileWorkspace() {
   }
 
   async function handleHtmlDrop(event: DragEvent) {
-    if (!hasFileDrag(event)) return;
+    if (!canUploadToCurrentFolder || !hasFileDrag(event)) return;
     event.preventDefault();
     dragUploadDepth = 0;
     dragUploadActive = false;
@@ -3245,7 +3510,7 @@ export function createFileWorkspace() {
         group: () => translator.current('files.title'),
         shortcuts: FILE_SHORTCUTS.createFolder,
         scope: 'page',
-        enabled: () => !loading && !batchBusy && !hasBlockingFilesDialog(),
+        enabled: () => !loading && !batchBusy && canCreateDirectoryInCurrentFolder && !hasBlockingFilesDialog(),
         handler: (event) => executeFileManagerShortcut('create-folder', event),
       },
       {
@@ -3272,7 +3537,7 @@ export function createFileWorkspace() {
         group: () => translator.current('files.title'),
         shortcuts: FILE_SHORTCUTS.delete,
         scope: 'page',
-        enabled: () => totalSelected > 0 && !hasBlockingFilesDialog(),
+        enabled: () => canDeleteSelection && !hasBlockingFilesDialog(),
         handler: (event) => executeFileManagerShortcut('delete-selection', event),
       },
       {
@@ -3281,7 +3546,7 @@ export function createFileWorkspace() {
         group: () => translator.current('files.title'),
         shortcuts: FILE_SHORTCUTS.rename,
         scope: 'page',
-        enabled: () => totalSelected === 1 && !hasBlockingFilesDialog(),
+        enabled: () => canRenameSelection && !hasBlockingFilesDialog(),
         handler: (event) => executeFileManagerShortcut('rename-selection', event),
       },
     ]);
@@ -3427,10 +3692,15 @@ export function createFileWorkspace() {
     batchAccessRulesGuard,
     get batchMoveDialog() { return batchMoveDialog; },
     set batchMoveDialog(value) { batchMoveDialog = value; },
+    get batchMoveDestinationMask() { return batchMoveDestinationMask; },
     get breadcrumbSegments() { return breadcrumbSegments; },
+    get canDeleteRevision() { return canDeleteRevision; },
+    canDownloadRevision,
+    canDropItems,
     get canGoBack() { return canGoBack; },
     get canGoForward() { return canGoForward; },
     get canGoToParent() { return canGoToParent; },
+    get canSetCurrentRevision() { return canSetCurrentRevision; },
     get canUseServerSearch() { return canUseServerSearch; },
     closeBatchAccessRules,
     closeSearchView,

@@ -78,4 +78,20 @@ describe('ExplorerCommandBar', () => {
     await fireEvent.wheel(toolbar, { deltaY: 64 });
     expect(toolbar.scrollLeft).toBe(64);
   });
+
+  it('does not render a leading divider when preceding divider-separated actions are hidden', () => {
+    const { container } = render(ExplorerCommandBar, {
+      props: {
+        ariaLabel: 'File commands',
+        actions: [
+          { id: 'create', label: 'Create folder', icon: 'createNewFolder', visible: false, run: vi.fn() },
+          { id: 'select', label: 'Select', icon: 'checklist', dividerBefore: true, run: vi.fn() },
+        ],
+      },
+    });
+
+    const toolbar = screen.getByRole('toolbar', { name: 'File commands' });
+    expect(toolbar.querySelector('.explorer-command-divider')).toBeNull();
+    expect(container.querySelector('.explorer-command-measure .explorer-command-divider')).toBeNull();
+  });
 });

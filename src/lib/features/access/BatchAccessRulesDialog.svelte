@@ -15,6 +15,7 @@
   } from '#lib/features/access/batch-access-rules.ts';
   import { accessRulesDraftFingerprint } from '#lib/features/access/access-rules-edit.ts';
   import { parseCaclToModel } from '#lib/features/access/cacl-model.ts';
+  import { canReadDacl, canWriteDacl } from '#lib/features/access/effective-permissions.ts';
   import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
   import { dialogStore, type ChoiceDialogOption } from '#lib/shared/ui/dialogs.svelte.ts';
   import AccessRulesManager, { type CaclDraftState } from '#lib/features/access/AccessRulesManager.svelte';
@@ -64,8 +65,13 @@
   let draftRuleCount = $state(0);
   let draftRecursive = $state(false);
   let intent = $state<'ok' | 'apply'>('apply');
-  let templateKey = $state(untrack(() => roots.some((target) => batchRulesTargetKey(target) === initialTemplateKey)
-    ? initialTemplateKey! : batchRulesTargetKey(roots[0])));
+  let templateKey = $state(untrack(() => {
+    const initial = roots.find((target) => batchRulesTargetKey(target) === initialTemplateKey);
+    if (initial && canReadDacl(initial.effectiveMask)) return batchRulesTargetKey(initial);
+    const firstReadable = roots.find((target) => canReadDacl(target.effectiveMask));
+    return batchRulesTargetKey(firstReadable ?? roots[0]);
+  }));
+  let loadedTemplateEffectiveMask = $state<number | null>(null);
   let templateLoading = $state(false);
   let templateError = $state<string | null>(null);
   let templateSource = $state<string | null>(null);
@@ -93,7 +99,12 @@
 
   const busy = $derived(['scanning', 'running', 'waiting', 'deciding'].includes(snapshot.phase));
   const guardIssue = $derived(checkGuard());
-  const canSubmit = $derived(initialized && !templateLoading && !guardIssue && !busy
+  const isReadOnly = $derived(
+    roots.length === 1
+      ? !canWriteDacl(loadedTemplateEffectiveMask ?? roots[0].effectiveMask)
+      : !roots.some((target) => canWriteDacl(target.effectiveMask)),
+  );
+  const canSubmit = $derived(!isReadOnly && initialized && !templateLoading && !guardIssue && !busy
     && !preparing && !refreshing && stage === 'edit' && validDraft !== null && !validDraft.hasErrors);
   const dirty = $derived(recursive || baseline === null || (validDraft !== null
     && accessRulesDraftFingerprint(validDraft.dacl) !== baseline));
@@ -170,7 +181,12 @@
   });
 
   onMount(() => {
-    void loadTemplate();
+    const initialTarget = roots.find((item) => batchRulesTargetKey(item) === templateKey);
+    if (initialTarget && !canReadDacl(initialTarget.effectiveMask) && !isReadOnly) {
+      createBlank();
+    } else {
+      void loadTemplate();
+    }
     const timer = setInterval(() => { now = Date.now(); }, 1_000);
     return () => clearInterval(timer);
   });
@@ -322,6 +338,7 @@
       const current = await getNodeDacl(target.objectType, target.objectId, true);
       if (disposed || request !== templateRequest || revision !== editRevision || checkGuard()) return;
       if (typeof current?.dacl !== 'string') throw new Error($t('files.batchRules.problem.invalid_response'));
+      loadedTemplateEffectiveMask = typeof current.effective_mask === 'number' ? current.effective_mask : null;
       editorDacl = current.dacl;
       editorAnnotatedDacl = typeof current.annotated_dacl === 'string' ? current.annotated_dacl : null;
       editorResetRevision += 1;
@@ -605,6 +622,7 @@
         {canListGroups}
         resetRevision={editorResetRevision}
         saving={busy || preparing || refreshing || !initialized}
+        readOnly={isReadOnly}
         submitDisabled={!canSubmit}
         onDraftChange={(draft) => { validDraft = draft; }}
         onEdit={() => { editRevision += 1; appliedCount = null; singleRunProblem = null; singleRunDiagnostics = []; }}
@@ -618,7 +636,7 @@
                 <ProgressRing size={16} label={$t('files.setPermissions')} />
                 <span>{statusText}</span>
               </div>
-            {:else if roots.some((target) => target.objectType === 'directory')}
+            {:else if !isReadOnly && roots.some((target) => target.objectType === 'directory')}
               <div class="recursive-block">
                 <label class="batch-rules-choice recursive-choice">
                   <MdCheckbox bind:checked={recursive} disabled={!initialized || templateLoading} ariaLabel={$t('files.batchRules.recursive')} />
@@ -635,6 +653,8 @@
                   <Icon name="stop" size={16} />
                   {$t('files.batchRules.stop')}
                 </DialogActionButton>
+              {:else if isReadOnly}
+                <DialogActionButton onclick={close}>{$t('common.close')}</DialogActionButton>
               {:else}
                 <DialogActionButton variant="primary" data-dialog-default onclick={() => submit('ok')} disabled={!canSubmit}>{$t('files.batchRules.ok')}</DialogActionButton>
                 <DialogActionButton onclick={close}>{$t('common.cancel')}</DialogActionButton>

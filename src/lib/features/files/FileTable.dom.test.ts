@@ -33,6 +33,7 @@ function renderTable(
   documents: Array<{ id: string; title: string; size: number | null; last_modified: number | null }> = [],
   options: {
     canMoveItems?: boolean;
+    canDropItems?: (items: { folderIds: string[]; documentIds: string[] }, targetFolderId: string) => boolean;
     selectedFolderIds?: Set<string>;
     selectedDocumentIds?: Set<string>;
   } = {},
@@ -66,6 +67,7 @@ function renderTable(
       onFolderContextMenu: vi.fn(),
       onDocumentContextMenu: vi.fn(),
       canMoveItems: options.canMoveItems ?? true,
+      canDropItems: options.canDropItems,
       onDragSelection,
       onMoveItems,
     },
@@ -314,6 +316,22 @@ describe('FileTable item movement', () => {
     expect(viewport.classList.contains('is-item-drop-forbidden')).toBe(true);
 
     await finishPointerDrag(sourceName, targetRow, 21);
+    expect(onMoveItems).not.toHaveBeenCalled();
+  });
+
+  it('uses per-target canDropItems permission checks for drag-and-drop moves', async () => {
+    const canDropItems = vi.fn((_items, targetFolderId: string) => targetFolderId !== 'folder-2');
+    const { container, viewport, onMoveItems } = renderTable(folders, [], { canDropItems });
+    const sourceName = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-1"] [data-file-drag-handle]')!;
+    const targetRow = container.querySelector<HTMLElement>('[data-selection-key="folder:folder-2"]')!;
+
+    await beginPointerDrag(sourceName, targetRow, 211);
+
+    expect(canDropItems).toHaveBeenCalledWith({ folderIds: ['folder-1'], documentIds: [] }, 'folder-2');
+    expect(targetRow.classList.contains('file-table-row--drop-forbidden')).toBe(true);
+    expect(viewport.classList.contains('is-item-drop-forbidden')).toBe(true);
+
+    await finishPointerDrag(sourceName, targetRow, 211);
     expect(onMoveItems).not.toHaveBeenCalled();
   });
 

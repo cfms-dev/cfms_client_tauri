@@ -258,7 +258,7 @@ mod password_change_protocol_tests {
                 id: header.id, kind: FrameKind::Conclusion,
             }, &serde_json::to_vec(&serde_json::json!({
                 "code":200, "message":"", "timestamp":0.0,
-                "data":{"server_name":"protocol-31", "protocol_version":31, "lockdown":false, "lockdown_reason":null, "extension_flags":[]},
+                "data":{"server_name":"protocol-32", "protocol_version":32, "lockdown":false, "lockdown_reason":null, "extension_flags":[]},
             })).unwrap()).into())).await.unwrap();
         });
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -274,7 +274,7 @@ mod password_change_protocol_tests {
         .await
         .unwrap()
         .unwrap();
-        assert_eq!(info.protocol_version, 31);
+        assert_eq!(info.protocol_version, 32);
         server.await.unwrap();
         connection.close().await;
     }

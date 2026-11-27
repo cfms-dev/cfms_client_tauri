@@ -7,6 +7,7 @@
     type ServerDirectoryEntry,
     type ServerDocumentEntry,
   } from '#lib/api.ts';
+  import { EFFECTIVE_OP, hasEffectiveOp } from '#lib/features/access/effective-permissions.ts';
   import { formatDirectoryPath } from '#lib/features/files/file-browser.ts';
   import { createDirectoryPickerState } from '#lib/features/files/directory-picker-state.svelte.ts';
   import Breadcrumb from '#lib/features/files/Breadcrumb.svelte';
@@ -47,12 +48,21 @@
   const loading = $derived(picker.loading);
   const loadError = $derived(picker.loadError);
 
-  const visibleDocuments = $derived(documents.filter(documentFilter));
+  const visibleFolders = $derived(
+    folders.filter((folder) => hasEffectiveOp(folder.effective_mask, EFFECTIVE_OP.LIST_DIRECTORY)),
+  );
+  const visibleDocuments = $derived(
+    documents.filter(
+      (document) =>
+        hasEffectiveOp(document.effective_mask, EFFECTIVE_OP.READ_CONTENT)
+        && documentFilter(document),
+    ),
+  );
   const coarsePointer = new MediaQuery('(pointer: coarse)', false);
   const rowHeight = $derived(coarsePointer.current ? 48 : 40);
   const currentPath = $derived(formatDirectoryPath(breadcrumb));
   const pickerRows = $derived.by<PickerRow[]>(() => [
-    ...folders.map((folder) => ({ kind: 'folder' as const, folder })),
+    ...visibleFolders.map((folder) => ({ kind: 'folder' as const, folder })),
     ...visibleDocuments.map((document) => ({ kind: 'document' as const, document })),
   ]);
 

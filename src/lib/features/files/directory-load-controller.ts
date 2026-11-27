@@ -92,12 +92,16 @@ export class DirectoryLoadController {
       folders: [...first.folders],
       documents: [...first.documents],
       parent_id: first.parent_id,
+      ...(typeof first.effective_mask === 'number' ? { effective_mask: first.effective_mask } : {}),
     };
     if (!first.has_more) return result;
     if (!first.next_cursor) throw new Error('Directory page reported more items without a cursor.');
     const continuation = await this.continue(generation, folderId, first.next_cursor, pageSize, (page) => {
       result.folders.push(...page.folders);
       result.documents.push(...page.documents);
+      if (typeof page.effective_mask === 'number') {
+        result.effective_mask = page.effective_mask;
+      }
     });
     if (continuation.status === 'partial-error') throw continuation.error;
     return continuation.status === 'complete' ? result : null;

@@ -263,6 +263,7 @@
       onFolderContextMenu={workspace.showFolderContextMenu}
       onDocumentContextMenu={workspace.showDocumentContextMenu}
       canMoveItems={true}
+      canDropItems={workspace.canDropItems}
       onDragSelection={workspace.handleDragSelection}
       onMoveItems={workspace.handleDropMove}
       emptyContent={workspace.directoryAccessDenied ? deniedDirectoryContent : undefined}
@@ -581,6 +582,7 @@
     originalParentId={workspace.currentFolderId}
     initialBreadcrumb={workspace.moveInitialBreadcrumb}
     excludedDirectoryIds={workspace.batchMoveDialog.excludedDirectoryIds}
+    requiredDestinationMask={workspace.batchMoveDestinationMask}
     moving={workspace.batchMoveDialog.saving}
     onMove={workspace.handleBatchMoveToTarget}
     onCancel={() => (workspace.batchMoveDialog = null)}
@@ -618,6 +620,7 @@
       canListUsers={authStore.permissions.includes('list_users')}
       canListGroups={authStore.permissions.includes('list_groups')}
       saving={workspace.accessRulesDialog.saving}
+      readOnly={workspace.accessRulesDialog.readOnly}
       onSave={workspace.handleSaveAccessRules}
       onCancel={() => (workspace.accessRulesDialog = null)}
     />
@@ -780,18 +783,20 @@
                 </div>
 
                 <div class="flex items-center gap-1 py-3">
-                  <FluentButton data-fluent-owner="routes-home-files-page"
-                    title={$t('common.download')}
-                    onclick={() => workspace.handleDownloadRevision(row.revision)}
-                    type="button"
-                    appearance="subtle"
-                    class="rounded p-2 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high hover:text-md3-on-surface"
-                    iconOnly
-                    aria-label={$t('common.download')}
-                  >
-                    <Icon name="download" size="18px" />
-                  </FluentButton>
-                  {#if !row.revision.is_current}
+                  {#if workspace.canDownloadRevision(row.revision)}
+                    <FluentButton data-fluent-owner="routes-home-files-page"
+                      title={$t('common.download')}
+                      onclick={() => workspace.handleDownloadRevision(row.revision)}
+                      type="button"
+                      appearance="subtle"
+                      class="rounded p-2 text-md3-on-surface-variant transition-colors hover:bg-md3-surface-container-high hover:text-md3-on-surface"
+                      iconOnly
+                      aria-label={$t('common.download')}
+                    >
+                      <Icon name="download" size="18px" />
+                    </FluentButton>
+                  {/if}
+                  {#if !row.revision.is_current && workspace.canSetCurrentRevision}
                     <FluentButton data-fluent-owner="routes-home-files-page"
                       title={$t('files.setCurrentRevision')}
                       onclick={() => workspace.handleSetCurrentRevision(row.revision)}
@@ -803,10 +808,11 @@
                     >
                       <Icon name="pushPin" size="18px" />
                     </FluentButton>
+                  {/if}
+                  {#if !row.revision.is_current && workspace.canDeleteRevision}
                     <FluentButton data-fluent-owner="routes-home-files-page"
                       title={$t('files.deleteRevision')}
                       onclick={() => workspace.handleDeleteRevision(row.revision)}
-                      disabled={!authStore.permissions.includes('delete_revision')}
                       type="button"
                       appearance="subtle"
                       tone="danger"

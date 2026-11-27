@@ -82,6 +82,7 @@
     onFolderContextMenu,
     onDocumentContextMenu,
     canMoveItems,
+    canDropItems,
     onDragSelection,
     onMoveItems,
     emptyContent,
@@ -108,6 +109,7 @@
     onFolderContextMenu: (event: MouseEvent | KeyboardEvent, folder: ServerDirectoryEntry) => void;
     onDocumentContextMenu: (event: MouseEvent | KeyboardEvent, document: ServerDocumentEntry) => void;
     canMoveItems: boolean;
+    canDropItems?: (items: FileTableDragItems, targetFolderId: string) => boolean;
     onDragSelection: (items: FileTableDragItems) => void;
     onMoveItems: (items: FileTableDragItems, targetFolderId: string) => void | Promise<void>;
     emptyContent?: Snippet;
@@ -435,7 +437,8 @@
       setDropTarget(null);
       return;
     }
-    setDropTarget({ folderId, allowed: canMoveItems });
+    const allowed = canMoveItems && (canDropItems ? canDropItems(itemDrag.items, folderId) : true);
+    setDropTarget({ folderId, allowed });
   }
 
   function cancelItemDragHitTest() {
