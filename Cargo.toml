@@ -111,3 +111,12 @@ tauri-plugin-dialog = "2"
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 async-trait = "0.1"
+
+# Do not optimize own business codes
+[profile.dev]
+opt-level = 0
+
+# Compile third-party libraries with the highest level of optimization to 
+# enhance the performance of cryptographic libraries
+[profile.dev.package."*"]
+opt-level = 3

@@ -90,7 +90,7 @@ Use locally bundled Noto Sans followed by Noto Sans SC for sans-serif text on ev
 
 The font stacks are declared in the Fluent theme module and emitted into the generated CSS. Fluent base/numeric tokens, Tailwind font utilities and legacy font aliases resolve to these same stacks. In particular, --font-md3-serif and --font-cfms-reading resolve to --font-cfms-serif, not the sans-serif base.
 
-Fonts ship as local variable WOFF2 slices covering weights 300–800 for Noto Sans and Noto Sans SC, and 400–800 for other families. Preserve unicode ranges for dynamic filenames, user names and server content; never limit coverage to translation strings. The build-time font asset script is the only downloader. Ship the OFL license for each family and make no runtime font CDN requests.
+Fonts ship as local variable WOFF2 assets covering each family's full upstream variable axes (`wght`, `wdth`, `opsz`, `ROND`, `slnt`), upright and italic styles, and OpenType layout features. Non-CJK families ship unsubsetted full-range variable WOFF2s, while Noto Sans SC and Noto Serif SC preserve Google Fonts's frequency-bucketed unicode-range slices compiled from upstream TTFs for dynamic filenames, user names and server content; never limit coverage to translation strings. The build-time font asset script is the only downloader. Ship the OFL license for each family and make no runtime font CDN requests.
 
 Use the 12/16, 14/20, 16/22, 20/26 and 28/36 pixel ramp. Default text is regular 14/20; semibold supplies hierarchy. Touch inputs use 16px. Prefer sentence case, baseline alignment and restrained tracking.
 

@@ -399,9 +399,20 @@
 
   .lockdown-clock {
     color: var(--colorNeutralForeground1);
-    font: 600 clamp(3.75rem, 10.5vw, 5.75rem)/1 var(--fontFamilyMonospace);
+    font-family: "Google Sans Flex", var(--fontFamilyMonospace);
+    font-size: clamp(3.75rem, 10.5vw, 5.75rem);
+    font-weight: 425;
+    line-height: 1;
+
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
+    font-feature-settings: "tnum" 1, "calt" 1;
+    font-optical-sizing: auto;
+
+    font-variation-settings:
+      "wdth" 90,
+      "ROND" 0;
+
+    letter-spacing: -0.035em;
     text-wrap: nowrap;
   }
 
