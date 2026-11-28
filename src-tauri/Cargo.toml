@@ -57,7 +57,7 @@ keyring-core = "1"
 apple-native-keyring-store = { version = "1", features = ["protected"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "0.31", default-features = false, features = ["process"] }
+nix = { version = "0.32", default-features = false, features = ["process"] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 async-trait.workspace = true
