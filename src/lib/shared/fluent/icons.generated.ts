@@ -549,6 +549,14 @@ import svg546 from '@fluentui/svg-icons/icons/scan_person_24_regular.svg?raw';
 import svg547 from '@fluentui/svg-icons/icons/scan_person_24_filled.svg?raw';
 import svg548 from '@fluentui/svg-icons/icons/scan_person_20_regular.svg?raw';
 import svg549 from '@fluentui/svg-icons/icons/scan_person_20_filled.svg?raw';
+import svg550 from '@fluentui/svg-icons/icons/cellular_off_24_regular.svg?raw';
+import svg551 from '@fluentui/svg-icons/icons/cellular_off_24_filled.svg?raw';
+import svg552 from '@fluentui/svg-icons/icons/cellular_off_20_regular.svg?raw';
+import svg553 from '@fluentui/svg-icons/icons/cellular_off_20_filled.svg?raw';
+import svg554 from '@fluentui/svg-icons/icons/cellular_data_1_24_regular.svg?raw';
+import svg555 from '@fluentui/svg-icons/icons/cellular_data_1_24_filled.svg?raw';
+import svg556 from '@fluentui/svg-icons/icons/cellular_data_1_20_regular.svg?raw';
+import svg557 from '@fluentui/svg-icons/icons/cellular_data_1_20_filled.svg?raw';
 import duotone0 from './assets/duotone/person_circle_24.svg?raw';
 import duotone1 from './assets/duotone/person_circle_20.svg?raw';
 import duotone2 from './assets/duotone/folder_add_24.svg?raw';
@@ -722,4 +730,6 @@ export const ICON_VARIANTS = {
   lockClosedKey: { regular: svg538, filled: svg539, small: svg540, smallFilled: svg541 },
   mention: { regular: svg542, filled: svg543, small: svg544, smallFilled: svg545 },
   scanPerson: { regular: svg546, filled: svg547, small: svg548, smallFilled: svg549 },
+  cellularOff: { regular: svg550, filled: svg551, small: svg552, smallFilled: svg553 },
+  cellularData1: { regular: svg554, filled: svg555, small: svg556, smallFilled: svg557 },
 } as const;

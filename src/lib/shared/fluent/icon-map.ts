@@ -157,4 +157,6 @@ export const ICON_MAP = {
   "lockClosedKey": "lock_closed_key",
   "mention": "mention",
   "scanPerson": "scan_person",
+  "cellularOff": "cellular_off",
+  "cellularData1": "cellular_data_1",
 } as const;

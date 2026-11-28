@@ -469,12 +469,23 @@ export const en = {
     title: 'Lockdown',
     body:
       'The server is currently under lockdown. All file operations are suspended and the connection is being held. Please contact your system administrator for more information.',
-    signInIncomplete:
-      'Your credentials were accepted, but encryption and preference setup cannot finish during lockdown. You will need to sign in again after lockdown is lifted.',
-    wait: 'Wait until the state is lifted or',
+    connectionConnected: 'Connected',
+    connectionLost: 'Connection lost',
+    sessionNotKeptTitle: 'No session kept',
+    sessionNotKeptBody:
+      'For security, sessions for non-exempt accounts are not kept during lockdown. Sign in again after lockdown is lifted, or return to sign in with an exempt account.',
+    sessionSuspendedTitle: 'Session suspended',
+    sessionSuspendedBody:
+      'Your session is paused in place and will resume automatically after lockdown is lifted. Log out or disconnect before leaving this device.',
+    sessionSuspendedBodyWithAppLock:
+      'Your session is paused in place and will resume automatically after lockdown is lifted. Lock the app, log out, or disconnect before leaving this device.',
+    wait: 'Wait until lockdown is lifted, or choose an action',
+    connectionLostWait:
+      'The connection to the server was lost and cannot resume automatically. Disconnect to reconnect.',
     quit: 'Quit',
     disconnect: 'Disconnect',
     logout: 'Log out',
+    backToSignIn: 'Back to sign in',
     enableAction: 'Enable Lockdown',
     disableAction: 'Disable Lockdown',
     confirmEnableAction: 'Confirm Lockdown',
@@ -484,6 +495,8 @@ export const en = {
     reasonLabel: 'Lockdown reason',
     quitHint:
       'Exit requests may be limited by the mobile operating system. Disconnect or log out if the app remains open.',
+    quitHintSignedOut:
+      'Exit requests may be limited by the mobile operating system. Disconnect or return to sign in if the app remains open.',
     banner: 'System Lockdown',
   },
   appLock: {

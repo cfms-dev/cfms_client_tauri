@@ -464,12 +464,22 @@ export const zh_CN = {
     title: '锁定',
     body:
       '服务器当前处于紧急锁定状态。所有文件操作已暂停，连接将保持占用。请联系系统管理员了解更多信息。',
-    signInIncomplete:
-      '您的登录凭据已通过验证，但锁定期间无法完成加密与偏好设置。锁定解除后，您需要重新登录。',
-    wait: '请等待锁定状态解除，或',
+    connectionConnected: '已连接',
+    connectionLost: '连接已中断',
+    sessionNotKeptTitle: '未保留登录会话',
+    sessionNotKeptBody:
+      '出于安全考虑，紧急锁定期间不保留非豁免账户的登录会话。锁定解除后请重新登录，或返回登录页切换至豁免账户。',
+    sessionSuspendedTitle: '当前会话已挂起',
+    sessionSuspendedBody:
+      '您的登录会话已安全挂起，锁定解除后将自动恢复工作区。离开设备前请退出登录或断开连接。',
+    sessionSuspendedBodyWithAppLock:
+      '您的登录会话已安全挂起，锁定解除后将自动恢复工作区。离开设备前可锁定应用、退出登录或断开连接。',
+    wait: '请等待锁定状态解除，或选择以下操作',
+    connectionLostWait: '与服务器的连接已中断，无法自动等待恢复。请断开连接后重试。',
     quit: '退出',
     disconnect: '断开连接',
     logout: '退出登录',
+    backToSignIn: '返回登录',
     enableAction: '启用锁定',
     disableAction: '停用锁定',
     confirmEnableAction: '确认启用锁定',
@@ -478,6 +488,7 @@ export const zh_CN = {
     reasonCharactersRemaining: '还可输入 {count} 字',
     reasonLabel: '锁定理由',
     quitHint: '移动系统可能限制应用主动退出。若应用仍保持打开，请改用断开连接或退出登录。',
+    quitHintSignedOut: '移动系统可能限制应用主动退出。若应用仍保持打开，请改用断开连接或返回登录。',
     banner: '系统封锁',
   },
   appLock: {

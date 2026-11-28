@@ -1,15 +1,16 @@
 <!--
   THESIS: Time anchors lockdown; the screen refuses the generic centered alert card.
-  OWN-WORLD: Carbon fields, one rose security signal, exact rules, and compact controls.
-  STORY: See the suspended state, read its reason, then wait or leave safely.
-  FIRST VIEWPORT: A monumental clock and slim status line float above one lower operations shelf.
-  FORM: Time Horizon, grounded structure 3, approved lower-shelf staging; seed 7ec1ca98.
+  OWN-WORLD: Fluent 2 neutral canvas (Mica-ready), one rose security signal, exact rules, and structured controls.
+  STORY: See the suspended state and live link status, understand session posture and reason, then wait or leave safely.
+  FIRST VIEWPORT: Live connection strip, monumental 24-hour clock, and slim rose register above one lower operations shelf.
+  FORM: Time Horizon, grounded structure 3, refined lower-shelf staging; seed 7ec1ca98.
 -->
 <script lang="ts">
   // Lockdown screen
   //
   // Full-screen overlay shown when the server is in emergency lockdown mode.
-  // Suspends file interaction while keeping session-exit and app-lock actions available.
+  // Suspends file interaction while surfacing accurate session posture,
+  // live connection status, and safe exit or account-switching paths.
   //
   // Reference: LockdownModel in reference/src/include/ui/models/misc/lockdown.py
 
@@ -21,19 +22,45 @@
     disconnect,
     quitApplication,
   } from '#lib/api.ts';
+  import { authStore } from '#lib/features/authentication/auth-state.svelte.ts';
+  import { serverStateStore } from '#lib/features/connection/connection-state.svelte.ts';
   import { appLockStore } from '#lib/features/settings/app-lock.svelte.ts';
   import { formatUserFacingError } from '#lib/shared/errors/user-facing-errors.ts';
-  import DialogActionButton from '#lib/shared/ui/DialogActionButton.svelte';
+  import { notificationStore } from '#lib/shared/notifications/notifications.svelte.ts';
+  import { isMobilePlatform } from '#lib/shared/platform/platform.ts';
+  import FluentButton from '#lib/shared/ui/FluentButton.svelte';
   import Icon from '#lib/shared/ui/Icon.svelte';
-  import IconButton from '#lib/shared/ui/IconButton.svelte';
   import ProgressRing from '#lib/shared/ui/ProgressRing.svelte';
-  import { authStore } from "#lib/features/authentication/auth-state.svelte.ts";
-import { notificationStore } from "#lib/shared/notifications/notifications.svelte.ts";
-import { serverStateStore } from "#lib/features/connection/connection-state.svelte.ts";
+
+  type LockdownAction = 'quit' | 'disconnect' | 'logout' | 'backToSignIn';
 
   let currentTime = $state('');
-  let busyAction = $state<'quit' | 'disconnect' | 'logout' | null>(null);
+  let busyAction = $state<LockdownAction | null>(null);
+
+  const showMobileQuitHint = isMobilePlatform();
   const lockdownReason = $derived(serverStateStore.lockdownReason?.trim() ?? '');
+  const sessionStatusTitle = $derived(
+    authStore.isLoggedIn
+      ? $t('lockdown.sessionSuspendedTitle')
+      : $t('lockdown.sessionNotKeptTitle'),
+  );
+  const sessionStatusBody = $derived(
+    authStore.isLoggedIn
+      ? appLockStore.canLock
+        ? $t('lockdown.sessionSuspendedBodyWithAppLock')
+        : $t('lockdown.sessionSuspendedBody')
+      : $t('lockdown.sessionNotKeptBody'),
+  );
+  const waitGuidance = $derived(
+    serverStateStore.connected
+      ? $t('lockdown.wait')
+      : $t('lockdown.connectionLostWait'),
+  );
+  const mobileQuitHint = $derived(
+    authStore.isLoggedIn
+      ? $t('lockdown.quitHint')
+      : $t('lockdown.quitHintSignedOut'),
+  );
 
   const clockFormatter = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
@@ -75,7 +102,7 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
   });
 
   async function runLockdownAction(
-    action: 'quit' | 'disconnect' | 'logout',
+    action: LockdownAction,
     handler: () => Promise<void>,
   ) {
     if (busyAction) return;
@@ -107,7 +134,17 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
   }
 
   async function handleLogout() {
+    if (!serverStateStore.connected) return;
     await runLockdownAction('logout', async () => {
+      await clearAuthSession();
+      authStore.clear();
+      await goto('/login', { replaceState: true });
+    });
+  }
+
+  async function handleReturnToLogin() {
+    if (!serverStateStore.connected) return;
+    await runLockdownAction('backToSignIn', async () => {
       await clearAuthSession();
       authStore.clear();
       await goto('/login', { replaceState: true });
@@ -124,17 +161,38 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
   aria-labelledby="lockdown-title"
   aria-describedby="lockdown-description"
 >
-  {#if authStore.isLoggedIn && appLockStore.canLock}
-    <div class="lockdown-toolbar">
-      <IconButton
-        icon="lock"
-        label={$t('appLock.lockNow')}
-        onclick={handleAppLock}
-      />
-    </div>
-  {/if}
-
   <section class="lockdown-stage">
+    <div class="lockdown-topbar">
+      <div
+        class="lockdown-connection-status"
+        class:lockdown-connection-status--lost={!serverStateStore.connected}
+      >
+        <span class="cfms-icon-text__icon lockdown-connection-icon" aria-hidden="true">
+          <Icon
+            name={serverStateStore.connected ? 'cellularData1' : 'cellularOff'}
+            size="16px"
+          />
+        </span>
+        <span>
+          {serverStateStore.connected
+            ? $t('lockdown.connectionConnected')
+            : $t('lockdown.connectionLost')}
+        </span>
+      </div>
+
+      {#if authStore.isLoggedIn && appLockStore.canLock}
+        <FluentButton
+          data-fluent-owner="app-authentication-lockdown-page"
+          class="lockdown-applock-button"
+          appearance="subtle"
+          onclick={handleAppLock}
+        >
+          <Icon name="lock" size="16px" />
+          {$t('appLock.lockNow')}
+        </FluentButton>
+      {/if}
+    </div>
+
     <div class="lockdown-hero">
       <time
         class="lockdown-clock"
@@ -156,87 +214,114 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
       </header>
     </div>
 
-    <footer
-      class="lockdown-shelf"
-      class:lockdown-shelf--single={authStore.isLoggedIn && !lockdownReason}
-    >
-      {#if !authStore.isLoggedIn || lockdownReason}
-        <div class="lockdown-context">
-          {#if lockdownReason}
-            <aside class="lockdown-reason" role="note" aria-labelledby="lockdown-reason-label">
-              <p id="lockdown-reason-label" class="lockdown-context-label">
-                {$t('lockdown.reasonLabel')}
-              </p>
-              <p class="lockdown-context-copy">
-                {lockdownReason}
-              </p>
-            </aside>
-          {/if}
+    <footer class="lockdown-shelf">
+      <div class="lockdown-context">
+        {#if lockdownReason}
+          <aside class="lockdown-reason" role="note" aria-labelledby="lockdown-reason-label">
+            <p id="lockdown-reason-label" class="lockdown-context-label">
+              {$t('lockdown.reasonLabel')}
+            </p>
+            <p class="lockdown-context-copy">
+              {lockdownReason}
+            </p>
+          </aside>
+        {/if}
 
-          {#if !authStore.isLoggedIn}
-            <div class="lockdown-session-note" role="status">
-              <span class="lockdown-detail-icon" aria-hidden="true">
-                <Icon name="warningAmber" size="20px" />
-              </span>
-              <p class="lockdown-context-copy">{$t('lockdown.signInIncomplete')}</p>
-            </div>
-          {/if}
+        <div
+          class="lockdown-session-note"
+          class:lockdown-session-note--warning={!authStore.isLoggedIn}
+          role="status"
+        >
+          <span class="cfms-icon-text__icon lockdown-detail-icon" aria-hidden="true">
+            {#if authStore.isLoggedIn}
+              <Icon name="pauseCircle" size="20px" />
+            {:else}
+              <Icon name="warningAmber" size="20px" tone="warning" />
+            {/if}
+          </span>
+          <div class="lockdown-session-copy">
+            <p class="lockdown-session-title">{sessionStatusTitle}</p>
+            <p class="lockdown-context-copy lockdown-session-body">{sessionStatusBody}</p>
+          </div>
         </div>
-      {/if}
+      </div>
 
       <div class="lockdown-operations">
         <div class="lockdown-action-copy">
-          <p class="lockdown-wait-copy">{$t('lockdown.wait')}</p>
-          <p class="lockdown-quit-hint">{$t('lockdown.quitHint')}</p>
+          <p
+            class="lockdown-wait-copy"
+            class:lockdown-wait-copy--lost={!serverStateStore.connected}
+          >
+            {waitGuidance}
+          </p>
+          {#if showMobileQuitHint}
+            <p class="lockdown-quit-hint">{mobileQuitHint}</p>
+          {/if}
         </div>
 
-        <div
-          class="lockdown-actions"
-          class:lockdown-actions--signed-out={!authStore.isLoggedIn}
-        >
-          <DialogActionButton
-            class="lockdown-action-button lockdown-action-button--primary"
-            variant="primary"
+        <div class="lockdown-actions">
+          <FluentButton
+            data-fluent-owner="app-authentication-lockdown-page"
+            class="lockdown-action-button"
+            appearance="primary"
             onclick={handleDisconnect}
             disabled={busyAction !== null}
           >
             {#if busyAction === 'disconnect'}
-              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+              <ProgressRing size={16} strokeWidth={2.25} label={$t('common.loadingEllipsis')} />
             {:else}
-              <Icon name="linkOff" size="18px" />
+              <Icon name="linkOff" size="16px" />
             {/if}
             {$t('lockdown.disconnect')}
-          </DialogActionButton>
+          </FluentButton>
 
           {#if authStore.isLoggedIn}
-            <DialogActionButton
+            <FluentButton
+              data-fluent-owner="app-authentication-lockdown-page"
               class="lockdown-action-button"
-              variant="secondary"
+              appearance="outline"
               onclick={handleLogout}
               disabled={busyAction !== null || !serverStateStore.connected}
             >
               {#if busyAction === 'logout'}
-                <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+                <ProgressRing size={16} strokeWidth={2.25} label={$t('common.loadingEllipsis')} />
               {:else}
-                <Icon name="logout" size="18px" />
+                <Icon name="logout" size="16px" />
               {/if}
               {$t('lockdown.logout')}
-            </DialogActionButton>
+            </FluentButton>
+          {:else}
+            <FluentButton
+              data-fluent-owner="app-authentication-lockdown-page"
+              class="lockdown-action-button"
+              appearance="outline"
+              onclick={handleReturnToLogin}
+              disabled={busyAction !== null || !serverStateStore.connected}
+            >
+              {#if busyAction === 'backToSignIn'}
+                <ProgressRing size={16} strokeWidth={2.25} label={$t('common.loadingEllipsis')} />
+              {:else}
+                <Icon name="arrowBack" size="16px" />
+              {/if}
+              {$t('lockdown.backToSignIn')}
+            </FluentButton>
           {/if}
 
-          <DialogActionButton
-            class="lockdown-action-button lockdown-action-button--quit"
-            variant="secondary"
+          <FluentButton
+            data-fluent-owner="app-authentication-lockdown-page"
+            class="lockdown-action-button"
+            appearance="subtle"
+            tone="danger"
             onclick={handleQuit}
             disabled={busyAction !== null}
           >
             {#if busyAction === 'quit'}
-              <ProgressRing size={18} strokeWidth={2.5} label={$t('common.loadingEllipsis')} />
+              <ProgressRing size={16} strokeWidth={2.25} label={$t('common.loadingEllipsis')} />
             {:else}
-              <Icon name="close" size="18px" />
+              <Icon name="close" size="16px" />
             {/if}
             {$t('lockdown.quit')}
-          </DialogActionButton>
+          </FluentButton>
         </div>
       </div>
     </footer>
@@ -253,53 +338,68 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
     min-block-size: 100dvh;
     flex-direction: column;
     overflow: auto;
-    padding-block-start: calc(var(--safe-area-top, 0px) + 4.25rem);
-    padding-block-end: max(1.25rem, var(--safe-area-bottom, 0px));
+    padding-block-start: max(1.25rem, var(--safe-area-top, 0px));
+    padding-block-end: max(1.5rem, var(--safe-area-bottom, 0px));
     padding-inline-start: max(1.5rem, var(--safe-area-left, 0px));
     padding-inline-end: max(1.5rem, var(--safe-area-right, 0px));
-    background: var(--explorer-background);
-  }
-
-  .lockdown-toolbar {
-    position: fixed;
-    z-index: 55;
-    inset-block-start: calc(var(--safe-area-top, 0px) + 1rem);
-    inset-inline-end: max(1rem, var(--safe-area-right, 0px));
-    display: flex;
-    min-block-size: 2.5rem;
-    align-items: center;
-  }
-
-  .lockdown-toolbar :global(.md-icon-button) {
-    inline-size: 40px;
-    block-size: 40px;
   }
 
   .lockdown-stage {
     box-sizing: border-box;
     display: grid;
-    grid-template-rows: minmax(18rem, 1fr) auto;
+    grid-template-rows: auto minmax(15rem, 1fr) auto;
     inline-size: min(100%, 1180px);
-    min-block-size: calc(100dvh - 6.75rem);
-    flex: none;
-    margin: auto;
-    color: var(--explorer-text);
+    min-block-size: 100%;
+    flex: 1 0 auto;
+    margin-inline: auto;
+    color: var(--colorNeutralForeground1);
     animation: lockdown-enter var(--motion-duration-medium2)
       var(--motion-easing-emphasized-decelerate) both;
+  }
+
+  .lockdown-topbar {
+    display: flex;
+    min-block-size: 2.25rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .lockdown-connection-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--colorNeutralForeground3);
+    font: 600 12px/16px var(--fontFamilyBase);
+  }
+
+  .lockdown-connection-icon {
+    --cfms-icon-line-height: 16px;
+    color: var(--colorStatusSuccessForeground1);
+  }
+
+  .lockdown-connection-status--lost,
+  .lockdown-connection-status--lost .lockdown-connection-icon {
+    color: var(--colorStatusDangerForeground1);
+  }
+
+  :global(.lockdown-applock-button[data-fluent-owner="app-authentication-lockdown-page"]) {
+    min-block-size: var(--cfms-control-height-medium);
+    white-space: nowrap;
   }
 
   .lockdown-hero {
     display: grid;
     min-inline-size: 0;
     place-content: center;
-    padding: clamp(2.25rem, 7vh, 5rem) clamp(0rem, 2vw, 1.5rem)
-      clamp(2.25rem, 5vh, 3.75rem);
+    padding: clamp(2rem, 6vh, 4.5rem) clamp(0rem, 2vw, 1.5rem)
+      clamp(2rem, 5vh, 3.5rem);
     text-align: center;
   }
 
   .lockdown-clock {
-    color: var(--explorer-text);
-    font: 600 clamp(4rem, 11vw, 6rem)/1 var(--font-md3-mono);
+    color: var(--colorNeutralForeground1);
+    font: 600 clamp(3.75rem, 10.5vw, 5.75rem)/1 var(--fontFamilyMonospace);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.03em;
     text-wrap: nowrap;
@@ -307,11 +407,11 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
 
   .lockdown-status-line {
     display: flex;
-    max-inline-size: 850px;
+    max-inline-size: 860px;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    margin: clamp(1.75rem, 4vh, 2.75rem) auto 0;
+    margin: clamp(1.75rem, 4vh, 2.5rem) auto 0;
   }
 
   .lockdown-symbol {
@@ -319,7 +419,7 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
     flex: none;
     align-items: center;
     justify-content: center;
-    color: var(--explorer-danger);
+    color: var(--colorStatusDangerForeground1);
   }
 
   .lockdown-status-copy {
@@ -332,43 +432,39 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
   .lockdown-status-copy h1 {
     flex: none;
     margin: 0;
-    border-inline-end: 1px solid var(--explorer-border-strong);
+    border-inline-end: 1px solid var(--colorNeutralStroke1);
     padding-inline-end: 1rem;
-    color: var(--explorer-danger);
-    font: 700 28px/36px var(--font-md3-sans);
+    color: var(--colorStatusDangerForeground1);
+    font: 700 28px/36px var(--fontFamilyBase);
     letter-spacing: -0.015em;
   }
 
   .lockdown-description {
-    max-inline-size: 68ch;
+    max-inline-size: 66ch;
     margin: 0;
     padding-inline-start: 1rem;
-    color: var(--explorer-text-muted);
-    font: 400 12px/16px var(--font-md3-sans);
+    color: var(--colorNeutralForeground2);
+    font: 400 14px/20px var(--fontFamilyBase);
   }
 
   .lockdown-shelf {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(30rem, 0.95fr);
-    border-block-start: 1px solid var(--explorer-border-strong);
-    border-radius: 0;
+    grid-template-columns: minmax(0, 1.15fr) minmax(24rem, 0.85fr);
+    border-block-start: 1px solid var(--colorNeutralStroke1);
     background: transparent;
-  }
-
-  .lockdown-shelf--single {
-    grid-template-columns: 1fr;
   }
 
   .lockdown-context {
     display: grid;
     min-inline-size: 0;
     align-content: center;
-    padding: clamp(1.25rem, 2.5vw, 1.75rem);
+    padding: clamp(1.25rem, 2.25vw, 1.75rem);
+    padding-inline-start: 0;
   }
 
   .lockdown-context > :global(* + *) {
     margin-block-start: 1rem;
-    border-block-start: 1px solid var(--explorer-border);
+    border-block-start: 1px solid var(--colorNeutralStroke2);
     padding-block-start: 1rem;
   }
 
@@ -377,29 +473,50 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
   }
 
   .lockdown-context-label {
-    margin: 0 0 0.55rem;
-    color: var(--explorer-text-muted);
-    font: 600 12px/16px var(--font-md3-sans);
+    margin: 0 0 0.375rem;
+    color: var(--colorNeutralForeground3);
+    font: 600 12px/16px var(--fontFamilyBase);
   }
 
   .lockdown-context-copy {
     margin: 0;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
-    color: var(--explorer-text);
-    font: 400 14px/20px var(--font-md3-sans);
+    color: var(--colorNeutralForeground1);
+    font: 400 14px/20px var(--fontFamilyBase);
   }
 
   .lockdown-session-note {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    align-items: start;
+    display: flex;
+    min-inline-size: 0;
+    align-items: flex-start;
     gap: 12px;
   }
 
   .lockdown-detail-icon {
-    display: inline-flex;
-    color: var(--explorer-warning);
+    --cfms-icon-line-height: 20px;
+    color: var(--colorCompoundBrandForeground1);
+  }
+
+  .lockdown-session-copy {
+    display: grid;
+    min-inline-size: 0;
+    gap: 4px;
+  }
+
+  .lockdown-session-title {
+    margin: 0;
+    color: var(--colorNeutralForeground1);
+    font: 600 14px/20px var(--fontFamilyBase);
+  }
+
+  .lockdown-session-note--warning .lockdown-session-title {
+    color: var(--colorStatusWarningForeground2);
+  }
+
+  .lockdown-session-body {
+    max-inline-size: 66ch;
+    color: var(--colorNeutralForeground2);
   }
 
   .lockdown-operations {
@@ -407,17 +524,9 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
     min-inline-size: 0;
     align-content: center;
     gap: 16px;
-    border-inline-start: 1px solid var(--explorer-border);
-    padding: clamp(1.25rem, 2.5vw, 1.75rem);
-  }
-
-  .lockdown-shelf--single .lockdown-operations {
-    inline-size: 100%;
-    border-inline-start: 0;
-  }
-
-  .lockdown-shelf--single .lockdown-actions {
-    justify-content: center;
+    border-inline-start: 1px solid var(--colorNeutralStroke2);
+    padding: clamp(1.25rem, 2.25vw, 1.75rem);
+    padding-inline-end: 0;
   }
 
   .lockdown-action-copy {
@@ -426,118 +535,98 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
 
   .lockdown-wait-copy {
     margin: 0;
-    color: var(--explorer-text);
-    font: 600 12px/16px var(--font-md3-sans);
+    color: var(--colorNeutralForeground2);
+    font: 600 14px/20px var(--fontFamilyBase);
+  }
+
+  .lockdown-wait-copy--lost {
+    color: var(--colorStatusDangerForeground1);
   }
 
   .lockdown-quit-hint {
     max-inline-size: 66ch;
-    margin: 0.4rem 0 0;
-    color: var(--explorer-text-muted);
-    font: 400 12px/16px var(--font-md3-sans);
+    margin: 0.375rem 0 0;
+    color: var(--colorNeutralForeground3);
+    font: 400 12px/16px var(--fontFamilyBase);
   }
 
   .lockdown-actions {
-    display: grid;
-    grid-template-columns: repeat(3, max-content);
-    justify-content: end;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
     gap: 8px;
   }
 
-  .lockdown-actions--signed-out {
-    grid-template-columns: repeat(2, max-content);
-  }
-
-  .lockdown-actions :global(.lockdown-action-button) {
-    min-block-size: 40px;
-    inline-size: auto;
-    justify-self: center;
-    border: 0;
-    border-radius: var(--borderRadiusMedium);
-    padding-inline: 0.875rem;
-    box-shadow: none;
+  :global(.lockdown-action-button[data-fluent-owner="app-authentication-lockdown-page"]) {
+    min-block-size: 36px;
     white-space: nowrap;
   }
 
-  .lockdown-actions :global(.lockdown-action-button--primary) {
-    color: var(--explorer-accent);
-    background: transparent;
-  }
-
-  .lockdown-actions :global(.lockdown-action-button--primary:hover:not(:disabled)) {
-    color: var(--explorer-accent);
-    background: var(--explorer-accent-soft);
-    box-shadow: none;
-  }
-
-  .lockdown-actions :global(.lockdown-action-button--quit) {
-    color: var(--explorer-danger);
-  }
-
-  .lockdown-actions :global(.lockdown-action-button--quit:hover:not(:disabled)) {
-    color: var(--explorer-danger);
-    background: color-mix(in srgb, var(--explorer-danger) 8%, transparent);
+  :global(.lockdown-action-button[data-fluent-owner="app-authentication-lockdown-page"] .md-progress-ring) {
+    color: inherit;
   }
 
   @keyframes lockdown-enter {
     from {
-      opacity: 0.82;
+      opacity: 0.85;
       transform: translateY(8px);
-      clip-path: inset(0 0 4% 0 round var(--explorer-radius-large));
     }
 
     to {
       opacity: 1;
       transform: translateY(0);
-      clip-path: inset(0 0 0 0 round var(--explorer-radius-large));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lockdown-stage {
+      animation: none;
     }
   }
 
   @media (pointer: coarse) {
-    .lockdown-toolbar :global(.md-icon-button) {
-      inline-size: 44px;
-      block-size: 44px;
-    }
-
-    .lockdown-actions :global(.lockdown-action-button) {
+    :global(.lockdown-applock-button[data-fluent-owner="app-authentication-lockdown-page"]),
+    :global(.lockdown-action-button[data-fluent-owner="app-authentication-lockdown-page"]) {
       min-block-size: 44px;
     }
   }
 
   @media (max-width: 820px) {
     .lockdown-stage {
-      grid-template-rows: auto auto;
+      grid-template-rows: auto auto auto;
     }
 
     .lockdown-shelf {
       grid-template-columns: 1fr;
     }
 
-    .lockdown-operations {
-      border-block-start: 1px solid var(--explorer-border);
-      border-inline-start: 0;
+    .lockdown-context {
+      padding-inline: 0;
     }
 
-    .lockdown-shelf--single .lockdown-operations {
-      inline-size: 100%;
+    .lockdown-operations {
+      border-block-start: 1px solid var(--colorNeutralStroke2);
+      border-inline-start: 0;
+      padding-inline: 0;
+    }
+
+    .lockdown-actions {
+      justify-content: flex-start;
     }
   }
 
   @media (max-width: 620px) {
     .lockdown-shell {
-      padding-block-start: calc(var(--safe-area-top, 0px) + 4.25rem);
-      padding-block-end: max(0.875rem, var(--safe-area-bottom, 0px));
-      padding-inline-start: max(0.875rem, var(--safe-area-left, 0px));
-      padding-inline-end: max(0.875rem, var(--safe-area-right, 0px));
-    }
-
-    .lockdown-stage {
-      min-block-size: calc(100dvh - 5.125rem);
+      padding-block-start: max(1rem, var(--safe-area-top, 0px));
+      padding-block-end: max(1rem, var(--safe-area-bottom, 0px));
+      padding-inline-start: max(1rem, var(--safe-area-left, 0px));
+      padding-inline-end: max(1rem, var(--safe-area-right, 0px));
     }
 
     .lockdown-hero {
-      padding-block-start: 2.25rem;
-      padding-block-end: 2rem;
+      padding-block-start: 1.75rem;
+      padding-block-end: 1.75rem;
     }
 
     .lockdown-clock {
@@ -547,12 +636,12 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
     .lockdown-status-line {
       max-inline-size: 31rem;
       align-items: start;
-      margin-block-start: 1.75rem;
+      margin-block-start: 1.5rem;
     }
 
     .lockdown-status-copy {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
 
     .lockdown-status-copy h1 {
@@ -566,36 +655,48 @@ import { serverStateStore } from "#lib/features/connection/connection-state.svel
 
     .lockdown-context,
     .lockdown-operations {
-      padding: 1.25rem;
+      padding-block: 1.25rem;
     }
   }
 
   @media (max-width: 480px) {
     .lockdown-actions {
-      grid-template-columns: max-content;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: 1fr;
     }
 
-    .lockdown-actions--signed-out {
-      grid-template-columns: max-content;
+    :global(.lockdown-action-button[data-fluent-owner="app-authentication-lockdown-page"]) {
+      inline-size: 100%;
     }
   }
 
   @media (max-height: 640px) and (min-width: 821px) {
     .lockdown-stage {
-      grid-template-rows: minmax(14rem, 1fr) auto;
+      grid-template-rows: auto minmax(12rem, 1fr) auto;
     }
 
     .lockdown-hero {
-      padding-block: 1.75rem;
+      padding-block: 1.5rem;
     }
 
     .lockdown-clock {
-      font-size: clamp(3.75rem, 10vw, 5rem);
+      font-size: clamp(3.5rem, 9.5vw, 4.75rem);
     }
 
     .lockdown-status-line {
-      margin-block-start: 1.5rem;
+      margin-block-start: 1.25rem;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .lockdown-connection-status,
+    .lockdown-connection-icon,
+    .lockdown-symbol,
+    .lockdown-status-copy h1,
+    .lockdown-detail-icon,
+    .lockdown-session-note--warning .lockdown-session-title,
+    .lockdown-wait-copy--lost {
+      color: CanvasText;
     }
   }
 </style>
